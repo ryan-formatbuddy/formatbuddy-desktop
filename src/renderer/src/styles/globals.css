@@ -299,15 +299,23 @@ button { font-family: inherit; }
   justify-content: flex-end;
 }
 .fb-scanning-error {
-  background: #fff5f5;
-  border: 1px solid #ffd6d6;
-  color: #8b0000;
+  background: #ffffff;
+  border: 1px solid var(--color-fb-line);
+  color: var(--color-fb-ink-1);
   border-radius: 12px;
   padding: 14px 16px;
   font-size: 13px;
 }
-.fb-scanning-error strong { display: block; margin-bottom: 4px; }
-.fb-scanning-error p { margin: 0; word-break: break-word; }
+.fb-scanning-error strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-fb-blue-heavy);
+}
+.fb-scanning-error p {
+  margin: 0;
+  word-break: break-word;
+  color: var(--color-fb-ink-2);
+}
 
 /* ============================================================
    ScanCard
@@ -343,7 +351,6 @@ button { font-family: inherit; }
   width: 7px; height: 7px;
   border-radius: 9999px;
   background: var(--color-fb-positive);
-  box-shadow: 0 0 0 3px rgba(0,191,64,0.18);
 }
 
 .scan-score {

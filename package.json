@@ -1,6 +1,6 @@
 {
   "name": "formatbuddy-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "FormatBuddy Desktop — Windows-only PC format companion built on Electron.",
   "author": {

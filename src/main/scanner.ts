@@ -1,8 +1,36 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared/types";
+
+const STDERR_MAX_BYTES = 64 * 1024;
+
+function isScanReport(value: unknown): value is ScanReport {
+  if (!value || typeof value !== "object") return false;
+  const r = value as Record<string, unknown>;
+  return (
+    typeof r.schemaVersion === "string" &&
+    typeof r.generatedAt === "string" &&
+    Array.isArray(r.disks) &&
+    Array.isArray(r.userFolders) &&
+    Array.isArray(r.installedApps) &&
+    Array.isArray(r.drivers) &&
+    Array.isArray(r.printers) &&
+    typeof r.system === "object" &&
+    typeof r.privacy === "object" &&
+    typeof r.checklist === "object"
+  );
+}
+
+async function readAndDelete(path: string): Promise<string> {
+  const raw = await fs.readFile(path, "utf8");
+  await fs.unlink(path).catch(() => {
+    // best-effort cleanup; ignore failures so a Windows lock doesn't crash the flow
+  });
+  return raw;
+}
 
 export interface RunScanOptions {
   scriptPath: string;
@@ -51,8 +79,9 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   const { onProgress, signal, mock } = options;
   const startedAt = Date.now();
 
-  ensureDir(options.outputDir);
-  const outPath = join(options.outputDir, `report-${randomUUID()}.json`);
+  const tmpDir = join(tmpdir(), "formatbuddy-scans");
+  ensureDir(tmpDir);
+  const outPath = join(tmpDir, `report-${randomUUID()}.json`);
 
   onProgress?.(progressFor(0, startedAt, "버디가 살펴볼 준비 중이에요"));
 
@@ -87,6 +116,7 @@ async function runMockScan(args: InternalRunArgs): Promise<ScanResult> {
   ensureDir(dirname(outPath));
   await fs.writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
 
+  // Mock pipeline echoes the on-disk path for parity but the file is ephemeral.
   return { report, jsonPath: outPath };
 }
 
@@ -136,6 +166,9 @@ function runPowershellScan(args: PowershellRunArgs): Promise<ScanResult> {
 
     child.stderr.on("data", (chunk: Buffer) => {
       stderrBuf += chunk.toString("utf8");
+      if (stderrBuf.length > STDERR_MAX_BYTES) {
+        stderrBuf = stderrBuf.slice(-STDERR_MAX_BYTES);
+      }
     });
 
     child.on("error", (err) => {
@@ -150,8 +183,13 @@ function runPowershellScan(args: PowershellRunArgs): Promise<ScanResult> {
         return;
       }
       try {
-        const raw = await fs.readFile(outPath, "utf8");
-        const report = JSON.parse(raw) as ScanReport;
+        const raw = await readAndDelete(outPath);
+        const parsed: unknown = JSON.parse(raw);
+        if (!isScanReport(parsed)) {
+          rejectScan(new Error("Diagnostic JSON did not match expected ScanReport schema."));
+          return;
+        }
+        const report = parsed;
         onProgress?.(progressFor(TOTAL_STEPS, startedAt, "살펴보기 끝났어요"));
         resolveScan({ report, jsonPath: outPath });
       } catch (e) {

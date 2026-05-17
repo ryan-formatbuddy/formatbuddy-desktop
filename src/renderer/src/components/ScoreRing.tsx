@@ -54,7 +54,7 @@ export function ScoreRing({
           textAnchor="middle"
           fontSize={Math.round(size * 0.21)}
           fontWeight={800}
-          fontFamily="'Wanted Sans', sans-serif"
+          fontFamily="'Wanted Sans','Pretendard',sans-serif"
           fill="var(--color-fb-blue)"
           style={{ fontFeatureSettings: '"tnum" on' }}
         >

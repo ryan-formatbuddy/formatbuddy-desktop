@@ -10,6 +10,8 @@ import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReport
 let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
 
+const DEV_RENDERER_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i;
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1080,
@@ -24,7 +26,7 @@ function createWindow() {
       preload: join(__dirname, "..", "preload", "index.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true
     }
   });
 
@@ -33,12 +35,20 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:") {
+        void shell.openExternal(url);
+      }
+    } catch {
+      // ignore malformed URLs
+    }
     return { action: "deny" };
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (!app.isPackaged && devUrl && DEV_RENDERER_PATTERN.test(devUrl)) {
+    void mainWindow.loadURL(devUrl);
   } else {
     void mainWindow.loadFile(join(__dirname, "..", "renderer", "index.html"));
   }
@@ -49,11 +59,12 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.scanStart, async (event) => {
     if (activeAbort) activeAbort.abort();
-    activeAbort = new AbortController();
+    const controller = new AbortController();
+    activeAbort = controller;
     const sender = event.sender;
 
     const emit = (progress: ScanProgress) => {
-      if (sender.isDestroyed()) return;
+      if (sender.isDestroyed() || controller.signal.aborted) return;
       sender.send(IpcChannels.scanProgress, progress);
     };
 
@@ -61,26 +72,27 @@ function registerIpc() {
       const result: ScanResult = await runScan({
         scriptPath: getScanScriptPath(),
         outputDir: getScanOutputDir(),
-        signal: activeAbort.signal,
+        signal: controller.signal,
         onProgress: emit
       });
-      if (!sender.isDestroyed()) {
+      if (!sender.isDestroyed() && !controller.signal.aborted) {
         sender.send(IpcChannels.scanComplete, result);
       }
       return result;
     } catch (err) {
       const e = err as Error;
+      const isAbort = e.name === "AbortError" || /cancel/i.test(e.message || "");
       const payload: ScanError = {
         message: e.message,
         code: (e as NodeJS.ErrnoException).code ?? undefined,
         detail: e.stack
       };
-      if (!sender.isDestroyed()) {
+      if (!isAbort && !sender.isDestroyed()) {
         sender.send(IpcChannels.scanError, payload);
       }
       throw payload;
     } finally {
-      activeAbort = null;
+      if (activeAbort === controller) activeAbort = null;
     }
   });
 
@@ -130,6 +142,13 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  if (activeAbort) {
+    activeAbort.abort();
+    activeAbort = null;
+  }
 });
 
 app.on("window-all-closed", () => {
