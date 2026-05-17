@@ -26,7 +26,12 @@ win:
       arch:
         - x64
   artifactName: ${productName}-Setup-${version}-${arch}.${ext}
-  # icon: resources/icons/app-icon.ico  # TODO: convert cloud-buddy-primary.svg to .ico in Phase 2
+  icon: resources/icons/app-icon.ico
+  # Phase 1: unsigned. macOS cross-build cannot run Windows signtool.
+  # Ryan must accept SmartScreen warning on first launch on Windows.
+  signtoolOptions: null
+  signAndEditExecutable: false
+  verifyUpdateCodeSignature: false
 
 nsis:
   oneClick: false
