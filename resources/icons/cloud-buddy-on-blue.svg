@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="포맷버디 (Format Buddy)">
+  
+  <rect x="116" y="44" width="8" height="22" rx="4" fill="#FFFFFF"></rect>
+  <circle cx="120" cy="38" r="9" fill="#FFFFFF"></circle>
+
+  
+  <g fill="#FFFFFF">
+    <ellipse cx="74" cy="146" rx="42" ry="40"></ellipse>
+    <ellipse cx="120" cy="124" rx="50" ry="48"></ellipse>
+    <ellipse cx="166" cy="146" rx="40" ry="38"></ellipse>
+    <rect x="56" y="146" width="128" height="42" rx="10"></rect>
+  </g>
+
+  
+  <ellipse cx="104" cy="140" rx="5.5" ry="6.8" fill="#0066FF"></ellipse>
+  <ellipse cx="136" cy="140" rx="5.5" ry="6.8" fill="#0066FF"></ellipse>
+
+  
+  <path d="M106 162 Q120 174 134 162" stroke="#0066FF" stroke-width="6" stroke-linecap="round" fill="none"></path>
+</svg>

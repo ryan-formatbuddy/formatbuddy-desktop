@@ -1,0 +1,43 @@
+appId: app.formatbuddy.desktop
+productName: FormatBuddy
+copyright: Copyright (c) ${author}
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - out/**/*
+  - package.json
+  - "!**/.vscode/*"
+  - "!**/{.eslintrc.cjs,.eslintrc,.prettierrc,.editorconfig,.gitignore,.npmrc}"
+  - "!**/{tsconfig.*,vite.config.*,vitest.config.*,electron-builder.yml,electron.vite.config.*}"
+
+extraResources:
+  - from: resources/powershell
+    to: powershell
+  - from: resources/fonts
+    to: fonts
+  - from: resources/icons
+    to: icons
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+  # icon: resources/icons/app-icon.ico  # TODO: convert cloud-buddy-primary.svg to .ico in Phase 2
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: FormatBuddy
+  installerLanguages:
+    - ko_KR
+    - en_US
+
+asar: true
+asarUnpack:
+  - resources/**

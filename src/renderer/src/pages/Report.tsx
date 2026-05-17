@@ -1,0 +1,140 @@
+import { useCallback, useMemo, useState } from "react";
+import { Button } from "../components/Button";
+import { Lockup } from "../components/Lockup";
+import { copy } from "@shared/copy";
+import type { ScanResult } from "@shared/types";
+
+interface ReportProps {
+  result: ScanResult;
+  onBack: () => void;
+}
+
+interface RowProps {
+  label: string;
+  value: React.ReactNode;
+}
+
+function Row({ label, value }: RowProps) {
+  return (
+    <div className="fb-report-row">
+      <div className="fb-report-row-label">{label}</div>
+      <div className="fb-report-row-value">{value}</div>
+    </div>
+  );
+}
+
+function formatGb(value?: number | null) {
+  if (value == null) return "—";
+  return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} GB`;
+}
+
+export function Report({ result, onBack }: ReportProps) {
+  const { report } = result;
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const installedCount = report.installedApps.length;
+  const driverCount = report.drivers.length;
+  const wifiCount = report.wifiProfiles.length;
+  const npkiFound = useMemo(() => report.npkiCandidates.filter((n) => n.exists).length, [report.npkiCandidates]);
+  const cloudFound = useMemo(() => report.cloudSync.filter((c) => c.exists).length, [report.cloudSync]);
+  const totalDiskGb = useMemo(() => report.disks.reduce((sum, d) => sum + (d.sizeGb || 0), 0), [report.disks]);
+  const totalFreeGb = useMemo(() => report.disks.reduce((sum, d) => sum + (d.freeGb || 0), 0), [report.disks]);
+
+  const onExport = useCallback(async () => {
+    if (!window.fb) return;
+    setExportStatus(null);
+    const res = await window.fb.exportReport(report, { defaultFileName: "formatbuddy-report.json" });
+    if (res.saved && res.path) setExportStatus(`저장했어요: ${res.path}`);
+    else setExportStatus("저장을 취소했어요.");
+  }, [report]);
+
+  const onOpenWeb = useCallback(async () => {
+    if (!window.fb) return;
+    await window.fb.openWebReport();
+  }, []);
+
+  return (
+    <main className="fb-report">
+      <header className="fb-report-header">
+        <Lockup markSize={36} kanjiSize={20} en={false} />
+        <div className="fb-report-actions">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            {copy.reportBackCta}
+          </Button>
+        </div>
+      </header>
+
+      <section className="fb-report-hero">
+        <h1 className="fb-h1-sm">{copy.reportTitle}</h1>
+        <p className="fb-lede">{copy.reportLede}</p>
+      </section>
+
+      <section className="fb-report-grid">
+        <article className="fb-card">
+          <h3>이 PC</h3>
+          <Row label="모델" value={`${report.system.manufacturer ?? "—"} ${report.system.model ?? ""}`.trim() || "—"} />
+          <Row label="운영체제" value={report.system.osCaption ?? "—"} />
+          <Row label="CPU" value={report.system.cpu ?? "—"} />
+          <Row label="메모리" value={formatGb(report.system.memoryGb)} />
+        </article>
+
+        <article className="fb-card">
+          <h3>저장 공간</h3>
+          <Row label="총 용량" value={formatGb(totalDiskGb)} />
+          <Row label="여유 공간" value={formatGb(totalFreeGb)} />
+          {report.disks.map((d) => (
+            <Row key={d.drive} label={d.drive} value={`${formatGb(d.sizeGb)} (여유 ${formatGb(d.freeGb)})`} />
+          ))}
+        </article>
+
+        <article className="fb-card">
+          <h3>같이 챙길 것</h3>
+          <Row label="공동인증서 후보" value={npkiFound > 0 ? `${npkiFound}곳 발견` : "찾지 못했어요"} />
+          <Row label="클라우드 동기화" value={cloudFound > 0 ? `${cloudFound}개 연결됨` : "연결 없음"} />
+          <Row label="Wi-Fi 프로필" value={`${wifiCount}개`} />
+          <Row label="BitLocker" value={report.bitlocker.length > 0 ? "암호화 볼륨 있음" : "확인 필요"} />
+        </article>
+
+        <article className="fb-card">
+          <h3>설치된 앱 / 드라이버</h3>
+          <Row label="설치된 앱" value={`${installedCount}개`} />
+          <Row label="드라이버" value={`${driverCount}개`} />
+          <Row label="winget" value={report.winget.available ? "사용 가능" : "사용 불가"} />
+          <Row label="프린터" value={`${report.printers.length}개`} />
+        </article>
+
+        <article className="fb-card">
+          <h3>사용자 폴더</h3>
+          {report.userFolders.map((f) => (
+            <Row key={f.name} label={f.name} value={formatGb(f.sizeGb)} />
+          ))}
+        </article>
+
+        <article className="fb-card fb-card-checklist">
+          <h3>포맷 전 체크리스트</h3>
+          <ul className="fb-report-checklist">
+            <li>공동인증서·Wi-Fi 프로필을 직접 옮겨주세요</li>
+            <li>Desktop·Documents·Downloads 백업</li>
+            <li>클라우드 동기화 완료 확인</li>
+            <li>리포트 JSON 저장 후 포맷</li>
+          </ul>
+        </article>
+      </section>
+
+      <section className="fb-report-cta">
+        <Button variant="primary" size="lg" onClick={onExport}>
+          {copy.reportExportCta}
+        </Button>
+        <Button variant="secondary" size="lg" onClick={onOpenWeb}>
+          {copy.reportOpenWebCta}
+        </Button>
+        {exportStatus && <p className="fb-report-cta-status">{exportStatus}</p>}
+      </section>
+
+      <section className="fb-report-meta">
+        <small>리포트 생성: {new Date(report.generatedAt).toLocaleString("ko-KR")}</small>
+        <small>schema {report.schemaVersion}</small>
+      </section>
+    </main>
+  );
+}
