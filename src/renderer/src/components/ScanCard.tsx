@@ -11,6 +11,7 @@ export interface ScanCardProps {
   doneSteps: number;
   totalSteps: number;
   steps: ScanStepView[];
+  message?: string;
   title?: string;
   liveLabel?: string;
 }
@@ -38,6 +39,7 @@ export function ScanCard({
   doneSteps,
   totalSteps,
   steps,
+  message,
   title = "버디가 살펴보는 중",
   liveLabel = "진단 중"
 }: ScanCardProps) {
@@ -59,14 +61,15 @@ export function ScanCard({
 
       <div className="scan-score">
         <div>
-          <div className="scan-score-label">버디 진행 점수</div>
+          <div className="scan-score-label">진행률</div>
           <div className="scan-score-value">
             {score}
-            <span className="scan-score-unit">점</span>
+            <span className="scan-score-unit">%</span>
           </div>
           <div className="scan-score-sub">
             전체 {totalSteps}단계 중 {doneSteps}단계 살펴봤어요
           </div>
+          {message && <div className="scan-score-message">{message}</div>}
         </div>
         <ScoreRing value={score} />
       </div>

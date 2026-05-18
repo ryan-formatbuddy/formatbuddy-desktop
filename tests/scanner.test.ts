@@ -25,6 +25,15 @@ describe("scanner mock pipeline", () => {
     expect(p.elapsedMs).toBeGreaterThanOrEqual(1000);
   });
 
+  it("finalizing progress waits below 100 until the report is ready", () => {
+    const started = Date.now() - 9000;
+    const p = __testing.progressForFinalizing(started);
+    expect(p.score).toBe(92);
+    expect(p.doneSteps).toBe(__testing.TOTAL_STEPS - 1);
+    expect(p.steps[p.steps.length - 1].state).toBe("active");
+    expect(p.message).toMatch(/결과/);
+  });
+
   it("runScan(mock) emits progress, completes, writes JSON", async () => {
     const dir = mkdtempSync(join(tmpdir(), "fb-scan-test-"));
     const events: ScanProgress[] = [];

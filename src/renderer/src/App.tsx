@@ -111,7 +111,8 @@ export function App() {
     }
     setPhase({ kind: "scanning", progress: INITIAL_PROGRESS });
     try {
-      await window.fb.startScan();
+      const result = await window.fb.startScan();
+      setPhase({ kind: "report", result });
     } catch {
       // 에러는 onScanError 이벤트로 처리
     }

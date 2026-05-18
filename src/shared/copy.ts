@@ -31,7 +31,7 @@ export const copy = {
   scanTitle: "버디가 살펴보는 중",
   scanWaiting: "잠깐, 진단 준비할게요",
   scanLiveLabel: "진단 중",
-  scanCancelCta: "그만하기",
+  scanCancelCta: "점검 멈추기",
 
   reportTitle: "살펴봤어요",
   reportLede: "포맷 전에 같이 챙기면 좋은 것들을 정리해 드렸어요.",

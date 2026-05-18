@@ -29,6 +29,7 @@ export function Scanning({ progress, errorMessage, onCancel, onRetry }: Scanning
           doneSteps={progress.doneSteps}
           totalSteps={progress.totalSteps}
           steps={progress.steps}
+          message={progress.message ?? "진단이 끝나면 자동으로 리포트로 넘어가요."}
           title={errorMessage ? copy.errorHeadline : copy.scanTitle}
           liveLabel={errorMessage ? "잠시 멈췄어요" : copy.scanLiveLabel}
         />

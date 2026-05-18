@@ -168,6 +168,13 @@ function progressFor(activeIndex: number, startedAt: number, message?: string): 
   };
 }
 
+function progressForFinalizing(startedAt: number): ScanProgress {
+  return {
+    ...progressFor(TOTAL_STEPS - 1, startedAt, "결과를 정리하고 있어요. 오래된 PC에서는 이 단계가 조금 걸릴 수 있어요."),
+    score: 92
+  };
+}
+
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   const { onProgress, signal, mock, enforceIntegrity } = options;
   const startedAt = Date.now();
@@ -265,9 +272,11 @@ function runPowershellScan(args: PowershellRunArgs): Promise<ScanResult> {
     let activeIndex = 0;
     let stderrBuf = "";
     const tick = setInterval(() => {
-      if (activeIndex < TOTAL_STEPS) {
+      if (activeIndex < TOTAL_STEPS - 1) {
         activeIndex += 1;
         onProgress?.(progressFor(activeIndex, startedAt));
+      } else {
+        onProgress?.(progressForFinalizing(startedAt));
       }
     }, 700);
 
@@ -569,6 +578,7 @@ export const __testing = {
   TOTAL_STEPS,
   buildSteps,
   progressFor,
+  progressForFinalizing,
   verifyAndStageScript,
   shouldUseMockPipeline
 };

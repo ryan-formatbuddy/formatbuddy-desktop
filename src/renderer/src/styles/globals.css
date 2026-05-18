@@ -607,6 +607,13 @@ button { font-family: inherit; }
   font-weight: 500;
   margin-top: 8px;
 }
+.scan-score-message {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-fb-blue-heavy);
+  font-weight: 650;
+}
 
 .scan-steps { display: flex; flex-direction: column; gap: 6px; }
 .scan-step {
