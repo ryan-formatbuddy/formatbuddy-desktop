@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import type {
+  ActionRunResult,
   ExportOptions,
   ExportResult,
   ManifestExportResult,
@@ -11,6 +12,47 @@ import type {
   ScanProgress,
   ScanResult
 } from "@shared/types";
+
+/**
+ * Whitelist of safe URL schemes that we let `shell.openExternal` hand to
+ * the OS. ms-settings: deep links open the Settings app at the right pane
+ * (e.g. Windows Update, Storage Sense, Defender) — no shell injection
+ * surface. Anything else falls back to "copy to clipboard" so the user
+ * can review and paste manually.
+ */
+const SAFE_URL_SCHEMES = /^(ms-settings|windowsdefender|ms-store|ms-availablenetworks|https):/i;
+const DEEP_LINK_FROM_SHELL = /^start\s+(ms-settings:[\w-]+|windowsdefender:|ms-store:[^\s]+)$/i;
+
+async function runActionCommand(rawCommand: string): Promise<ActionRunResult> {
+  const trimmed = (rawCommand ?? "").trim();
+  if (!trimmed) return { mode: "rejected", detail: "empty command" };
+
+  // 1) bare URL scheme → openExternal
+  if (SAFE_URL_SCHEMES.test(trimmed)) {
+    try {
+      await shell.openExternal(trimmed);
+      return { mode: "opened-url", detail: trimmed };
+    } catch (e) {
+      return { mode: "rejected", detail: (e as Error).message };
+    }
+  }
+
+  // 2) `start ms-settings:…` form → extract URL and openExternal
+  const deepLink = trimmed.match(DEEP_LINK_FROM_SHELL);
+  if (deepLink) {
+    try {
+      await shell.openExternal(deepLink[1]);
+      return { mode: "opened-url", detail: deepLink[1] };
+    } catch (e) {
+      return { mode: "rejected", detail: (e as Error).message };
+    }
+  }
+
+  // 3) anything else (cleanmgr, sfc, DISM, taskmgr, winget …) → clipboard.
+  // We refuse to spawn shell commands directly; the user reviews and pastes.
+  clipboard.writeText(trimmed);
+  return { mode: "copied-to-clipboard", detail: trimmed };
+}
 import { runBackupManifest, runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
 import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
@@ -192,6 +234,10 @@ function registerIpc() {
       const e = err as Error;
       return { saved: false, message: e.message };
     }
+  });
+
+  ipcMain.handle(IpcChannels.actionRun, async (_e, payload: { command: string }) => {
+    return runActionCommand(payload?.command ?? "");
   });
 }
 

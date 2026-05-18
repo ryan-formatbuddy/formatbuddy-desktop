@@ -1,8 +1,17 @@
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { CloudBuddy } from "../components/CloudBuddy";
 import { copy } from "@shared/copy";
-import type { ScanResult } from "@shared/types";
+import type { ActionItem, ScanResult } from "@shared/types";
+
+function expressionForScore(score: number): "calm" | "smile" | "wink" {
+  if (score >= 76) return "calm";
+  if (score >= 26) return "smile";
+  return "wink";
+}
+
+const HEAVY_REASON_THRESHOLD = 5;
 
 function severityClass(s: ScanResult["recommendation"]["severity"]): string {
   switch (s) {
@@ -79,6 +88,16 @@ export function Report({ result, onBack }: ReportProps) {
     await window.fb.openWebReport();
   }, []);
 
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const runAction = useCallback(async (action: ActionItem) => {
+    if (!action.command || !window.fb?.runActionCommand) return;
+    setRunStatus(null);
+    const res = await window.fb.runActionCommand(action.command);
+    if (res.mode === "opened-url") setRunStatus(copy.recommendRunOpenedToast);
+    else if (res.mode === "copied-to-clipboard") setRunStatus(copy.recommendRunCopiedToast);
+    else setRunStatus(copy.recommendRunRejectedToast);
+  }, []);
+
   const onExportManifest = useCallback(async () => {
     if (!window.fb) return;
     setManifestStatus(null);
@@ -118,17 +137,25 @@ export function Report({ result, onBack }: ReportProps) {
 
       <section className={`fb-score-card ${severityClass(recommendation.severity)}`}>
         <div className="fb-score-card-head">
-          <div>
+          <div className="fb-score-card-text">
             <div className="fb-score-card-label">{copy.recommendSectionTitle}</div>
             <div className="fb-score-card-value">
               <span className="fb-score-card-num">{recommendation.formatScore}</span>
               <span className="fb-score-card-unit">{copy.recommendScoreSuffix}</span>
             </div>
             <div className="fb-score-card-headline">{recommendation.headline}</div>
+            <div className="fb-score-card-badge">
+              <span className="fb-score-card-badge-dot" />
+              {copy.recommendSeverity[recommendation.severity].chip}
+            </div>
           </div>
-          <div className="fb-score-card-badge">
-            <span className="fb-score-card-badge-dot" />
-            {copy.recommendSeverity[recommendation.severity].chip}
+          <div className="fb-score-card-buddy">
+            <CloudBuddy
+              size={88}
+              variant="primary"
+              expression={expressionForScore(recommendation.formatScore)}
+              animated={recommendation.severity === "safe"}
+            />
           </div>
         </div>
         <p className="fb-score-card-summary">{recommendation.summary}</p>
@@ -143,9 +170,16 @@ export function Report({ result, onBack }: ReportProps) {
                 <strong>{a.title}</strong>
                 <span>{a.description}</span>
                 {a.command && (
-                  <code className="fb-advice-cmd" title={copy.recommendCommandLabel}>
-                    {a.command}
-                  </code>
+                  <div className="fb-advice-cmd-row">
+                    <code className="fb-advice-cmd">{a.command}</code>
+                    <button
+                      type="button"
+                      className="fb-run-btn"
+                      onClick={() => void runAction(a)}
+                    >
+                      {copy.recommendRunButton}
+                    </button>
+                  </div>
                 )}
               </li>
             ))}
@@ -158,15 +192,20 @@ export function Report({ result, onBack }: ReportProps) {
             <p className="fb-report-card-explain">{copy.recommendNoReasons}</p>
           ) : (
             <ul className="fb-advice-list">
-              {recommendation.formatReasons.map((r, i) => (
-                <li key={`fr-${i}`}>
-                  <strong>
-                    {r.label}{" "}
-                    <span className="fb-advice-weight">+{r.weightedScore.toFixed(1)}</span>
-                  </strong>
-                  <span>{r.description}</span>
-                </li>
-              ))}
+              {recommendation.formatReasons.map((r, i) => {
+                const heavy = r.weightedScore >= HEAVY_REASON_THRESHOLD;
+                return (
+                  <li key={`fr-${i}`}>
+                    <strong>
+                      {r.label}{" "}
+                      <span className={`fb-advice-weight${heavy ? " fb-advice-weight-heavy" : ""}`}>
+                        +{r.weightedScore.toFixed(1)}
+                      </span>
+                    </strong>
+                    <span>{r.description}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </article>
@@ -179,15 +218,28 @@ export function Report({ result, onBack }: ReportProps) {
                 <strong>{a.title}</strong>
                 <span>{a.description}</span>
                 {a.command && (
-                  <code className="fb-advice-cmd" title={copy.recommendCommandLabel}>
-                    {a.command}
-                  </code>
+                  <div className="fb-advice-cmd-row">
+                    <code className="fb-advice-cmd">{a.command}</code>
+                    <button
+                      type="button"
+                      className="fb-run-btn"
+                      onClick={() => void runAction(a)}
+                    >
+                      {copy.recommendRunButton}
+                    </button>
+                  </div>
                 )}
               </li>
             ))}
           </ul>
         </article>
       </section>
+
+      {runStatus && (
+        <div className="fb-run-status" role="status" aria-live="polite">
+          {runStatus}
+        </div>
+      )}
 
       <section className="fb-report-grid">
         <article className="fb-card">

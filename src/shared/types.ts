@@ -303,3 +303,8 @@ export interface UpdateErrorPayload {
 export interface WindowState {
   isMaximized: boolean;
 }
+
+export interface ActionRunResult {
+  mode: "opened-url" | "copied-to-clipboard" | "rejected";
+  detail?: string;
+}

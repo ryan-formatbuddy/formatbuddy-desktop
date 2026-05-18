@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IpcChannels } from "@shared/ipc";
 import type {
+  ActionRunResult,
   ExportOptions,
   ExportResult,
   ManifestExportResult,
@@ -93,7 +94,10 @@ const fb = {
     const wrapped = (_e: unknown, state: WindowState) => cb(state);
     ipcRenderer.on(IpcChannels.windowState, wrapped);
     return () => ipcRenderer.removeListener(IpcChannels.windowState, wrapped);
-  }
+  },
+
+  runActionCommand: (command: string): Promise<ActionRunResult> =>
+    ipcRenderer.invoke(IpcChannels.actionRun, { command })
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

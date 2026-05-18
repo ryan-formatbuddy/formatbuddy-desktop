@@ -99,6 +99,10 @@ export const copy = {
   recommendAfterFormatTitle: "포맷 후 같이 챙길 것",
   recommendNoReasons: "지금 발견된 큰 문제는 없어요. 정기 정리만 해도 충분해요.",
   recommendCommandLabel: "실행",
+  recommendRunButton: "실행",
+  recommendRunOpenedToast: "Windows 설정에서 해당 화면을 열어드렸어요.",
+  recommendRunCopiedToast: "명령어를 복사했어요. cmd 또는 PowerShell 창에 붙여넣어 실행해주세요.",
+  recommendRunRejectedToast: "지금은 직접 실행이 어려운 명령이에요. 복사도 안 됐어요.",
   /**
    * Severity copy moved to a structured table (v0.5.0) so recommend.ts can
    * build headline/summary from the same single source.

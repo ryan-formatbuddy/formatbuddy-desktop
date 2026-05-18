@@ -873,6 +873,17 @@ button { font-family: inherit; }
   justify-content: space-between;
   gap: 24px;
 }
+.fb-score-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fb-score-card-buddy {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .fb-score-card-label {
   font-size: 12px;
   font-weight: 700;
@@ -1005,4 +1016,56 @@ button { font-family: inherit; }
   margin-left: 6px;
   font-feature-settings: "tnum" on;
   vertical-align: middle;
+}
+/* v0.5.3: high-weight reasons get a solid blue chip — flat hierarchy
+   inside the same brand family, no extra colors. */
+.fb-advice-weight-heavy {
+  background: var(--color-fb-blue);
+  color: #ffffff;
+}
+
+.fb-advice-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.fb-advice-cmd-row .fb-advice-cmd {
+  margin-top: 0;
+  flex: 1;
+  min-width: 0;
+}
+.fb-run-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--color-fb-line);
+  background: #ffffff;
+  color: var(--color-fb-blue);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+}
+.fb-run-btn:hover {
+  background: var(--color-fb-blue-tint);
+  border-color: var(--color-fb-blue-tint);
+}
+.fb-run-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-fb-blue) 40%, transparent);
+  outline-offset: 2px;
+}
+
+.fb-run-status {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
 }
