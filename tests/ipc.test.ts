@@ -23,6 +23,10 @@ describe("IpcChannels", () => {
     expect(IpcChannels.updateInstall).toBe("update:install");
   });
 
+  it("contains manifest channel", () => {
+    expect(IpcChannels.manifestExport).toBe("manifest:export");
+  });
+
   it("channel values are unique", () => {
     const values = Object.values(IpcChannels);
     expect(new Set(values).size).toBe(values.length);

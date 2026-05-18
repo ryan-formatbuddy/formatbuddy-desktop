@@ -3,6 +3,7 @@ import { IpcChannels } from "@shared/ipc";
 import type {
   ExportOptions,
   ExportResult,
+  ManifestExportResult,
   ScanError,
   ScanProgress,
   ScanReport,
@@ -77,7 +78,10 @@ const fb = {
     ipcRenderer.on(IpcChannels.updateError, wrapped);
     return () => ipcRenderer.removeListener(IpcChannels.updateError, wrapped);
   },
-  installUpdate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.updateInstall)
+  installUpdate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.updateInstall),
+
+  exportBackupManifest: (): Promise<ManifestExportResult> =>
+    ipcRenderer.invoke(IpcChannels.manifestExport)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

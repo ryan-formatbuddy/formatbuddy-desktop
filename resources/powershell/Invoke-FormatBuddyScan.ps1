@@ -1,8 +1,15 @@
 # FormatBuddy local diagnostic prototype
 # Runs locally on Windows. Does not upload files, passwords, private keys, or browser credentials.
+#
+# Modes:
+#   -Mode quick     (default) full system diagnostics + installed apps + winget export summary
+#   -Mode manifest  per-user-folder SHA-256 manifest for backup/restore verification
 
 param(
-  [string]$OutputPath = "$env:USERPROFILE\Desktop\formatbuddy-report.json"
+  [string]$OutputPath = "$env:USERPROFILE\Desktop\formatbuddy-report.json",
+  [ValidateSet("quick", "manifest")]
+  [string]$Mode = "quick",
+  [int64]$ManifestMaxFileSizeBytes = 104857600
 )
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -127,68 +134,195 @@ function Get-WingetStatus {
   $winget = Get-Command winget -ErrorAction SilentlyContinue
   [ordered]@{
     available = [bool]$winget
-    note = if ($winget) { "winget is available. App export can be added in Phase 2." } else { "winget is not available on this PC." }
+    note = if ($winget) { "winget is available. App export captured in wingetExport." } else { "winget is not available on this PC." }
   }
 }
 
-$computer = Get-SafeCimInstance Win32_ComputerSystem | Select-Object -First 1
-$os = Get-SafeCimInstance Win32_OperatingSystem | Select-Object -First 1
-$bios = Get-SafeCimInstance Win32_BIOS | Select-Object -First 1
-$cpu = Get-SafeCimInstance Win32_Processor | Select-Object -First 1
-$gpu = Get-SafeCimInstance Win32_VideoController
-$disk = Get-SafeCimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
-$printers = Get-SafeCimInstance Win32_Printer
-$drivers = Get-SafeCimInstance Win32_PnPSignedDriver
-$wifiProfiles = try { netsh wlan show profiles | Select-String "All User Profile|모든 사용자 프로필" | ForEach-Object { ($_ -split ":", 2)[1].Trim() } } catch { Add-Diagnostic -Step "WiFiProfiles" -Message $_.Exception.Message; @() }
-$bitlocker = try { Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionPercentage } catch { Add-Diagnostic -Step "BitLocker" -Message $_.Exception.Message; @() }
+function Get-WingetExport {
+  $winget = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $winget) { return $null }
 
-$report = [ordered]@{
-  schemaVersion = "0.1.0"
-  generatedAt = (Get-Date).ToString("o")
-  privacy = [ordered]@{
-    localOnly = $true
-    noPasswordCollection = $true
-    noPrivateKeyUpload = $true
-    noBrowserPasswordExtraction = $true
-  }
-  system = [ordered]@{
-    manufacturer = $computer.Manufacturer
-    model = $computer.Model
-    serialNumberMasked = if ($bios.SerialNumber) { "***" + $bios.SerialNumber.Substring([Math]::Max(0, $bios.SerialNumber.Length - 4)) } else { $null }
-    osCaption = $os.Caption
-    osVersion = $os.Version
-    cpu = $cpu.Name
-    memoryGb = if ($computer.TotalPhysicalMemory) { [Math]::Round($computer.TotalPhysicalMemory / 1GB, 2) } else { $null }
-  }
-  disks = @($disk | ForEach-Object {
-    [ordered]@{
-      drive = $_.DeviceID
-      sizeGb = [Math]::Round($_.Size / 1GB, 2)
-      freeGb = [Math]::Round($_.FreeSpace / 1GB, 2)
+  $tempBase = [System.IO.Path]::GetTempFileName()
+  Remove-Item $tempBase -Force -ErrorAction SilentlyContinue
+  $tempJson = "$tempBase.json"
+
+  try {
+    $null = & winget export -o $tempJson --accept-source-agreements --disable-interactivity 2>&1
+    if (Test-Path $tempJson) {
+      $raw = Get-Content -Raw -Path $tempJson -ErrorAction Stop
+      return ($raw | ConvertFrom-Json -Depth 16)
     }
-  })
-  userFolders = @(Get-UserFolders)
-  gpu = @($gpu | ForEach-Object { $_.Name })
-  installedApps = @(Get-InstalledApps | Sort-Object name -Unique)
-  drivers = @($drivers | Select-Object DeviceName, DriverVersion, Manufacturer, DriverDate)
-  printers = @($printers | Select-Object Name, DriverName, PortName, Default)
-  wifiProfiles = @($wifiProfiles)
-  npkiCandidates = @(Test-NpkiLocation)
-  bitlocker = @($bitlocker)
-  cloudSync = @(Get-CloudSyncCandidates)
-  browsers = @(Get-BrowserPresence)
-  winget = Get-WingetStatus
-  diagnostics = @($diagnostics)
-  checklist = [ordered]@{
-    reviewNpkiManually = $true
-    exportWifiProfilesManually = $true
-    backupDesktopDocumentsDownloads = $true
-    verifyCloudSync = $true
-    saveReportBeforeFormat = $true
+  } catch {
+    Add-Diagnostic -Step "WingetExport" -Message $_.Exception.Message
+  } finally {
+    if (Test-Path $tempJson) { Remove-Item $tempJson -Force -ErrorAction SilentlyContinue }
+  }
+
+  return $null
+}
+
+function Get-BackupManifest {
+  param(
+    [string[]]$Folders,
+    [int64]$MaxFileSize
+  )
+
+  $folderResults = New-Object System.Collections.Generic.List[object]
+
+  foreach ($folder in $Folders) {
+    if ([string]::IsNullOrWhiteSpace($folder)) { continue }
+    if (-not (Test-Path $folder)) {
+      $folderResults.Add([ordered]@{
+        folder = $folder
+        exists = $false
+        fileCount = 0
+        skippedCount = 0
+        totalBytes = 0
+        entries = @()
+        skipped = @()
+      }) | Out-Null
+      continue
+    }
+
+    $entries = New-Object System.Collections.Generic.List[object]
+    $skipped = New-Object System.Collections.Generic.List[object]
+    $folderNorm = $folder.TrimEnd('\','/')
+
+    Get-ChildItem -LiteralPath $folder -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      $rel = $_.FullName
+      if ($rel.StartsWith($folderNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rel = $rel.Substring($folderNorm.Length).TrimStart('\','/')
+      }
+
+      if ($_.Length -gt $MaxFileSize) {
+        $skipped.Add([ordered]@{
+          path = $rel
+          sizeBytes = $_.Length
+          reason = "exceeds-max-size"
+        }) | Out-Null
+        return
+      }
+
+      try {
+        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName -ErrorAction Stop
+        $entries.Add([ordered]@{
+          path = $rel
+          sizeBytes = $_.Length
+          sha256 = $hash.Hash
+          modifiedAt = $_.LastWriteTimeUtc.ToString("o")
+        }) | Out-Null
+      } catch {
+        $skipped.Add([ordered]@{
+          path = $rel
+          sizeBytes = $_.Length
+          reason = "hash-failed: $($_.Exception.Message)"
+        }) | Out-Null
+      }
+    }
+
+    $totalBytes = ($entries | Measure-Object -Property sizeBytes -Sum).Sum
+    if ($null -eq $totalBytes) { $totalBytes = 0 }
+
+    $folderResults.Add([ordered]@{
+      folder = $folder
+      exists = $true
+      fileCount = $entries.Count
+      skippedCount = $skipped.Count
+      totalBytes = $totalBytes
+      entries = @($entries)
+      skipped = @($skipped)
+    }) | Out-Null
+  }
+
+  return @($folderResults)
+}
+
+if ($Mode -eq "manifest") {
+  $manifestFolders = @(
+    [Environment]::GetFolderPath("Desktop"),
+    [Environment]::GetFolderPath("MyDocuments"),
+    [Environment]::GetFolderPath("MyPictures"),
+    [Environment]::GetFolderPath("MyMusic"),
+    [Environment]::GetFolderPath("MyVideos"),
+    (Join-Path $env:USERPROFILE "Downloads")
+  ) | Where-Object { $_ }
+
+  $report = [ordered]@{
+    schemaVersion = "0.2.0-manifest"
+    generatedAt = (Get-Date).ToString("o")
+    mode = "manifest"
+    privacy = [ordered]@{
+      localOnly = $true
+      noPasswordCollection = $true
+      noPrivateKeyUpload = $true
+      noBrowserPasswordExtraction = $true
+    }
+    maxFileSizeBytes = $ManifestMaxFileSizeBytes
+    folders = Get-BackupManifest -Folders $manifestFolders -MaxFileSize $ManifestMaxFileSizeBytes
+    diagnostics = @($diagnostics)
+  }
+} else {
+  $computer = Get-SafeCimInstance Win32_ComputerSystem | Select-Object -First 1
+  $os = Get-SafeCimInstance Win32_OperatingSystem | Select-Object -First 1
+  $bios = Get-SafeCimInstance Win32_BIOS | Select-Object -First 1
+  $cpu = Get-SafeCimInstance Win32_Processor | Select-Object -First 1
+  $gpu = Get-SafeCimInstance Win32_VideoController
+  $disk = Get-SafeCimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
+  $printers = Get-SafeCimInstance Win32_Printer
+  $drivers = Get-SafeCimInstance Win32_PnPSignedDriver
+  $wifiProfiles = try { netsh wlan show profiles | Select-String "All User Profile|모든 사용자 프로필" | ForEach-Object { ($_ -split ":", 2)[1].Trim() } } catch { Add-Diagnostic -Step "WiFiProfiles" -Message $_.Exception.Message; @() }
+  $bitlocker = try { Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionPercentage } catch { Add-Diagnostic -Step "BitLocker" -Message $_.Exception.Message; @() }
+
+  $report = [ordered]@{
+    schemaVersion = "0.2.0-quick"
+    generatedAt = (Get-Date).ToString("o")
+    mode = "quick"
+    privacy = [ordered]@{
+      localOnly = $true
+      noPasswordCollection = $true
+      noPrivateKeyUpload = $true
+      noBrowserPasswordExtraction = $true
+    }
+    system = [ordered]@{
+      manufacturer = $computer.Manufacturer
+      model = $computer.Model
+      serialNumberMasked = if ($bios.SerialNumber) { "***" + $bios.SerialNumber.Substring([Math]::Max(0, $bios.SerialNumber.Length - 4)) } else { $null }
+      osCaption = $os.Caption
+      osVersion = $os.Version
+      cpu = $cpu.Name
+      memoryGb = if ($computer.TotalPhysicalMemory) { [Math]::Round($computer.TotalPhysicalMemory / 1GB, 2) } else { $null }
+    }
+    disks = @($disk | ForEach-Object {
+      [ordered]@{
+        drive = $_.DeviceID
+        sizeGb = [Math]::Round($_.Size / 1GB, 2)
+        freeGb = [Math]::Round($_.FreeSpace / 1GB, 2)
+      }
+    })
+    userFolders = @(Get-UserFolders)
+    gpu = @($gpu | ForEach-Object { $_.Name })
+    installedApps = @(Get-InstalledApps | Sort-Object name -Unique)
+    drivers = @($drivers | Select-Object DeviceName, DriverVersion, Manufacturer, DriverDate)
+    printers = @($printers | Select-Object Name, DriverName, PortName, Default)
+    wifiProfiles = @($wifiProfiles)
+    npkiCandidates = @(Test-NpkiLocation)
+    bitlocker = @($bitlocker)
+    cloudSync = @(Get-CloudSyncCandidates)
+    browsers = @(Get-BrowserPresence)
+    winget = Get-WingetStatus
+    wingetExport = Get-WingetExport
+    diagnostics = @($diagnostics)
+    checklist = [ordered]@{
+      reviewNpkiManually = $true
+      exportWifiProfilesManually = $true
+      backupDesktopDocumentsDownloads = $true
+      verifyCloudSync = $true
+      saveReportBeforeFormat = $true
+    }
   }
 }
 
 $parent = Split-Path -Parent $OutputPath
 if ($parent -and !(Test-Path $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
-$report | ConvertTo-Json -Depth 8 | Out-File -FilePath $OutputPath -Encoding utf8
-Write-Host "FormatBuddy report saved: $OutputPath"
+$report | ConvertTo-Json -Depth 16 | Out-File -FilePath $OutputPath -Encoding utf8
+Write-Host "FormatBuddy report saved: $OutputPath (mode=$Mode)"

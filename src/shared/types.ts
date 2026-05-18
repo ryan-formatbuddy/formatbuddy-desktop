@@ -87,6 +87,27 @@ export interface WingetStatus {
   note: string;
 }
 
+export interface WingetExportPackage {
+  PackageIdentifier?: string;
+  Version?: string;
+  Source?: string;
+  [k: string]: unknown;
+}
+
+export interface WingetExportSource {
+  SourceDetails?: { Name?: string; Argument?: string; Type?: string };
+  Packages?: WingetExportPackage[];
+  [k: string]: unknown;
+}
+
+export interface WingetExport {
+  $schema?: string;
+  CreationDate?: string;
+  Sources?: WingetExportSource[];
+  WinGetVersion?: string;
+  [k: string]: unknown;
+}
+
 export interface PrivacyInfo {
   localOnly: boolean;
   noPasswordCollection: boolean;
@@ -105,6 +126,7 @@ export interface ChecklistInfo {
 export interface ScanReport {
   schemaVersion: string;
   generatedAt: string;
+  mode?: "quick" | "manifest";
   privacy: PrivacyInfo;
   system: SystemInfo;
   disks: DiskInfo[];
@@ -119,6 +141,7 @@ export interface ScanReport {
   cloudSync: CloudSyncCandidate[];
   browsers: BrowserPresence[];
   winget: WingetStatus;
+  wingetExport?: WingetExport | null;
   diagnostics: Array<{ step: string; message: string }>;
   checklist: ChecklistInfo;
 }
@@ -141,6 +164,14 @@ export interface ExportOptions {
 export interface ExportResult {
   saved: boolean;
   path?: string;
+}
+
+export interface ManifestExportResult {
+  saved: boolean;
+  path?: string;
+  fileCount?: number;
+  totalBytes?: number;
+  message?: string;
 }
 
 export interface UpdateInfo {

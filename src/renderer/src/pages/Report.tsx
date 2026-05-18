@@ -31,6 +31,8 @@ function formatGb(value?: number | null) {
 export function Report({ result, onBack }: ReportProps) {
   const { report } = result;
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [manifestStatus, setManifestStatus] = useState<string | null>(null);
+  const [manifestRunning, setManifestRunning] = useState(false);
 
   const installedCount = report.installedApps.length;
   const driverCount = report.drivers.length;
@@ -39,6 +41,14 @@ export function Report({ result, onBack }: ReportProps) {
   const cloudFound = useMemo(() => report.cloudSync.filter((c) => c.exists).length, [report.cloudSync]);
   const totalDiskGb = useMemo(() => report.disks.reduce((sum, d) => sum + (d.sizeGb || 0), 0), [report.disks]);
   const totalFreeGb = useMemo(() => report.disks.reduce((sum, d) => sum + (d.freeGb || 0), 0), [report.disks]);
+
+  const wingetPackageCount = useMemo(() => {
+    if (!report.wingetExport?.Sources) return 0;
+    return report.wingetExport.Sources.reduce(
+      (sum, src) => sum + (src.Packages?.length ?? 0),
+      0
+    );
+  }, [report.wingetExport]);
 
   const onExport = useCallback(async () => {
     if (!window.fb) return;
@@ -51,6 +61,27 @@ export function Report({ result, onBack }: ReportProps) {
   const onOpenWeb = useCallback(async () => {
     if (!window.fb) return;
     await window.fb.openWebReport();
+  }, []);
+
+  const onExportManifest = useCallback(async () => {
+    if (!window.fb) return;
+    setManifestStatus(null);
+    setManifestRunning(true);
+    try {
+      const res = await window.fb.exportBackupManifest();
+      if (res.saved && res.path) {
+        setManifestStatus(`${copy.manifestExportSavedPrefix}${res.path}`);
+      } else if (res.message) {
+        setManifestStatus(`${copy.manifestExportErrorPrefix}${res.message}`);
+      } else {
+        setManifestStatus(copy.manifestExportCancelled);
+      }
+    } catch (e) {
+      const err = e as Error;
+      setManifestStatus(`${copy.manifestExportErrorPrefix}${err.message}`);
+    } finally {
+      setManifestRunning(false);
+    }
   }, []);
 
   return (
@@ -110,6 +141,19 @@ export function Report({ result, onBack }: ReportProps) {
           ))}
         </article>
 
+        <article className="fb-card">
+          <h3>{copy.wingetSectionTitle}</h3>
+          {report.winget.available ? (
+            <p className="fb-report-card-explain">
+              {copy.wingetSummary(wingetPackageCount)}
+            </p>
+          ) : (
+            <p className="fb-report-card-explain">{copy.wingetUnavailable}</p>
+          )}
+          <Row label="winget" value={report.winget.available ? "사용 가능" : "사용 불가"} />
+          <Row label="가져온 패키지" value={`${wingetPackageCount}개`} />
+        </article>
+
         <article className="fb-card fb-card-checklist">
           <h3>포맷 전 체크리스트</h3>
           <ul className="fb-report-checklist">
@@ -119,6 +163,22 @@ export function Report({ result, onBack }: ReportProps) {
             <li>리포트 JSON 저장 후 포맷</li>
           </ul>
         </article>
+      </section>
+
+      <section className="fb-report-manifest">
+        <h2 className="fb-h2">{copy.manifestSectionTitle}</h2>
+        <p className="fb-lede">{copy.manifestExplain}</p>
+        <div className="fb-report-cta">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={onExportManifest}
+            disabled={manifestRunning}
+          >
+            {manifestRunning ? copy.manifestExportInProgress : copy.manifestExportCta}
+          </Button>
+          {manifestStatus && <p className="fb-report-cta-status">{manifestStatus}</p>}
+        </div>
       </section>
 
       <section className="fb-report-cta">

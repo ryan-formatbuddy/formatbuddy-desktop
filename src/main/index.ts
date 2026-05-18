@@ -3,8 +3,15 @@ import { electronApp, optimizer } from "@electron-toolkit/utils";
 import { join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
-import type { ExportOptions, ExportResult, ScanError, ScanProgress, ScanResult } from "@shared/types";
-import { runScan } from "./scanner";
+import type {
+  ExportOptions,
+  ExportResult,
+  ManifestExportResult,
+  ScanError,
+  ScanProgress,
+  ScanResult
+} from "@shared/types";
+import { runBackupManifest, runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
 import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
 
@@ -133,6 +140,30 @@ function registerIpc() {
   ipcMain.handle(IpcChannels.updateInstall, () => {
     installAndRestart();
     return true;
+  });
+
+  ipcMain.handle(IpcChannels.manifestExport, async (): Promise<ManifestExportResult> => {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const defaultPath = getDefaultExportPath("formatbuddy-backup-manifest.json");
+    const dialogResult = await dialog.showSaveDialog(win!, {
+      title: "백업 manifest 저장 위치",
+      defaultPath,
+      filters: [{ name: "FormatBuddy backup manifest", extensions: ["json"] }]
+    });
+    if (dialogResult.canceled || !dialogResult.filePath) {
+      return { saved: false };
+    }
+    try {
+      const result = await runBackupManifest({
+        scriptPath: getScanScriptPath(),
+        outputPath: dialogResult.filePath,
+        enforceIntegrity: app.isPackaged
+      });
+      return { saved: result.saved, path: result.path };
+    } catch (err) {
+      const e = err as Error;
+      return { saved: false, message: e.message };
+    }
   });
 }
 

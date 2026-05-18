@@ -45,5 +45,19 @@ export const copy = {
   updateDownloading: "버디가 새 버전을 챙겨오고 있어요",
   updateDownloaded: "준비 끝났어요. 다시 켜면 새 버전으로 시작해요",
   updateInstallCta: "지금 재시작",
-  updateErrorLabel: "업데이트를 받지 못했어요"
+  updateErrorLabel: "업데이트를 받지 못했어요",
+
+  wingetSectionTitle: "winget으로 다시 설치할 앱",
+  wingetSummary: (count: number) => `${count}개 앱을 winget으로 다시 설치할 수 있게 정리했어요`,
+  wingetUnavailable: "winget이 없어요. 앱 재설치 목록은 이번 PC에선 비워둘게요",
+
+  manifestSectionTitle: "백업 파일 무결성 manifest",
+  manifestExplain:
+    "Desktop·Documents·Downloads 같은 사용자 폴더의 파일을 해시(SHA-256)로 정리해 저장해요. 포맷 후 복원할 때 같은 파일이 잘 돌아왔는지 확인할 수 있어요.",
+  manifestExportCta: "백업 manifest 만들기",
+  manifestExportInProgress: "버디가 파일을 천천히 살펴보는 중이에요 (수십 초~수 분)",
+  manifestExportSavedPrefix: "저장했어요: ",
+  manifestExportCancelled: "저장을 취소했어요.",
+  manifestExportErrorPrefix: "지금 만들지 못했어요: ",
+  manifestWindowsOnly: "이 기능은 Windows에서만 동작해요."
 } as const;

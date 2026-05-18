@@ -13,7 +13,8 @@ export const IpcChannels = {
   updateDownloadProgress: "update:download-progress",
   updateDownloaded: "update:downloaded",
   updateError: "update:error",
-  updateInstall: "update:install"
+  updateInstall: "update:install",
+  manifestExport: "manifest:export"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

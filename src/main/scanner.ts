@@ -114,6 +114,20 @@ export interface RunScanOptions {
   enforceIntegrity?: boolean;
 }
 
+export interface RunBackupManifestOptions {
+  scriptPath: string;
+  outputPath: string;
+  signal?: AbortSignal;
+  powershellExe?: string;
+  enforceIntegrity?: boolean;
+  manifestMaxFileSizeBytes?: number;
+}
+
+export interface RunBackupManifestResult {
+  saved: boolean;
+  path: string;
+}
+
 const PIPELINE_STEPS: readonly string[] = [
   "PC 정보 확인",
   "디스크 살펴보기",
@@ -358,6 +372,95 @@ function buildMockReport(): ScanReport {
       saveReportBeforeFormat: true
     }
   };
+}
+
+export async function runBackupManifest(
+  options: RunBackupManifestOptions
+): Promise<RunBackupManifestResult> {
+  if (process.platform !== "win32") {
+    throw new Error("Backup manifest export is only available on Windows.");
+  }
+
+  const stagedPath = await verifyAndStageScript(options.scriptPath, {
+    enforce: !!options.enforceIntegrity
+  });
+  if (!stagedPath) {
+    throw new Error("PowerShell integrity check failed; refusing to spawn.");
+  }
+
+  const stagedDir = dirname(stagedPath);
+  const exe =
+    options.powershellExe ?? (process.platform === "win32" ? "powershell.exe" : "pwsh");
+  const maxFileSize = options.manifestMaxFileSizeBytes ?? 104_857_600;
+
+  try {
+    return await new Promise<RunBackupManifestResult>((resolveOk, rejectOk) => {
+      const child = spawn(
+        exe,
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          stagedPath,
+          "-OutputPath",
+          options.outputPath,
+          "-Mode",
+          "manifest",
+          "-ManifestMaxFileSizeBytes",
+          String(maxFileSize)
+        ],
+        { windowsHide: true }
+      );
+
+      let stderrBuf = "";
+
+      const cleanup = () => {
+        if (options.signal) options.signal.removeEventListener("abort", onAbort);
+      };
+
+      const onAbort = () => {
+        child.kill();
+        cleanup();
+        rejectOk(new DOMException("Manifest export cancelled", "AbortError"));
+      };
+
+      if (options.signal) {
+        if (options.signal.aborted) {
+          onAbort();
+          return;
+        }
+        options.signal.addEventListener("abort", onAbort, { once: true });
+      }
+
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderrBuf += chunk.toString("utf8");
+        if (stderrBuf.length > STDERR_MAX_BYTES) {
+          stderrBuf = stderrBuf.slice(-STDERR_MAX_BYTES);
+        }
+      });
+
+      child.on("error", (err) => {
+        cleanup();
+        rejectOk(err);
+      });
+
+      child.on("close", (code) => {
+        cleanup();
+        if (code !== 0) {
+          rejectOk(
+            new Error(`PowerShell exited with code ${code}. stderr: ${stderrBuf.slice(0, 500)}`)
+          );
+          return;
+        }
+        resolveOk({ saved: true, path: options.outputPath });
+      });
+    });
+  } finally {
+    await fs.unlink(stagedPath).catch(() => {});
+    await fs.rmdir(stagedDir).catch(() => {});
+  }
 }
 
 export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor, verifyAndStageScript };
