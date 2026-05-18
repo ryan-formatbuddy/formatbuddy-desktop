@@ -2,12 +2,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
+import { Cleanup } from "./pages/Cleanup";
 import { Onboarding } from "./pages/Onboarding";
 import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { WinChrome } from "./components/WinChrome";
 import { TopBar } from "./components/TopBar";
-import type { AppPlatform, AppStateSnapshot, ScanError, ScanProgress, ScanResult } from "@shared/types";
+import type {
+  AppPlatform,
+  AppStateSnapshot,
+  ScanError,
+  ScanProgress,
+  ScanReport,
+  ScanResult
+} from "@shared/types";
 
 const ONBOARDING_SEEN_KEY = "formatbuddy:onboardingSeenAt";
 
@@ -16,6 +24,7 @@ type Phase =
   | { kind: "home" }
   | { kind: "scanning"; progress: ScanProgress }
   | { kind: "report"; result: ScanResult }
+  | { kind: "cleanup"; report?: ScanReport }
   | { kind: "error"; error: ScanError };
 
 function readOnboardingSeen(): boolean {
@@ -153,6 +162,15 @@ export function App() {
           onBack={goHome}
         />
       );
+    if (phase.kind === "cleanup")
+      return (
+        <TopBar
+          here="안전 정리"
+          meta={isMacPreview ? "Mac 미리보기 모드" : "로컬에서만 처리됨"}
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
@@ -174,7 +192,24 @@ export function App() {
       case "scanning":
         return <Scanning progress={phase.progress} onCancel={cancelScan} />;
       case "report":
-        return <Report result={phase.result} onBack={goHome} appPlatform={appPlatform} appState={phase.result.appState ?? appState ?? undefined} />;
+        return (
+          <Report
+            result={phase.result}
+            onBack={goHome}
+            appPlatform={appPlatform}
+            appState={phase.result.appState ?? appState ?? undefined}
+            onOpenCleanup={(report) => setPhase({ kind: "cleanup", report })}
+          />
+        );
+      case "cleanup":
+        return (
+          <Cleanup
+            report={phase.report}
+            isWindows={appPlatform === "win32"}
+            onBack={goHome}
+            onComplete={goHome}
+          />
+        );
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }

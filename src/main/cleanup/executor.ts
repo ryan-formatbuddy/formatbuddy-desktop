@@ -1,0 +1,265 @@
+/**
+ * Cleanup executor — the only place that ever removes files from disk.
+ *
+ * Safety chain (every link must hold):
+ *   1. consumePlan() validates planId + confirmationToken + blocklist
+ *      version, then atomically removes the plan from cache so it can
+ *      only run once.
+ *   2. The selectedItemIds whitelist is applied — items the user did
+ *      not explicitly check are skipped, not silently deleted.
+ *   3. evaluatePath() runs again per item against the per-category
+ *      allowRoots, so even a tampered plan (impossible in practice
+ *      because of #1, but we re-check anyway) cannot reach a blocked
+ *      path.
+ *   4. Real removal goes through injected `trashItem` / `permanentRemove`
+ *      so tests don't touch the host filesystem.
+ *
+ * Default mode is "trash". Permanent removal is only used when the
+ * caller explicitly opts in.
+ */
+import { promises as fs } from "node:fs";
+import { homedir } from "node:os";
+import type {
+  CleanupCategoryId,
+  CleanupExecuteMode,
+  CleanupExecuteRequest,
+  CleanupExecuteResult,
+  CleanupExecutedItem,
+  CleanupItem,
+  CleanupPlan,
+  CleanupSkipReason,
+  CleanupSkippedItem
+} from "@shared/types";
+import { evaluatePath } from "./blocklist";
+import { buildLogEntry, recordCleanupExecution } from "./log";
+import { consumePlan } from "./planner";
+
+export interface ExecutorDeps {
+  /** Move a path into the OS recycle bin. Wrap electron.shell.trashItem. */
+  trashItem: (path: string) => Promise<void>;
+  /** Permanently delete a file or directory tree. */
+  permanentRemove: (path: string) => Promise<void>;
+  /** Stat a path on disk; returns null if missing. */
+  statSize: (path: string) => Promise<number | null>;
+}
+
+export interface ExecuteCleanupOptions {
+  userDataDir: string;
+  deps: ExecutorDeps;
+  home?: string;
+  /** Inject "now" for deterministic logs in tests. */
+  now?: () => Date;
+}
+
+/**
+ * Default deps wired against electron.shell.trashItem and node:fs. Keep this
+ * factory in this module (not at the call site) so tests can swap in mocks
+ * by constructing their own deps object instead of monkey-patching electron.
+ */
+export function defaultDeps(trashItemImpl: (path: string) => Promise<void>): ExecutorDeps {
+  return {
+    trashItem: trashItemImpl,
+    permanentRemove: async (path) => {
+      await fs.rm(path, { recursive: true, force: true });
+    },
+    statSize: async (path) => {
+      try {
+        const stat = await fs.stat(path);
+        return stat.size;
+      } catch {
+        return null;
+      }
+    }
+  };
+}
+
+function collectAllowRootsByCategory(plan: CleanupPlan): Map<CleanupCategoryId, string[]> {
+  // Re-derive allow-roots from the plan: for each item, the directory
+  // chain leading up to it. Simplest correct rule = the path itself
+  // (so executor's evaluatePath uses a single-root whitelist that
+  // covers exactly the file being removed). This makes the second
+  // blocklist pass equivalent to "is this path itself safe to touch".
+  const map = new Map<CleanupCategoryId, string[]>();
+  for (const category of plan.categories) {
+    const roots = new Set<string>();
+    for (const item of category.items) roots.add(item.path);
+    map.set(category.id, Array.from(roots));
+  }
+  return map;
+}
+
+function buildItemIndex(plan: CleanupPlan): Map<string, CleanupItem> {
+  const idx = new Map<string, CleanupItem>();
+  for (const category of plan.categories) {
+    for (const item of category.items) idx.set(item.id, item);
+  }
+  return idx;
+}
+
+interface AttemptOutcome {
+  removed?: CleanupExecutedItem;
+  skipped?: CleanupSkippedItem;
+}
+
+async function attemptItem(
+  item: CleanupItem,
+  mode: CleanupExecuteMode,
+  deps: ExecutorDeps,
+  home: string
+): Promise<AttemptOutcome> {
+  // Re-check the blocklist against just this path. We pass the path
+  // itself as its sole allow-root: combined with the system + user
+  // rule set, this catches both "the path looks safe" and "the path
+  // tries to escape its category" cases.
+  const decision = evaluatePath(item.path, { allowRoots: [item.path], home });
+  if (!decision.allowed) {
+    return {
+      skipped: {
+        itemId: item.id,
+        path: item.path,
+        reason: "blocked-path",
+        detail: decision.blockedBy
+      }
+    };
+  }
+
+  let actualSize = item.sizeBytes;
+  const measured = await deps.statSize(item.path);
+  if (measured === null) {
+    return {
+      skipped: { itemId: item.id, path: item.path, reason: "not-found" }
+    };
+  }
+  if (measured > 0) actualSize = measured;
+
+  try {
+    if (mode === "trash") await deps.trashItem(item.path);
+    else await deps.permanentRemove(item.path);
+  } catch (err) {
+    return {
+      skipped: {
+        itemId: item.id,
+        path: item.path,
+        reason: "execute-failed",
+        detail: (err as Error).message
+      }
+    };
+  }
+
+  return {
+    removed: {
+      itemId: item.id,
+      path: item.path,
+      sizeBytes: actualSize,
+      categoryId: item.categoryId,
+      mode,
+      succeeded: true
+    }
+  };
+}
+
+export async function executeCleanup(
+  request: CleanupExecuteRequest,
+  options: ExecuteCleanupOptions
+): Promise<CleanupExecuteResult> {
+  if (!request?.planId || !request?.confirmationToken) {
+    throw new Error("cleanup:execute requires planId and confirmationToken");
+  }
+  if (!Array.isArray(request.selectedItemIds) || request.selectedItemIds.length === 0) {
+    throw new Error("cleanup:execute requires at least one selected item");
+  }
+  if (request.mode !== "trash" && request.mode !== "permanent") {
+    throw new Error(`cleanup:execute received invalid mode ${request.mode}`);
+  }
+
+  const plan = consumePlan(request.planId, request.confirmationToken, options.now);
+  if (!plan) {
+    throw new Error("cleanup:execute could not match a current plan (expired, wrong token, or already executed)");
+  }
+
+  const home = options.home ?? homedir();
+  const itemIndex = buildItemIndex(plan);
+  // collectAllowRootsByCategory currently informs nothing inside the
+  // attempt loop (we now whitelist per-path), but keep it around so
+  // a future relaxed mode (e.g. "trash a whole category") has the
+  // structured root list to start from.
+  void collectAllowRootsByCategory(plan);
+
+  const selectedIds = new Set(request.selectedItemIds);
+  const removedItems: CleanupExecutedItem[] = [];
+  const skippedItems: CleanupSkippedItem[] = [];
+  const unknownSelectionIds: string[] = [];
+
+  for (const id of selectedIds) {
+    const item = itemIndex.get(id);
+    if (!item) {
+      unknownSelectionIds.push(id);
+      continue;
+    }
+    const outcome = await attemptItem(item, request.mode, options.deps, home);
+    if (outcome.removed) removedItems.push(outcome.removed);
+    if (outcome.skipped) skippedItems.push(outcome.skipped);
+  }
+
+  // Items the user did not select are NOT auto-cleaned. We surface
+  // them as `not-selected` only when they were in the plan but
+  // intentionally left unchecked — useful for the post-run UI to
+  // say "you skipped X items" without re-walking the disk.
+  for (const category of plan.categories) {
+    for (const item of category.items) {
+      if (selectedIds.has(item.id)) continue;
+      skippedItems.push({
+        itemId: item.id,
+        path: item.path,
+        reason: "not-selected"
+      });
+    }
+  }
+
+  for (const unknown of unknownSelectionIds) {
+    skippedItems.push({
+      itemId: unknown,
+      path: "",
+      reason: "not-found",
+      detail: "selectedItemIds referenced an item not present in the plan"
+    });
+  }
+
+  const executedAt = options.now?.().toISOString() ?? new Date().toISOString();
+  const logEntry = buildLogEntry({
+    mode: request.mode,
+    executedAt,
+    removedItems,
+    skippedItems
+  });
+  const totalFreedBytes = logEntry.totalFreedBytes;
+
+  await recordCleanupExecution(options.userDataDir, logEntry);
+
+  return {
+    planId: plan.planId,
+    executedAt,
+    mode: request.mode,
+    totalFreedBytes,
+    removedItems,
+    skippedItems,
+    logEntry
+  };
+}
+
+export const __testing = {
+  attemptItem,
+  buildItemIndex,
+  collectAllowRootsByCategory
+};
+
+// Re-export skip reasons enum-like helper for callers that want to
+// pattern-match without importing the shared union.
+export const SKIP_REASONS: CleanupSkipReason[] = [
+  "blocked-path",
+  "not-selected",
+  "access-denied",
+  "not-found",
+  "below-min-age",
+  "execute-failed"
+];

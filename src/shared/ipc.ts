@@ -24,7 +24,10 @@ export const IpcChannels = {
   logsOpenFolder: "logs:open-folder",
   reportExportHtml: "report:export-html",
   appStateGet: "app-state:get",
-  ignoreListUpdate: "ignore-list:update"
+  ignoreListUpdate: "ignore-list:update",
+  cleanupPlan: "cleanup:plan",
+  cleanupExecute: "cleanup:execute",
+  cleanupHistory: "cleanup:history"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

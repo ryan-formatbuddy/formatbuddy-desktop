@@ -8,14 +8,22 @@ import type {
   ActionRunResult,
   AppStateSnapshot,
   AppPlatform,
+  CleanupExecuteRequest,
+  CleanupExecuteResult,
+  CleanupHistorySnapshot,
+  CleanupPlan,
   ExportOptions,
   ExportResult,
   IgnoreListUpdate,
+  LargeFileCandidate,
   ManifestExportResult,
   ScanError,
   ScanProgress,
   ScanResult
 } from "@shared/types";
+import { planCleanup } from "./cleanup/planner";
+import { defaultDeps, executeCleanup } from "./cleanup/executor";
+import { getCleanupHistory } from "./cleanup/log";
 
 /**
  * Whitelist of safe URL schemes that we let `shell.openExternal` hand to
@@ -326,6 +334,37 @@ function registerIpc() {
       log.error("logs:open-folder threw:", err);
       return false;
     }
+  });
+
+  ipcMain.handle(
+    IpcChannels.cleanupPlan,
+    async (_e, payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> => {
+      return planCleanup({ env: { largeFiles: payload?.largeFiles ?? [] } });
+    }
+  );
+
+  ipcMain.handle(
+    IpcChannels.cleanupExecute,
+    async (_e, request: CleanupExecuteRequest): Promise<CleanupExecuteResult> => {
+      const deps = defaultDeps((path: string) => shell.trashItem(path));
+      try {
+        const result = await executeCleanup(request, {
+          userDataDir: app.getPath("userData"),
+          deps
+        });
+        log.info(
+          `cleanup:execute mode=${result.mode} removed=${result.removedItems.length} freedBytes=${result.totalFreedBytes}`
+        );
+        return result;
+      } catch (err) {
+        log.error("cleanup:execute failed:", (err as Error).message);
+        throw err;
+      }
+    }
+  );
+
+  ipcMain.handle(IpcChannels.cleanupHistory, async (): Promise<CleanupHistorySnapshot> => {
+    return getCleanupHistory(app.getPath("userData"));
   });
 
   ipcMain.handle(

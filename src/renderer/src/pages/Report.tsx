@@ -147,6 +147,7 @@ interface ReportProps {
   onBack: () => void;
   appPlatform?: AppPlatform;
   appState?: AppStateSnapshot;
+  onOpenCleanup?: (report: ScanResult["report"]) => void;
 }
 
 interface RowProps {
@@ -725,7 +726,7 @@ function SmartCareOverview({ result, appState }: { result: ScanResult; appState?
   );
 }
 
-export function Report({ result, onBack, appPlatform = "unknown", appState }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
   const initialIgnoreList = appState?.ignoreList ?? result.appState?.ignoreList ?? { cleanupItemIds: [], pathHints: [] };
@@ -1067,6 +1068,16 @@ export function Report({ result, onBack, appPlatform = "unknown", appState }: Re
       </section>
 
       <section className="fb-report-cta">
+        {onOpenCleanup && (
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={() => onOpenCleanup(report)}
+            disabled={!isWindows}
+          >
+            {isWindows ? "안전 정리 시작" : "안전 정리는 Windows 전용"}
+          </Button>
+        )}
         <Button variant="primary" size="lg" onClick={onExportHtml}>
           {copy.reportExportHtmlCta}
         </Button>

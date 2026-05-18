@@ -549,3 +549,141 @@ export interface IgnoreListUpdate {
   id: string;
   ignored: boolean;
 }
+
+/**
+ * v1.3.0 — Safe cleanup execution engine.
+ *
+ * Two-step flow:
+ *   1. planCleanup()    → dry-run, builds CleanupPlan with explicit items
+ *   2. executeCleanup() → requires planId + matching confirmationToken +
+ *                        explicit selectedItemIds, blocklist re-checked
+ *                        per item, results logged.
+ *
+ * Risk levels:
+ *   - safe       Windows/Apps regenerate this (temp, recycle bin, browser
+ *                cache without credentials). Auto-checked by default in UI.
+ *   - review     User-owned content (large files, Windows.old, old
+ *                installers in Downloads). Unchecked by default.
+ *   - restricted Blocklist tripped. Never deletable; surfaced only as
+ *                "skipped because…" so user understands what was protected.
+ */
+export type CleanupCategoryId =
+  | "recycle-bin"
+  | "temp-user"
+  | "temp-windows"
+  | "browser-cache"
+  | "windows-old"
+  | "downloads-installers"
+  | "large-files";
+
+export type CleanupRiskLevel = "safe" | "review" | "restricted";
+
+export type CleanupExecuteMode = "trash" | "permanent";
+
+export type CleanupSkipReason =
+  | "blocked-path"
+  | "not-selected"
+  | "access-denied"
+  | "not-found"
+  | "below-min-age"
+  | "execute-failed";
+
+export interface CleanupItem {
+  /** Stable hash derived from absolute path; safe to use as React key. */
+  id: string;
+  /** Absolute path on disk. Always normalized to the host's native separator. */
+  path: string;
+  /** Display label — usually the basename of the path. */
+  label: string;
+  sizeBytes: number;
+  /** ISO-8601 UTC; may be missing for synthetic group entries. */
+  modifiedAt?: string;
+  categoryId: CleanupCategoryId;
+  riskLevel: CleanupRiskLevel;
+  /** Short rationale for *why* this candidate is here (e.g. "30일 이상 미사용"). */
+  reason: string;
+  /** When riskLevel === "restricted", the blocklist rule that matched. */
+  blockedBy?: string;
+}
+
+export interface CleanupCategoryPlan {
+  id: CleanupCategoryId;
+  label: string;
+  description: string;
+  safetyNote: string;
+  riskLevel: CleanupRiskLevel;
+  totalBytes: number;
+  itemCount: number;
+  items: CleanupItem[];
+  /** Items blocked by the safety net. Shown for transparency, never executable. */
+  blockedItems: CleanupItem[];
+}
+
+export interface CleanupPlan {
+  planId: string;
+  generatedAt: string;
+  /**
+   * Opaque token that executeCleanup() will re-verify. Prevents stale plans
+   * from a previous scan being replayed against a freshly mutated filesystem.
+   */
+  confirmationToken: string;
+  blocklistVersion: number;
+  totalReclaimableBytes: number;
+  categories: CleanupCategoryPlan[];
+  /** Diagnostic notes (e.g. "Downloads 폴더 접근이 거부됐어요"). */
+  notes: string[];
+}
+
+export interface CleanupExecuteRequest {
+  planId: string;
+  confirmationToken: string;
+  selectedItemIds: string[];
+  mode: CleanupExecuteMode;
+}
+
+export interface CleanupExecutedItem {
+  itemId: string;
+  path: string;
+  sizeBytes: number;
+  categoryId: CleanupCategoryId;
+  mode: CleanupExecuteMode;
+  succeeded: boolean;
+  error?: string;
+}
+
+export interface CleanupSkippedItem {
+  itemId: string;
+  path: string;
+  reason: CleanupSkipReason;
+  detail?: string;
+}
+
+export interface CleanupCategoryBreakdown {
+  categoryId: CleanupCategoryId;
+  bytesFreed: number;
+  itemCount: number;
+}
+
+export interface CleanupLogEntry {
+  id: string;
+  executedAt: string;
+  mode: CleanupExecuteMode;
+  totalFreedBytes: number;
+  removedCount: number;
+  skippedCount: number;
+  categories: CleanupCategoryBreakdown[];
+}
+
+export interface CleanupExecuteResult {
+  planId: string;
+  executedAt: string;
+  mode: CleanupExecuteMode;
+  totalFreedBytes: number;
+  removedItems: CleanupExecutedItem[];
+  skippedItems: CleanupSkippedItem[];
+  logEntry: CleanupLogEntry;
+}
+
+export interface CleanupHistorySnapshot {
+  entries: CleanupLogEntry[];
+}

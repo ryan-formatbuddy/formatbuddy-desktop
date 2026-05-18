@@ -3,10 +3,15 @@ import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
   AppStateSnapshot,
+  CleanupExecuteRequest,
+  CleanupExecuteResult,
+  CleanupHistorySnapshot,
+  CleanupPlan,
   ExportOptions,
   ExportResult,
   IgnoreListState,
   IgnoreListUpdate,
+  LargeFileCandidate,
   ManifestExportResult,
   Recommendation,
   ScanError,
@@ -111,7 +116,16 @@ const fb = {
   runActionCommand: (command: string): Promise<ActionRunResult> =>
     ipcRenderer.invoke(IpcChannels.actionRun, { command }),
 
-  openLogsFolder: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.logsOpenFolder)
+  openLogsFolder: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.logsOpenFolder),
+
+  planCleanup: (payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> =>
+    ipcRenderer.invoke(IpcChannels.cleanupPlan, payload ?? {}),
+
+  executeCleanup: (request: CleanupExecuteRequest): Promise<CleanupExecuteResult> =>
+    ipcRenderer.invoke(IpcChannels.cleanupExecute, request),
+
+  getCleanupHistory: (): Promise<CleanupHistorySnapshot> =>
+    ipcRenderer.invoke(IpcChannels.cleanupHistory)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);
