@@ -115,6 +115,8 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("포맷 전에 먼저 시도해볼 것");
     expect(html).toContain("이런 점들이 신경 쓰여요");
     expect(html).toContain("포맷 후 같이 챙길 것");
+    expect(html).toContain("PC 건강 점검");
+    expect(html).toContain("깔끔 정리");
     expect(html).toContain("내 파일이 잘 옮겨졌는지 확인하는 목록");
     expect(html).toContain("이 PC");
     // v0.6.2 — 사용자 카피에서 영문 기술 단어 노출 금지

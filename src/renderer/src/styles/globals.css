@@ -298,6 +298,75 @@ button { font-family: inherit; }
 .fb-btn-on-blue:hover { background: #f7f7f8; }
 
 /* ============================================================
+   Inline tooltip detail (v0.7.0)
+   ============================================================ */
+.fb-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+}
+.fb-tooltip-trigger {
+  border: 0;
+  border-bottom: 2px solid var(--color-fb-blue);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0 0 1px;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  cursor: help;
+}
+.fb-tooltip-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-fb-blue) 35%, transparent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.fb-tooltip-box {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 20;
+  width: 280px;
+  max-width: min(280px, calc(100vw - 56px));
+  padding: 12px 13px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgb(23 23 25 / 0.14);
+  color: var(--color-fb-ink-2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s;
+  pointer-events: none;
+}
+.fb-tooltip:hover .fb-tooltip-box,
+.fb-tooltip:focus-within .fb-tooltip-box {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.fb-tooltip-box strong {
+  display: block;
+  margin: 0 0 5px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-fb-ink-1);
+  letter-spacing: -0.01em;
+}
+.fb-tooltip-box span {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-fb-ink-2);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================
    Cloud-Buddy motion (from design styles.css)
    ============================================================ */
 .cb-eye { transform-box: fill-box; transform-origin: center; }
@@ -992,6 +1061,139 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
+   Health panel (v0.7.0)
+   ============================================================ */
+.fb-health-panel {
+  border: 1px solid var(--color-fb-line);
+  border-radius: 18px;
+  padding: 22px 24px;
+  background: #ffffff;
+}
+.fb-health-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.fb-health-panel-head .fb-h2 {
+  margin-bottom: 6px;
+}
+.fb-health-panel-head p {
+  margin: 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.fb-health-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.fb-health-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 14px;
+  background: #ffffff;
+}
+.fb-health-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fb-health-card h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-fb-ink-1);
+  letter-spacing: -0.012em;
+}
+.fb-health-card p {
+  margin: 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.fb-health-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+}
+.fb-health-good .fb-health-chip {
+  background: color-mix(in srgb, var(--color-fb-tone-safe) 16%, white);
+  color: var(--color-fb-ink-1);
+}
+.fb-health-check .fb-health-chip {
+  background: color-mix(in srgb, var(--color-fb-tone-watch) 15%, white);
+  color: var(--color-fb-ink-1);
+}
+.fb-health-action-needed .fb-health-chip {
+  background: var(--color-fb-blue);
+  color: #ffffff;
+}
+.fb-health-actions {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.fb-health-actions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--color-fb-line-t);
+}
+.fb-health-actions span {
+  min-width: 0;
+  color: var(--color-fb-ink-1);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.fb-health-actions small {
+  color: var(--color-fb-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.fb-health-action-btn {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 9999px;
+  background: #ffffff;
+  color: var(--color-fb-blue);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.fb-health-action-btn:hover {
+  background: var(--color-fb-blue-tint);
+  border-color: var(--color-fb-blue-tint);
+}
+
+/* ============================================================
    Advice cards (try-first / reasons / after-format)
    ============================================================ */
 .fb-report-advice {
@@ -1029,6 +1231,10 @@ button { font-family: inherit; }
   line-height: 20px;
   color: var(--color-fb-ink-2);
   font-weight: 500;
+}
+.fb-advice-next {
+  color: var(--color-fb-blue-heavy) !important;
+  font-weight: 650 !important;
 }
 .fb-advice-cmd {
   margin-top: 6px;

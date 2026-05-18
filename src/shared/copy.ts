@@ -136,6 +136,16 @@ export const copy = {
   recommendFormatReasonsTitle: "이런 점들이 신경 쓰여요",
   recommendAfterFormatTitle: "포맷 후 같이 챙길 것",
   recommendNoReasons: "지금 발견된 큰 문제는 없어요. 정기 정리만 해도 충분해요.",
+  healthSectionTitle: "PC 건강 점검",
+  healthSectionLede:
+    "포맷을 바로 정하기 전에, 정리·보안·속도·백업을 나눠서 쉬운 말로 볼게요.",
+  healthTooltipLabel: "쉽게 보기",
+  healthActionLabel: "열기",
+  healthStatus: {
+    good: "괜찮아요",
+    check: "확인해봐요",
+    action: "먼저 해봐요"
+  } as const,
   recommendCommandLabel: "실행",
   recommendRunButton: "실행",
   recommendRunOpenedToast: "Windows 설정에서 해당 화면을 열어드렸어요.",

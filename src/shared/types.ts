@@ -198,6 +198,20 @@ export interface ReasonItem {
   label: string;
   weightedScore: number;
   description: string;
+  help?: string;
+  nextStep?: string;
+}
+
+export type HealthPillarId = "cleanup" | "security" | "performance" | "backup";
+export type HealthPillarStatus = "good" | "check" | "action";
+
+export interface HealthPillar {
+  id: HealthPillarId;
+  title: string;
+  status: HealthPillarStatus;
+  summary: string;
+  detail: string;
+  actions: ActionItem[];
 }
 
 export interface Recommendation {
@@ -208,6 +222,7 @@ export interface Recommendation {
   tryFirst: ActionItem[];
   formatReasons: ReasonItem[];
   afterFormat: ActionItem[];
+  healthPillars: HealthPillar[];
 }
 
 export interface PrivacyInfo {

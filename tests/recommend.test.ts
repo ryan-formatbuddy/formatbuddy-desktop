@@ -82,6 +82,12 @@ describe("generateRecommendation — severity buckets", () => {
     expect(rec.formatReasons.length).toBe(0);
     expect(rec.tryFirst.length).toBeGreaterThan(0); // always offers cleanmgr/sfc/dism
     expect(rec.afterFormat.length).toBeGreaterThan(0);
+    expect(rec.healthPillars.map((p) => p.id)).toEqual([
+      "cleanup",
+      "security",
+      "performance",
+      "backup"
+    ]);
   });
 
   it("low disk free + memory pressure pushes into watch / organize", () => {
@@ -101,6 +107,8 @@ describe("generateRecommendation — severity buckets", () => {
     expect(rec.formatScore).toBeGreaterThan(15);
     expect(rec.formatReasons.some((r) => r.signal === "disk-free")).toBe(true);
     expect(rec.formatReasons.some((r) => r.signal === "memory-pressure")).toBe(true);
+    const performance = rec.healthPillars.find((p) => p.id === "performance");
+    expect(performance?.status).not.toBe("good");
   });
 
   it("unhealthy disk + event criticals + old updates pushes to organize or higher", () => {
@@ -141,6 +149,8 @@ describe("generateRecommendation — severity buckets", () => {
     expect(rec.formatReasons.length).toBeGreaterThanOrEqual(5);
     // disk-health must be the top reason
     expect(rec.formatReasons[0].signal).toBe("disk-health");
+    expect(rec.formatReasons[0].help).toMatch(/디스크/);
+    expect(rec.formatReasons[0].nextStep).toMatch(/복사/);
   });
 
   it("score clamps to 0..100", () => {
@@ -223,8 +233,11 @@ describe("disk-health override + Defender visibility", () => {
       })
     );
     expect(rec.formatReasons.some((r) => r.signal === "defender")).toBe(true);
-    const defenderAction = rec.tryFirst.find((a) => a.title.includes("Defender"));
+    const defenderAction = rec.tryFirst.find((a) => a.title.includes("Windows 보안"));
     expect(defenderAction).toBeDefined();
+    const security = rec.healthPillars.find((p) => p.id === "security");
+    expect(security?.status).toBe("action");
+    expect(security?.detail).toMatch(/백신처럼 직접 치료/);
   });
 
   it("warning disk forces severity into at least watch", () => {

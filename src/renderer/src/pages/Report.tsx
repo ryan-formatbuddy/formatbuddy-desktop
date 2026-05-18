@@ -2,8 +2,9 @@ import { useCallback, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
+import { TooltipDetail } from "../components/TooltipDetail";
 import { copy } from "@shared/copy";
-import type { ActionItem, AppPlatform, ScanResult } from "@shared/types";
+import type { ActionItem, AppPlatform, HealthPillar, ScanResult } from "@shared/types";
 
 function expressionForScore(score: number): "calm" | "smile" | "wink" {
   if (score >= 76) return "calm";
@@ -23,6 +24,17 @@ function severityClass(s: ScanResult["recommendation"]["severity"]): string {
       return "fb-score-organize";
     case "format":
       return "fb-score-format";
+  }
+}
+
+function healthStatusClass(status: HealthPillar["status"]): string {
+  switch (status) {
+    case "good":
+      return "fb-health-good";
+    case "check":
+      return "fb-health-check";
+    case "action":
+      return "fb-health-action-needed";
   }
 }
 
@@ -52,6 +64,49 @@ function Row({ label, value }: RowProps) {
 function formatGb(value?: number | null) {
   if (value == null) return "—";
   return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} GB`;
+}
+
+interface HealthPillarCardProps {
+  pillar: HealthPillar;
+  isWindows: boolean;
+  onRunAction: (action: ActionItem) => void;
+}
+
+function HealthPillarCard({ pillar, isWindows, onRunAction }: HealthPillarCardProps) {
+  return (
+    <article className={`fb-health-card ${healthStatusClass(pillar.status)}`}>
+      <div className="fb-health-card-head">
+        <h3>{pillar.title}</h3>
+        <span className="fb-health-chip">{copy.healthStatus[pillar.status]}</span>
+      </div>
+      <p>{pillar.summary}</p>
+      <TooltipDetail
+        label={copy.healthTooltipLabel}
+        title={`${pillar.title}을 보는 이유`}
+        body={pillar.detail}
+      />
+      {pillar.actions.length > 0 && (
+        <ul className="fb-health-actions">
+          {pillar.actions.map((action) => (
+            <li key={`${pillar.id}-${action.title}`}>
+              <span>{action.title}</span>
+              {action.command && isWindows ? (
+                <button
+                  type="button"
+                  className="fb-health-action-btn"
+                  onClick={() => onRunAction(action)}
+                >
+                  {copy.healthActionLabel}
+                </button>
+              ) : (
+                <small>{isWindows ? action.description : "Windows에서 진행"}</small>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  );
 }
 
 export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
@@ -173,6 +228,27 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
 
+      <section className="fb-health-panel" aria-labelledby="health-panel-title">
+        <div className="fb-health-panel-head">
+          <div>
+            <h2 id="health-panel-title" className="fb-h2">
+              {copy.healthSectionTitle}
+            </h2>
+            <p>{copy.healthSectionLede}</p>
+          </div>
+        </div>
+        <div className="fb-health-grid">
+          {recommendation.healthPillars.map((pillar) => (
+            <HealthPillarCard
+              key={pillar.id}
+              pillar={pillar}
+              isWindows={isWindows}
+              onRunAction={runAction}
+            />
+          ))}
+        </div>
+      </section>
+
       <section className="fb-report-advice">
         <article className="fb-card">
           <h3>{copy.recommendTryFirstTitle}</h3>
@@ -210,12 +286,17 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
                 return (
                   <li key={`fr-${i}`}>
                     <strong>
-                      {r.label}{" "}
+                      <TooltipDetail
+                        label={r.label}
+                        title={`${r.label} 쉽게 보기`}
+                        body={r.help ?? r.description}
+                      />{" "}
                       <span className={`fb-advice-weight${heavy ? " fb-advice-weight-heavy" : ""}`}>
                         +{r.weightedScore.toFixed(1)}
                       </span>
                     </strong>
                     <span>{r.description}</span>
+                    {r.nextStep && <span className="fb-advice-next">다음: {r.nextStep}</span>}
                   </li>
                 );
               })}
@@ -285,7 +366,7 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
           <h3>설치된 앱 / 드라이버</h3>
           <Row label="설치된 앱" value={`${installedCount}개`} />
           <Row label="드라이버" value={`${driverCount}개`} />
-          <Row label="winget" value={report.winget.available ? "사용 가능" : "사용 불가"} />
+          <Row label="앱 자동 설치 준비" value={report.winget.available ? "가능" : "어려움"} />
           <Row label="프린터" value={`${report.printers.length}개`} />
         </article>
 
@@ -305,8 +386,8 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
           ) : (
             <p className="fb-report-card-explain">{copy.wingetUnavailable}</p>
           )}
-          <Row label="winget" value={report.winget.available ? "사용 가능" : "사용 불가"} />
-          <Row label="가져온 패키지" value={`${wingetPackageCount}개`} />
+          <Row label="앱 자동 설치 준비" value={report.winget.available ? "가능" : "어려움"} />
+          <Row label="정리된 앱" value={`${wingetPackageCount}개`} />
         </article>
 
         <article className="fb-card fb-card-checklist">

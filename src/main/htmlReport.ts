@@ -89,6 +89,25 @@ function renderScoreHero(rec: Recommendation): string {
 
 function renderTryBefore(rec: Recommendation): string {
   if (rec.tryFirst.length === 0) return "";
+  const healthMini =
+    rec.healthPillars.length > 0
+      ? `
+    <div class="health-mini">
+      <h4>${esc(copy.healthSectionTitle)}</h4>
+      <div class="health-mini-grid">
+        ${rec.healthPillars
+          .map(
+            (p) => `
+        <div>
+          <strong>${esc(p.title)}</strong>
+          <span>${esc(copy.healthStatus[p.status])}</span>
+          <p>${esc(p.summary)}</p>
+        </div>`
+          )
+          .join("")}
+      </div>
+    </div>`
+      : "";
   const items = rec.tryFirst
     .map(
       (a) => `
@@ -103,6 +122,7 @@ function renderTryBefore(rec: Recommendation): string {
   <section class="card">
     <h3>${esc(copy.recommendTryFirstTitle)}</h3>
     <ul class="advice-list">${items}</ul>
+    ${healthMini}
   </section>`;
 }
 
@@ -245,6 +265,13 @@ function styles(fontBase64: string | null): string {
   .backup-list-table td{padding:8px 10px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
   .backup-list-table td.num{font-feature-settings:"tnum" on;text-align:right;font-weight:600;}
   .backup-list-table td.path{color:var(--fb-ink-3);font-size:11px;letter-spacing:-0.005em;}
+  .health-mini{margin-top:18px;padding-top:16px;border-top:1px solid var(--fb-line);}
+  .health-mini h4{margin:0 0 10px;font-size:13px;color:var(--fb-ink-1);}
+  .health-mini-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .health-mini-grid div{border:1px solid var(--fb-line);border-radius:10px;padding:10px 11px;}
+  .health-mini-grid strong{display:block;font-size:12px;color:var(--fb-ink-1);margin-bottom:3px;}
+  .health-mini-grid span{display:inline-flex;font-size:10px;font-weight:800;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);border-radius:9999px;padding:2px 7px;margin-bottom:7px;}
+  .health-mini-grid p{margin:0;font-size:11px;line-height:17px;color:var(--fb-ink-2);}
   footer{margin-top:32px;padding-top:20px;border-top:1px solid var(--fb-line);font-size:11px;color:var(--fb-ink-3);display:flex;justify-content:space-between;}
   .privacy-pill{display:inline-flex;align-items:center;gap:6px;background:var(--fb-blue-tint);color:var(--fb-blue-heavy);font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;letter-spacing:-0.01em;}
   .privacy-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fb-blue);}
