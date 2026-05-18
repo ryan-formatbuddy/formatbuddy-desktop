@@ -55,16 +55,26 @@ async function verifyAndStageScript(
   //     because the prefix is per-run unpredictable)
   //   - writeFile with flag "wx" refuses to overwrite if the path somehow
   //     already exists (e.g. symlink) and mode 0600 on POSIX
+  //   - on chmod/writeFile failure we MUST remove stagedDir before
+  //     re-throwing, otherwise runScan's finally never learns the path
+  //     and the per-run tempdir leaks
   const stagedDir = await fs.mkdtemp(join(tmpdir(), "fb-script-"));
   try {
-    await fs.chmod(stagedDir, 0o700);
-  } catch {
-    // non-POSIX (Windows) — directory inherits parent ACL; the per-run
-    // random prefix is the main barrier
+    try {
+      await fs.chmod(stagedDir, 0o700);
+    } catch {
+      // non-POSIX (Windows) — directory inherits parent ACL; the per-run
+      // random prefix is the main barrier
+    }
+    const stagedPath = join(stagedDir, "script.ps1");
+    await fs.writeFile(stagedPath, buf, { flag: "wx", mode: 0o600 });
+    return stagedPath;
+  } catch (e) {
+    await fs.rm(stagedDir, { recursive: true, force: true }).catch(() => {
+      // best-effort: at worst the OS reaps the dir
+    });
+    throw e;
   }
-  const stagedPath = join(stagedDir, "script.ps1");
-  await fs.writeFile(stagedPath, buf, { flag: "wx", mode: 0o600 });
-  return stagedPath;
 }
 
 function isScanReport(value: unknown): value is ScanReport {
