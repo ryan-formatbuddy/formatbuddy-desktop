@@ -22,6 +22,7 @@ import type {
   FormatSeverity
 } from "@shared/types";
 import { copy } from "@shared/copy";
+import { buildBuddyChecklist } from "./buddyChecklist";
 
 const WEIGHTS = {
   diskHealth: 0.30,
@@ -490,7 +491,8 @@ export function generateRecommendation(report: ScanReport): Recommendation {
       windowsUpdate: wu,
       defender: def,
       storageWaste: sw
-    })
+    }),
+    buddyChecklist: buildBuddyChecklist(report)
   };
 }
 

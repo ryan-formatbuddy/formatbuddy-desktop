@@ -148,6 +148,25 @@ export const copy = {
     check: "확인해봐요",
     action: "먼저 해봐요"
   } as const,
+  buddyChecklistTitle: "버디가 먼저 확인해뒀어요",
+  buddyChecklistLede:
+    "제가 볼 수 있는 항목은 체크해두고, 직접 확인해야 하는 건 따로 표시했어요.",
+  buddyChecklistPrivacy:
+    "인증서 비밀번호, 카카오톡 백업 비밀번호, 브라우저 비밀번호는 보지 않아요. 필요한 위치와 다음 행동만 알려드릴게요.",
+  buddyChecklistSummary: (confirmed: number, needsUser: number, warning: number) =>
+    `15개 중 ${confirmed}개는 버디가 확인했어요. ${needsUser}개는 직접 확인이 필요해요. ${warning}개는 그냥 넘기기 전에 한 번 더 봐야 해요.`,
+  buddyChecklistBadge: {
+    confirmed: "버디 확인",
+    needs_user: "직접 확인",
+    warning: "주의",
+    unknown: "아직 몰라요"
+  } as const,
+  buddyChecklistStatusText: {
+    confirmed: "버디가 확인했어요.",
+    needs_user: "이건 앱 안에서 직접 확인해야 해요.",
+    warning: "그냥 넘어가기엔 조금 신경 쓰여요.",
+    unknown: "아직 확인하지 못했어요."
+  } as const,
   recommendCommandLabel: "실행",
   recommendRunButton: "실행",
   recommendRunOpenedToast: "Windows 설정에서 해당 화면을 열어드렸어요.",

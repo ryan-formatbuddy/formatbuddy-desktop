@@ -4,7 +4,15 @@ import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { TooltipDetail } from "../components/TooltipDetail";
 import { copy } from "@shared/copy";
-import type { ActionItem, AppPlatform, HealthPillar, ScanResult } from "@shared/types";
+import type {
+  ActionItem,
+  AppPlatform,
+  BuddyChecklistCategory,
+  BuddyChecklistItem,
+  BuddyCheckStatus,
+  HealthPillar,
+  ScanResult
+} from "@shared/types";
 
 function expressionForScore(score: number): "calm" | "smile" | "wink" {
   if (score >= 76) return "calm";
@@ -35,6 +43,34 @@ function healthStatusClass(status: HealthPillar["status"]): string {
       return "fb-health-check";
     case "action":
       return "fb-health-action-needed";
+  }
+}
+
+const BUDDY_CATEGORY_LABEL: Record<BuddyChecklistCategory, string> = {
+  certificate: "인증서",
+  files: "개인 파일",
+  security: "보안",
+  apps: "앱",
+  drivers: "장치",
+  cloud: "클라우드",
+  backup: "복원 준비",
+  browser: "브라우저",
+  mail: "메일",
+  license: "라이선스",
+  work: "작업 자료",
+  account: "계정"
+};
+
+function buddyStatusClass(status: BuddyCheckStatus): string {
+  switch (status) {
+    case "confirmed":
+      return "fb-buddy-confirmed";
+    case "needs_user":
+      return "fb-buddy-needs-user";
+    case "warning":
+      return "fb-buddy-warning";
+    case "unknown":
+      return "fb-buddy-unknown";
   }
 }
 
@@ -117,6 +153,71 @@ function HealthPillarCard({ pillar, isWindows, onRunAction }: HealthPillarCardPr
         </ul>
       )}
     </article>
+  );
+}
+
+function BuddyChecklistPanel({ items }: { items: BuddyChecklistItem[] }) {
+  const confirmed = items.filter((i) => i.status === "confirmed").length;
+  const needsUser = items.filter((i) => i.status === "needs_user").length;
+  const warning = items.filter((i) => i.status === "warning").length;
+  const unknown = items.filter((i) => i.status === "unknown").length;
+
+  return (
+    <section className="fb-buddy-checklist" aria-labelledby="buddy-checklist-title">
+      <div className="fb-buddy-checklist-head">
+        <div>
+          <h2 id="buddy-checklist-title" className="fb-h2">
+            {copy.buddyChecklistTitle}
+          </h2>
+          <p>{copy.buddyChecklistLede}</p>
+        </div>
+        <div className="fb-buddy-checklist-summary" aria-label="체크리스트 요약">
+          <strong>{confirmed}</strong>
+          <span>버디 확인</span>
+        </div>
+      </div>
+
+      <p className="fb-buddy-checklist-counts">
+        {copy.buddyChecklistSummary(confirmed, needsUser, warning)}
+        {unknown > 0 ? ` ${unknown}개는 아직 확인하지 못했어요.` : ""}
+      </p>
+      <p className="fb-buddy-checklist-privacy">{copy.buddyChecklistPrivacy}</p>
+
+      <div className="fb-buddy-checklist-grid">
+        {items.map((check) => (
+          <article
+            key={check.id}
+            className={`fb-buddy-check-card ${buddyStatusClass(check.status)} fb-buddy-priority-${check.priority}`}
+          >
+            <div className="fb-buddy-check-top">
+              <input
+                type="checkbox"
+                checked={check.status === "confirmed"}
+                readOnly
+                aria-label={`${check.label} ${copy.buddyChecklistBadge[check.status]}`}
+              />
+              <div className="fb-buddy-check-title">
+                <span>{BUDDY_CATEGORY_LABEL[check.category]}</span>
+                <h3>{check.label}</h3>
+              </div>
+              <span className="fb-buddy-check-badge">{copy.buddyChecklistBadge[check.status]}</span>
+            </div>
+
+            <p className="fb-buddy-check-evidence">{check.evidence}</p>
+            <div className="fb-buddy-next">
+              <strong>{copy.buddyChecklistStatusText[check.status]}</strong>
+              <span>{check.helperText}</span>
+            </div>
+
+            <ul className="fb-buddy-guide">
+              {check.guide.slice(0, 3).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -238,6 +339,8 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         </div>
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
+
+      <BuddyChecklistPanel items={recommendation.buddyChecklist} />
 
       <section className="fb-health-panel" aria-labelledby="health-panel-title">
         <div className="fb-health-panel-head">
@@ -399,16 +502,6 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
           )}
           <Row label="앱 자동 설치 준비" value={report.winget.available ? "가능" : "어려움"} />
           <Row label="정리된 앱" value={`${wingetPackageCount}개`} />
-        </article>
-
-        <article className="fb-card fb-card-checklist">
-          <h3>포맷 전 체크리스트</h3>
-          <ul className="fb-report-checklist">
-            <li>공동인증서·Wi-Fi 프로필을 직접 옮겨주세요</li>
-            <li>바탕화면·문서·다운로드 폴더 백업</li>
-            <li>클라우드 동기화 완료 확인</li>
-            <li>공유용 리포트 저장 후 포맷</li>
-          </ul>
         </article>
       </section>
 

@@ -249,3 +249,57 @@ describe("disk-health override + Defender visibility", () => {
     expect(["watch", "organize", "format"]).toContain(rec.severity);
   });
 });
+
+describe("buddy checklist", () => {
+  it("renders all 15 checklist items with safe default statuses", () => {
+    const rec = generateRecommendation(baseReport());
+    expect(rec.buddyChecklist).toHaveLength(15);
+    expect(rec.buddyChecklist.map((i) => i.id)).toContain("certificate-backed-up");
+    expect(rec.buddyChecklist.map((i) => i.id)).toContain("security-scan-ready");
+    expect(rec.buddyChecklist.every((i) => i.label && i.helperText && i.guide.length >= 2)).toBe(true);
+
+    expect(rec.buddyChecklist.find((i) => i.id === "certificate-backed-up")?.status).toBe("confirmed");
+    expect(rec.buddyChecklist.find((i) => i.id === "security-scan-ready")?.status).toBe("confirmed");
+    expect(rec.buddyChecklist.find((i) => i.id === "windows-backup-settings-ready")?.status).toBe("unknown");
+  });
+
+  it("marks user-owned or sensitive items as direct-check / warning instead of over-confirming", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        userFolders: [
+          { name: "Desktop", path: "C:\\Users\\Ryan\\Desktop", exists: true, sizeGb: 2 },
+          { name: "Documents", path: "C:\\Users\\Ryan\\Documents", exists: true, sizeGb: 8 },
+          { name: "Downloads", path: "C:\\Users\\Ryan\\Downloads", exists: true, sizeGb: 82 }
+        ],
+        npkiCandidates: [
+          { path: "C:\\Users\\Ryan\\AppData\\LocalLow\\NPKI", exists: true },
+          { path: "C:\\NPKI", exists: true }
+        ],
+        browsers: [
+          { name: "Chrome", installed: true },
+          { name: "Edge", installed: true }
+        ],
+        cloudSync: [{ provider: "OneDrive", path: "C:\\Users\\Ryan\\OneDrive", exists: true }],
+        installedApps: [
+          { name: "KakaoTalk", publisher: "Kakao" },
+          { name: "Adobe Creative Cloud", publisher: "Adobe" },
+          { name: "Hancom Office", publisher: "Hancom" }
+        ],
+        defender: {
+          antivirusEnabled: false,
+          realTimeProtectionEnabled: false,
+          antivirusSignatureAgeDays: 10,
+          lastQuickScanDaysAgo: 90,
+          lastFullScanDaysAgo: 365
+        }
+      })
+    );
+
+    expect(rec.buddyChecklist.find((i) => i.id === "certificate-backed-up")?.status).toBe("warning");
+    expect(rec.buddyChecklist.find((i) => i.id === "personal-folders-reviewed")?.status).toBe("warning");
+    expect(rec.buddyChecklist.find((i) => i.id === "browser-backup-ready")?.status).toBe("warning");
+    expect(rec.buddyChecklist.find((i) => i.id === "messenger-backup-ready")?.status).toBe("needs_user");
+    expect(rec.buddyChecklist.find((i) => i.id === "paid-app-license-ready")?.status).toBe("warning");
+    expect(rec.buddyChecklist.find((i) => i.id === "security-scan-ready")?.status).toBe("warning");
+  });
+});

@@ -214,6 +214,35 @@ export interface HealthPillar {
   actions: ActionItem[];
 }
 
+export type BuddyCheckStatus = "confirmed" | "needs_user" | "warning" | "unknown";
+
+export type BuddyChecklistCategory =
+  | "certificate"
+  | "files"
+  | "security"
+  | "apps"
+  | "drivers"
+  | "cloud"
+  | "backup"
+  | "browser"
+  | "mail"
+  | "license"
+  | "work"
+  | "account";
+
+export type BuddyChecklistPriority = "high" | "medium" | "low";
+
+export interface BuddyChecklistItem {
+  id: string;
+  category: BuddyChecklistCategory;
+  label: string;
+  priority: BuddyChecklistPriority;
+  status: BuddyCheckStatus;
+  evidence?: string;
+  helperText: string;
+  guide: string[];
+}
+
 export interface Recommendation {
   formatScore: number;
   severity: FormatSeverity;
@@ -223,6 +252,7 @@ export interface Recommendation {
   formatReasons: ReasonItem[];
   afterFormat: ActionItem[];
   healthPillars: HealthPillar[];
+  buddyChecklist: BuddyChecklistItem[];
 }
 
 export interface PrivacyInfo {
