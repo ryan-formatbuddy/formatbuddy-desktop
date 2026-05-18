@@ -15,6 +15,8 @@
 import type {
   ActionItem,
   CareAction,
+  CleanupCandidate,
+  CleanupCenterSummary,
   HealthPillar,
   HealthPillarStatus,
   Recommendation,
@@ -412,6 +414,79 @@ function formatSmallGb(value: number): string {
   return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}GB`;
 }
 
+function buildCleanupCenter(report: ScanReport): CleanupCenterSummary {
+  const storage = report.storageWaste;
+  const tempGb = storage ? storage.userTempGb + storage.localAppDataTempGb + storage.windowsTempGb : 0;
+  const windowsOldGb = storage?.windowsOldExists ? storage.windowsOldGb : 0;
+  const largeFiles = report.largeFiles ?? [];
+  const duplicateGroups = report.duplicateFileCandidates ?? [];
+  const duplicateGb = duplicateGroups.reduce((sum, g) => sum + (g.totalWastedGb || 0), 0);
+  const startupItems = report.startupPrograms?.items ?? [];
+  const candidates: CleanupCandidate[] = [
+    {
+      id: "temporary-files",
+      kind: "temporary",
+      title: "임시 파일",
+      status: tempGb >= 1 ? "review" : "empty",
+      sizeGb: Math.round(tempGb * 10) / 10,
+      evidence: tempGb >= 1 ? `임시 파일 후보가 약 ${formatSmallGb(tempGb)} 있어요.` : "임시 파일 후보는 크지 않아요.",
+      action: "Windows 저장 공간 정리에서 항목을 직접 고르세요.",
+      safetyNote: "포맷버디가 자동으로 지우지 않아요."
+    },
+    {
+      id: "windows-old",
+      kind: "windows-old",
+      title: "이전 Windows 파일",
+      status: windowsOldGb >= 1 ? "review" : "empty",
+      sizeGb: Math.round(windowsOldGb * 10) / 10,
+      evidence: windowsOldGb >= 1 ? `Windows.old 후보가 약 ${formatSmallGb(windowsOldGb)} 보여요.` : "이전 Windows 파일 후보는 보이지 않아요.",
+      action: "되돌리기가 필요 없는지 확인한 뒤 정리하세요.",
+      safetyNote: "되돌리기 기간이 필요하면 지우면 안 돼요."
+    },
+    {
+      id: "large-files",
+      kind: "large-files",
+      title: "큰 파일",
+      status: largeFiles.length > 0 ? "review" : "empty",
+      count: largeFiles.length,
+      sizeGb: Math.round(largeFiles.reduce((sum, f) => sum + (f.sizeGb || 0), 0) * 10) / 10,
+      evidence: largeFiles.length > 0 ? `큰 파일 ${largeFiles.length}개를 찾았어요.` : "큰 파일 후보는 크게 보이지 않아요.",
+      action: "다운로드, 영상, 압축 파일부터 보세요.",
+      safetyNote: "큰 파일은 개인 자료일 수 있어 자동 삭제하지 않아요."
+    },
+    {
+      id: "duplicate-files",
+      kind: "duplicates",
+      title: "중복 의심 파일",
+      status: duplicateGroups.length > 0 ? "review" : "empty",
+      count: duplicateGroups.length,
+      sizeGb: Math.round(duplicateGb * 10) / 10,
+      evidence: duplicateGroups.length > 0 ? `같은 이름과 크기의 파일 묶음 ${duplicateGroups.length}개가 있어요.` : "중복 의심 파일 묶음은 보이지 않아요.",
+      action: "내용까지 같은지 직접 열어보고 판단하세요.",
+      safetyNote: "이건 확정 중복이 아니라 후보예요."
+    },
+    {
+      id: "startup-apps",
+      kind: "startup",
+      title: "시작 앱",
+      status: startupItems.length > 8 ? "review" : startupItems.length > 0 ? "ready" : "empty",
+      count: startupItems.length,
+      evidence: startupItems.length > 0 ? `PC 켤 때 같이 뜨는 앱이 ${startupItems.length}개예요.` : "시작 앱 후보는 보이지 않아요.",
+      action: "부팅이 느리면 자주 안 쓰는 앱을 끄세요.",
+      safetyNote: "끄기는 삭제가 아니라 되돌리기 쉬워요."
+    }
+  ];
+
+  return {
+    reclaimableGb: Math.round((tempGb + windowsOldGb + duplicateGb) * 10) / 10,
+    reviewCount: candidates.filter((c) => c.status === "review").length,
+    candidates,
+    largeFiles,
+    duplicateGroups,
+    startupItems
+  };
+}
+
 function buildHealthPillars(report: ScanReport, scores: {
   diskFree: number;
   memoryPressure: number;
@@ -601,6 +676,7 @@ export function generateRecommendation(report: ScanReport): Recommendation {
       defender: def,
       storageWaste: sw
     }),
+    cleanupCenter: buildCleanupCenter(report),
     appInventory: buildAppInventory(report),
     buddyChecklist: buildBuddyChecklist(report),
     careActions: buildCareActions(report, {

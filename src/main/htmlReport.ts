@@ -13,7 +13,8 @@ import { copy } from "@shared/copy";
  * Build a single-file HTML report from a ScanReport + its Recommendation.
  *
  * Constraints (from Ryan):
- *  - 5-card structure: ScoreHero / TryBefore / Concerns / AfterFormat / Manifest
+ *  - Core report structure: ScoreHero / CleanupCenter / Care / AppInventory /
+ *    TryBefore / Concerns / AfterFormat / Manifest
  *  - Wanted Sans Variable inlined (recipient gets the same font)
  *  - "로컬에서만 처리됨" meta is visible
  *  - File name format handled at the IPC layer:
@@ -154,6 +155,85 @@ function renderCareActions(rec: Recommendation): string {
     <h3>${esc(copy.careActionsTitle)}</h3>
     <p class="explain">${esc(copy.careActionsLede)}</p>
     <ul class="advice-list">${items}</ul>
+  </section>`;
+}
+
+function renderCleanupCenter(rec: Recommendation): string {
+  const cleanup = rec.cleanupCenter;
+  const candidateItems = cleanup.candidates
+    .map(
+      (c) => `
+    <li>
+      <strong>${esc(c.title)} <span class="care-badge">${esc(copy.cleanupStatusBadge[c.status])}</span></strong>
+      <span>${esc(c.evidence)}</span>
+      <p class="action-hint">${esc(c.action)}</p>
+      <small>${esc(c.safetyNote)}</small>
+    </li>`
+    )
+    .join("");
+  const largeRows = cleanup.largeFiles
+    .slice(0, 8)
+    .map(
+      (f) => `
+      <tr>
+        <td>${esc(f.name)}</td>
+        <td>${esc(friendlyFolderName(f.folderName))}</td>
+        <td class="num">${esc(fmtGb(f.sizeGb))}</td>
+      </tr>`
+    )
+    .join("");
+  const duplicateRows = cleanup.duplicateGroups
+    .slice(0, 6)
+    .map(
+      (g) => `
+      <tr>
+        <td>${esc(g.name)}</td>
+        <td>${g.count}개</td>
+        <td class="num">${esc(fmtGb(g.totalWastedGb))}</td>
+      </tr>`
+    )
+    .join("");
+  const startupRows = cleanup.startupItems
+    .slice(0, 8)
+    .map(
+      (s) => `
+      <tr>
+        <td>${esc(s.name || "이름 없는 시작 앱")}</td>
+        <td>${esc(s.location || "시작 앱 목록")}</td>
+        <td class="num">${esc(s.user || "PC")}</td>
+      </tr>`
+    )
+    .join("");
+  const details =
+    largeRows || duplicateRows || startupRows
+      ? `
+    <div class="cleanup-detail-grid">
+      ${
+        largeRows
+          ? `<div><h4>${esc(copy.cleanupLargeFilesTitle)}</h4><table class="simple-table"><tbody>${largeRows}</tbody></table></div>`
+          : ""
+      }
+      ${
+        duplicateRows
+          ? `<div><h4>${esc(copy.cleanupDuplicatesTitle)}</h4><table class="simple-table"><tbody>${duplicateRows}</tbody></table></div>`
+          : ""
+      }
+      ${
+        startupRows
+          ? `<div><h4>${esc(copy.cleanupStartupTitle)}</h4><table class="simple-table"><tbody>${startupRows}</tbody></table></div>`
+          : ""
+      }
+    </div>`
+      : `<p class="explain">${esc(copy.cleanupNoDetail)}</p>`;
+
+  return `
+  <section class="card">
+    <h3>${esc(copy.cleanupCenterTitle)}</h3>
+    <p class="explain">${esc(copy.cleanupCenterLede)}</p>
+    <p class="action-hint">${esc(copy.cleanupCenterSummary(cleanup.reclaimableGb, cleanup.reviewCount))}</p>
+    <p class="explain">${esc(copy.cleanupCenterCoverageNote)}</p>
+    <ul class="advice-list">${candidateItems}</ul>
+    ${details}
   </section>`;
 }
 
@@ -315,6 +395,7 @@ function styles(fontBase64: string | null): string {
   .advice-list span{font-size:13px;line-height:20px;color:var(--fb-ink-2);font-weight:500;}
   .action-hint{margin:6px 0 0;display:inline-flex;font-size:12px;font-weight:650;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:9999px;align-self:flex-start;}
   .care-badge{display:inline-flex;font-size:11px;font-weight:800;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;}
+  .advice-list small{font-size:12px;line-height:18px;color:var(--fb-ink-3);font-weight:600;}
   .weight{font-size:11px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;font-feature-settings:"tnum" on;vertical-align:middle;}
   .weight.heavy{background:var(--fb-blue);color:#fff;}
   .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;}
@@ -332,6 +413,11 @@ function styles(fontBase64: string | null): string {
   .app-list-table td{padding:7px 8px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
   .app-list-table td:nth-child(2){color:var(--fb-ink-3);}
   .app-list-table td:nth-child(3){text-align:right;color:var(--fb-blue-heavy);font-weight:700;}
+  .cleanup-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px;}
+  .simple-table{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 4px;}
+  .simple-table td{padding:7px 8px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);vertical-align:top;}
+  .simple-table td:nth-child(2){color:var(--fb-ink-3);}
+  .simple-table td.num{text-align:right;color:var(--fb-blue-heavy);font-weight:800;font-feature-settings:"tnum" on;white-space:nowrap;}
   .health-mini{margin-top:18px;padding-top:16px;border-top:1px solid var(--fb-line);}
   .health-mini h4{margin:0 0 10px;font-size:13px;color:var(--fb-ink-1);}
   .health-mini-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
@@ -386,6 +472,7 @@ export function buildHtmlReport(
   </header>
   ${renderScoreHero(recommendation)}
   ${renderSystemInline(report)}
+  ${renderCleanupCenter(recommendation)}
   ${renderCareActions(recommendation)}
   ${renderAppInventory(recommendation)}
   ${renderTryBefore(recommendation)}

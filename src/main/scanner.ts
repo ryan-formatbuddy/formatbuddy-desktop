@@ -386,7 +386,14 @@ function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): Scan
     },
     eventLog: { windowDays: 7, criticalCount: 0, errorCount: 3 },
     driverAge: { totalWithDate: 42, olderThan2Years: 8, olderThan2YearsPercent: 19.0 },
-    startupPrograms: { count: 6, items: [] },
+    startupPrograms: {
+      count: 6,
+      items: [
+        { name: "KakaoTalk", location: "HKCU Run", user: "Ryan" },
+        { name: "OneDrive", location: "HKCU Run", user: "Ryan" },
+        { name: "Adobe Creative Cloud", location: "Startup Folder", user: "Ryan" }
+      ]
+    },
     defender: {
       antivirusEnabled: true,
       realTimeProtectionEnabled: true,
@@ -411,6 +418,39 @@ function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): Scan
       windowsOldExists: false,
       windowsOldGb: 0
     },
+    largeFiles: [
+      {
+        name: "old-installer.exe",
+        path: "C:\\Users\\Ryan\\Downloads\\old-installer.exe",
+        folderName: "Downloads",
+        extension: ".exe",
+        kind: "installer",
+        sizeGb: 2.4,
+        modifiedAt: new Date(Date.now() - 42 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        name: "meeting-recording.mp4",
+        path: "C:\\Users\\Ryan\\Videos\\meeting-recording.mp4",
+        folderName: "Videos",
+        extension: ".mp4",
+        kind: "video",
+        sizeGb: 5.7,
+        modifiedAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ],
+    duplicateFileCandidates: [
+      {
+        name: "backup.zip",
+        sizeGb: 1.1,
+        count: 3,
+        totalWastedGb: 2.2,
+        paths: [
+          "C:\\Users\\Ryan\\Downloads\\backup.zip",
+          "C:\\Users\\Ryan\\Desktop\\backup.zip",
+          "C:\\Users\\Ryan\\Documents\\backup.zip"
+        ]
+      }
+    ],
     userFolders: [
       { name: "Desktop", path: "C:\\Users\\Ryan\\Desktop", exists: true, sizeGb: 0.42 },
       { name: "Documents", path: "C:\\Users\\Ryan\\Documents", exists: true, sizeGb: 3.7 },

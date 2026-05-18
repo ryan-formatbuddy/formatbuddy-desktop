@@ -15,7 +15,12 @@ import type {
   CareAction,
   CareActionCategory,
   CareActionStatus,
+  CleanupCandidate,
+  CleanupCandidateStatus,
+  DuplicateFileCandidateGroup,
+  FileCandidateKind,
   HealthPillar,
+  LargeFileCandidate,
   ScanResult
 } from "@shared/types";
 
@@ -99,6 +104,27 @@ function careStatusClass(status: CareActionStatus): string {
       return "fb-care-unavailable";
   }
 }
+
+function cleanupStatusClass(status: CleanupCandidateStatus): string {
+  switch (status) {
+    case "ready":
+      return "fb-cleanup-ready";
+    case "review":
+      return "fb-cleanup-review";
+    case "empty":
+      return "fb-cleanup-empty";
+  }
+}
+
+const FILE_KIND_LABEL: Record<FileCandidateKind, string> = {
+  installer: "설치 파일",
+  archive: "압축 파일",
+  video: "영상",
+  image: "이미지",
+  document: "문서",
+  audio: "음악",
+  other: "기타"
+};
 
 // expressionForScore helper will land in v0.5.3 when the ScoreHero card
 // gains its own CloudBuddy. For now severity drives the tone color only.
@@ -353,6 +379,132 @@ function AppInventoryPanel({ groups, total, classified, needsCheck }: {
   );
 }
 
+function CleanupCandidateCard({ candidate }: { candidate: CleanupCandidate }) {
+  return (
+    <article className={`fb-cleanup-candidate ${cleanupStatusClass(candidate.status)}`}>
+      <div className="fb-cleanup-candidate-top">
+        <h3>{candidate.title}</h3>
+        <span>{copy.cleanupStatusBadge[candidate.status]}</span>
+      </div>
+      <p>{candidate.evidence}</p>
+      <div className="fb-cleanup-candidate-meta">
+        {candidate.sizeGb !== undefined && <strong>{formatGb(candidate.sizeGb)}</strong>}
+        {candidate.count !== undefined && <strong>{candidate.count}개</strong>}
+      </div>
+      <small>{candidate.action}</small>
+      <em>{candidate.safetyNote}</em>
+    </article>
+  );
+}
+
+function LargeFileRow({ file }: { file: LargeFileCandidate }) {
+  return (
+    <li className="fb-cleanup-detail-row">
+      <div>
+        <strong>{file.name}</strong>
+        <span>
+          {friendlyFolderName(file.folderName)} · {FILE_KIND_LABEL[file.kind]}
+        </span>
+      </div>
+      <b>{formatGb(file.sizeGb)}</b>
+    </li>
+  );
+}
+
+function DuplicateRow({ group }: { group: DuplicateFileCandidateGroup }) {
+  return (
+    <li className="fb-cleanup-detail-row">
+      <div>
+        <strong>{group.name}</strong>
+        <span>
+          같은 이름과 크기 {group.count}개 · 후보 위치 {group.paths.length}곳
+        </span>
+      </div>
+      <b>{formatGb(group.totalWastedGb)}</b>
+    </li>
+  );
+}
+
+function CleanupCenterPanel({ cleanup }: { cleanup: ScanResult["recommendation"]["cleanupCenter"] }) {
+  const largeFiles = cleanup.largeFiles.slice(0, 8);
+  const duplicateGroups = cleanup.duplicateGroups.slice(0, 6);
+  const startupItems = cleanup.startupItems.slice(0, 8);
+  const hasDetail = largeFiles.length > 0 || duplicateGroups.length > 0 || startupItems.length > 0;
+
+  return (
+    <section className="fb-cleanup-center" aria-labelledby="cleanup-center-title">
+      <div className="fb-cleanup-center-head">
+        <div>
+          <h2 id="cleanup-center-title" className="fb-h2">
+            {copy.cleanupCenterTitle}
+          </h2>
+          <p>{copy.cleanupCenterLede}</p>
+        </div>
+        <div className="fb-cleanup-center-summary" aria-label="정리 후보 요약">
+          <strong>{formatGb(cleanup.reclaimableGb)}</strong>
+          <span>정리 후보</span>
+        </div>
+      </div>
+
+      <p className="fb-cleanup-center-counts">
+        {copy.cleanupCenterSummary(cleanup.reclaimableGb, cleanup.reviewCount)}
+      </p>
+      <p className="fb-cleanup-center-note">{copy.cleanupCenterCoverageNote}</p>
+
+      <div className="fb-cleanup-candidate-grid">
+        {cleanup.candidates.map((candidate) => (
+          <CleanupCandidateCard key={candidate.id} candidate={candidate} />
+        ))}
+      </div>
+
+      {hasDetail ? (
+        <div className="fb-cleanup-detail-grid">
+          {largeFiles.length > 0 && (
+            <article className="fb-cleanup-detail-card">
+              <h3>{copy.cleanupLargeFilesTitle}</h3>
+              <ul>
+                {largeFiles.map((file) => (
+                  <LargeFileRow key={`${file.path}-${file.sizeGb}`} file={file} />
+                ))}
+              </ul>
+            </article>
+          )}
+
+          {duplicateGroups.length > 0 && (
+            <article className="fb-cleanup-detail-card">
+              <h3>{copy.cleanupDuplicatesTitle}</h3>
+              <ul>
+                {duplicateGroups.map((group) => (
+                  <DuplicateRow key={`${group.name}-${group.sizeGb}-${group.count}`} group={group} />
+                ))}
+              </ul>
+            </article>
+          )}
+
+          {startupItems.length > 0 && (
+            <article className="fb-cleanup-detail-card">
+              <h3>{copy.cleanupStartupTitle}</h3>
+              <ul>
+                {startupItems.map((item, index) => (
+                  <li key={`${item.name ?? "startup"}-${item.location ?? ""}-${index}`} className="fb-cleanup-detail-row">
+                    <div>
+                      <strong>{item.name || "이름 없는 시작 앱"}</strong>
+                      <span>{item.location || "시작 앱 목록"}</span>
+                    </div>
+                    <b>{item.user || "PC"}</b>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          )}
+        </div>
+      ) : (
+        <p className="fb-cleanup-empty-detail">{copy.cleanupNoDetail}</p>
+      )}
+    </section>
+  );
+}
+
 export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
@@ -471,6 +623,8 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         </div>
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
+
+      <CleanupCenterPanel cleanup={recommendation.cleanupCenter} />
 
       <BuddyChecklistPanel items={recommendation.buddyChecklist} />
 

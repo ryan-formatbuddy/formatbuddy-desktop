@@ -45,7 +45,14 @@ const sampleReport: ScanReport = {
   windowsUpdate: { installedHotfixCount: 32, daysSinceLatestHotfix: 95 },
   eventLog: { windowDays: 7, criticalCount: 4, errorCount: 18 },
   driverAge: { totalWithDate: 64, olderThan2Years: 38, olderThan2YearsPercent: 59.4 },
-  startupPrograms: { count: 14, items: [] },
+  startupPrograms: {
+    count: 14,
+    items: [
+      { name: "KakaoTalk", location: "HKCU Run", user: "Ryan" },
+      { name: "OneDrive", location: "HKCU Run", user: "Ryan" },
+      { name: "Adobe Creative Cloud", location: "Startup Folder", user: "Ryan" }
+    ]
+  },
   defender: {
     antivirusEnabled: true,
     realTimeProtectionEnabled: true,
@@ -60,6 +67,37 @@ const sampleReport: ScanReport = {
     windowsOldExists: true,
     windowsOldGb: 14.8
   },
+  largeFiles: [
+    {
+      name: "old-installer.exe",
+      path: "C:\\Users\\Ryan\\Downloads\\old-installer.exe",
+      folderName: "Downloads",
+      extension: ".exe",
+      kind: "installer",
+      sizeGb: 2.4
+    },
+    {
+      name: "family-video.mp4",
+      path: "C:\\Users\\Ryan\\Videos\\family-video.mp4",
+      folderName: "Videos",
+      extension: ".mp4",
+      kind: "video",
+      sizeGb: 6.8
+    }
+  ],
+  duplicateFileCandidates: [
+    {
+      name: "backup.zip",
+      sizeGb: 1.1,
+      count: 3,
+      totalWastedGb: 2.2,
+      paths: [
+        "C:\\Users\\Ryan\\Downloads\\backup.zip",
+        "C:\\Users\\Ryan\\Desktop\\backup.zip",
+        "C:\\Users\\Ryan\\Documents\\backup.zip"
+      ]
+    }
+  ],
   userFolders: [
     { name: "Desktop", path: "C:\\Users\\Ryan\\Desktop", exists: true, sizeGb: 1.4 },
     { name: "Documents", path: "C:\\Users\\Ryan\\Documents", exists: true, sizeGb: 6.8 },
@@ -117,6 +155,9 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("포맷 후 같이 챙길 것");
     expect(html).toContain("PC 건강 점검");
     expect(html).toContain("깔끔 정리");
+    expect(html).toContain("정리 후보 센터");
+    expect(html).toContain("용량 큰 파일");
+    expect(html).toContain("중복 의심 파일");
     expect(html).toContain("바로 해볼 수 있는 관리 기능");
     expect(html).toContain("설치된 프로그램 분류");
     expect(html).toContain("빠진 파일이 있는지 확인하는 목록");

@@ -157,6 +157,22 @@ export const copy = {
     warning: "먼저 확인",
     unavailable: "확인 못함"
   } as const,
+  cleanupCenterTitle: "정리 후보 센터",
+  cleanupCenterLede:
+    "바로 지우는 기능이 아니라, Ryan이 보고 고를 수 있게 정리 후보만 먼저 모았어요.",
+  cleanupCenterCoverageNote:
+    "개인 파일은 자동 삭제하지 않아요. 큰 파일과 중복 의심 파일은 직접 열어보고 결정해주세요.",
+  cleanupCenterSummary: (gb: number, reviewCount: number) =>
+    `바로 확인해볼 후보는 약 ${gb.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}GB, 직접 봐야 할 묶음은 ${reviewCount}개예요.`,
+  cleanupStatusBadge: {
+    ready: "챙겨뒀어요",
+    review: "직접 보기",
+    empty: "괜찮아요"
+  } as const,
+  cleanupLargeFilesTitle: "용량 큰 파일",
+  cleanupDuplicatesTitle: "중복 의심 파일",
+  cleanupStartupTitle: "시작 앱",
+  cleanupNoDetail: "지금은 따로 크게 볼 후보가 적어요.",
   appInventoryTitle: "설치된 프로그램 분류",
   appInventoryLede:
     "Windows에 설치 기록이 남아 있는 프로그램을 모두 모아, 포맷 전에 챙길 이유별로 나눠봤어요.",

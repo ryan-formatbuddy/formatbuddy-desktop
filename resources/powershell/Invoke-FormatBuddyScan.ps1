@@ -99,17 +99,7 @@ function Get-FolderLastModifiedIso {
 }
 
 function Get-UserFolders {
-  $downloads = Join-PathSafe -Base $env:USERPROFILE -Child "Downloads"
-  $folders = @(
-    @{ name = "Desktop"; path = [Environment]::GetFolderPath("Desktop") },
-    @{ name = "Documents"; path = [Environment]::GetFolderPath("MyDocuments") },
-    @{ name = "Pictures"; path = [Environment]::GetFolderPath("MyPictures") },
-    @{ name = "Music"; path = [Environment]::GetFolderPath("MyMusic") },
-    @{ name = "Videos"; path = [Environment]::GetFolderPath("MyVideos") },
-    @{ name = "Downloads"; path = $downloads }
-  )
-
-  foreach ($folder in ($folders | Where-Object { $_.path })) {
+  foreach ($folder in (Get-UserFolderDefinitions | Where-Object { $_.path })) {
     $exists = Test-Path $folder.path
     [ordered]@{
       name = $folder.name
@@ -118,6 +108,91 @@ function Get-UserFolders {
       sizeGb = if ($exists) { Get-FolderSizeGb -Path $folder.path } else { $null }
     }
   }
+}
+
+function Get-UserFolderDefinitions {
+  $downloads = Join-PathSafe -Base $env:USERPROFILE -Child "Downloads"
+  return @(
+    @{ name = "Desktop"; path = [Environment]::GetFolderPath("Desktop") },
+    @{ name = "Documents"; path = [Environment]::GetFolderPath("MyDocuments") },
+    @{ name = "Pictures"; path = [Environment]::GetFolderPath("MyPictures") },
+    @{ name = "Music"; path = [Environment]::GetFolderPath("MyMusic") },
+    @{ name = "Videos"; path = [Environment]::GetFolderPath("MyVideos") },
+    @{ name = "Downloads"; path = $downloads }
+  )
+}
+
+function Get-FileKind {
+  param([string]$Extension)
+  $ext = "$Extension".ToLowerInvariant()
+  if (@(".exe", ".msi", ".msix", ".appx") -contains $ext) { return "installer" }
+  if (@(".zip", ".7z", ".rar", ".tar", ".gz", ".iso") -contains $ext) { return "archive" }
+  if (@(".mp4", ".mov", ".mkv", ".avi", ".wmv") -contains $ext) { return "video" }
+  if (@(".jpg", ".jpeg", ".png", ".gif", ".heic", ".raw", ".webp") -contains $ext) { return "image" }
+  if (@(".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".hwp", ".txt") -contains $ext) { return "document" }
+  if (@(".mp3", ".wav", ".flac", ".aac", ".m4a") -contains $ext) { return "audio" }
+  return "other"
+}
+
+function Get-LargeFileCandidates {
+  param([object[]]$Folders, [int64]$MinBytes = 536870912, [int]$Limit = 40)
+
+  $items = New-Object System.Collections.Generic.List[object]
+  foreach ($folder in ($Folders | Where-Object { $_.path -and (Test-Path $_.path) })) {
+    try {
+      $files = Get-FilesSkippingReparsePoints -Root $folder.path
+      foreach ($file in $files) {
+        if ($file.Length -lt $MinBytes) { continue }
+        $items.Add([ordered]@{
+          name = $file.Name
+          path = $file.FullName
+          folderName = $folder.name
+          extension = $file.Extension.ToLowerInvariant()
+          kind = Get-FileKind -Extension $file.Extension
+          sizeGb = [Math]::Round($file.Length / 1GB, 2)
+          modifiedAt = $file.LastWriteTimeUtc.ToString("o")
+        }) | Out-Null
+      }
+    } catch {
+      Add-Diagnostic -Step "LargeFiles:$($folder.name)" -Message $_.Exception.Message
+    }
+  }
+  return @($items | Sort-Object sizeGb -Descending | Select-Object -First $Limit)
+}
+
+function Get-DuplicateFileCandidates {
+  param([object[]]$Folders, [int64]$MinBytes = 10485760, [int]$Limit = 20)
+
+  $files = New-Object System.Collections.Generic.List[object]
+  foreach ($folder in ($Folders | Where-Object { $_.path -and (Test-Path $_.path) })) {
+    try {
+      $folderFiles = Get-FilesSkippingReparsePoints -Root $folder.path
+      foreach ($file in $folderFiles) {
+        if ($file.Length -lt $MinBytes) { continue }
+        $files.Add($file) | Out-Null
+      }
+    } catch {
+      Add-Diagnostic -Step "DuplicateFiles:$($folder.name)" -Message $_.Exception.Message
+    }
+  }
+
+  $groups = New-Object System.Collections.Generic.List[object]
+  $files |
+    Group-Object { "$($_.Name.ToLowerInvariant())|$($_.Length)" } |
+    Where-Object { $_.Count -gt 1 } |
+    ForEach-Object {
+      $first = $_.Group[0]
+      $sizeGb = [Math]::Round($first.Length / 1GB, 2)
+      $groups.Add([ordered]@{
+        name = $first.Name
+        sizeGb = $sizeGb
+        count = $_.Count
+        totalWastedGb = [Math]::Round((($_.Count - 1) * $first.Length) / 1GB, 2)
+        paths = @($_.Group | Select-Object -First 6 | ForEach-Object { $_.FullName })
+      }) | Out-Null
+    }
+
+  return @($groups | Sort-Object totalWastedGb -Descending | Select-Object -First $Limit)
 }
 
 function Get-CloudSyncCandidates {
@@ -613,6 +688,7 @@ if ($Mode -eq "manifest") {
   $disk = Get-SafeCimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
   $printers = Get-SafeCimInstance Win32_Printer
   $drivers = Get-SafeCimInstance Win32_PnPSignedDriver
+  $userFolderDefs = Get-UserFolderDefinitions
   $wifiProfiles = @()
   try {
     $wifiProfiles = @(netsh wlan show profiles |
@@ -671,6 +747,8 @@ if ($Mode -eq "manifest") {
     mailDataFiles = @(Get-MailDataFiles)
     storageWaste = Get-StorageWaste
     userFolders = @(Get-UserFolders)
+    largeFiles = @(Get-LargeFileCandidates -Folders $userFolderDefs)
+    duplicateFileCandidates = @(Get-DuplicateFileCandidates -Folders $userFolderDefs)
     gpu = @($gpu | ForEach-Object { $_.Name })
     installedApps = @(Get-InstalledApps | Sort-Object name -Unique)
     drivers = @($drivers | Select-Object DeviceName, DriverVersion, Manufacturer, DriverDate)

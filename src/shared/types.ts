@@ -192,6 +192,26 @@ export interface StorageWasteInfo {
   windowsOldGb: number;
 }
 
+export type FileCandidateKind = "installer" | "archive" | "video" | "image" | "document" | "audio" | "other";
+
+export interface LargeFileCandidate {
+  name: string;
+  path: string;
+  folderName: string;
+  extension?: string | null;
+  kind: FileCandidateKind;
+  sizeGb: number;
+  modifiedAt?: string | null;
+}
+
+export interface DuplicateFileCandidateGroup {
+  name: string;
+  sizeGb: number;
+  count: number;
+  totalWastedGb: number;
+  paths: string[];
+}
+
 /**
  * Severity scale (v0.5.0 — adopted from design_handoff_format_buddy_app).
  * Frame is **care-intensity**, not risk:
@@ -245,6 +265,30 @@ export interface HealthPillar {
   summary: string;
   detail: string;
   actions: ActionItem[];
+}
+
+export type CleanupCandidateKind = "trash" | "temporary" | "windows-old" | "large-files" | "duplicates" | "startup";
+export type CleanupCandidateStatus = "ready" | "review" | "empty";
+
+export interface CleanupCandidate {
+  id: string;
+  kind: CleanupCandidateKind;
+  title: string;
+  status: CleanupCandidateStatus;
+  sizeGb?: number;
+  count?: number;
+  evidence: string;
+  action: string;
+  safetyNote: string;
+}
+
+export interface CleanupCenterSummary {
+  reclaimableGb: number;
+  reviewCount: number;
+  candidates: CleanupCandidate[];
+  largeFiles: LargeFileCandidate[];
+  duplicateGroups: DuplicateFileCandidateGroup[];
+  startupItems: StartupProgramItem[];
 }
 
 export type AppInventoryCategory =
@@ -338,6 +382,7 @@ export interface Recommendation {
   formatReasons: ReasonItem[];
   afterFormat: ActionItem[];
   healthPillars: HealthPillar[];
+  cleanupCenter: CleanupCenterSummary;
   appInventory: AppInventorySummary;
   buddyChecklist: BuddyChecklistItem[];
   careActions: CareAction[];
@@ -375,6 +420,8 @@ export interface ScanReport {
   appDataCandidates?: AppDataCandidate[];
   mailDataFiles?: MailDataFileInfo[];
   storageWaste?: StorageWasteInfo;
+  largeFiles?: LargeFileCandidate[];
+  duplicateFileCandidates?: DuplicateFileCandidateGroup[];
   userFolders: UserFolderInfo[];
   gpu: string[];
   installedApps: InstalledApp[];

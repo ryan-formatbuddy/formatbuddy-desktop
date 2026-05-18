@@ -51,6 +51,8 @@ function baseReport(overrides: Partial<ScanReport> = {}): ScanReport {
       windowsOldExists: false,
       windowsOldGb: 0
     },
+    largeFiles: [],
+    duplicateFileCandidates: [],
     userFolders: [],
     gpu: [],
     installedApps: [],
@@ -402,5 +404,71 @@ describe("buddy checklist", () => {
     expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).toBe("Start-MpScan -ScanType QuickScan");
     expect(rec.careActions.find((a) => a.id === "windows-update-review")?.status).toBe("warning");
     expect(rec.careActions.every((a) => /자동 삭제|승인 없는 삭제|직접 치료|상주 감시|Ryan이 직접|끄기|선택/.test(a.safetyNote))).toBe(true);
+  });
+
+  it("builds a cleanup center from temporary files, large files, duplicate candidates, and startup apps", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        storageWaste: {
+          userTempGb: 3,
+          localAppDataTempGb: 2,
+          windowsTempGb: 1,
+          windowsOldExists: true,
+          windowsOldGb: 8
+        },
+        largeFiles: [
+          {
+            name: "old-installer.exe",
+            path: "C:\\Users\\Ryan\\Downloads\\old-installer.exe",
+            folderName: "Downloads",
+            extension: ".exe",
+            kind: "installer",
+            sizeGb: 2.4
+          }
+        ],
+        duplicateFileCandidates: [
+          {
+            name: "backup.zip",
+            sizeGb: 1.1,
+            count: 3,
+            totalWastedGb: 2.2,
+            paths: [
+              "C:\\Users\\Ryan\\Downloads\\backup.zip",
+              "C:\\Users\\Ryan\\Desktop\\backup.zip",
+              "C:\\Users\\Ryan\\Documents\\backup.zip"
+            ]
+          }
+        ],
+        startupPrograms: {
+          count: 10,
+          items: [
+            { name: "KakaoTalk", location: "HKCU Run", user: "Ryan" },
+            { name: "OneDrive", location: "HKCU Run", user: "Ryan" },
+            { name: "Adobe Creative Cloud", location: "Startup Folder", user: "Ryan" },
+            { name: "Steam", location: "HKCU Run", user: "Ryan" },
+            { name: "Teams", location: "HKCU Run", user: "Ryan" },
+            { name: "Discord", location: "HKCU Run", user: "Ryan" },
+            { name: "Launcher", location: "HKCU Run", user: "Ryan" },
+            { name: "Helper", location: "HKCU Run", user: "Ryan" },
+            { name: "Updater", location: "HKCU Run", user: "Ryan" }
+          ]
+        }
+      })
+    );
+
+    expect(rec.cleanupCenter.candidates.map((c) => c.id)).toEqual([
+      "temporary-files",
+      "windows-old",
+      "large-files",
+      "duplicate-files",
+      "startup-apps"
+    ]);
+    expect(rec.cleanupCenter.reclaimableGb).toBe(16.2);
+    expect(rec.cleanupCenter.reviewCount).toBe(5);
+    expect(rec.cleanupCenter.largeFiles[0]?.name).toBe("old-installer.exe");
+    expect(rec.cleanupCenter.duplicateGroups[0]?.name).toBe("backup.zip");
+    expect(rec.cleanupCenter.startupItems).toHaveLength(9);
+    expect(rec.cleanupCenter.candidates.find((c) => c.id === "duplicate-files")?.safetyNote).toMatch(/후보/);
+    expect(rec.cleanupCenter.candidates.every((c) => !/자동으로 지웠|삭제 완료/.test(`${c.evidence} ${c.action} ${c.safetyNote}`))).toBe(true);
   });
 });
