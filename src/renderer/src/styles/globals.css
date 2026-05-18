@@ -903,7 +903,9 @@ button { font-family: inherit; }
   letter-spacing: -0.045em;
   line-height: 1;
   font-feature-settings: "tnum" on;
-  color: var(--score-tone, var(--color-fb-ink-1));
+  /* v0.5.4 — foreground uses the WCAG-safe --score-text variable.
+     The decorative --score-tone still drives the small badge dot. */
+  color: var(--score-text, var(--color-fb-ink-1));
 }
 .fb-score-card-unit {
   font-size: 22px;
@@ -932,7 +934,7 @@ button { font-family: inherit; }
   gap: 8px;
   background: #ffffff;
   border: 1px solid var(--color-fb-line);
-  color: var(--score-tone, var(--color-fb-ink-1));
+  color: var(--score-text, var(--color-fb-ink-1));
   font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -947,12 +949,28 @@ button { font-family: inherit; }
   background: var(--score-tone, var(--color-fb-blue));
 }
 /* Severity tone variants — single hue family, mint → deep-blue.
-   The tone color drives both the score number and the badge text/dot
-   via the --score-tone CSS variable scoped to the card. */
-.fb-score-safe     { --score-tone: var(--color-fb-tone-safe); }
-.fb-score-watch    { --score-tone: var(--color-fb-tone-watch); }
-.fb-score-organize { --score-tone: var(--color-fb-tone-organize); }
-.fb-score-format   { --score-tone: var(--color-fb-tone-format); }
+   `--score-tone` drives decorative bits (the small dot) where contrast
+   doesn't matter. `--score-text` drives any actual text foreground so
+   we stay WCAG AA on the score number and badge label.
+     safe / watch → ink-1 text (mint/teal too light against the
+                    blue-tint card background, ~1.86:1 / 2.64:1)
+     organize / format → tone text (≥4.5:1 against white) */
+.fb-score-safe {
+  --score-tone: var(--color-fb-tone-safe);
+  --score-text: var(--color-fb-ink-1);
+}
+.fb-score-watch {
+  --score-tone: var(--color-fb-tone-watch);
+  --score-text: var(--color-fb-ink-1);
+}
+.fb-score-organize {
+  --score-tone: var(--color-fb-tone-organize);
+  --score-text: var(--color-fb-tone-organize);
+}
+.fb-score-format {
+  --score-tone: var(--color-fb-tone-format);
+  --score-text: var(--color-fb-tone-format);
+}
 
 /* ============================================================
    Advice cards (try-first / reasons / after-format)

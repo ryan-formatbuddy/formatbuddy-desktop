@@ -175,6 +175,7 @@ export function Report({ result, onBack }: ReportProps) {
                     <button
                       type="button"
                       className="fb-run-btn"
+                      aria-label={`${a.title} — ${copy.recommendRunButton}`}
                       onClick={() => void runAction(a)}
                     >
                       {copy.recommendRunButton}
@@ -223,6 +224,7 @@ export function Report({ result, onBack }: ReportProps) {
                     <button
                       type="button"
                       className="fb-run-btn"
+                      aria-label={`${a.title} — ${copy.recommendRunButton}`}
                       onClick={() => void runAction(a)}
                     >
                       {copy.recommendRunButton}

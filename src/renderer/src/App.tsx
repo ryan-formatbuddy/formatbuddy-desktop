@@ -112,13 +112,13 @@ export function App() {
     if (phase.kind === "home" || phase.kind === "onboarding") return null;
     const versionLabel = appVersion ? `v${appVersion}` : undefined;
     if (phase.kind === "scanning")
-      return <TopBar here="진단 중" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
+      return <TopBar here="진단 중" meta="로컬에서만 처리됨" version={versionLabel} onBack={cancelScan} />;
     if (phase.kind === "report")
       return <TopBar here="리포트" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
-  }, [phase, appVersion, goHome]);
+  }, [phase, appVersion, goHome, cancelScan]);
 
   const content = useMemo(() => {
     switch (phase.kind) {
