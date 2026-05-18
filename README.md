@@ -44,41 +44,29 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 - `resources/icons/` — 로고 SVG + 앱 아이콘
 - `tests/` — Vitest unit tests (scanner mock, IPC bridge)
 
-## Pre-launch checklist (출시 전 처리)
+## 문서
 
-본격 출시 — 외부 채널 마케팅, 사용자 100명 이상, 또는 비즈니스 사용 — 전에 정리해야 할 항목들. preview/베타 단계인 지금은 의도적으로 deferred.
+- [사용 가이드 (한국어)](docs/USER_GUIDE.md) — 다운로드부터 백업 manifest까지 step-by-step
+- [자주 묻는 질문 (FAQ)](docs/FAQ.md) — SmartScreen 안내, 무엇을 수집/안 함, 트러블슈팅
+- [개인정보 처리방침 (초안)](docs/PRIVACY_POLICY.md) — 100% 로컬 동작 명문화
+- [이용약관 (초안)](docs/TERMS_OF_SERVICE.md) — 한국 약관규제법 기본 원칙
+- [전체 출시 체크리스트](LAUNCH_READINESS.md) — 분야별 P0~P3 + 자율 가능 여부
 
-### Must-have (출시 전 결정 필요)
+## Pre-launch checklist (요약)
 
-- [ ] **Windows 코드 사이닝 인증서** 결정
-  - 현재 상태: unsigned `.exe` → 사용자가 SmartScreen "More info → Run anyway" 2단계 클릭 필요
-  - 옵션 A — **EV 인증서 (~$500/년)**: USB 하드웨어 토큰, SmartScreen 즉시 깨끗
-  - 옵션 B — OV 인증서 (~$300/년): 다운로드 reputation 쌓일 때까지 한동안 경고 유지
-  - 옵션 C — **MS Store 입점 ($19 일회성)**: MSIX 변환 필요, Store가 업데이트도 처리
-  - 옵션 D — 현 상태 유지 + 한국어 SmartScreen 가이드
-  - **의사결정 시점**: 사용자 100명 이상 또는 외부 마케팅 직전. 현재는 D 유지.
-- [ ] **사용자 안내 (한국어)** — Release notes / 랜딩 페이지에 SmartScreen "More info → Run anyway" 가이드 + 스크린샷
-- [ ] **개인정보 처리방침 / 이용약관** — 진단 100% 로컬이지만 명문화 필요 (한국 개인정보보호법 대비)
-- [ ] **`webPreferences.spellcheck` 등 nice-to-have 보안 옵션 한 번 더 점검**
+전체 체크리스트는 [LAUNCH_READINESS.md](LAUNCH_READINESS.md) 참조. 출시 전 결정이 필요한 Must 항목만:
 
-### Phase 2 기능
-
-- [ ] **macOS 포팅** — zsh/bash 진단 스크립트 (NPKI/winget 컨텍스트 없음 → Mac 전용 진단 항목 재설계: Time Machine, FileVault, brew, iCloud 등) + electron-builder mac 타깃
-- [ ] **electron-updater `verifyUpdateCodeSignature`** — Windows 코드 사이닝 인증서 확보 후 활성화 (현재는 unsigned라 비활성)
-- [ ] **`@claude` GitHub Action** — `web/`에 이미 설치된 `claude-pr-review.yml`을 desktop repo에도 적용
-
-### Nice-to-have
-
-- [ ] Storybook 컴포넌트 카탈로그
-- [ ] 다국어 (영어/일본어) 카피
-- [ ] Telemetry opt-in (사용 통계, 명시적 동의 사용자만, 100% 로컬 원칙 위반 주의)
-- [ ] 한국어 macOS notarization 가이드 (Mac 포팅 후)
-
-### 이미 처리됨
-
-- [x] Codex 코드 리뷰 5번 사이클 (v0.1.0 → v0.3.1, 22개 findings 모두 fix)
-- [x] PowerShell 무결성 검증 (app.asar-anchored hash + per-run mkdtemp staging + ReparsePoint 필터)
-- [x] Auto-update infrastructure (electron-updater + GitHub Releases, repo public 전환 완료)
-- [x] 백업 manifest (SHA-256 per-file) + winget export 통합
-- [x] CSP / sandbox: true / IPC bridge 최소 노출 / window.open https-only
-- [x] 디자인 핸드오프 적용 + 카피 톤 규칙 (살펴봤어요 / 같이 챙길게요)
+- [ ] **Windows 코드 사이닝 결정** (EV $500/yr / OV $300/yr / MS Store $19 / unsigned + 가이드). 현재 deferred — 사용자 100+ 시점 검토
+- [ ] **LICENSE 결정** (현재 UNLICENSED)
+- [ ] **Windows 실기 검증** (Ryan): 인스톨러 → quick scan → 백업 manifest → 자동 업데이트
+- [ ] **앱 스크린샷 5장** (Ryan, Windows 실기)
+- [x] 개인정보 처리방침 / 이용약관 초안 (`docs/` 안)
+- [x] FAQ + 사용 가이드 한국어 (`docs/` 안)
+- [x] CI 자동화 (PR/push마다 typecheck/lint/test/build)
+- [x] GitHub Issue 템플릿 (`.github/ISSUE_TEMPLATE/`)
+- [x] Codex 5사이클 22개 findings 모두 fix
+- [x] PowerShell 무결성 (app.asar-anchored hash + TOCTOU-safe staging + ReparsePoint 필터)
+- [x] Auto-update 인프라 (repo public 전환 완료)
+- [x] 백업 manifest + winget export
+- [x] CSP / sandbox / IPC 보안 baseline
+- [x] 디자인 핸드오프 적용

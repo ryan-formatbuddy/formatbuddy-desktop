@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 사용 가이드 / FAQ
+    url: https://github.com/ryan-formatbuddy/formatbuddy-desktop/blob/main/docs/USER_GUIDE.md
+    about: 먼저 사용 가이드와 FAQ를 확인해주세요
+  - name: 💬 이메일 문의
+    url: mailto:support@formatbuddy.app
+    about: GitHub 계정이 없거나 비공개로 문의하고 싶으시면 이메일로 (셋업 중)
