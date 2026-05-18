@@ -148,6 +148,15 @@ export const copy = {
     check: "확인해봐요",
     action: "먼저 해봐요"
   } as const,
+  careActionsTitle: "바로 해볼 수 있는 관리 기능",
+  careActionsLede:
+    "삭제와 보안 검사는 Windows 기본 화면으로 연결하고, 중요한 선택은 Ryan이 직접 하게 할게요.",
+  careActionBadge: {
+    ready: "준비됨",
+    check: "확인 추천",
+    warning: "먼저 확인",
+    unavailable: "확인 못함"
+  } as const,
   buddyChecklistTitle: "버디가 먼저 확인해뒀어요",
   buddyChecklistLede:
     "제가 볼 수 있는 항목은 체크해두고, 직접 확인해야 하는 건 따로 표시했어요.",

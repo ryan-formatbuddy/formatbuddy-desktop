@@ -10,6 +10,9 @@ import type {
   BuddyChecklistCategory,
   BuddyChecklistItem,
   BuddyCheckStatus,
+  CareAction,
+  CareActionCategory,
+  CareActionStatus,
   HealthPillar,
   ScanResult
 } from "@shared/types";
@@ -61,6 +64,14 @@ const BUDDY_CATEGORY_LABEL: Record<BuddyChecklistCategory, string> = {
   account: "계정"
 };
 
+const CARE_CATEGORY_LABEL: Record<CareActionCategory, string> = {
+  cleanup: "깔끔 정리",
+  delete: "삭제 확인",
+  security: "보안 검사",
+  protection: "실시간 보호",
+  performance: "속도"
+};
+
 function buddyStatusClass(status: BuddyCheckStatus): string {
   switch (status) {
     case "confirmed":
@@ -71,6 +82,19 @@ function buddyStatusClass(status: BuddyCheckStatus): string {
       return "fb-buddy-warning";
     case "unknown":
       return "fb-buddy-unknown";
+  }
+}
+
+function careStatusClass(status: CareActionStatus): string {
+  switch (status) {
+    case "ready":
+      return "fb-care-ready";
+    case "check":
+      return "fb-care-check";
+    case "warning":
+      return "fb-care-warning";
+    case "unavailable":
+      return "fb-care-unavailable";
   }
 }
 
@@ -221,6 +245,47 @@ function BuddyChecklistPanel({ items }: { items: BuddyChecklistItem[] }) {
   );
 }
 
+function CareActionsPanel({
+  actions,
+  isWindows,
+  onRunAction
+}: {
+  actions: CareAction[];
+  isWindows: boolean;
+  onRunAction: (action: ActionItem) => void;
+}) {
+  return (
+    <section className="fb-care-panel" aria-labelledby="care-actions-title">
+      <div className="fb-care-panel-head">
+        <h2 id="care-actions-title" className="fb-h2">
+          {copy.careActionsTitle}
+        </h2>
+        <p>{copy.careActionsLede}</p>
+      </div>
+      <div className="fb-care-grid">
+        {actions.map((action) => (
+          <article key={action.id} className={`fb-care-card ${careStatusClass(action.status)}`}>
+            <div className="fb-care-card-top">
+              <span>{CARE_CATEGORY_LABEL[action.category]}</span>
+              <strong>{copy.careActionBadge[action.status]}</strong>
+            </div>
+            <h3>{action.title}</h3>
+            <p>{action.evidence}</p>
+            <small>{action.safetyNote}</small>
+            {action.command && isWindows ? (
+              <button type="button" className="fb-care-action-btn" onClick={() => onRunAction(action)}>
+                {action.cta}
+              </button>
+            ) : (
+              <em>{isWindows ? "지금은 실행 준비가 어려워요." : "Windows에서 진행"}</em>
+            )}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
@@ -341,6 +406,12 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
       </section>
 
       <BuddyChecklistPanel items={recommendation.buddyChecklist} />
+
+      <CareActionsPanel
+        actions={recommendation.careActions}
+        isWindows={isWindows}
+        onRunAction={runAction}
+      />
 
       <section className="fb-health-panel" aria-labelledby="health-panel-title">
         <div className="fb-health-panel-head">

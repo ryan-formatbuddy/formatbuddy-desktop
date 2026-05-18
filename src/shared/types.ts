@@ -82,6 +82,9 @@ export interface CloudSyncCandidate {
 export interface BrowserPresence {
   name: string;
   installed: boolean;
+  profilePath?: string | null;
+  profileExists?: boolean;
+  bookmarksFileExists?: boolean;
 }
 
 export interface WingetStatus {
@@ -166,6 +169,21 @@ export interface DefenderStatusInfo {
   lastFullScanDaysAgo?: number | null;
 }
 
+export interface AppDataCandidate {
+  app: string;
+  path: string;
+  exists: boolean;
+  sizeGb?: number | null;
+  lastModifiedAt?: string | null;
+}
+
+export interface MailDataFileInfo {
+  path: string;
+  extension: ".pst" | ".ost" | string;
+  sizeGb: number;
+  lastModifiedAt?: string | null;
+}
+
 export interface StorageWasteInfo {
   userTempGb: number;
   localAppDataTempGb: number;
@@ -190,6 +208,21 @@ export type FormatSeverity = "safe" | "watch" | "organize" | "format";
 export interface ActionItem {
   title: string;
   description: string;
+  command?: string;
+}
+
+export type CareActionStatus = "ready" | "check" | "warning" | "unavailable";
+export type CareActionCategory = "cleanup" | "delete" | "security" | "protection" | "performance";
+
+export interface CareAction {
+  id: string;
+  category: CareActionCategory;
+  title: string;
+  status: CareActionStatus;
+  evidence: string;
+  description: string;
+  safetyNote: string;
+  cta: string;
   command?: string;
 }
 
@@ -253,6 +286,7 @@ export interface Recommendation {
   afterFormat: ActionItem[];
   healthPillars: HealthPillar[];
   buddyChecklist: BuddyChecklistItem[];
+  careActions: CareAction[];
 }
 
 export interface PrivacyInfo {
@@ -284,6 +318,8 @@ export interface ScanReport {
   driverAge?: DriverAgeSummaryInfo;
   startupPrograms?: StartupProgramsInfo;
   defender?: DefenderStatusInfo;
+  appDataCandidates?: AppDataCandidate[];
+  mailDataFiles?: MailDataFileInfo[];
   storageWaste?: StorageWasteInfo;
   userFolders: UserFolderInfo[];
   gpu: string[];

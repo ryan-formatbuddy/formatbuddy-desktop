@@ -88,6 +88,14 @@ describe("generateRecommendation — severity buckets", () => {
       "performance",
       "backup"
     ]);
+    expect(rec.careActions.map((a) => a.id)).toEqual([
+      "safe-cleanup",
+      "app-uninstall-review",
+      "quick-security-scan",
+      "realtime-protection-check",
+      "startup-review",
+      "windows-update-review"
+    ]);
   });
 
   it("low disk free + memory pressure pushes into watch / organize", () => {
@@ -238,6 +246,8 @@ describe("disk-health override + Defender visibility", () => {
     const security = rec.healthPillars.find((p) => p.id === "security");
     expect(security?.status).toBe("action");
     expect(security?.detail).toMatch(/백신처럼 직접 치료/);
+    expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.status).toBe("warning");
+    expect(rec.careActions.find((a) => a.id === "realtime-protection-check")?.status).toBe("warning");
   });
 
   it("warning disk forces severity into at least watch", () => {
@@ -275,15 +285,36 @@ describe("buddy checklist", () => {
           { path: "C:\\Users\\Ryan\\AppData\\LocalLow\\NPKI", exists: true },
           { path: "C:\\NPKI", exists: true }
         ],
-        browsers: [
-          { name: "Chrome", installed: true },
-          { name: "Edge", installed: true }
-        ],
         cloudSync: [{ provider: "OneDrive", path: "C:\\Users\\Ryan\\OneDrive", exists: true }],
         installedApps: [
           { name: "KakaoTalk", publisher: "Kakao" },
           { name: "Adobe Creative Cloud", publisher: "Adobe" },
           { name: "Hancom Office", publisher: "Hancom" }
+        ],
+        appDataCandidates: [
+          {
+            app: "KakaoTalk",
+            path: "C:\\Users\\Ryan\\AppData\\Roaming\\KakaoTalk",
+            exists: true,
+            sizeGb: 7
+          }
+        ],
+        mailDataFiles: [
+          { path: "C:\\Users\\Ryan\\Documents\\Outlook Files\\old.pst", extension: ".pst", sizeGb: 8 }
+        ],
+        browsers: [
+          {
+            name: "Chrome",
+            installed: true,
+            profileExists: true,
+            bookmarksFileExists: true
+          },
+          {
+            name: "Edge",
+            installed: true,
+            profileExists: true,
+            bookmarksFileExists: false
+          }
         ],
         defender: {
           antivirusEnabled: false,
@@ -298,8 +329,39 @@ describe("buddy checklist", () => {
     expect(rec.buddyChecklist.find((i) => i.id === "certificate-backed-up")?.status).toBe("warning");
     expect(rec.buddyChecklist.find((i) => i.id === "personal-folders-reviewed")?.status).toBe("warning");
     expect(rec.buddyChecklist.find((i) => i.id === "browser-backup-ready")?.status).toBe("warning");
-    expect(rec.buddyChecklist.find((i) => i.id === "messenger-backup-ready")?.status).toBe("needs_user");
+    expect(rec.buddyChecklist.find((i) => i.id === "messenger-backup-ready")?.status).toBe("warning");
+    expect(rec.buddyChecklist.find((i) => i.id === "mail-outlook-backed-up")?.status).toBe("warning");
     expect(rec.buddyChecklist.find((i) => i.id === "paid-app-license-ready")?.status).toBe("warning");
     expect(rec.buddyChecklist.find((i) => i.id === "security-scan-ready")?.status).toBe("warning");
+  });
+
+  it("adds safe management actions for cleanup, deletion review, scan, and realtime protection", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        installedApps: Array.from({ length: 90 }, (_, i) => ({ name: `App ${i}` })),
+        storageWaste: {
+          userTempGb: 12,
+          localAppDataTempGb: 0,
+          windowsTempGb: 5,
+          windowsOldExists: true,
+          windowsOldGb: 7
+        },
+        startupPrograms: { count: 18, items: [] },
+        windowsUpdate: { installedHotfixCount: 10, daysSinceLatestHotfix: 95 },
+        defender: {
+          antivirusEnabled: true,
+          realTimeProtectionEnabled: true,
+          antivirusSignatureAgeDays: 1,
+          lastQuickScanDaysAgo: 30,
+          lastFullScanDaysAgo: 60
+        }
+      })
+    );
+
+    expect(rec.careActions.find((a) => a.id === "safe-cleanup")?.status).toBe("check");
+    expect(rec.careActions.find((a) => a.id === "app-uninstall-review")?.status).toBe("check");
+    expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).toBe("Start-MpScan -ScanType QuickScan");
+    expect(rec.careActions.find((a) => a.id === "windows-update-review")?.status).toBe("warning");
+    expect(rec.careActions.every((a) => /자동 삭제|승인 없는 삭제|직접 치료|상주 감시|Ryan이 직접|끄기|선택/.test(a.safetyNote))).toBe(true);
   });
 });

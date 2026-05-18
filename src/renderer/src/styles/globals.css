@@ -1248,6 +1248,131 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
+   Care actions (v0.7.3)
+   ============================================================ */
+.fb-care-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 20px;
+  background: #ffffff;
+}
+.fb-care-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+}
+.fb-care-panel-head .fb-h2 {
+  margin-bottom: 0;
+}
+.fb-care-panel-head p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 550;
+}
+.fb-care-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.fb-care-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 14px;
+  background: #ffffff;
+  border-left: 4px solid var(--care-tone, var(--color-fb-blue));
+}
+.fb-care-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fb-care-card-top span {
+  color: var(--color-fb-ink-3);
+  font-size: 11px;
+  font-weight: 800;
+}
+.fb-care-card-top strong {
+  flex-shrink: 0;
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--care-tone, var(--color-fb-blue)) 14%, white);
+  color: var(--care-text, var(--color-fb-blue-heavy));
+  font-size: 11px;
+  font-weight: 850;
+}
+.fb-care-card h3 {
+  margin: 0;
+  color: var(--color-fb-ink-1);
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 850;
+  letter-spacing: -0.015em;
+}
+.fb-care-card p {
+  margin: 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 550;
+}
+.fb-care-card small,
+.fb-care-card em {
+  color: var(--color-fb-ink-3);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  font-style: normal;
+}
+.fb-care-action-btn {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0 13px;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 9999px;
+  background: #ffffff;
+  color: var(--color-fb-blue);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+.fb-care-action-btn:hover {
+  background: var(--color-fb-blue-tint);
+  border-color: var(--color-fb-blue-tint);
+}
+.fb-care-ready {
+  --care-tone: var(--color-fb-tone-safe);
+  --care-text: #087f66;
+}
+.fb-care-check {
+  --care-tone: var(--color-fb-blue);
+  --care-text: var(--color-fb-blue-heavy);
+}
+.fb-care-warning {
+  --care-tone: var(--color-fb-warn);
+  --care-text: #a95700;
+}
+.fb-care-unavailable {
+  --care-tone: var(--color-fb-ink-4);
+  --care-text: var(--color-fb-ink-3);
+}
+
+/* ============================================================
    Health panel (v0.7.0)
    ============================================================ */
 .fb-health-panel {

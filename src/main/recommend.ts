@@ -14,6 +14,7 @@
 
 import type {
   ActionItem,
+  CareAction,
   HealthPillar,
   HealthPillarStatus,
   Recommendation,
@@ -287,6 +288,113 @@ function buildAfterFormat(report: ScanReport): ActionItem[] {
   return actions;
 }
 
+function buildCareActions(report: ScanReport, scores: {
+  defender: number;
+  storageWaste: number;
+  windowsUpdate: number;
+}): CareAction[] {
+  const cleanupGb = tempWasteGb(report);
+  const installedCount = report.installedApps.length;
+  const startupCount = report.startupPrograms?.count ?? 0;
+  const scanAge = (() => {
+    const quick = report.defender?.lastQuickScanDaysAgo;
+    const full = report.defender?.lastFullScanDaysAgo;
+    const values = [quick, full].filter((v): v is number => typeof v === "number");
+    return values.length ? Math.min(...values) : null;
+  })();
+  const realtimeOff = report.defender?.realTimeProtectionEnabled === false;
+  const antivirusOff = report.defender?.antivirusEnabled === false;
+
+  return [
+    {
+      id: "safe-cleanup",
+      category: "cleanup",
+      title: "깔끔 정리 후보 보기",
+      status: cleanupGb >= 10 || scores.storageWaste >= 25 ? "check" : "ready",
+      evidence:
+        cleanupGb >= 1
+          ? `임시 파일과 이전 Windows 파일 후보가 약 ${formatSmallGb(cleanupGb)} 보여요.`
+          : "지금은 크게 지울 만한 찌꺼기가 많아 보이지 않아요.",
+      description: "Windows 저장 공간 정리 화면을 열어, 지워도 될 항목을 Ryan이 직접 고르게 해요.",
+      safetyNote: "포맷버디가 파일을 자동 삭제하지 않아요.",
+      cta: "정리 화면 열기",
+      command: "start ms-settings:storagesense"
+    },
+    {
+      id: "app-uninstall-review",
+      category: "delete",
+      title: "앱 삭제 후보 확인",
+      status: installedCount >= 80 ? "check" : "ready",
+      evidence: `${installedCount}개 앱을 기록했어요. 오래 안 쓰는 앱은 직접 보고 정리할 수 있어요.`,
+      description: "앱 삭제 화면을 열어 설치된 앱을 확인해요. 삭제 버튼은 Ryan이 직접 누릅니다.",
+      safetyNote: "사용자 승인 없는 삭제는 하지 않아요.",
+      cta: "앱 목록 열기",
+      command: "start ms-settings:appsfeatures"
+    },
+    {
+      id: "quick-security-scan",
+      category: "security",
+      title: "수상한 흔적 빠른 검사",
+      status: antivirusOff || realtimeOff ? "warning" : scanAge == null || scanAge > 14 ? "check" : "ready",
+      evidence:
+        antivirusOff || realtimeOff
+          ? "Windows 보안 보호 상태를 먼저 확인해야 해요."
+          : scanAge == null
+            ? "최근 검사 날짜를 확실히 확인하지 못했어요."
+            : scanAge > 14
+              ? `최근 보안 검사가 ${scanAge}일 전이에요. 한 번 검사해보면 좋아요.`
+              : `최근 보안 검사가 ${scanAge}일 전이라 크게 오래되진 않았어요.`,
+      description: "Windows Defender 빠른 검사를 준비해요. 포맷버디가 치료한다고 말하지 않습니다.",
+      safetyNote: "백신처럼 위협을 직접 치료하지 않고 Windows 보안으로 연결해요.",
+      cta: "검사 준비",
+      command: "Start-MpScan -ScanType QuickScan"
+    },
+    {
+      id: "realtime-protection-check",
+      category: "protection",
+      title: "실시간 보호 상태 확인",
+      status: realtimeOff || antivirusOff ? "warning" : report.defender ? "ready" : "unavailable",
+      evidence:
+        realtimeOff
+          ? "Windows 보안 실시간 보호가 꺼져 있어요."
+          : antivirusOff
+            ? "Windows 기본 보안 기능이 꺼져 있어요."
+            : report.defender
+              ? "Windows 보안 실시간 보호가 켜져 있어요."
+              : "Windows 보안 상태를 확인하지 못했어요.",
+      description: "포맷버디 자체 실시간 감시는 아니고, Windows 기본 실시간 보호 상태를 확인해요.",
+      safetyNote: "상주 감시 프로그램을 새로 설치하지 않아요.",
+      cta: "보안 화면 열기",
+      command: "start windowsdefender:"
+    },
+    {
+      id: "startup-review",
+      category: "performance",
+      title: "시작 앱 정리",
+      status: startupCount > 12 ? "check" : "ready",
+      evidence: `PC를 켤 때 같이 뜨는 앱이 ${startupCount}개로 보여요.`,
+      description: "시작 앱 화면을 열어 부팅 때 자동으로 켜지는 앱을 줄일 수 있어요.",
+      safetyNote: "앱 삭제가 아니라 끄기라 되돌리기 쉬워요.",
+      cta: "시작 앱 열기",
+      command: "taskmgr /0 /startup"
+    },
+    {
+      id: "windows-update-review",
+      category: "security",
+      title: "보안 업데이트 확인",
+      status: scores.windowsUpdate >= 50 ? "warning" : scores.windowsUpdate >= 30 ? "check" : "ready",
+      evidence:
+        report.windowsUpdate?.daysSinceLatestHotfix == null
+          ? "마지막 업데이트 날짜를 확실히 확인하지 못했어요."
+          : `마지막 Windows 업데이트가 ${report.windowsUpdate.daysSinceLatestHotfix}일 전으로 보여요.`,
+      description: "Windows 업데이트 화면을 열어 밀린 보안 업데이트가 있는지 확인해요.",
+      safetyNote: "업데이트 설치 여부는 Ryan이 직접 선택해요.",
+      cta: "업데이트 열기",
+      command: "start ms-settings:windowsupdate"
+    }
+  ];
+}
+
 function healthStatus(score: number, actionAt = 60, checkAt = 25): HealthPillarStatus {
   if (score >= actionAt) return "action";
   if (score >= checkAt) return "check";
@@ -492,7 +600,12 @@ export function generateRecommendation(report: ScanReport): Recommendation {
       defender: def,
       storageWaste: sw
     }),
-    buddyChecklist: buildBuddyChecklist(report)
+    buddyChecklist: buildBuddyChecklist(report),
+    careActions: buildCareActions(report, {
+      defender: def,
+      storageWaste: sw,
+      windowsUpdate: wu
+    })
   };
 }
 

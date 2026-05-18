@@ -53,7 +53,9 @@ function names(apps: InstalledApp[], limit = 3): string {
 }
 
 function installedBrowserNames(report: ScanReport): string[] {
-  const fromPresence = report.browsers.filter((b) => b.installed).map((b) => b.name);
+  const fromPresence = report.browsers
+    .filter((b) => b.installed || b.profileExists || b.bookmarksFileExists)
+    .map((b) => b.name);
   const fromApps = matchingApps(report, [/chrome/i, /edge/i, /firefox/i, /whale/i]).map((a) => a.name);
   return Array.from(new Set([...fromPresence, ...fromApps].filter(Boolean)));
 }
@@ -100,8 +102,14 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
   const downloadsGb = folderSize(folderByName(report, "Downloads"));
   const cloudFolders = report.cloudSync.filter((c) => c.exists);
   const browsers = installedBrowserNames(report);
+  const browserProfiles = report.browsers.filter((b) => b.profileExists || b.bookmarksFileExists);
+  const browserBookmarks = report.browsers.filter((b) => b.bookmarksFileExists);
   const kakaoApps = matchingApps(report, [/kakaotalk/i, /kakao talk/i, /카카오톡/i]);
+  const kakaoData = (report.appDataCandidates ?? []).filter((c) => /kakao/i.test(c.app) && c.exists);
+  const kakaoDataGb = kakaoData.reduce((sum, c) => sum + (typeof c.sizeGb === "number" ? c.sizeGb : 0), 0);
   const outlookApps = matchingApps(report, [/outlook/i, /microsoft 365/i, /microsoft office/i, /office 365/i]);
+  const mailFiles = report.mailDataFiles ?? [];
+  const mailFileGb = mailFiles.reduce((sum, f) => sum + (typeof f.sizeGb === "number" ? f.sizeGb : 0), 0);
   const paidApps = matchingApps(report, [
     /adobe/i,
     /hancom/i,
@@ -225,9 +233,11 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       category: "apps",
       label: "카카오톡 백업 후 같은 계정으로 복원 가능한가요?",
       priority: "high",
-      status: kakaoApps.length > 0 ? "needs_user" : "confirmed",
-      evidence: kakaoApps.length > 0
-        ? "카카오톡이 설치되어 있어요. 대화 백업은 앱 안에서 직접 확인해주세요."
+      status: kakaoDataGb >= 5 ? "warning" : kakaoApps.length > 0 || kakaoData.length > 0 ? "needs_user" : "confirmed",
+      evidence: kakaoDataGb >= 5
+        ? `카카오톡 데이터 폴더 후보가 약 ${formatGb(kakaoDataGb)}로 보여요. 대화 백업을 꼭 확인해주세요.`
+        : kakaoApps.length > 0 || kakaoData.length > 0
+          ? "카카오톡이 설치되어 있거나 데이터 폴더 후보가 있어요. 대화 백업은 앱 안에서 직접 확인해주세요."
         : "카카오톡 설치 흔적은 보이지 않아요.",
       helperText: "카카오톡 백업 비밀번호나 대화 내용은 포맷버디가 보지 않아요.",
       guide: [
@@ -241,12 +251,14 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       category: "browser",
       label: "브라우저 즐겨찾기와 로그인 계정을 확인했나요?",
       priority: "high",
-      status: browsers.length > 1 ? "warning" : browsers.length === 1 ? "needs_user" : "confirmed",
+      status: browserProfiles.length > 1 ? "warning" : browsers.length > 0 || browserBookmarks.length > 0 ? "needs_user" : "confirmed",
       evidence:
-        browsers.length > 1
-          ? `${browsers.slice(0, 3).join(", ")} 프로필 후보가 보여요. 즐겨찾기와 계정 동기화를 확인해주세요.`
-          : browsers.length === 1
-            ? `${browsers[0]} 사용 흔적이 있어요. 즐겨찾기와 로그인 계정을 확인해주세요.`
+        browserProfiles.length > 1
+          ? `${browserProfiles.map((b) => b.name).slice(0, 3).join(", ")} 프로필 후보가 보여요. 즐겨찾기와 계정 동기화를 확인해주세요.`
+          : browserBookmarks.length > 0
+            ? `${browserBookmarks[0].name} 즐겨찾기 파일 후보가 보여요. 동기화 상태를 확인해주세요.`
+            : browsers.length > 0
+              ? `${browsers[0]} 사용 흔적이 있어요. 즐겨찾기와 로그인 계정을 확인해주세요.`
             : "브라우저 프로필 후보가 보이지 않아요.",
       helperText: "브라우저 비밀번호는 읽지 않아요. 동기화 상태만 Ryan이 직접 확인하면 됩니다.",
       guide: [
@@ -260,9 +272,13 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       category: "mail",
       label: "Outlook에만 있는 메일·연락처·일정이 있나요?",
       priority: "medium",
-      status: outlookApps.length > 0 ? "needs_user" : "confirmed",
-      evidence: outlookApps.length > 0
-        ? `${names(outlookApps)} 후보가 발견됐어요. PC에만 있는 메일 자료가 있는지 확인해주세요.`
+      status: mailFiles.length > 1 || mailFileGb >= 5 ? "warning" : mailFiles.length > 0 || outlookApps.length > 0 ? "needs_user" : "confirmed",
+      evidence: mailFiles.length > 1 || mailFileGb >= 5
+        ? `Outlook 데이터 파일 ${mailFiles.length}개, 약 ${formatGb(mailFileGb)}가 발견됐어요. 백업 여부를 확인해주세요.`
+        : mailFiles.length > 0
+          ? "Outlook 데이터 파일 후보가 발견됐어요. PC에만 있는 메일 자료인지 확인해주세요."
+          : outlookApps.length > 0
+            ? `${names(outlookApps)} 후보가 발견됐어요. PC에만 있는 메일 자료가 있는지 확인해주세요.`
         : "Outlook 또는 Office 메일 후보는 보이지 않아요.",
       helperText: "메일 내용은 열어보지 않아요. 자료가 이 PC에만 있는지만 확인해주세요.",
       guide: [

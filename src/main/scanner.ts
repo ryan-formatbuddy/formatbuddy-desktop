@@ -385,6 +385,16 @@ function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): Scan
       lastQuickScanDaysAgo: 2,
       lastFullScanDaysAgo: 12
     },
+    appDataCandidates: [
+      {
+        app: "KakaoTalk",
+        path: "C:\\Users\\Ryan\\AppData\\Roaming\\KakaoTalk",
+        exists: true,
+        sizeGb: 0.8,
+        lastModifiedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    ],
+    mailDataFiles: [],
     storageWaste: {
       userTempGb: 0.8,
       localAppDataTempGb: 1.2,
@@ -415,10 +425,28 @@ function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): Scan
       { provider: "Google Drive", path: "C:\\Users\\Ryan\\Google Drive", exists: false }
     ],
     browsers: [
-      { name: "Chrome", installed: true },
-      { name: "Edge", installed: true },
-      { name: "Firefox", installed: false },
-      { name: "Whale", installed: true }
+      {
+        name: "Chrome",
+        installed: true,
+        profilePath: "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Default",
+        profileExists: true,
+        bookmarksFileExists: true
+      },
+      {
+        name: "Edge",
+        installed: true,
+        profilePath: "C:\\Users\\Ryan\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default",
+        profileExists: true,
+        bookmarksFileExists: false
+      },
+      { name: "Firefox", installed: false, profilePath: null, profileExists: false, bookmarksFileExists: false },
+      {
+        name: "Whale",
+        installed: true,
+        profilePath: "C:\\Users\\Ryan\\AppData\\Local\\Naver\\Naver Whale\\User Data\\Default",
+        profileExists: false,
+        bookmarksFileExists: false
+      }
     ],
     winget: { available: true, note: "winget is available." },
     wingetExport: null,

@@ -137,6 +137,26 @@ function renderTryBefore(rec: Recommendation): string {
   </section>`;
 }
 
+function renderCareActions(rec: Recommendation): string {
+  if (rec.careActions.length === 0) return "";
+  const items = rec.careActions
+    .map(
+      (a) => `
+    <li>
+      <strong>${esc(a.title)} <span class="care-badge">${esc(copy.careActionBadge[a.status])}</span></strong>
+      <span>${esc(a.evidence)}</span>
+      <p class="action-hint">${esc(a.safetyNote)}</p>
+    </li>`
+    )
+    .join("");
+  return `
+  <section class="card">
+    <h3>${esc(copy.careActionsTitle)}</h3>
+    <p class="explain">${esc(copy.careActionsLede)}</p>
+    <ul class="advice-list">${items}</ul>
+  </section>`;
+}
+
 function renderConcerns(rec: Recommendation): string {
   if (rec.formatReasons.length === 0) {
     return `
@@ -264,6 +284,7 @@ function styles(fontBase64: string | null): string {
   .advice-list strong{font-size:14px;font-weight:700;color:var(--fb-ink-1);}
   .advice-list span{font-size:13px;line-height:20px;color:var(--fb-ink-2);font-weight:500;}
   .action-hint{margin:6px 0 0;display:inline-flex;font-size:12px;font-weight:650;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:9999px;align-self:flex-start;}
+  .care-badge{display:inline-flex;font-size:11px;font-weight:800;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;}
   .weight{font-size:11px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;font-feature-settings:"tnum" on;vertical-align:middle;}
   .weight.heavy{background:var(--fb-blue);color:#fff;}
   .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;}
@@ -330,6 +351,7 @@ export function buildHtmlReport(
   </header>
   ${renderScoreHero(recommendation)}
   ${renderSystemInline(report)}
+  ${renderCareActions(recommendation)}
   ${renderTryBefore(recommendation)}
   ${renderConcerns(recommendation)}
   ${renderAfterFormat(recommendation)}

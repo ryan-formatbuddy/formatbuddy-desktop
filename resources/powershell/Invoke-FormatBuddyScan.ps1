@@ -75,6 +75,17 @@ function Get-FolderSizeGb {
   }
 }
 
+function Get-FolderLastModifiedIso {
+  param([string]$Path)
+  if (!(Test-Path $Path)) { return $null }
+  try {
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    return $item.LastWriteTimeUtc.ToString("o")
+  } catch {
+    return $null
+  }
+}
+
 function Get-UserFolders {
   $folders = @(
     @{ name = "Desktop"; path = [Environment]::GetFolderPath("Desktop") },
@@ -116,16 +127,86 @@ function Get-CloudSyncCandidates {
 
 function Get-BrowserPresence {
   $browsers = @(
-    @{ name = "Chrome"; paths = @("${env:ProgramFiles}\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe") },
-    @{ name = "Edge"; paths = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "${env:ProgramFiles}\Microsoft\Edge\Application\msedge.exe") },
-    @{ name = "Firefox"; paths = @("${env:ProgramFiles}\Mozilla Firefox\firefox.exe", "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe") },
-    @{ name = "Whale"; paths = @("${env:ProgramFiles}\Naver\Naver Whale\Application\whale.exe", "${env:LOCALAPPDATA}\Naver\Naver Whale\Application\whale.exe") }
+    @{
+      name = "Chrome"
+      paths = @("${env:ProgramFiles}\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe")
+      profilePath = "${env:LOCALAPPDATA}\Google\Chrome\User Data\Default"
+      bookmarksPath = "${env:LOCALAPPDATA}\Google\Chrome\User Data\Default\Bookmarks"
+    },
+    @{
+      name = "Edge"
+      paths = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "${env:ProgramFiles}\Microsoft\Edge\Application\msedge.exe")
+      profilePath = "${env:LOCALAPPDATA}\Microsoft\Edge\User Data\Default"
+      bookmarksPath = "${env:LOCALAPPDATA}\Microsoft\Edge\User Data\Default\Bookmarks"
+    },
+    @{
+      name = "Firefox"
+      paths = @("${env:ProgramFiles}\Mozilla Firefox\firefox.exe", "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe")
+      profilePath = "${env:APPDATA}\Mozilla\Firefox\Profiles"
+      bookmarksPath = $null
+    },
+    @{
+      name = "Whale"
+      paths = @("${env:ProgramFiles}\Naver\Naver Whale\Application\whale.exe", "${env:LOCALAPPDATA}\Naver\Naver Whale\Application\whale.exe")
+      profilePath = "${env:LOCALAPPDATA}\Naver\Naver Whale\User Data\Default"
+      bookmarksPath = "${env:LOCALAPPDATA}\Naver\Naver Whale\User Data\Default\Bookmarks"
+    }
   )
 
   foreach ($browser in $browsers) {
+    $installed = [bool]($browser.paths | Where-Object { Test-Path $_ } | Select-Object -First 1)
+    $profileExists = if ($browser.profilePath) { Test-Path $browser.profilePath } else { $false }
+    $bookmarksFileExists = if ($browser.bookmarksPath) { Test-Path $browser.bookmarksPath } else { $false }
     [ordered]@{
       name = $browser.name
-      installed = [bool]($browser.paths | Where-Object { Test-Path $_ } | Select-Object -First 1)
+      installed = $installed
+      profilePath = $browser.profilePath
+      profileExists = $profileExists
+      bookmarksFileExists = $bookmarksFileExists
+    }
+  }
+}
+
+function Get-AppDataCandidates {
+  $candidates = @(
+    @{ app = "KakaoTalk"; path = Join-Path $env:APPDATA "KakaoTalk" },
+    @{ app = "KakaoTalk"; path = Join-Path $env:LOCALAPPDATA "Kakao\KakaoTalk" }
+  ) | Where-Object { $_.path }
+
+  foreach ($candidate in $candidates) {
+    $exists = Test-Path $candidate.path
+    [ordered]@{
+      app = $candidate.app
+      path = $candidate.path
+      exists = $exists
+      sizeGb = if ($exists) { Get-FolderSizeGb -Path $candidate.path } else { $null }
+      lastModifiedAt = if ($exists) { Get-FolderLastModifiedIso -Path $candidate.path } else { $null }
+    }
+  }
+}
+
+function Get-MailDataFiles {
+  $dirs = @(
+    (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "Outlook Files"),
+    (Join-Path $env:LOCALAPPDATA "Microsoft\Outlook")
+  ) | Where-Object { $_ } | Sort-Object -Unique
+
+  foreach ($dir in $dirs) {
+    if (-not (Test-Path $dir)) { continue }
+    try {
+      Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -match '^\.(pst|ost)$' } |
+        Select-Object -First 25 |
+        ForEach-Object {
+          [ordered]@{
+            path = $_.FullName
+            extension = $_.Extension.ToLowerInvariant()
+            sizeGb = [Math]::Round($_.Length / 1GB, 2)
+            lastModifiedAt = $_.LastWriteTimeUtc.ToString("o")
+          }
+        }
+    } catch {
+      Add-Diagnostic -Step "MailDataFiles:$dir" -Message $_.Exception.Message
     }
   }
 }
@@ -526,6 +607,8 @@ if ($Mode -eq "manifest") {
     driverAge = Get-DriverAgeSummary
     startupPrograms = Get-StartupPrograms
     defender = Get-DefenderStatus
+    appDataCandidates = @(Get-AppDataCandidates)
+    mailDataFiles = @(Get-MailDataFiles)
     storageWaste = Get-StorageWaste
     userFolders = @(Get-UserFolders)
     gpu = @($gpu | ForEach-Object { $_.Name })

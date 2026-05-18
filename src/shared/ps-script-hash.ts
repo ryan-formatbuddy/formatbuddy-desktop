@@ -5,4 +5,4 @@
 // the bundled main code so an attacker cannot bypass the integrity check
 // by editing an external manifest alongside the script.
 
-export const EXPECTED_PS_SCRIPT_HASH = "403aa7a336ca82aa0c603532e6c029cb9b6c31b772ac454f8f274b8535e80bf6";
+export const EXPECTED_PS_SCRIPT_HASH = "5f2d47034f6ad276c82e9d145b8607eaf52b57a63952d54e04e180f71e3bb51e";
