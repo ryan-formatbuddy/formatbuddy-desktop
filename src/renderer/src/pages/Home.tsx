@@ -5,31 +5,41 @@ import { copy } from "@shared/copy";
 
 interface HomeProps {
   onStartScan: () => void;
+  onOpenWebReport?: () => void;
+  isMacPreview?: boolean;
 }
 
-export function Home({ onStartScan }: HomeProps) {
+export function Home({ onStartScan, onOpenWebReport, isMacPreview = false }: HomeProps) {
+  const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
+
   return (
     <main className="fb-home">
       <header className="fb-home-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <span className="fb-home-pill">
           <span className="fb-home-pill-dot" />
-          {copy.homeEyebrow}
+          {isMacPreview ? copy.macHomeEyebrow : copy.homeEyebrow}
         </span>
       </header>
 
       <section className="fb-home-hero">
         <div className="fb-home-hero-copy">
           <h1 className="fb-h1">
-            {copy.homeTitle1}
+            {isMacPreview ? copy.macHomeTitle1 : copy.homeTitle1}
             <br />
-            {copy.homeTitle2} <em>{copy.homeTitle3}</em>
+            {isMacPreview ? copy.macHomeTitle2 : copy.homeTitle2}{" "}
+            <em>{isMacPreview ? copy.macHomeTitle3 : copy.homeTitle3}</em>
           </h1>
-          <p className="fb-lede">{copy.homeLede}</p>
+          <p className="fb-lede">{isMacPreview ? copy.macHomeLede : copy.homeLede}</p>
           <div className="fb-home-cta">
             <Button size="lg" variant="primary" onClick={onStartScan} iconRight={<ArrowRight />}>
-              {copy.homeStartCta}
+              {isMacPreview ? copy.macHomeStartCta : copy.homeStartCta}
             </Button>
+            {isMacPreview && onOpenWebReport && (
+              <Button size="lg" variant="secondary" onClick={onOpenWebReport}>
+                {copy.homeOpenReportCta}
+              </Button>
+            )}
           </div>
         </div>
         <div className="fb-home-hero-mark">
@@ -40,7 +50,7 @@ export function Home({ onStartScan }: HomeProps) {
       <section className="fb-home-privacy">
         <h2 className="fb-h2">{copy.privacyHeadline}</h2>
         <ul className="fb-home-bullets">
-          {copy.privacyBullets.map((b) => (
+          {bullets.map((b) => (
             <li key={b}>{b}</li>
           ))}
         </ul>

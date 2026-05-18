@@ -15,6 +15,18 @@ export const copy = {
     "공동인증서·카카오톡·드라이버·다운로드 파일까지. 포맷 전에 놓치기 쉬운 것들을 옆에서 챙기고, 복원 준비를 도와드려요.",
   homeStartCta: "PC 점검 시작",
   homeOpenReportCta: "리포트 열기",
+  macHomeEyebrow: "Mac 미리보기 모드",
+  macHomeTitle1: "Mac에서는,",
+  macHomeTitle2: "리포트를 먼저",
+  macHomeTitle3: "보여드릴게요.",
+  macHomeLede:
+    "실제 PC 점검은 Windows에서만 돌아요. Mac 앱에서는 시연용 리포트를 보거나, Windows에서 만든 리포트를 웹 뷰어로 확인할 수 있어요.",
+  macHomeStartCta: "시연용 리포트 보기",
+  macPreviewBullets: [
+    "Mac에서는 내 파일을 검사하지 않아요",
+    "Windows 점검 화면을 디자인 그대로 확인할 수 있어요",
+    "실제 점검은 Windows 앱에서 진행해요"
+  ],
 
   scanTitle: "버디가 살펴보는 중",
   scanWaiting: "잠깐, 진단 준비할게요",
@@ -44,6 +56,8 @@ export const copy = {
   windowsOnlyHeadline: "이 버전은 Windows에서 동작해요",
   windowsOnlyBody:
     "지금은 Mac에서 테스트용 화면을 보고 계세요. 실제 PC 진단은 Windows에서 같이 살펴볼게요.",
+  macReportPreviewNote:
+    "Mac에서는 보기만 할게요. Windows 명령 실행과 백업 검증 목록 만들기는 Windows PC에서 진행해주세요.",
 
   updateAvailable: "새 버전 받는 중이에요",
   updateDownloading: "버디가 새 버전을 챙겨오고 있어요",
@@ -83,6 +97,26 @@ export const copy = {
       head: "결정은 그때",
       headEm: "같이 정해요.",
       body: "버디는 포맷을 강요하지 않아요. 정리만으로 충분하면 그렇게 안내하고, 필요할 때만 다음 단계로 가요."
+    }
+  ] as const,
+  onboardingStepsMac: [
+    {
+      tag: "01 / 03 · 미리보기",
+      head: "Mac에서는 먼저",
+      headEm: "리포트를 볼게요.",
+      body: "실제 PC 점검은 Windows에서만 돌아요. Mac 앱은 화면 확인과 시연용 리포트 확인에 집중해요."
+    },
+    {
+      tag: "02 / 03 · 확인",
+      head: "Windows에서 만든 결과도",
+      headEm: "열어볼 수 있어요.",
+      body: "공유받은 리포트는 웹 뷰어에서 확인하고, 앱 안에서는 같은 디자인 톤을 미리 볼 수 있어요."
+    },
+    {
+      tag: "03 / 03 · 시연",
+      head: "실제 진단처럼",
+      headEm: "속이지 않아요.",
+      body: "Mac에서는 예시 리포트라고 분명히 안내하고, Windows 전용 버튼은 실행하지 않아요."
     }
   ] as const,
   onboardingNext: "다음",

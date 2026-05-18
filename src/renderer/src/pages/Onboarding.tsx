@@ -5,13 +5,15 @@ import { copy } from "@shared/copy";
 
 interface OnboardingProps {
   onComplete: () => void;
+  isMacPreview?: boolean;
 }
 
 const EXPRESSIONS: ReadonlyArray<"smile" | "calm" | "wink"> = ["smile", "calm", "wink"];
 
-export function Onboarding({ onComplete }: OnboardingProps) {
+export function Onboarding({ onComplete, isMacPreview = false }: OnboardingProps) {
   const [step, setStep] = useState<0 | 1 | 2>(0);
-  const cur = copy.onboardingSteps[step];
+  const steps = isMacPreview ? copy.onboardingStepsMac : copy.onboardingSteps;
+  const cur = steps[step];
   const isLast = step === 2;
 
   const handleNext = () => {

@@ -5,6 +5,8 @@ directories:
   output: dist
   buildResources: resources
 
+afterPack: scripts/adhoc-sign-mac.cjs
+
 files:
   - out/**/*
   - package.json
@@ -32,6 +34,21 @@ win:
   signtoolOptions: null
   signAndEditExecutable: false
   verifyUpdateCodeSignature: false
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+  category: public.app-category.utilities
+  icon: resources/icons/app-icon.icns
+  # Built-in signing stays off until Ryan adds Developer ID signing +
+  # notarization. afterPack applies an ad-hoc signature for local/test builds.
+  identity: null
 
 nsis:
   oneClick: false

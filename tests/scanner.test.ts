@@ -62,6 +62,13 @@ describe("scanner mock pipeline", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("uses mock mode outside Windows", () => {
+    expect(__testing.shouldUseMockPipeline(false, "darwin")).toBe(true);
+    expect(__testing.shouldUseMockPipeline(false, "linux")).toBe(true);
+    expect(__testing.shouldUseMockPipeline(false, "win32")).toBe(false);
+    expect(__testing.shouldUseMockPipeline(true, "win32")).toBe(true);
+  });
 });
 
 describe("verifyAndStageScript", () => {

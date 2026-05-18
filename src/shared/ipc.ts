@@ -7,6 +7,7 @@ export const IpcChannels = {
   reportExport: "report:export",
   reportOpenWeb: "report:open-web",
   appVersion: "app:version",
+  appPlatform: "app:platform",
   updateChecking: "update:checking",
   updateAvailable: "update:available",
   updateNotAvailable: "update:not-available",

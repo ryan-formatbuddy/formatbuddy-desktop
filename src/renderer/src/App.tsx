@@ -7,7 +7,7 @@ import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { WinChrome } from "./components/WinChrome";
 import { TopBar } from "./components/TopBar";
-import type { ScanError, ScanProgress, ScanResult } from "@shared/types";
+import type { AppPlatform, ScanError, ScanProgress, ScanResult } from "@shared/types";
 
 const ONBOARDING_SEEN_KEY = "formatbuddy:onboardingSeenAt";
 
@@ -34,6 +34,15 @@ function markOnboardingSeen() {
   }
 }
 
+function guessPlatform(): AppPlatform {
+  const navPlatform = window.navigator.platform.toLowerCase();
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  if (navPlatform.includes("mac") || userAgent.includes("mac os")) return "darwin";
+  if (navPlatform.includes("win") || userAgent.includes("windows")) return "win32";
+  if (navPlatform.includes("linux") || userAgent.includes("linux")) return "linux";
+  return "unknown";
+}
+
 const INITIAL_PROGRESS: ScanProgress = {
   step: "준비",
   doneSteps: 0,
@@ -55,6 +64,8 @@ export function App() {
     readOnboardingSeen() ? { kind: "home" } : { kind: "onboarding" }
   );
   const [appVersion, setAppVersion] = useState<string>("");
+  const [appPlatform, setAppPlatform] = useState<AppPlatform>(() => guessPlatform());
+  const isMacPreview = appPlatform === "darwin";
 
   const finishOnboarding = useCallback(() => {
     markOnboardingSeen();
@@ -64,6 +75,12 @@ export function App() {
   useEffect(() => {
     if (typeof window.fb?.appVersion === "function") {
       void window.fb.appVersion().then(setAppVersion).catch(() => setAppVersion(""));
+    }
+    if (typeof window.fb?.appPlatform === "function") {
+      void window.fb
+        .appPlatform()
+        .then((platform) => setAppPlatform(platform as AppPlatform))
+        .catch(() => undefined);
     }
   }, []);
 
@@ -112,28 +129,48 @@ export function App() {
     if (phase.kind === "home" || phase.kind === "onboarding") return null;
     const versionLabel = appVersion ? `v${appVersion}` : undefined;
     if (phase.kind === "scanning")
-      return <TopBar here="진단 중" meta="로컬에서만 처리됨" version={versionLabel} onBack={cancelScan} />;
+      return (
+        <TopBar
+          here={isMacPreview ? "시연 중" : "진단 중"}
+          meta={isMacPreview ? "Mac 미리보기 모드" : "로컬에서만 처리됨"}
+          version={versionLabel}
+          onBack={cancelScan}
+        />
+      );
     if (phase.kind === "report")
-      return <TopBar here="리포트" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
+      return (
+        <TopBar
+          here="리포트"
+          meta={isMacPreview ? "Mac 미리보기 모드 · 로컬에서만 처리됨" : "로컬에서만 처리됨"}
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
-  }, [phase, appVersion, goHome, cancelScan]);
+  }, [phase, appVersion, goHome, cancelScan, isMacPreview]);
 
   const content = useMemo(() => {
     switch (phase.kind) {
       case "onboarding":
-        return <Onboarding onComplete={finishOnboarding} />;
+        return <Onboarding onComplete={finishOnboarding} isMacPreview={isMacPreview} />;
       case "home":
-        return <Home onStartScan={startScan} />;
+        return (
+          <Home
+            onStartScan={startScan}
+            onOpenWebReport={() => void window.fb?.openWebReport()}
+            isMacPreview={isMacPreview}
+          />
+        );
       case "scanning":
         return <Scanning progress={phase.progress} onCancel={cancelScan} />;
       case "report":
-        return <Report result={phase.result} onBack={goHome} />;
+        return <Report result={phase.result} onBack={goHome} appPlatform={appPlatform} />;
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }
-  }, [phase, startScan, cancelScan, goHome, finishOnboarding]);
+  }, [phase, startScan, cancelScan, goHome, finishOnboarding, appPlatform, isMacPreview]);
 
   return (
     <div className="fb-app">

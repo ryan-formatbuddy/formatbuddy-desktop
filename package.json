@@ -1,8 +1,8 @@
 {
   "name": "formatbuddy-desktop",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
-  "description": "FormatBuddy Desktop — Windows-only PC format companion built on Electron.",
+  "description": "FormatBuddy Desktop — Windows PC format companion with macOS report preview.",
   "author": {
     "name": "FormatBuddy",
     "email": "support@formatbuddy.app"
@@ -22,7 +22,8 @@
     "test": "npm run embed-ps-hash && vitest run",
     "test:watch": "vitest",
     "predist:win": "npm run embed-ps-hash",
-    "dist:win": "electron-vite build && electron-builder --win --publish never"
+    "dist:win": "electron-vite build && electron-builder --win --publish never",
+    "dist:mac": "npm run embed-ps-hash && electron-vite build && electron-builder --mac --publish never"
   },
   "dependencies": {
     "@electron-toolkit/preload": "3.0.1",

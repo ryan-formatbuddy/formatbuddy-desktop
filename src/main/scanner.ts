@@ -142,6 +142,10 @@ const PIPELINE_STEPS: readonly string[] = [
 
 const TOTAL_STEPS = PIPELINE_STEPS.length;
 
+function shouldUseMockPipeline(mock?: boolean, platform: NodeJS.Platform = process.platform): boolean {
+  return !!mock || platform !== "win32";
+}
+
 function buildSteps(activeIndex: number): ScanStepView[] {
   return PIPELINE_STEPS.map((name, i) => {
     if (i < activeIndex) return { name, state: "done", detail: "살펴봤어요" };
@@ -167,9 +171,10 @@ function progressFor(activeIndex: number, startedAt: number, message?: string): 
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   const { onProgress, signal, mock, enforceIntegrity } = options;
   const startedAt = Date.now();
+  const useMock = shouldUseMockPipeline(mock, process.platform);
 
   let stagedPath: string | null = null;
-  if (!mock) {
+  if (!useMock) {
     stagedPath = await verifyAndStageScript(options.scriptPath, {
       enforce: !!enforceIntegrity
     });
@@ -183,8 +188,14 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   onProgress?.(progressFor(0, startedAt, "버디가 살펴볼 준비 중이에요"));
 
   try {
-    if (mock || process.platform !== "win32") {
-      return await runMockScan({ outPath, startedAt, onProgress, signal });
+    if (useMock) {
+      return await runMockScan({
+        outPath,
+        startedAt,
+        onProgress,
+        signal,
+        demoPlatform: process.platform !== "win32" ? process.platform : undefined
+      });
     }
     return await runPowershellScan({
       ...options,
@@ -215,10 +226,11 @@ interface InternalRunArgs {
   startedAt: number;
   onProgress?: (progress: ScanProgress) => void;
   signal?: AbortSignal;
+  demoPlatform?: NodeJS.Platform;
 }
 
 async function runMockScan(args: InternalRunArgs): Promise<ScanResult> {
-  const { outPath, startedAt, onProgress, signal } = args;
+  const { outPath, startedAt, onProgress, signal, demoPlatform } = args;
 
   for (let i = 1; i <= TOTAL_STEPS; i++) {
     if (signal?.aborted) throw new DOMException("Scan cancelled", "AbortError");
@@ -226,7 +238,7 @@ async function runMockScan(args: InternalRunArgs): Promise<ScanResult> {
     onProgress?.(progressFor(i, startedAt));
   }
 
-  const report: ScanReport = buildMockReport();
+  const report: ScanReport = buildMockReport({ demoPlatform });
   ensureDir(dirname(outPath));
   await fs.writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
 
@@ -317,9 +329,11 @@ function delay(ms: number) {
   return new Promise<void>((res) => setTimeout(res, ms));
 }
 
-function buildMockReport(): ScanReport {
+function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): ScanReport {
+  const isMacDemo = options.demoPlatform === "darwin";
+
   return {
-    schemaVersion: "0.4.0-quick-mock",
+    schemaVersion: isMacDemo ? "0.4.0-quick-demo" : "0.4.0-quick-mock",
     generatedAt: new Date().toISOString(),
     mode: "quick",
     privacy: {
@@ -329,10 +343,10 @@ function buildMockReport(): ScanReport {
       noBrowserPasswordExtraction: true
     },
     system: {
-      manufacturer: "Mock",
-      model: "DevPreview",
+      manufacturer: isMacDemo ? "FormatBuddy" : "Mock",
+      model: isMacDemo ? "Windows PC 리포트 예시" : "DevPreview",
       serialNumberMasked: "***0000",
-      osCaption: "Windows 11 Pro (mock)",
+      osCaption: "Windows 11 Pro (시연용)",
       osVersion: "10.0.22631",
       cpu: "Mock CPU",
       memoryGb: 16
@@ -408,7 +422,9 @@ function buildMockReport(): ScanReport {
     ],
     winget: { available: true, note: "winget is available." },
     wingetExport: null,
-    diagnostics: [],
+    diagnostics: isMacDemo
+      ? [{ step: "Mac 미리보기", message: "Mac에서는 실제 Windows 점검 대신 예시 리포트를 보여줬어요." }]
+      : [],
     checklist: {
       reviewNpkiManually: true,
       exportWifiProfilesManually: true,
@@ -423,7 +439,7 @@ export async function runBackupManifest(
   options: RunBackupManifestOptions
 ): Promise<RunBackupManifestResult> {
   if (process.platform !== "win32") {
-    throw new Error("Backup manifest export is only available on Windows.");
+    throw new Error("Backup checklist export is only available on Windows.");
   }
 
   const stagedPath = await verifyAndStageScript(options.scriptPath, {
@@ -520,4 +536,11 @@ export async function runBackupManifest(
   }
 }
 
-export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor, verifyAndStageScript };
+export const __testing = {
+  PIPELINE_STEPS,
+  TOTAL_STEPS,
+  buildSteps,
+  progressFor,
+  verifyAndStageScript,
+  shouldUseMockPipeline
+};

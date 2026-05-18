@@ -282,6 +282,11 @@ button { font-family: inherit; }
 .fb-btn-primary { background: var(--color-fb-blue); color: #fff; }
 .fb-btn-primary:hover { background: var(--color-fb-blue-strong); }
 .fb-btn-primary:active { transform: scale(0.98); }
+.fb-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .fb-btn-secondary { background: #fff; color: var(--color-fb-ink-1); border-color: var(--color-fb-line); }
 .fb-btn-secondary:hover { background: #f7f7f8; }
@@ -592,6 +597,19 @@ button { font-family: inherit; }
 }
 .fb-report-actions { display: flex; gap: 8px; }
 .fb-report-hero { padding: 8px 0 0; }
+.fb-report-preview-note {
+  width: 100%;
+  max-width: 720px;
+  margin: 10px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,102,255,0.18);
+  border-radius: 12px;
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 650;
+}
 
 .fb-report-grid {
   display: grid;

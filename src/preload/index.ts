@@ -26,6 +26,8 @@ type VoidListener = () => void;
 
 const fb = {
   appVersion: (): Promise<string> => ipcRenderer.invoke(IpcChannels.appVersion),
+  appPlatform: (): Promise<"win32" | "darwin" | "linux" | "unknown"> =>
+    ipcRenderer.invoke(IpcChannels.appPlatform),
 
   startScan: (): Promise<ScanResult> => ipcRenderer.invoke(IpcChannels.scanStart),
   cancelScan: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.scanCancel),

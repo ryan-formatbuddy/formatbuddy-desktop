@@ -1,3 +1,5 @@
+export type AppPlatform = "win32" | "darwin" | "linux" | "unknown";
+
 export type ScanStepState = "done" | "active" | "pending";
 
 export interface ScanStepView {

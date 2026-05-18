@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
+  AppPlatform,
   ExportOptions,
   ExportResult,
   ManifestExportResult,
@@ -159,6 +160,12 @@ function createWindow() {
 
 function registerIpc() {
   ipcMain.handle(IpcChannels.appVersion, () => app.getVersion());
+  ipcMain.handle(IpcChannels.appPlatform, (): AppPlatform => {
+    if (process.platform === "win32" || process.platform === "darwin" || process.platform === "linux") {
+      return process.platform;
+    }
+    return "unknown";
+  });
 
   ipcMain.handle(IpcChannels.scanStart, async (event) => {
     if (activeAbort) activeAbort.abort();
@@ -171,13 +178,15 @@ function registerIpc() {
       sender.send(IpcChannels.scanProgress, progress);
     };
 
-    log.info("scan:start invoked");
+    const isPreviewMode = process.platform !== "win32";
+    log.info(isPreviewMode ? "scan:start invoked in preview mode" : "scan:start invoked");
     try {
       const result: ScanResult = await runScan({
         scriptPath: getScanScriptPath(),
         outputDir: getScanOutputDir(),
         signal: controller.signal,
         onProgress: emit,
+        mock: isPreviewMode,
         enforceIntegrity: app.isPackaged
       });
       if (!sender.isDestroyed() && !controller.signal.aborted) {
@@ -263,11 +272,11 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.manifestExport, async (): Promise<ManifestExportResult> => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const defaultPath = getDefaultExportPath("formatbuddy-backup-manifest.json");
+    const defaultPath = getDefaultExportPath("formatbuddy-backup-checklist.json");
     const dialogResult = await dialog.showSaveDialog(win!, {
-      title: "백업 manifest 저장 위치",
+      title: "백업 검증 목록 저장 위치",
       defaultPath,
-      filters: [{ name: "FormatBuddy backup manifest", extensions: ["json"] }]
+      filters: [{ name: "FormatBuddy backup checklist", extensions: ["json"] }]
     });
     if (dialogResult.canceled || !dialogResult.filePath) {
       return { saved: false };

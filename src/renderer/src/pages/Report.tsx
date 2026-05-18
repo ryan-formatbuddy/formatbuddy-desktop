@@ -3,7 +3,7 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { copy } from "@shared/copy";
-import type { ActionItem, ScanResult } from "@shared/types";
+import type { ActionItem, AppPlatform, ScanResult } from "@shared/types";
 
 function expressionForScore(score: number): "calm" | "smile" | "wink" {
   if (score >= 76) return "calm";
@@ -32,6 +32,7 @@ function severityClass(s: ScanResult["recommendation"]["severity"]): string {
 interface ReportProps {
   result: ScanResult;
   onBack: () => void;
+  appPlatform?: AppPlatform;
 }
 
 interface RowProps {
@@ -53,8 +54,9 @@ function formatGb(value?: number | null) {
   return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} GB`;
 }
 
-export function Report({ result, onBack }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
   const { report, recommendation } = result;
+  const isWindows = appPlatform === "win32";
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [manifestStatus, setManifestStatus] = useState<string | null>(null);
   const [manifestRunning, setManifestRunning] = useState(false);
@@ -142,6 +144,7 @@ export function Report({ result, onBack }: ReportProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">{copy.reportTitle}</h1>
         <p className="fb-lede">{copy.reportLede}</p>
+        {!isWindows && <p className="fb-report-preview-note">{copy.macReportPreviewNote}</p>}
       </section>
 
       <section className={`fb-score-card ${severityClass(recommendation.severity)}`}>
@@ -178,7 +181,7 @@ export function Report({ result, onBack }: ReportProps) {
               <li key={`tf-${i}`}>
                 <strong>{a.title}</strong>
                 <span>{a.description}</span>
-                {a.command && (
+                {a.command && isWindows && (
                   <div className="fb-advice-cmd-row">
                     <code className="fb-advice-cmd">{a.command}</code>
                     <button
@@ -227,7 +230,7 @@ export function Report({ result, onBack }: ReportProps) {
               <li key={`af-${i}`}>
                 <strong>{a.title}</strong>
                 <span>{a.description}</span>
-                {a.command && (
+                {a.command && isWindows && (
                   <div className="fb-advice-cmd-row">
                     <code className="fb-advice-cmd">{a.command}</code>
                     <button
@@ -325,10 +328,15 @@ export function Report({ result, onBack }: ReportProps) {
             variant="primary"
             size="lg"
             onClick={onExportManifest}
-            disabled={manifestRunning}
+            disabled={!isWindows || manifestRunning}
           >
-            {manifestRunning ? copy.manifestExportInProgress : copy.manifestExportCta}
+            {!isWindows
+              ? copy.manifestWindowsOnly
+              : manifestRunning
+                ? copy.manifestExportInProgress
+                : copy.manifestExportCta}
           </Button>
+          {!isWindows && <p className="fb-report-cta-status">{copy.macReportPreviewNote}</p>}
           {manifestStatus && <p className="fb-report-cta-status">{manifestStatus}</p>}
         </div>
       </section>

@@ -11,6 +11,7 @@ describe("IpcChannels", () => {
     expect(IpcChannels.reportExport).toBe("report:export");
     expect(IpcChannels.reportOpenWeb).toBe("report:open-web");
     expect(IpcChannels.appVersion).toBe("app:version");
+    expect(IpcChannels.appPlatform).toBe("app:platform");
   });
 
   it("contains all expected update channels", () => {

@@ -42,10 +42,10 @@ export function friendlyErrorMessage(input: FriendlyInput | Error | string | nul
 
   // Manifest export specific
   if (/manifest file was not written|manifest file is empty/i.test(message)) {
-    return "manifest 파일을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
+    return "백업 검증 목록을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
   if (/manifest file missing/i.test(message)) {
-    return "manifest 파일이 사라졌어요. 다른 폴더를 선택해 다시 시도해보세요.";
+    return "백업 검증 목록 파일이 사라졌어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
 
   // Cancellation — neutral phrasing
