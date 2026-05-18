@@ -446,7 +446,7 @@ export async function runBackupManifest(
         rejectOk(err);
       });
 
-      child.on("close", (code) => {
+      child.on("close", async (code) => {
         cleanup();
         if (code !== 0) {
           rejectOk(
@@ -454,7 +454,19 @@ export async function runBackupManifest(
           );
           return;
         }
-        resolveOk({ saved: true, path: options.outputPath });
+        // PowerShell uses $ErrorActionPreference = "SilentlyContinue", so a
+        // failed Out-File can still leave exit code 0. Verify the file exists
+        // and is non-empty before reporting success.
+        try {
+          const stat = await fs.stat(options.outputPath);
+          if (!stat.isFile() || stat.size === 0) {
+            rejectOk(new Error("Manifest file was not written or is empty."));
+            return;
+          }
+          resolveOk({ saved: true, path: options.outputPath });
+        } catch (e) {
+          rejectOk(new Error(`Manifest file missing: ${(e as Error).message}`));
+        }
       });
     });
   } finally {

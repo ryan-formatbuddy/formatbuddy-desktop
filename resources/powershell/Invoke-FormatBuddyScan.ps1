@@ -161,6 +161,33 @@ function Get-WingetExport {
   return $null
 }
 
+function Get-FilesSkippingReparsePoints {
+  # Manual recursion so we can skip ReparsePoint directories entirely.
+  # Get-ChildItem -Recurse will silently follow junctions/symlinks and can
+  # walk into the source tree, system folders, or infinite loops.
+  param([string]$Root)
+
+  $results = New-Object System.Collections.Generic.List[object]
+  $stack = New-Object System.Collections.Generic.Stack[string]
+  $stack.Push($Root)
+
+  while ($stack.Count -gt 0) {
+    $current = $stack.Pop()
+    Get-ChildItem -LiteralPath $current -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      if ($_.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint)) {
+        return
+      }
+      if ($_ -is [System.IO.DirectoryInfo]) {
+        $stack.Push($_.FullName)
+      } elseif ($_ -is [System.IO.FileInfo]) {
+        $results.Add($_) | Out-Null
+      }
+    }
+  }
+
+  return $results
+}
+
 function Get-BackupManifest {
   param(
     [string[]]$Folders,
@@ -188,33 +215,34 @@ function Get-BackupManifest {
     $skipped = New-Object System.Collections.Generic.List[object]
     $folderNorm = $folder.TrimEnd('\','/')
 
-    Get-ChildItem -LiteralPath $folder -Recurse -File -Force -ErrorAction SilentlyContinue | ForEach-Object {
-      $rel = $_.FullName
+    $files = Get-FilesSkippingReparsePoints -Root $folder
+    foreach ($file in $files) {
+      $rel = $file.FullName
       if ($rel.StartsWith($folderNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
         $rel = $rel.Substring($folderNorm.Length).TrimStart('\','/')
       }
 
-      if ($_.Length -gt $MaxFileSize) {
+      if ($file.Length -gt $MaxFileSize) {
         $skipped.Add([ordered]@{
           path = $rel
-          sizeBytes = $_.Length
+          sizeBytes = $file.Length
           reason = "exceeds-max-size"
         }) | Out-Null
-        return
+        continue
       }
 
       try {
-        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName -ErrorAction Stop
+        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName -ErrorAction Stop
         $entries.Add([ordered]@{
           path = $rel
-          sizeBytes = $_.Length
+          sizeBytes = $file.Length
           sha256 = $hash.Hash
-          modifiedAt = $_.LastWriteTimeUtc.ToString("o")
+          modifiedAt = $file.LastWriteTimeUtc.ToString("o")
         }) | Out-Null
       } catch {
         $skipped.Add([ordered]@{
           path = $rel
-          sizeBytes = $_.Length
+          sizeBytes = $file.Length
           reason = "hash-failed: $($_.Exception.Message)"
         }) | Out-Null
       }

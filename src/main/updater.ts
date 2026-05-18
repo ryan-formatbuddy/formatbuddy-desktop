@@ -11,12 +11,23 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 let checkTimer: NodeJS.Timeout | null = null;
 let bound = false;
+let currentWindow: BrowserWindow | null = null;
 
 export function initAutoUpdater(window: BrowserWindow): void {
   // electron-updater requires a packaged app + a published feed.
   // In dev (npm run dev) skip silently so the developer doesn't see
   // spurious "no published versions" errors.
   if (!app.isPackaged) return;
+
+  // Always track the latest window so events go to the live one. On macOS
+  // the app stays alive after window-close and `activate` creates a new
+  // BrowserWindow — without this swap, listeners would still close over
+  // the destroyed window and the new one would never get update events.
+  currentWindow = window;
+  window.on("closed", () => {
+    if (currentWindow === window) currentWindow = null;
+  });
+
   if (bound) return;
   bound = true;
 
@@ -26,8 +37,9 @@ export function initAutoUpdater(window: BrowserWindow): void {
   autoUpdater.allowPrerelease = false;
 
   const send = (channel: string, payload?: unknown) => {
-    if (!window.isDestroyed()) {
-      window.webContents.send(channel, payload);
+    const w = currentWindow;
+    if (w && !w.isDestroyed()) {
+      w.webContents.send(channel, payload);
     }
   };
 
@@ -94,4 +106,5 @@ export function shutdownAutoUpdater(): void {
   }
   autoUpdater.removeAllListeners();
   bound = false;
+  currentWindow = null;
 }

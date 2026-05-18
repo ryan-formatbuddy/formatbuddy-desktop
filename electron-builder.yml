@@ -52,3 +52,11 @@ publish:
     owner: ryan-formatbuddy
     repo: formatbuddy-desktop
     releaseType: release
+    # ⚠️ Auto-update only works when this repo is PUBLIC.
+    # While the repo is private, packaged clients hit unauthenticated
+    # GitHub API endpoints and get 404 — the in-app updater silently
+    # fails. To enable real auto-update either:
+    #   1. Make the repo public:
+    #      gh repo edit ryan-formatbuddy/formatbuddy-desktop --visibility public
+    #   2. Or switch this provider to a generic/private feed where each
+    #      client can authenticate.
