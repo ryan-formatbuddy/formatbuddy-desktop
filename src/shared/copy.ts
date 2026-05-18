@@ -138,6 +138,11 @@ export const copy = {
   recommendFormatReasonsTitle: "이런 점들이 신경 쓰여요",
   recommendAfterFormatTitle: "포맷 후 같이 챙길 것",
   recommendNoReasons: "지금 발견된 큰 문제는 없어요. 정기 정리만 해도 충분해요.",
+  smartCareTitle: "한눈에 보는 관리 요약",
+  smartCareLede:
+    "정리·보안·속도·앱·포맷 준비를 한 번에 묶어서, 지금 먼저 볼 순서만 보여드릴게요.",
+  smartCareNextTitle: "지금 먼저 할 일",
+  smartCarePrivacyNote: "자동 삭제나 비밀번호 확인은 하지 않아요. 필요한 위치와 다음 행동만 알려드려요.",
   healthSectionTitle: "PC 건강 점검",
   healthSectionLede:
     "포맷을 바로 정하기 전에, 정리·보안·속도·백업을 나눠서 쉬운 말로 볼게요.",

@@ -13,8 +13,8 @@ import { copy } from "@shared/copy";
  * Build a single-file HTML report from a ScanReport + its Recommendation.
  *
  * Constraints (from Ryan):
- *  - Core report structure: ScoreHero / CleanupCenter / Care / AppInventory /
- *    TryBefore / Concerns / AfterFormat / Manifest
+ *  - Core report structure: ScoreHero / SmartCare / CleanupCenter / Care /
+ *    AppInventory / TryBefore / Concerns / AfterFormat / Manifest
  *  - Wanted Sans Variable inlined (recipient gets the same font)
  *  - "로컬에서만 처리됨" meta is visible
  *  - File name format handled at the IPC layer:
@@ -155,6 +155,53 @@ function renderCareActions(rec: Recommendation): string {
     <h3>${esc(copy.careActionsTitle)}</h3>
     <p class="explain">${esc(copy.careActionsLede)}</p>
     <ul class="advice-list">${items}</ul>
+  </section>`;
+}
+
+function renderSmartCareOverview(report: ScanReport, rec: Recommendation): string {
+  const cleanup = rec.cleanupCenter;
+  const security = rec.healthPillars.find((p) => p.id === "security");
+  const performance = rec.healthPillars.find((p) => p.id === "performance");
+  const backup = rec.healthPillars.find((p) => p.id === "backup");
+  const directChecks = rec.buddyChecklist.filter((i) => i.status === "needs_user").length;
+  const warnings = rec.buddyChecklist.filter((i) => i.status === "warning").length;
+  const startupCount = cleanup.startupItems.length || report.startupPrograms?.count || 0;
+  const rows = [
+    ["정리", fmtGb(cleanup.reclaimableGb), cleanup.reviewCount > 0 ? `${cleanup.reviewCount}개 후보를 직접 보면 돼요.` : "크게 지울 후보가 적어요."],
+    ["보안", security ? copy.healthStatus[security.status] : "확인 필요", security?.summary ?? "Windows 보안 상태를 한 번 더 확인해주세요."],
+    ["속도", startupCount > 0 ? `${startupCount}개 시작 앱` : "괜찮아요", performance?.summary ?? "시작 앱과 저장 공간을 같이 보면 좋아요."],
+    ["앱", `${rec.appInventory.needsCheck}개 확인`, `${rec.appInventory.total}개 설치 앱을 분류했어요.`],
+    ["포맷 준비", `${directChecks + warnings}개 확인`, backup?.summary ?? "인증서, 파일, 계정을 포맷 전에 챙겨요."]
+  ];
+  const nextActions = [
+    cleanup.reviewCount > 0 ? `정리 후보 ${cleanup.reviewCount}개를 먼저 훑어보세요.` : "정리 후보는 가볍게만 확인하면 돼요.",
+    warnings > 0 ? `주의 항목 ${warnings}개는 그냥 넘기기 전에 확인해주세요.` : `${directChecks}개 직접 확인 항목을 차례대로 보면 돼요.`,
+    rec.appInventory.needsCheck > 0
+      ? `앱 ${rec.appInventory.needsCheck}개는 계정, 라이선스, 복원 여부를 확인해주세요.`
+      : "앱 쪽은 크게 챙길 후보가 적어요."
+  ];
+
+  return `
+  <section class="card card-smart">
+    <h3>${esc(copy.smartCareTitle)}</h3>
+    <p class="explain">${esc(copy.smartCareLede)}</p>
+    <div class="smart-grid">
+      ${rows
+        .map(
+          ([label, value, detail]) => `
+      <div>
+        <span>${esc(label)}</span>
+        <strong>${esc(value)}</strong>
+        <p>${esc(detail)}</p>
+      </div>`
+        )
+        .join("")}
+    </div>
+    <h4>${esc(copy.smartCareNextTitle)}</h4>
+    <ol class="smart-next">
+      ${nextActions.map((a) => `<li>${esc(a)}</li>`).join("")}
+    </ol>
+    <p class="explain">${esc(copy.smartCarePrivacyNote)}</p>
   </section>`;
 }
 
@@ -396,6 +443,13 @@ function styles(fontBase64: string | null): string {
   .action-hint{margin:6px 0 0;display:inline-flex;font-size:12px;font-weight:650;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:9999px;align-self:flex-start;}
   .care-badge{display:inline-flex;font-size:11px;font-weight:800;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;}
   .advice-list small{font-size:12px;line-height:18px;color:var(--fb-ink-3);font-weight:600;}
+  .card-smart{background:linear-gradient(180deg,#f8fbff 0%,#fff 100%);border-color:rgba(0,102,255,0.14);}
+  .smart-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:14px 0;}
+  .smart-grid div{border:1px solid var(--fb-line);border-top:4px solid var(--fb-blue);border-radius:12px;padding:10px 11px;min-height:108px;}
+  .smart-grid span{display:block;font-size:10px;font-weight:850;color:var(--fb-ink-3);margin-bottom:5px;}
+  .smart-grid strong{display:block;font-size:15px;font-weight:850;color:var(--fb-blue-heavy);line-height:1.2;margin-bottom:5px;}
+  .smart-grid p{margin:0;font-size:11px;line-height:16px;color:var(--fb-ink-2);font-weight:550;}
+  .smart-next{margin:6px 0 12px;padding-left:18px;color:var(--fb-ink-1);font-size:13px;line-height:21px;font-weight:650;}
   .weight{font-size:11px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;font-feature-settings:"tnum" on;vertical-align:middle;}
   .weight.heavy{background:var(--fb-blue);color:#fff;}
   .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;}
@@ -472,6 +526,7 @@ export function buildHtmlReport(
   </header>
   ${renderScoreHero(recommendation)}
   ${renderSystemInline(report)}
+  ${renderSmartCareOverview(report, recommendation)}
   ${renderCleanupCenter(recommendation)}
   ${renderCareActions(recommendation)}
   ${renderAppInventory(recommendation)}

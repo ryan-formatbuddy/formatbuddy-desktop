@@ -105,6 +105,17 @@ function careStatusClass(status: CareActionStatus): string {
   }
 }
 
+function smartStatusClass(status: HealthPillar["status"] | "good" | "check" | "action"): string {
+  switch (status) {
+    case "good":
+      return "fb-smart-good";
+    case "check":
+      return "fb-smart-check";
+    case "action":
+      return "fb-smart-action";
+  }
+}
+
 function cleanupStatusClass(status: CleanupCandidateStatus): string {
   switch (status) {
     case "ready":
@@ -505,6 +516,94 @@ function CleanupCenterPanel({ cleanup }: { cleanup: ScanResult["recommendation"]
   );
 }
 
+function SmartCareOverview({ result }: { result: ScanResult }) {
+  const { report, recommendation } = result;
+  const cleanup = recommendation.cleanupCenter;
+  const security = recommendation.healthPillars.find((p) => p.id === "security");
+  const performance = recommendation.healthPillars.find((p) => p.id === "performance");
+  const backup = recommendation.healthPillars.find((p) => p.id === "backup");
+  const directChecks = recommendation.buddyChecklist.filter((i) => i.status === "needs_user").length;
+  const warnings = recommendation.buddyChecklist.filter((i) => i.status === "warning").length;
+  const startupCount = cleanup.startupItems.length || report.startupPrograms?.count || 0;
+
+  const routes = [
+    {
+      label: "정리",
+      value: formatGb(cleanup.reclaimableGb),
+      detail: cleanup.reviewCount > 0 ? `${cleanup.reviewCount}개 후보를 직접 보면 돼요.` : "크게 지울 후보가 적어요.",
+      status: cleanup.reviewCount > 0 ? "check" : "good"
+    },
+    {
+      label: "보안",
+      value: security ? copy.healthStatus[security.status] : "확인 필요",
+      detail: security?.summary ?? "Windows 보안 상태를 한 번 더 확인해주세요.",
+      status: security?.status ?? "check"
+    },
+    {
+      label: "속도",
+      value: startupCount > 0 ? `${startupCount}개 시작 앱` : "괜찮아요",
+      detail: performance?.summary ?? "시작 앱과 저장 공간을 같이 보면 좋아요.",
+      status: performance?.status ?? "good"
+    },
+    {
+      label: "앱",
+      value: `${recommendation.appInventory.needsCheck}개 확인`,
+      detail: `${recommendation.appInventory.total}개 설치 앱을 분류했어요.`,
+      status: recommendation.appInventory.needsCheck > 0 ? "check" : "good"
+    },
+    {
+      label: "포맷 준비",
+      value: `${directChecks + warnings}개 확인`,
+      detail: backup?.summary ?? "인증서, 파일, 계정을 포맷 전에 챙겨요.",
+      status: warnings > 0 ? "action" : directChecks > 0 ? "check" : "good"
+    }
+  ] as const;
+
+  const nextActions = [
+    cleanup.reviewCount > 0 ? `정리 후보 ${cleanup.reviewCount}개를 먼저 훑어보세요.` : "정리 후보는 가볍게만 확인하면 돼요.",
+    warnings > 0 ? `주의 항목 ${warnings}개는 그냥 넘기기 전에 확인해주세요.` : `${directChecks}개 직접 확인 항목을 차례대로 보면 돼요.`,
+    recommendation.appInventory.needsCheck > 0
+      ? `앱 ${recommendation.appInventory.needsCheck}개는 계정·라이선스·복원 여부를 확인해주세요.`
+      : "앱 쪽은 크게 챙길 후보가 적어요."
+  ];
+
+  return (
+    <section className="fb-smart-care" aria-labelledby="smart-care-title">
+      <div className="fb-smart-care-head">
+        <div>
+          <h2 id="smart-care-title" className="fb-h2">
+            {copy.smartCareTitle}
+          </h2>
+          <p>{copy.smartCareLede}</p>
+        </div>
+        <span>{copy.recommendSeverity[recommendation.severity].chip}</span>
+      </div>
+
+      <div className="fb-smart-route-grid">
+        {routes.map((route) => (
+          <article key={route.label} className={`fb-smart-route ${smartStatusClass(route.status)}`}>
+            <div className="fb-smart-route-label">{route.label}</div>
+            <strong>{route.value}</strong>
+            <p>{route.detail}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="fb-smart-next">
+        <div>
+          <h3>{copy.smartCareNextTitle}</h3>
+          <p>{copy.smartCarePrivacyNote}</p>
+        </div>
+        <ol>
+          {nextActions.map((action) => (
+            <li key={action}>{action}</li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
 export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
@@ -623,6 +722,8 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         </div>
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
+
+      <SmartCareOverview result={result} />
 
       <CleanupCenterPanel cleanup={recommendation.cleanupCenter} />
 

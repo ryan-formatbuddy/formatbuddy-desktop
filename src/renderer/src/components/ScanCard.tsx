@@ -61,13 +61,13 @@ export function ScanCard({
 
       <div className="scan-score">
         <div>
-          <div className="scan-score-label">진행률</div>
+          <div className="scan-score-label">살펴본 단계</div>
           <div className="scan-score-value">
-            {score}
-            <span className="scan-score-unit">%</span>
+            {doneSteps}
+            <span className="scan-score-unit">/{totalSteps}</span>
           </div>
           <div className="scan-score-sub">
-            전체 {totalSteps}단계 중 {doneSteps}단계 살펴봤어요
+            진행률 {score}% · 끝나면 자동으로 리포트로 넘어가요
           </div>
           {message && <div className="scan-score-message">{message}</div>}
         </div>
