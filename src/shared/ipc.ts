@@ -20,7 +20,8 @@ export const IpcChannels = {
   windowClose: "window:close",
   windowState: "window:state",
   actionRun: "action:run",
-  logsOpenFolder: "logs:open-folder"
+  logsOpenFolder: "logs:open-folder",
+  reportExportHtml: "report:export-html"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

@@ -83,6 +83,15 @@ export function Report({ result, onBack }: ReportProps) {
     else setExportStatus("저장을 취소했어요.");
   }, [report]);
 
+  const onExportHtml = useCallback(async () => {
+    if (!window.fb?.exportHtmlReport) return;
+    setExportStatus(null);
+    const res = await window.fb.exportHtmlReport(report, recommendation);
+    if (res.saved && res.path)
+      setExportStatus(`${copy.reportHtmlSavedPrefix}${res.path}`);
+    else setExportStatus(copy.reportHtmlCancelled);
+  }, [report, recommendation]);
+
   const onOpenWeb = useCallback(async () => {
     if (!window.fb) return;
     await window.fb.openWebReport();
@@ -325,10 +334,13 @@ export function Report({ result, onBack }: ReportProps) {
       </section>
 
       <section className="fb-report-cta">
-        <Button variant="primary" size="lg" onClick={onExport}>
+        <Button variant="primary" size="lg" onClick={onExportHtml}>
+          {copy.reportExportHtmlCta}
+        </Button>
+        <Button variant="secondary" size="lg" onClick={onExport}>
           {copy.reportExportCta}
         </Button>
-        <Button variant="secondary" size="lg" onClick={onOpenWeb}>
+        <Button variant="ghost" size="lg" onClick={onOpenWeb}>
           {copy.reportOpenWebCta}
         </Button>
         {exportStatus && <p className="fb-report-cta-status">{exportStatus}</p>}

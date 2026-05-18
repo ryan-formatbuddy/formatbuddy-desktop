@@ -57,6 +57,31 @@ async function runActionCommand(rawCommand: string): Promise<ActionRunResult> {
 import { runBackupManifest, runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
 import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
+import { buildHtmlReport, buildHtmlReportFilename } from "./htmlReport";
+import type { Recommendation, ScanReport } from "@shared/types";
+
+/**
+ * Lazily resolve and base64-encode the Wanted Sans Variable TTF so the
+ * exported HTML embeds the same font for the recipient. Returns null when
+ * the asset isn't shipped or readable; in that case the HTML report falls
+ * back to system fonts.
+ */
+async function readWantedSansBase64(): Promise<string | null> {
+  const candidates = [
+    app.isPackaged ? join(process.resourcesPath, "fonts", "WantedSansVariable.ttf") : null,
+    join(__dirname, "..", "..", "resources", "fonts", "WantedSansVariable.ttf"),
+    join(process.cwd(), "resources", "fonts", "WantedSansVariable.ttf")
+  ].filter((p): p is string => Boolean(p));
+  for (const p of candidates) {
+    try {
+      const buf = await fs.readFile(p);
+      return buf.toString("base64");
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
 
 let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
@@ -278,6 +303,38 @@ function registerIpc() {
       return false;
     }
   });
+
+  ipcMain.handle(
+    IpcChannels.reportExportHtml,
+    async (
+      _e,
+      payload: { report: ScanReport; recommendation: Recommendation }
+    ): Promise<ExportResult> => {
+      if (!payload?.report || !payload?.recommendation) {
+        return { saved: false };
+      }
+      const fileName = buildHtmlReportFilename(payload.report, payload.recommendation);
+      const defaultPath = join(app.getPath("desktop"), fileName);
+      const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+      const dialogResult = await dialog.showSaveDialog(win!, {
+        title: "HTML 리포트 저장 위치",
+        defaultPath,
+        filters: [{ name: "FormatBuddy HTML report", extensions: ["html"] }]
+      });
+      if (dialogResult.canceled || !dialogResult.filePath) {
+        return { saved: false };
+      }
+      try {
+        const fontBase64 = await readWantedSansBase64();
+        const html = buildHtmlReport(payload.report, payload.recommendation, { fontBase64 });
+        await fs.writeFile(dialogResult.filePath, html, "utf8");
+        return { saved: true, path: dialogResult.filePath };
+      } catch (err) {
+        log.error("report:export-html failed:", err);
+        return { saved: false };
+      }
+    }
+  );
 }
 
 app.whenReady().then(() => {

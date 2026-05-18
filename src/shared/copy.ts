@@ -24,8 +24,12 @@ export const copy = {
   reportTitle: "살펴봤어요",
   reportLede: "포맷 전에 같이 챙기면 좋은 것들을 정리해 드렸어요.",
   reportExportCta: "JSON으로 저장",
+  reportExportHtmlCta: "HTML로 저장",
   reportOpenWebCta: "웹 리포트 뷰어 열기",
   reportBackCta: "처음으로",
+  reportHtmlSavedPrefix: "HTML 리포트를 저장했어요: ",
+  reportHtmlCancelled: "HTML 저장을 취소했어요.",
+  reportHtmlError: "HTML 리포트를 저장하지 못했어요.",
 
   privacyHeadline: "Ryan의 PC 안에서만 동작해요",
   privacyBullets: [

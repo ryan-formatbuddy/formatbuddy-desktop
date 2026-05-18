@@ -5,6 +5,7 @@ import type {
   ExportOptions,
   ExportResult,
   ManifestExportResult,
+  Recommendation,
   ScanError,
   ScanProgress,
   ScanReport,
@@ -47,6 +48,9 @@ const fb = {
 
   exportReport: (report: ScanReport, options?: ExportOptions): Promise<ExportResult> =>
     ipcRenderer.invoke(IpcChannels.reportExport, { report, options }),
+
+  exportHtmlReport: (report: ScanReport, recommendation: Recommendation): Promise<ExportResult> =>
+    ipcRenderer.invoke(IpcChannels.reportExportHtml, { report, recommendation }),
 
   openWebReport: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.reportOpenWeb),
 

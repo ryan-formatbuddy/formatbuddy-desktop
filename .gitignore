@@ -1,6 +1,7 @@
 node_modules
 out
 dist
+dist-samples
 .DS_Store
 *.log
 logs/*.log
