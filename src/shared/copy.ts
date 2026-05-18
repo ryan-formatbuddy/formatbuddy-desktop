@@ -62,16 +62,37 @@ export const copy = {
   manifestWindowsOnly: "이 기능은 Windows에서만 동작해요.",
 
   recommendSectionTitle: "버디의 포맷 추천 점수",
-  recommendScoreSuffix: "점",
+  recommendScoreSuffix: "/ 100",
   recommendTryFirstTitle: "포맷 전에 먼저 시도해볼 것",
   recommendFormatReasonsTitle: "이런 점들이 신경 쓰여요",
   recommendAfterFormatTitle: "포맷 후 같이 챙길 것",
   recommendNoReasons: "지금 발견된 큰 문제는 없어요. 정기 정리만 해도 충분해요.",
-  recommendCommandLabel: "직접 실행",
+  recommendCommandLabel: "실행",
+  /**
+   * Severity copy moved to a structured table (v0.5.0) so recommend.ts can
+   * build headline/summary from the same single source.
+   * Source: design_handoff_format_buddy_app/desktop-app.jsx SEVERITY const.
+   */
   recommendSeverity: {
-    healthy: "건강해요",
-    watch: "조금 지쳐 있어요",
-    "format-recommended": "새로 시작 추천",
-    "format-required": "새로 시작 강력 추천"
+    safe: {
+      chip: "괜찮아요",
+      head: "지금 PC, 굳이 포맷 안 해도 괜찮아요.",
+      sub: "몇 가지 정리만 해도 충분히 더 쓸 수 있어요. 가볍게 같이 살펴볼게요."
+    },
+    watch: {
+      chip: "체크해보면 좋아요",
+      head: "한 번 정리하면 한참 더 쓸 수 있어요.",
+      sub: "먼저 시도해볼 작업이 몇 가지 있어요. 그 다음에 다시 점수 볼게요."
+    },
+    organize: {
+      chip: "정리가 필요해요",
+      head: "포맷 전에, 같이 정리부터 시도해볼게요.",
+      sub: "아래 정리 작업으로 점수가 충분히 내려가면 포맷을 미뤄도 돼요."
+    },
+    format: {
+      chip: "꼭 챙길게요",
+      head: "PC가 좀 지쳐 있어요. 포맷이 가장 깔끔해요.",
+      sub: "백업부터 같이 챙길게요. 포맷 후 복원할 항목도 미리 정리해드릴게요."
+    }
   } as const
 } as const;

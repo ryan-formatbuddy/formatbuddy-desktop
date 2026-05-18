@@ -6,16 +6,19 @@ import type { ScanResult } from "@shared/types";
 
 function severityClass(s: ScanResult["recommendation"]["severity"]): string {
   switch (s) {
-    case "healthy":
-      return "fb-score-healthy";
+    case "safe":
+      return "fb-score-safe";
     case "watch":
       return "fb-score-watch";
-    case "format-recommended":
-      return "fb-score-recommend";
-    case "format-required":
-      return "fb-score-required";
+    case "organize":
+      return "fb-score-organize";
+    case "format":
+      return "fb-score-format";
   }
 }
+
+// expressionForScore helper will land in v0.5.3 when the ScoreHero card
+// gains its own CloudBuddy. For now severity drives the tone color only.
 
 interface ReportProps {
   result: ScanResult;
@@ -118,13 +121,14 @@ export function Report({ result, onBack }: ReportProps) {
           <div>
             <div className="fb-score-card-label">{copy.recommendSectionTitle}</div>
             <div className="fb-score-card-value">
-              {recommendation.formatScore}
+              <span className="fb-score-card-num">{recommendation.formatScore}</span>
               <span className="fb-score-card-unit">{copy.recommendScoreSuffix}</span>
             </div>
             <div className="fb-score-card-headline">{recommendation.headline}</div>
           </div>
           <div className="fb-score-card-badge">
-            {copy.recommendSeverity[recommendation.severity]}
+            <span className="fb-score-card-badge-dot" />
+            {copy.recommendSeverity[recommendation.severity].chip}
           </div>
         </div>
         <p className="fb-score-card-summary">{recommendation.summary}</p>

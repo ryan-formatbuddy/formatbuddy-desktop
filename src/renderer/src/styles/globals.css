@@ -30,6 +30,14 @@
   --color-fb-line-t: rgba(112, 115, 124, 0.22);
   --color-fb-positive: #00bf40;
   --color-fb-warn: #ff9200;
+
+  /* v0.5.0 severity tones (from design_handoff_format_buddy_app).
+     mint → teal → brand-blue → deep-blue — single hue family,
+     "care intensity" scale (NOT risk). */
+  --color-fb-tone-safe:     #2dc9a8;
+  --color-fb-tone-watch:    #1ea0d6;
+  --color-fb-tone-organize: var(--color-fb-blue);
+  --color-fb-tone-format:   var(--color-fb-blue-heavy);
 }
 
 * { box-sizing: border-box; }
@@ -587,19 +595,24 @@ button { font-family: inherit; }
   margin-bottom: 4px;
 }
 .fb-score-card-value {
-  font-size: 64px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  line-height: 1;
+}
+.fb-score-card-num {
+  font-size: 96px;
   font-weight: 800;
   letter-spacing: -0.045em;
-  color: var(--color-fb-ink-1);
   line-height: 1;
   font-feature-settings: "tnum" on;
+  color: var(--score-tone, var(--color-fb-ink-1));
 }
 .fb-score-card-unit {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
-  margin-left: 4px;
   letter-spacing: -0.02em;
-  color: var(--color-fb-ink-2);
+  color: var(--color-fb-ink-3);
 }
 .fb-score-card-headline {
   margin-top: 8px;
@@ -617,20 +630,32 @@ button { font-family: inherit; }
 }
 .fb-score-card-badge {
   align-self: flex-start;
-  background: var(--color-fb-blue);
-  color: #ffffff;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid var(--color-fb-line);
+  color: var(--score-tone, var(--color-fb-ink-1));
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: -0.01em;
-  padding: 6px 12px;
+  padding: 6px 14px 6px 12px;
   border-radius: 9999px;
   white-space: nowrap;
 }
-/* Severity tint variants — stays within white + blue token family */
-.fb-score-healthy .fb-score-card-badge { background: var(--color-fb-positive); }
-.fb-score-watch   .fb-score-card-badge { background: var(--color-fb-blue); }
-.fb-score-recommend .fb-score-card-badge { background: var(--color-fb-blue-heavy); }
-.fb-score-required .fb-score-card-badge { background: var(--color-fb-ink-1); }
+.fb-score-card-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--score-tone, var(--color-fb-blue));
+}
+/* Severity tone variants — single hue family, mint → deep-blue.
+   The tone color drives both the score number and the badge text/dot
+   via the --score-tone CSS variable scoped to the card. */
+.fb-score-safe     { --score-tone: var(--color-fb-tone-safe); }
+.fb-score-watch    { --score-tone: var(--color-fb-tone-watch); }
+.fb-score-organize { --score-tone: var(--color-fb-tone-organize); }
+.fb-score-format   { --score-tone: var(--color-fb-tone-format); }
 
 /* ============================================================
    Advice cards (try-first / reasons / after-format)

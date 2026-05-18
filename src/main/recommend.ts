@@ -19,6 +19,7 @@ import type {
   ScanReport,
   FormatSeverity
 } from "@shared/types";
+import { copy } from "@shared/copy";
 
 const WEIGHTS = {
   diskHealth: 0.30,
@@ -133,50 +134,39 @@ function storageWasteScore(report: ScanReport): number {
 }
 
 function getSeverity(score: number): FormatSeverity {
-  // Thresholds tightened in v0.4.1 so a single critical signal (e.g. failing
-  // disk weighted = 100 * 0.30 = 30) cannot land in the "healthy" bucket.
-  if (score < 15) return "healthy";
-  if (score < 40) return "watch";
-  if (score < 70) return "format-recommended";
-  return "format-required";
+  // v0.5.0 — adopted from design_handoff_format_buddy_app desktop-app.jsx
+  // severityFor(). Equal-width quartiles, 4-tier care-intensity scale.
+  if (score <= 25) return "safe";
+  if (score <= 50) return "watch";
+  if (score <= 75) return "organize";
+  return "format";
 }
 
 /**
  * Disk-health override: if any disk reports Unhealthy/Failed/Warning, the
  * severity is forced upward regardless of the weighted total. A failing
- * drive is "back up RIGHT NOW", not "healthy", even if every other signal
- * is clean.
+ * drive is "back up RIGHT NOW", not "safe", even if every other signal
+ * is clean. (Names updated for v0.5.0 severity union.)
  */
 function applyDiskHealthOverride(severity: FormatSeverity, rawDiskHealth: number): FormatSeverity {
   if (rawDiskHealth >= 100) {
-    // Unhealthy / Failed
-    if (severity === "healthy" || severity === "watch") return "format-recommended";
+    // Unhealthy / Failed → at least "organize"
+    if (severity === "safe" || severity === "watch") return "organize";
   } else if (rawDiskHealth >= 70) {
-    // Warning
-    if (severity === "healthy") return "watch";
+    // Warning → at least "watch"
+    if (severity === "safe") return "watch";
   }
   return severity;
 }
 
-function getHeadline(severity: FormatSeverity, score: number): string {
-  if (severity === "healthy") return `${score}점 — 지금은 새로 시작 안 해도 괜찮아요`;
-  if (severity === "watch") return `${score}점 — 먼저 가볍게 정리해볼까요`;
-  if (severity === "format-recommended") return `${score}점 — 새로 시작하면 더 편할 것 같아요`;
-  return `${score}점 — 새로 시작을 추천드려요`;
+function getHeadline(severity: FormatSeverity, _score: number): string {
+  // Single source for severity copy is shared/copy.ts (v0.5.0). recommend.ts
+  // just looks up; the score number is rendered separately by the UI.
+  return copy.recommendSeverity[severity].head;
 }
 
-function getSummary(severity: FormatSeverity, reasons: ReasonItem[]): string {
-  if (severity === "healthy") {
-    return "PC가 전반적으로 잘 지내고 있어요. 정기 청소 정도면 충분해요.";
-  }
-  if (severity === "watch") {
-    return "조금 지쳐 보이는 부분이 있어요. 아래 '먼저 시도할 것'부터 차근차근 해보면 회복될 가능성이 높아요.";
-  }
-  if (severity === "format-recommended") {
-    const top = reasons[0]?.label ?? "여러 신호";
-    return `${top} 같은 문제가 모여 있어요. 위 항목들을 시도해도 회복이 안 되면 새로 시작이 더 빠를 수 있어요.`;
-  }
-  return "PC가 많이 지쳐 있어요. 무리해서 쓰기보다 백업 후 새로 시작하는 게 더 편할 거예요.";
+function getSummary(severity: FormatSeverity, _reasons: ReasonItem[]): string {
+  return copy.recommendSeverity[severity].sub;
 }
 
 function pushReason(

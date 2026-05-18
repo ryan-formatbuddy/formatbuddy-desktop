@@ -75,16 +75,16 @@ function baseReport(overrides: Partial<ScanReport> = {}): ScanReport {
 }
 
 describe("generateRecommendation — severity buckets", () => {
-  it("healthy PC scores in healthy band and exposes no format reasons", () => {
+  it("healthy PC scores in safe band and exposes no format reasons", () => {
     const rec = generateRecommendation(baseReport());
-    expect(rec.severity).toBe("healthy");
-    expect(rec.formatScore).toBeLessThanOrEqual(30);
+    expect(rec.severity).toBe("safe");
+    expect(rec.formatScore).toBeLessThanOrEqual(25);
     expect(rec.formatReasons.length).toBe(0);
     expect(rec.tryFirst.length).toBeGreaterThan(0); // always offers cleanmgr/sfc/dism
     expect(rec.afterFormat.length).toBeGreaterThan(0);
   });
 
-  it("low disk free + memory pressure pushes into watch / format-recommended", () => {
+  it("low disk free + memory pressure pushes into watch / organize", () => {
     const rec = generateRecommendation(
       baseReport({
         disks: [{ drive: "C:", sizeGb: 500, freeGb: 25 }],
@@ -103,7 +103,7 @@ describe("generateRecommendation — severity buckets", () => {
     expect(rec.formatReasons.some((r) => r.signal === "memory-pressure")).toBe(true);
   });
 
-  it("unhealthy disk + event criticals + old updates pushes to format-recommended or higher", () => {
+  it("unhealthy disk + event criticals + old updates pushes to organize or higher", () => {
     const rec = generateRecommendation(
       baseReport({
         diskHealth: [
@@ -137,7 +137,7 @@ describe("generateRecommendation — severity buckets", () => {
         }
       })
     );
-    expect(["format-recommended", "format-required"]).toContain(rec.severity);
+    expect(["organize", "format"]).toContain(rec.severity);
     expect(rec.formatReasons.length).toBeGreaterThanOrEqual(5);
     // disk-health must be the top reason
     expect(rec.formatReasons[0].signal).toBe("disk-health");
@@ -180,16 +180,16 @@ describe("generateRecommendation — severity buckets", () => {
   });
 });
 
-describe("severity thresholds (v0.4.1 tightened)", () => {
-  it("getSeverity maps boundaries correctly", () => {
-    expect(__testing.getSeverity(0)).toBe("healthy");
-    expect(__testing.getSeverity(14)).toBe("healthy");
-    expect(__testing.getSeverity(15)).toBe("watch");
-    expect(__testing.getSeverity(39)).toBe("watch");
-    expect(__testing.getSeverity(40)).toBe("format-recommended");
-    expect(__testing.getSeverity(69)).toBe("format-recommended");
-    expect(__testing.getSeverity(70)).toBe("format-required");
-    expect(__testing.getSeverity(100)).toBe("format-required");
+describe("severity thresholds (v0.5.0 — adopted from design_handoff_format_buddy_app)", () => {
+  it("getSeverity maps quartile boundaries correctly", () => {
+    expect(__testing.getSeverity(0)).toBe("safe");
+    expect(__testing.getSeverity(25)).toBe("safe");
+    expect(__testing.getSeverity(26)).toBe("watch");
+    expect(__testing.getSeverity(50)).toBe("watch");
+    expect(__testing.getSeverity(51)).toBe("organize");
+    expect(__testing.getSeverity(75)).toBe("organize");
+    expect(__testing.getSeverity(76)).toBe("format");
+    expect(__testing.getSeverity(100)).toBe("format");
   });
 
   it("weights sum to 1.0", () => {
@@ -198,15 +198,15 @@ describe("severity thresholds (v0.4.1 tightened)", () => {
   });
 });
 
-describe("disk-health override + Defender visibility (v0.4.1 fixes)", () => {
-  it("failed disk alone forces at least format-recommended even with low score", () => {
+describe("disk-health override + Defender visibility", () => {
+  it("failed disk alone forces at least organize even with low score", () => {
     const rec = generateRecommendation(
       baseReport({
         diskHealth: [{ healthStatus: "Failed", operationalStatus: "Lost Communication" }]
       })
     );
-    // dHealth 100 * 0.30 = 30 raw → would map to healthy without override
-    expect(rec.severity).toBe("format-recommended");
+    // dHealth 100 * 0.30 = 30 raw → would map to watch without override
+    expect(["organize", "format"]).toContain(rec.severity);
     expect(rec.formatReasons[0].signal).toBe("disk-health");
   });
 
@@ -233,6 +233,6 @@ describe("disk-health override + Defender visibility (v0.4.1 fixes)", () => {
         diskHealth: [{ healthStatus: "Warning", operationalStatus: "OK", sizeGb: 500, mediaType: "SSD" }]
       })
     );
-    expect(["watch", "format-recommended", "format-required"]).toContain(rec.severity);
+    expect(["watch", "organize", "format"]).toContain(rec.severity);
   });
 });

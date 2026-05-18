@@ -172,7 +172,18 @@ export interface StorageWasteInfo {
   windowsOldGb: number;
 }
 
-export type FormatSeverity = "healthy" | "watch" | "format-recommended" | "format-required";
+/**
+ * Severity scale (v0.5.0 — adopted from design_handoff_format_buddy_app).
+ * Frame is **care-intensity**, not risk:
+ *   safe     (0-25)  — "괜찮아요"
+ *   watch    (26-50) — "체크해보면 좋아요"
+ *   organize (51-75) — "정리가 필요해요"
+ *   format   (76-100)— "꼭 챙길게요"
+ *
+ * Tone colors flow mint → teal → brand-blue → deep-blue inside one family.
+ * No red / yellow / black / risk-signaling colors anywhere on the spectrum.
+ */
+export type FormatSeverity = "safe" | "watch" | "organize" | "format";
 
 export interface ActionItem {
   title: string;
