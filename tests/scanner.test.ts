@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { runScan, __testing } from "../src/main/scanner";
 import type { ScanProgress, ScanReport } from "../src/shared/types";
@@ -57,6 +58,64 @@ describe("scanner mock pipeline", () => {
       });
       setTimeout(() => controller.abort(), 50);
       await expect(p).rejects.toThrowError(/cancel/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("verifyScriptIntegrity", () => {
+  it("silently passes when manifest is missing and enforce=false", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-skip-"));
+    const scriptPath = join(dir, "fake.ps1");
+    writeFileSync(scriptPath, "echo hi", "utf8");
+    try {
+      await expect(
+        __testing.verifyScriptIntegrity(scriptPath, { enforce: false })
+      ).resolves.toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when manifest is missing and enforce=true", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-strict-"));
+    const scriptPath = join(dir, "fake.ps1");
+    writeFileSync(scriptPath, "echo hi", "utf8");
+    try {
+      await expect(
+        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
+      ).rejects.toThrowError(/integrity manifest missing/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes when manifest matches script hash", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-ok-"));
+    const scriptPath = join(dir, "fake.ps1");
+    const body = "Get-ChildItem";
+    writeFileSync(scriptPath, body, "utf8");
+    const hash = createHash("sha256").update(body).digest("hex");
+    writeFileSync(join(dir, "script.sha256"), `${hash}\n`, "utf8");
+    try {
+      await expect(
+        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
+      ).resolves.toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when manifest does not match script hash", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-bad-"));
+    const scriptPath = join(dir, "fake.ps1");
+    writeFileSync(scriptPath, "Get-Process", "utf8");
+    writeFileSync(join(dir, "script.sha256"), "0".repeat(64) + "\n", "utf8");
+    try {
+      await expect(
+        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
+      ).rejects.toThrowError(/integrity check failed/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

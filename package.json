@@ -1,6 +1,6 @@
 {
   "name": "formatbuddy-desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "FormatBuddy Desktop — Windows-only PC format companion built on Electron.",
   "author": {
@@ -10,15 +10,18 @@
   "license": "UNLICENSED",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "embed-ps-hash": "node scripts/embed-ps-hash.mjs",
+    "dev": "npm run embed-ps-hash && electron-vite dev",
+    "prebuild": "npm run embed-ps-hash",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "npm run embed-ps-hash && vitest run",
     "test:watch": "vitest",
+    "predist:win": "npm run embed-ps-hash",
     "dist:win": "electron-vite build && electron-builder --win --publish never"
   },
   "dependencies": {

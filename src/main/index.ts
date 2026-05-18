@@ -73,7 +73,8 @@ function registerIpc() {
         scriptPath: getScanScriptPath(),
         outputDir: getScanOutputDir(),
         signal: controller.signal,
-        onProgress: emit
+        onProgress: emit,
+        enforceIntegrity: app.isPackaged
       });
       if (!sender.isDestroyed() && !controller.signal.aborted) {
         sender.send(IpcChannels.scanComplete, result);

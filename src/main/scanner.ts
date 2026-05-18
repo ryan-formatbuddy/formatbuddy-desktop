@@ -2,10 +2,40 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared/types";
 
 const STDERR_MAX_BYTES = 64 * 1024;
+const INTEGRITY_MANIFEST = "script.sha256";
+
+async function verifyScriptIntegrity(
+  scriptPath: string,
+  opts: { enforce: boolean }
+): Promise<void> {
+  const manifestPath = join(dirname(scriptPath), INTEGRITY_MANIFEST);
+  let expected: string;
+  try {
+    expected = (await fs.readFile(manifestPath, "utf8")).trim();
+  } catch {
+    if (opts.enforce) {
+      throw new Error(`PowerShell integrity manifest missing: ${manifestPath}`);
+    }
+    return; // dev / mock — silent skip when manifest hasn't been generated
+  }
+  let actual: string;
+  try {
+    const buf = await fs.readFile(scriptPath);
+    actual = createHash("sha256").update(buf).digest("hex");
+  } catch (e) {
+    if (opts.enforce) throw e;
+    return;
+  }
+  if (actual !== expected) {
+    throw new Error(
+      `PowerShell integrity check failed (expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…)`
+    );
+  }
+}
 
 function isScanReport(value: unknown): value is ScanReport {
   if (!value || typeof value !== "object") return false;
@@ -40,6 +70,8 @@ export interface RunScanOptions {
   signal?: AbortSignal;
   /** Synthetic mock instead of spawning powershell (for non-Windows dev / tests). */
   mock?: boolean;
+  /** Require script.sha256 to exist and match. Set true for packaged production. */
+  enforceIntegrity?: boolean;
 }
 
 const PIPELINE_STEPS: readonly string[] = [
@@ -76,8 +108,14 @@ function progressFor(activeIndex: number, startedAt: number, message?: string): 
 }
 
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
-  const { onProgress, signal, mock } = options;
+  const { onProgress, signal, mock, enforceIntegrity } = options;
   const startedAt = Date.now();
+
+  // Integrity check runs even for mock when a manifest is present (catches
+  // accidental script tampering in dev). It only throws when enforced.
+  if (!mock || enforceIntegrity) {
+    await verifyScriptIntegrity(options.scriptPath, { enforce: !!enforceIntegrity });
+  }
 
   const tmpDir = join(tmpdir(), "formatbuddy-scans");
   ensureDir(tmpDir);
@@ -263,4 +301,4 @@ function buildMockReport(): ScanReport {
   };
 }
 
-export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor };
+export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor, verifyScriptIntegrity };
