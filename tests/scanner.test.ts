@@ -146,3 +146,19 @@ describe("verifyAndStageScript", () => {
     }
   });
 });
+
+describe("bundled PowerShell compatibility", () => {
+  const scriptPath = join(process.cwd(), "resources", "powershell", "Invoke-FormatBuddyScan.ps1");
+
+  it("avoids Windows PowerShell 5.1 parse traps", () => {
+    const script = readFileSync(scriptPath, "utf8");
+    expect(script).not.toMatch(/=\s*try\s*\{/);
+    expect(script).not.toMatch(/Out-File\s+-FilePath\s+\$OutputPath\s+-Encoding\s+utf8/i);
+    expect(script).not.toMatch(/Write-Host\s+"/);
+  });
+
+  it("keeps the scanner script ASCII-only for Windows PowerShell -File", () => {
+    const script = readFileSync(scriptPath, "utf8");
+    expect(/^[\x00-\x7F]*$/.test(script)).toBe(true);
+  });
+});

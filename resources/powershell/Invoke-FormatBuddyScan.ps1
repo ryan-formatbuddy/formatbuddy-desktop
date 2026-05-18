@@ -306,7 +306,13 @@ function Get-FilesSkippingReparsePoints {
 }
 
 function Get-DiskHealth {
-  $physical = try { Get-PhysicalDisk -ErrorAction Stop } catch { Add-Diagnostic -Step "DiskHealth" -Message $_.Exception.Message; @() }
+  $physical = @()
+  try {
+    $physical = @(Get-PhysicalDisk -ErrorAction Stop)
+  } catch {
+    Add-Diagnostic -Step "DiskHealth" -Message $_.Exception.Message
+  }
+
   foreach ($d in $physical) {
     [ordered]@{
       friendlyName = $d.FriendlyName
@@ -460,7 +466,7 @@ function Get-StorageWaste {
     if (-not (Test-Path $Path)) { return 0 }
     try {
       # Reuse the reparse-point-skipping walk so junctions (e.g. AppData\Local
-      # → AppData\LocalLow on some installs, or Windows.old containing links
+      # to AppData\LocalLow on some installs, or Windows.old containing links
       # back into the live tree) don't make us hang or overcount.
       $files = Get-FilesSkippingReparsePoints -Root $Path
       $total = ($files | Measure-Object -Property Length -Sum).Sum
@@ -490,7 +496,7 @@ function Get-StorageWaste {
 
   [ordered]@{
     userTempGb = [Math]::Round($userTempGb, 2)
-    localAppDataTempGb = 0  # deprecated in v0.4.1 — userTempGb now includes both sources, deduped
+    localAppDataTempGb = 0  # deprecated in v0.4.1 - userTempGb now includes both sources, deduped
     windowsTempGb = $windowsTempGb
     windowsOldExists = $windowsOldExists
     windowsOldGb = $windowsOldGb
@@ -607,8 +613,26 @@ if ($Mode -eq "manifest") {
   $disk = Get-SafeCimInstance Win32_LogicalDisk | Where-Object { $_.DriveType -eq 3 }
   $printers = Get-SafeCimInstance Win32_Printer
   $drivers = Get-SafeCimInstance Win32_PnPSignedDriver
-  $wifiProfiles = try { netsh wlan show profiles | Select-String "All User Profile|모든 사용자 프로필" | ForEach-Object { ($_ -split ":", 2)[1].Trim() } } catch { Add-Diagnostic -Step "WiFiProfiles" -Message $_.Exception.Message; @() }
-  $bitlocker = try { Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionPercentage } catch { Add-Diagnostic -Step "BitLocker" -Message $_.Exception.Message; @() }
+  $wifiProfiles = @()
+  try {
+    $wifiProfiles = @(netsh wlan show profiles |
+      Where-Object { $_ -match ":" } |
+      ForEach-Object {
+        $parts = $_ -split ":", 2
+        if ($parts.Count -gt 1) { $parts[1].Trim() }
+      } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+  } catch {
+    Add-Diagnostic -Step "WiFiProfiles" -Message $_.Exception.Message
+  }
+
+  $bitlocker = @()
+  try {
+    $bitlocker = @(Get-BitLockerVolume |
+      Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionPercentage)
+  } catch {
+    Add-Diagnostic -Step "BitLocker" -Message $_.Exception.Message
+  }
 
   $report = [ordered]@{
     schemaVersion = "0.4.0-quick"
@@ -671,5 +695,7 @@ if ($Mode -eq "manifest") {
 
 $parent = Split-Path -Parent $OutputPath
 if ($parent -and !(Test-Path $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
-$report | ConvertTo-Json -Depth 16 | Out-File -FilePath $OutputPath -Encoding utf8
-Write-Host "FormatBuddy report saved: $OutputPath (mode=$Mode)"
+$json = $report | ConvertTo-Json -Depth 16
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($OutputPath, $json, $utf8NoBom)
+Write-Output ("FormatBuddy report saved: {0} (mode={1})" -f $OutputPath, $Mode)
