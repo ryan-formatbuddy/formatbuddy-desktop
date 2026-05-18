@@ -7,7 +7,7 @@ import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { WinChrome } from "./components/WinChrome";
 import { TopBar } from "./components/TopBar";
-import type { AppPlatform, ScanError, ScanProgress, ScanResult } from "@shared/types";
+import type { AppPlatform, AppStateSnapshot, ScanError, ScanProgress, ScanResult } from "@shared/types";
 
 const ONBOARDING_SEEN_KEY = "formatbuddy:onboardingSeenAt";
 
@@ -65,6 +65,7 @@ export function App() {
   );
   const [appVersion, setAppVersion] = useState<string>("");
   const [appPlatform, setAppPlatform] = useState<AppPlatform>(() => guessPlatform());
+  const [appState, setAppState] = useState<AppStateSnapshot | null>(null);
   const isMacPreview = appPlatform === "darwin";
 
   const finishOnboarding = useCallback(() => {
@@ -82,6 +83,9 @@ export function App() {
         .then((platform) => setAppPlatform(platform as AppPlatform))
         .catch(() => undefined);
     }
+    if (typeof window.fb?.getAppState === "function") {
+      void window.fb.getAppState().then(setAppState).catch(() => setAppState(null));
+    }
   }, []);
 
   useEffect(() => {
@@ -92,6 +96,7 @@ export function App() {
       );
     });
     const offComplete = window.fb.onScanComplete((r) => {
+      if (r.appState) setAppState(r.appState);
       setPhase({ kind: "report", result: r });
     });
     const offError = window.fb.onScanError((err) => {
@@ -112,6 +117,7 @@ export function App() {
     setPhase({ kind: "scanning", progress: INITIAL_PROGRESS });
     try {
       const result = await window.fb.startScan();
+      if (result.appState) setAppState(result.appState);
       setPhase({ kind: "report", result });
     } catch {
       // 에러는 onScanError 이벤트로 처리
@@ -162,16 +168,17 @@ export function App() {
             onStartScan={startScan}
             onOpenWebReport={() => void window.fb?.openWebReport()}
             isMacPreview={isMacPreview}
+            monitor={appState?.monitor}
           />
         );
       case "scanning":
         return <Scanning progress={phase.progress} onCancel={cancelScan} />;
       case "report":
-        return <Report result={phase.result} onBack={goHome} appPlatform={appPlatform} />;
+        return <Report result={phase.result} onBack={goHome} appPlatform={appPlatform} appState={phase.result.appState ?? appState ?? undefined} />;
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }
-  }, [phase, startScan, cancelScan, goHome, finishOnboarding, appPlatform, isMacPreview]);
+  }, [phase, startScan, cancelScan, goHome, finishOnboarding, appPlatform, isMacPreview, appState]);
 
   return (
     <div className="fb-app">

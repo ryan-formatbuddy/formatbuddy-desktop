@@ -2,14 +2,44 @@ import { Button, ArrowRight } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { copy } from "@shared/copy";
+import type { StatusMonitorSnapshot } from "@shared/types";
 
 interface HomeProps {
   onStartScan: () => void;
   onOpenWebReport?: () => void;
   isMacPreview?: boolean;
+  monitor?: StatusMonitorSnapshot;
 }
 
-export function Home({ onStartScan, onOpenWebReport, isMacPreview = false }: HomeProps) {
+function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
+  if (!monitor?.lastScanAt) {
+    return (
+      <section className="fb-home-monitor">
+        <div>
+          <h2 className="fb-h2">{copy.monitorTitle}</h2>
+          <p>{copy.monitorNoScan}</p>
+        </div>
+        <span>대기 중</span>
+      </section>
+    );
+  }
+
+  return (
+    <section className="fb-home-monitor">
+      <div>
+        <h2 className="fb-h2">{copy.monitorTitle}</h2>
+        <p>{monitor.message}</p>
+      </div>
+      <div className="fb-home-monitor-stats">
+        <span>마지막 점검 {monitor.staleDays ?? 0}일 전</span>
+        <span>점수 {monitor.lastScore}점</span>
+        <span>{monitor.cleanupLabel}</span>
+      </div>
+    </section>
+  );
+}
+
+export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor }: HomeProps) {
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
@@ -46,6 +76,8 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false }: Hom
           <CloudBuddy size={220} variant="primary" expression="smile" animated />
         </div>
       </section>
+
+      <MonitorCard monitor={monitor} />
 
       <section className="fb-home-privacy">
         <h2 className="fb-h2">{copy.privacyHeadline}</h2>

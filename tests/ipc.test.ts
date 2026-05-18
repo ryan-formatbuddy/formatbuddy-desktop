@@ -28,6 +28,11 @@ describe("IpcChannels", () => {
     expect(IpcChannels.manifestExport).toBe("manifest:export");
   });
 
+  it("contains local state channels", () => {
+    expect(IpcChannels.appStateGet).toBe("app-state:get");
+    expect(IpcChannels.ignoreListUpdate).toBe("ignore-list:update");
+  });
+
   it("channel values are unique", () => {
     const values = Object.values(IpcChannels);
     expect(new Set(values).size).toBe(values.length);

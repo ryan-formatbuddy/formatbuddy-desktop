@@ -19,7 +19,9 @@ import type {
   CleanupCandidateStatus,
   DuplicateFileCandidateGroup,
   FileCandidateKind,
+  AppStateSnapshot,
   HealthPillar,
+  IgnoreListState,
   LargeFileCandidate,
   ScanResult
 } from "@shared/types";
@@ -144,6 +146,7 @@ interface ReportProps {
   result: ScanResult;
   onBack: () => void;
   appPlatform?: AppPlatform;
+  appState?: AppStateSnapshot;
 }
 
 interface RowProps {
@@ -390,12 +393,20 @@ function AppInventoryPanel({ groups, total, classified, needsCheck }: {
   );
 }
 
-function CleanupCandidateCard({ candidate }: { candidate: CleanupCandidate }) {
+function CleanupCandidateCard({
+  candidate,
+  ignored,
+  onToggleIgnore
+}: {
+  candidate: CleanupCandidate;
+  ignored: boolean;
+  onToggleIgnore: (id: string, ignored: boolean) => void;
+}) {
   return (
-    <article className={`fb-cleanup-candidate ${cleanupStatusClass(candidate.status)}`}>
+    <article className={`fb-cleanup-candidate ${cleanupStatusClass(candidate.status)}${ignored ? " fb-cleanup-ignored" : ""}`}>
       <div className="fb-cleanup-candidate-top">
         <h3>{candidate.title}</h3>
-        <span>{copy.cleanupStatusBadge[candidate.status]}</span>
+        <span>{ignored ? "숨김" : copy.cleanupStatusBadge[candidate.status]}</span>
       </div>
       <p>{candidate.evidence}</p>
       <div className="fb-cleanup-candidate-meta">
@@ -404,6 +415,9 @@ function CleanupCandidateCard({ candidate }: { candidate: CleanupCandidate }) {
       </div>
       <small>{candidate.action}</small>
       <em>{candidate.safetyNote}</em>
+      <button type="button" className="fb-cleanup-ignore-btn" onClick={() => onToggleIgnore(candidate.id, !ignored)}>
+        {ignored ? copy.ignoreRemove : copy.ignoreAdd}
+      </button>
     </article>
   );
 }
@@ -436,7 +450,15 @@ function DuplicateRow({ group }: { group: DuplicateFileCandidateGroup }) {
   );
 }
 
-function CleanupCenterPanel({ cleanup }: { cleanup: ScanResult["recommendation"]["cleanupCenter"] }) {
+function CleanupCenterPanel({
+  cleanup,
+  ignoreList,
+  onToggleIgnore
+}: {
+  cleanup: ScanResult["recommendation"]["cleanupCenter"];
+  ignoreList: IgnoreListState;
+  onToggleIgnore: (id: string, ignored: boolean) => void;
+}) {
   const largeFiles = cleanup.largeFiles.slice(0, 8);
   const duplicateGroups = cleanup.duplicateGroups.slice(0, 6);
   const startupItems = cleanup.startupItems.slice(0, 8);
@@ -464,9 +486,15 @@ function CleanupCenterPanel({ cleanup }: { cleanup: ScanResult["recommendation"]
 
       <div className="fb-cleanup-candidate-grid">
         {cleanup.candidates.map((candidate) => (
-          <CleanupCandidateCard key={candidate.id} candidate={candidate} />
+          <CleanupCandidateCard
+            key={candidate.id}
+            candidate={candidate}
+            ignored={ignoreList.cleanupItemIds.includes(candidate.id)}
+            onToggleIgnore={onToggleIgnore}
+          />
         ))}
       </div>
+      <p className="fb-cleanup-ignore-note">{copy.ignoreListNote}</p>
 
       {hasDetail ? (
         <div className="fb-cleanup-detail-grid">
@@ -516,7 +544,92 @@ function CleanupCenterPanel({ cleanup }: { cleanup: ScanResult["recommendation"]
   );
 }
 
-function SmartCareOverview({ result }: { result: ScanResult }) {
+function SafetyPreviewPanel({ result }: { result: ScanResult }) {
+  const { report, recommendation } = result;
+  const safeItems = recommendation.cleanupCenter.candidates.filter((c) => c.status === "ready" || c.id === "temporary-files");
+  const reviewItems = recommendation.cleanupCenter.candidates.filter((c) => c.status === "review" && c.id !== "temporary-files");
+  const leftovers = (report.appDataCandidates ?? []).filter((c) => c.exists);
+
+  return (
+    <section className="fb-safety-preview" aria-labelledby="safety-preview-title">
+      <div className="fb-safety-preview-head">
+        <h2 id="safety-preview-title" className="fb-h2">{copy.safetyPreviewTitle}</h2>
+        <p>{copy.safetyPreviewLede}</p>
+      </div>
+      <div className="fb-safety-preview-grid">
+        <article>
+          <span>{copy.safetyPreviewSafe}</span>
+          <strong>{safeItems.length}개</strong>
+          <p>Windows가 다시 만들 수 있는 임시 파일 위주로 먼저 봐요.</p>
+        </article>
+        <article>
+          <span>{copy.safetyPreviewReview}</span>
+          <strong>{reviewItems.length}개</strong>
+          <p>큰 파일, 중복 의심, 이전 Windows 파일은 직접 확인이 먼저예요.</p>
+        </article>
+        <article>
+          <span>{copy.safetyPreviewLeftovers}</span>
+          <strong>{leftovers.length}개</strong>
+          <p>앱 데이터 폴더 후보만 보여줘요. 자동 삭제하지 않아요.</p>
+        </article>
+      </div>
+      {leftovers.length > 0 && (
+        <ul className="fb-safety-leftovers">
+          {leftovers.slice(0, 5).map((item) => (
+            <li key={`${item.app}-${item.path}`}>
+              <strong>{item.app}</strong>
+              <span>{formatGb(item.sizeGb)} · {item.path}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function HistoryComparePanel({ appState }: { appState?: AppStateSnapshot }) {
+  const comparison = appState?.comparison;
+  if (!comparison?.current) return null;
+  const previous = comparison.previous;
+  const showDelta = (value?: number, suffix = "") => {
+    if (value === undefined) return "첫 기록";
+    if (value === 0) return `변화 없음${suffix}`;
+    return `${value > 0 ? "+" : ""}${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}${suffix}`;
+  };
+
+  return (
+    <section className="fb-history-compare" aria-labelledby="history-compare-title">
+      <div className="fb-history-compare-head">
+        <h2 id="history-compare-title" className="fb-h2">{copy.compareTitle}</h2>
+        <p>{previous ? "지난 점검과 달라진 부분만 짧게 보여드릴게요." : copy.compareFirstRun}</p>
+      </div>
+      <div className="fb-history-compare-grid">
+        <article>
+          <span>포맷 추천 점수</span>
+          <strong>{comparison.current.score}점</strong>
+          <p>{showDelta(comparison.scoreDelta, "점")}</p>
+        </article>
+        <article>
+          <span>정리 후보</span>
+          <strong>{formatGb(comparison.current.reclaimableGb)}</strong>
+          <p>{showDelta(comparison.reclaimableDeltaGb, "GB")}</p>
+        </article>
+        <article>
+          <span>직접 확인</span>
+          <strong>{comparison.current.directCheckCount}개</strong>
+          <p>{showDelta(comparison.directCheckDelta, "개")}</p>
+        </article>
+        <article>
+          <span>주의 항목</span>
+          <strong>{comparison.current.warningCount}개</strong>
+          <p>{showDelta(comparison.warningDelta, "개")}</p>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function SmartCareOverview({ result, appState }: { result: ScanResult; appState?: AppStateSnapshot }) {
   const { report, recommendation } = result;
   const cleanup = recommendation.cleanupCenter;
   const security = recommendation.healthPillars.find((p) => p.id === "security");
@@ -600,13 +713,23 @@ function SmartCareOverview({ result }: { result: ScanResult }) {
           ))}
         </ol>
       </div>
+
+      {appState?.monitor && (
+        <div className="fb-smart-monitor-strip">
+          <strong>{copy.monitorTitle}</strong>
+          <span>{appState.monitor.message}</span>
+          {appState.monitor.lastScanAt && <b>마지막 점검 {appState.monitor.staleDays ?? 0}일 전</b>}
+        </div>
+      )}
     </section>
   );
 }
 
-export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown", appState }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
+  const initialIgnoreList = appState?.ignoreList ?? result.appState?.ignoreList ?? { cleanupItemIds: [], pathHints: [] };
+  const [ignoreList, setIgnoreList] = useState<IgnoreListState>(initialIgnoreList);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [manifestStatus, setManifestStatus] = useState<string | null>(null);
   const [manifestRunning, setManifestRunning] = useState(false);
@@ -657,6 +780,19 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
     if (res.mode === "opened-url") setRunStatus(copy.recommendRunOpenedToast);
     else if (res.mode === "copied-to-clipboard") setRunStatus(copy.recommendRunCopiedToast);
     else setRunStatus(copy.recommendRunRejectedToast);
+  }, []);
+
+  const onToggleIgnore = useCallback(async (id: string, ignored: boolean) => {
+    setIgnoreList((prev) => {
+      const values = new Set(prev.cleanupItemIds);
+      if (ignored) values.add(id);
+      else values.delete(id);
+      return { ...prev, cleanupItemIds: Array.from(values), updatedAt: new Date().toISOString() };
+    });
+    if (window.fb?.updateIgnoreList) {
+      const next = await window.fb.updateIgnoreList({ kind: "cleanup", id, ignored });
+      setIgnoreList(next);
+    }
   }, []);
 
   const onExportManifest = useCallback(async () => {
@@ -723,9 +859,13 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
 
-      <SmartCareOverview result={result} />
+      <SmartCareOverview result={result} appState={appState ?? result.appState} />
 
-      <CleanupCenterPanel cleanup={recommendation.cleanupCenter} />
+      <HistoryComparePanel appState={appState ?? result.appState} />
+
+      <SafetyPreviewPanel result={result} />
+
+      <CleanupCenterPanel cleanup={recommendation.cleanupCenter} ignoreList={ignoreList} onToggleIgnore={onToggleIgnore} />
 
       <BuddyChecklistPanel items={recommendation.buddyChecklist} />
 

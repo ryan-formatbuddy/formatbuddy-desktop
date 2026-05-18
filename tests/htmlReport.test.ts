@@ -157,6 +157,7 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("깔끔 정리");
     expect(html).toContain("한눈에 보는 관리 요약");
     expect(html).toContain("지금 먼저 할 일");
+    expect(html).toContain("안전 정리 미리보기");
     expect(html).toContain("정리 후보 센터");
     expect(html).toContain("용량 큰 파일");
     expect(html).toContain("중복 의심 파일");

@@ -2,8 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
+  AppStateSnapshot,
   ExportOptions,
   ExportResult,
+  IgnoreListState,
+  IgnoreListUpdate,
   ManifestExportResult,
   Recommendation,
   ScanError,
@@ -28,6 +31,9 @@ const fb = {
   appVersion: (): Promise<string> => ipcRenderer.invoke(IpcChannels.appVersion),
   appPlatform: (): Promise<"win32" | "darwin" | "linux" | "unknown"> =>
     ipcRenderer.invoke(IpcChannels.appPlatform),
+  getAppState: (): Promise<AppStateSnapshot> => ipcRenderer.invoke(IpcChannels.appStateGet),
+  updateIgnoreList: (update: IgnoreListUpdate): Promise<IgnoreListState> =>
+    ipcRenderer.invoke(IpcChannels.ignoreListUpdate, update),
 
   startScan: (): Promise<ScanResult> => ipcRenderer.invoke(IpcChannels.scanStart),
   cancelScan: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.scanCancel),

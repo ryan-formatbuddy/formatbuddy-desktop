@@ -284,6 +284,46 @@ function renderCleanupCenter(rec: Recommendation): string {
   </section>`;
 }
 
+function renderSafetyPreview(report: ScanReport, rec: Recommendation): string {
+  const safeItems = rec.cleanupCenter.candidates.filter((c) => c.status === "ready" || c.id === "temporary-files");
+  const reviewItems = rec.cleanupCenter.candidates.filter((c) => c.status === "review" && c.id !== "temporary-files");
+  const leftovers = (report.appDataCandidates ?? []).filter((c) => c.exists);
+  const rows = [
+    [copy.safetyPreviewSafe, `${safeItems.length}개`, "Windows가 다시 만들 수 있는 임시 파일 위주로 먼저 봐요."],
+    [copy.safetyPreviewReview, `${reviewItems.length}개`, "큰 파일, 중복 의심, 이전 Windows 파일은 직접 확인이 먼저예요."],
+    [copy.safetyPreviewLeftovers, `${leftovers.length}개`, "앱 데이터 폴더 후보만 보여줘요. 자동 삭제하지 않아요."]
+  ];
+  const leftoverRows = leftovers
+    .slice(0, 5)
+    .map(
+      (item) => `
+      <tr>
+        <td>${esc(item.app)}</td>
+        <td>${esc(item.path)}</td>
+        <td class="num">${esc(fmtGb(item.sizeGb))}</td>
+      </tr>`
+    )
+    .join("");
+  return `
+  <section class="card">
+    <h3>${esc(copy.safetyPreviewTitle)}</h3>
+    <p class="explain">${esc(copy.safetyPreviewLede)}</p>
+    <div class="smart-grid">
+      ${rows
+        .map(
+          ([label, value, detail]) => `
+      <div>
+        <span>${esc(label)}</span>
+        <strong>${esc(value)}</strong>
+        <p>${esc(detail)}</p>
+      </div>`
+        )
+        .join("")}
+    </div>
+    ${leftoverRows ? `<h4>${esc(copy.safetyPreviewLeftovers)}</h4><table class="simple-table"><tbody>${leftoverRows}</tbody></table>` : ""}
+  </section>`;
+}
+
 function renderAppInventory(rec: Recommendation): string {
   const inv = rec.appInventory;
   if (inv.total === 0) return "";
@@ -527,6 +567,7 @@ export function buildHtmlReport(
   ${renderScoreHero(recommendation)}
   ${renderSystemInline(report)}
   ${renderSmartCareOverview(report, recommendation)}
+  ${renderSafetyPreview(report, recommendation)}
   ${renderCleanupCenter(recommendation)}
   ${renderCareActions(recommendation)}
   ${renderAppInventory(recommendation)}

@@ -388,6 +388,56 @@ export interface Recommendation {
   careActions: CareAction[];
 }
 
+export interface ScanHistoryEntry {
+  id: string;
+  generatedAt: string;
+  score: number;
+  severity: FormatSeverity;
+  headline: string;
+  reclaimableGb: number;
+  reviewCount: number;
+  directCheckCount: number;
+  warningCount: number;
+  installedAppCount: number;
+  largeFileCount: number;
+  duplicateGroupCount: number;
+  startupCount: number;
+}
+
+export interface ScanHistoryComparison {
+  current: ScanHistoryEntry;
+  previous?: ScanHistoryEntry;
+  scoreDelta?: number;
+  reclaimableDeltaGb?: number;
+  directCheckDelta?: number;
+  warningDelta?: number;
+}
+
+export interface IgnoreListState {
+  cleanupItemIds: string[];
+  pathHints: string[];
+  updatedAt?: string;
+}
+
+export interface StatusMonitorSnapshot {
+  lastScanAt?: string;
+  lastScore?: number;
+  severity?: FormatSeverity;
+  staleDays?: number;
+  nextSuggestedScanAt?: string;
+  cleanupLabel: string;
+  protectionLabel: string;
+  backupLabel: string;
+  message: string;
+}
+
+export interface AppStateSnapshot {
+  history: ScanHistoryEntry[];
+  comparison?: ScanHistoryComparison;
+  ignoreList: IgnoreListState;
+  monitor: StatusMonitorSnapshot;
+}
+
 export interface PrivacyInfo {
   localOnly: boolean;
   noPasswordCollection: boolean;
@@ -442,6 +492,7 @@ export interface ScanResult {
   report: ScanReport;
   recommendation: Recommendation;
   jsonPath: string;
+  appState?: AppStateSnapshot;
 }
 
 export interface ScanError {
@@ -491,4 +542,10 @@ export interface WindowState {
 export interface ActionRunResult {
   mode: "opened-url" | "copied-to-clipboard" | "rejected";
   detail?: string;
+}
+
+export interface IgnoreListUpdate {
+  kind: "cleanup" | "path";
+  id: string;
+  ignored: boolean;
 }

@@ -6,9 +6,11 @@ import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
+  AppStateSnapshot,
   AppPlatform,
   ExportOptions,
   ExportResult,
+  IgnoreListUpdate,
   ManifestExportResult,
   ScanError,
   ScanProgress,
@@ -59,6 +61,7 @@ import { runBackupManifest, runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
 import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
 import { buildHtmlReport, buildHtmlReportFilename } from "./htmlReport";
+import { getAppStateSnapshot, recordScanResult, updateIgnoreList } from "./localState";
 import type { Recommendation, ScanReport } from "@shared/types";
 
 /**
@@ -189,6 +192,7 @@ function registerIpc() {
         mock: isPreviewMode,
         enforceIntegrity: app.isPackaged
       });
+      result.appState = await recordScanResult(app.getPath("userData"), result.report, result.recommendation);
       if (!sender.isDestroyed() && !controller.signal.aborted) {
         sender.send(IpcChannels.scanComplete, result);
       }
@@ -223,6 +227,17 @@ function registerIpc() {
     }
     return false;
   });
+
+  ipcMain.handle(IpcChannels.appStateGet, async (): Promise<AppStateSnapshot> => {
+    return getAppStateSnapshot(app.getPath("userData"));
+  });
+
+  ipcMain.handle(
+    IpcChannels.ignoreListUpdate,
+    async (_e, payload: IgnoreListUpdate) => {
+      return updateIgnoreList(app.getPath("userData"), payload);
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.reportExport,

@@ -22,7 +22,9 @@ export const IpcChannels = {
   windowState: "window:state",
   actionRun: "action:run",
   logsOpenFolder: "logs:open-folder",
-  reportExportHtml: "report:export-html"
+  reportExportHtml: "report:export-html",
+  appStateGet: "app-state:get",
+  ignoreListUpdate: "ignore-list:update"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
