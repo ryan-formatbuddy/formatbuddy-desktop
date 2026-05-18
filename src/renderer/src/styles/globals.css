@@ -915,7 +915,7 @@ button { font-family: inherit; }
   border: 1px solid var(--color-fb-line);
   border-radius: 12px;
   padding: 14px 16px;
-  /* v0.6.2 — 모노스페이스 제거. 기술 정보 박스도 Wanted Sans로. */
+  /* v0.6.2 — 모노스페이스 제거. 자세한 내용 박스도 Wanted Sans로. */
   font-family: inherit;
   font-size: 11px;
   color: var(--color-fb-ink-3);
@@ -1236,20 +1236,18 @@ button { font-family: inherit; }
   color: var(--color-fb-blue-heavy) !important;
   font-weight: 650 !important;
 }
-.fb-advice-cmd {
+.fb-advice-cmd-hint {
   margin-top: 6px;
   display: inline-block;
-  /* v0.6.2 — 영어 모노스페이스 제거. Wanted Sans 한 가족으로 통일. */
   font-family: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: -0.01em;
   color: var(--color-fb-blue-heavy);
   background: var(--color-fb-blue-tint);
   padding: 4px 10px;
   border-radius: 6px;
-  user-select: text;
-  word-break: break-all;
+  user-select: none;
 }
 .fb-advice-weight {
   font-size: 11px;
@@ -1276,7 +1274,7 @@ button { font-family: inherit; }
   margin-top: 6px;
   flex-wrap: wrap;
 }
-.fb-advice-cmd-row .fb-advice-cmd {
+.fb-advice-cmd-row .fb-advice-cmd-hint {
   margin-top: 0;
   flex: 1;
   min-width: 0;

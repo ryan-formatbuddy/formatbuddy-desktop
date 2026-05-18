@@ -43,7 +43,7 @@ export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
           onClick={() => setShowDetail((v) => !v)}
           aria-expanded={showDetail}
         >
-          {showDetail ? "기술 정보 숨기기" : "기술 정보 보기"}
+          {showDetail ? "자세한 내용 숨기기" : "자세한 내용 보기"}
           <span className="fb-err-code">
             {copy.errorCodePrefix}
             {code}

@@ -24,7 +24,7 @@ export function getScanOutputDir(): string {
   return join(app.getPath("userData"), "scans");
 }
 
-export function getDefaultExportPath(fileName = "formatbuddy-report.json"): string {
+export function getDefaultExportPath(fileName = "포맷버디_문제해결용_자세한파일.json"): string {
   return join(app.getPath("desktop"), fileName);
 }
 

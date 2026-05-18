@@ -179,7 +179,7 @@ export function App() {
       <div className="fb-app-body">{content}</div>
       <UpdateBanner />
       <footer className="fb-app-footer">
-        <span>FormatBuddy Desktop</span>
+        <span>포맷버디 데스크탑</span>
         {appVersion && <span className="fb-app-version">v{appVersion}</span>}
       </footer>
     </div>

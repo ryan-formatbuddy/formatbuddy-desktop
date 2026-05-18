@@ -230,9 +230,9 @@ function registerIpc() {
       const defaultPath = getDefaultExportPath(payload.options?.defaultFileName);
       const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
       const dialogResult = await dialog.showSaveDialog(win!, {
-        title: "리포트 JSON 저장",
+        title: "문제 해결용 자세한 파일 저장",
         defaultPath,
-        filters: [{ name: "FormatBuddy report", extensions: ["json"] }]
+        filters: [{ name: "포맷버디 자세한 진단 파일", extensions: ["json"] }]
       });
       if (dialogResult.canceled || !dialogResult.filePath) {
         return { saved: false };
@@ -272,11 +272,11 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.manifestExport, async (): Promise<ManifestExportResult> => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const defaultPath = getDefaultExportPath("formatbuddy-backup-checklist.json");
+    const defaultPath = getDefaultExportPath("포맷버디_빠진파일_확인목록.json");
     const dialogResult = await dialog.showSaveDialog(win!, {
-      title: "백업 검증 목록 저장 위치",
+      title: "빠진 파일 확인 목록 저장 위치",
       defaultPath,
-      filters: [{ name: "FormatBuddy backup checklist", extensions: ["json"] }]
+      filters: [{ name: "포맷버디 빠진 파일 확인 목록", extensions: ["json"] }]
     });
     if (dialogResult.canceled || !dialogResult.filePath) {
       return { saved: false };
@@ -326,9 +326,9 @@ function registerIpc() {
       const defaultPath = join(app.getPath("desktop"), fileName);
       const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
       const dialogResult = await dialog.showSaveDialog(win!, {
-        title: "HTML 리포트 저장 위치",
+        title: "공유용 리포트 저장 위치",
         defaultPath,
-        filters: [{ name: "FormatBuddy HTML report", extensions: ["html"] }]
+        filters: [{ name: "포맷버디 공유용 리포트", extensions: ["html"] }]
       });
       if (dialogResult.canceled || !dialogResult.filePath) {
         return { saved: false };

@@ -20,7 +20,7 @@ export const copy = {
   macHomeTitle2: "리포트를 먼저",
   macHomeTitle3: "보여드릴게요.",
   macHomeLede:
-    "실제 PC 점검은 Windows에서만 돌아요. Mac 앱에서는 시연용 리포트를 보거나, Windows에서 만든 리포트를 웹 뷰어로 확인할 수 있어요.",
+    "실제 PC 점검은 Windows에서만 돌아요. Mac 앱에서는 시연용 리포트를 보거나, Windows에서 만든 리포트를 브라우저로 확인할 수 있어요.",
   macHomeStartCta: "시연용 리포트 보기",
   macPreviewBullets: [
     "Mac에서는 내 파일을 검사하지 않아요",
@@ -35,19 +35,21 @@ export const copy = {
 
   reportTitle: "살펴봤어요",
   reportLede: "포맷 전에 같이 챙기면 좋은 것들을 정리해 드렸어요.",
-  reportExportCta: "JSON으로 저장",
-  reportExportHtmlCta: "HTML로 저장",
-  reportOpenWebCta: "웹 리포트 뷰어 열기",
+  reportExportCta: "문제 해결용 자세한 파일 저장",
+  reportExportHtmlCta: "공유용 리포트 저장",
+  reportOpenWebCta: "받은 리포트 열기",
   reportBackCta: "처음으로",
-  reportHtmlSavedPrefix: "HTML 리포트를 저장했어요: ",
-  reportHtmlCancelled: "HTML 저장을 취소했어요.",
-  reportHtmlError: "HTML 리포트를 저장하지 못했어요.",
+  reportSavedPrefix: "자세한 진단 파일을 저장했어요: ",
+  reportSaveCancelled: "자세한 진단 파일 저장을 취소했어요.",
+  reportHtmlSavedPrefix: "공유용 리포트를 저장했어요: ",
+  reportHtmlCancelled: "공유용 리포트 저장을 취소했어요.",
+  reportHtmlError: "공유용 리포트를 저장하지 못했어요.",
 
   privacyHeadline: "Ryan의 PC 안에서만 동작해요",
   privacyBullets: [
     "서버로 어떤 파일도 보내지 않아요",
     "인증서 개인키·비밀번호는 수집하지 않아요",
-    "JSON 리포트는 Ryan이 직접 저장하고 공유해요"
+    "진단 결과 파일은 Ryan이 직접 저장하고 공유해요"
   ],
 
   errorHeadline: "지금 진단을 마치지 못했어요",
@@ -57,7 +59,7 @@ export const copy = {
   windowsOnlyBody:
     "지금은 Mac에서 테스트용 화면을 보고 계세요. 실제 PC 진단은 Windows에서 같이 살펴볼게요.",
   macReportPreviewNote:
-    "Mac에서는 보기만 할게요. Windows 명령 실행과 백업 검증 목록 만들기는 Windows PC에서 진행해주세요.",
+    "Mac에서는 보기만 할게요. Windows 전용 작업과 빠진 파일 확인 목록 만들기는 Windows PC에서 진행해주세요.",
 
   updateAvailable: "새 버전 받는 중이에요",
   updateDownloading: "버디가 새 버전을 챙겨오고 있어요",
@@ -69,12 +71,12 @@ export const copy = {
   wingetSummary: (count: number) => `${count}개 앱은 포맷 후 한 번에 다시 깔 수 있게 정리했어요`,
   wingetUnavailable: "이 PC에선 자동 설치 목록을 만들 수 없어요. 직접 하나씩 다시 설치해야 해요.",
 
-  manifestSectionTitle: "내 파일이 잘 옮겨졌는지 확인하는 목록",
+  manifestSectionTitle: "빠진 파일이 있는지 확인하는 목록",
   manifestExplain:
-    "Desktop·Documents·Downloads 같은 폴더의 파일 목록을 따로 저장해두면, 포맷 후 다시 옮겼을 때 빠진 파일이 있는지 한눈에 알 수 있어요.",
-  manifestExportCta: "백업 검증 목록 만들기",
+    "바탕화면·문서·다운로드 같은 곳에 어떤 파일이 있었는지 적어두면, 포맷 후 다시 옮겼을 때 빠진 파일이 있는지 한눈에 알 수 있어요.",
+  manifestExportCta: "빠진 파일 확인 목록 만들기",
   manifestExportInProgress: "버디가 파일을 천천히 살펴보는 중이에요 (수십 초~수 분)",
-  manifestExportSavedPrefix: "저장했어요: ",
+  manifestExportSavedPrefix: "목록을 저장했어요: ",
   manifestExportCancelled: "저장을 취소했어요.",
   manifestExportErrorPrefix: "지금 만들지 못했어요: ",
   manifestWindowsOnly: "이 기능은 Windows에서만 동작해요.",
@@ -110,7 +112,7 @@ export const copy = {
       tag: "02 / 03 · 확인",
       head: "Windows에서 만든 결과도",
       headEm: "열어볼 수 있어요.",
-      body: "공유받은 리포트는 웹 뷰어에서 확인하고, 앱 안에서는 같은 디자인 톤을 미리 볼 수 있어요."
+      body: "공유받은 리포트는 브라우저로 확인하고, 앱 안에서는 같은 디자인 톤을 미리 볼 수 있어요."
     },
     {
       tag: "03 / 03 · 시연",
@@ -127,7 +129,7 @@ export const copy = {
   errorBodyDefault:
     "한 번 더 시도하면 대부분 풀려요. 안 풀리면 PC를 잠깐 재시작해주세요.",
   errorRetry: "다시 시도",
-  errorOpenLogs: "로그 위치 열기",
+  errorOpenLogs: "기록 위치 열기",
   errorCodePrefix: "오류 코드 ",
 
   recommendSectionTitle: "버디의 포맷 추천 점수",
@@ -149,7 +151,8 @@ export const copy = {
   recommendCommandLabel: "실행",
   recommendRunButton: "실행",
   recommendRunOpenedToast: "Windows 설정에서 해당 화면을 열어드렸어요.",
-  recommendRunCopiedToast: "명령어를 복사했어요. cmd 또는 PowerShell 창에 붙여넣어 실행해주세요.",
+  recommendCommandHint: "버튼을 누르면 필요한 작업을 준비해드려요.",
+  recommendRunCopiedToast: "실행할 문장을 복사했어요. Windows 검색에서 관리자 창을 열고 붙여넣어 주세요.",
   recommendRunRejectedToast: "지금은 직접 실행이 어려운 명령이에요. 복사도 안 됐어요.",
   /**
    * Severity copy moved to a structured table (v0.5.0) so recommend.ts can

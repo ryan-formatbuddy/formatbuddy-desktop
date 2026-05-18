@@ -265,7 +265,7 @@ function buildAfterFormat(report: ScanReport): ActionItem[] {
   }
   actions.push({
     title: "옮겨온 파일이 잘 왔는지 확인",
-    description: "포맷 전 만들어둔 백업 검증 목록을 열어, 복원한 파일이 빠진 게 없는지 한 번 살펴주세요."
+    description: "포맷 전 만들어둔 빠진 파일 확인 목록을 열어, 옮겨온 파일이 빠진 게 없는지 한 번 살펴주세요."
   });
   if (report.npkiCandidates?.some((n) => n.exists)) {
     actions.push({
@@ -401,7 +401,7 @@ function buildHealthPillars(report: ScanReport, scores: {
       detail:
         hasCloud
           ? "클라우드 폴더가 있어도 동기화가 끝났는지 확인해야 해요. 공동인증서와 Wi-Fi 정보는 따로 챙기는 쪽이 안전합니다."
-          : "Desktop, Documents, Downloads처럼 자주 쓰는 폴더와 공동인증서, Wi-Fi 정보를 먼저 확인하는 흐름이 안전합니다.",
+          : "바탕화면, 문서, 다운로드처럼 자주 쓰는 폴더와 공동인증서, Wi-Fi 정보를 먼저 확인하는 흐름이 안전합니다.",
       actions: []
     }
   ];

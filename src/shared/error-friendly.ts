@@ -2,7 +2,7 @@
  * Converts raw error strings / Node errno codes into friendly Korean
  * sentences that match the FormatBuddy tone (살펴봤어요 / 같이 챙길게요 /
  * 잠시 멈췄어요). Never surfaces stack traces or OS error codes in the
- * returned string — that goes into a collapsible "기술 정보" section
+ * returned string — that goes into a collapsible "자세한 내용" section
  * separately.
  *
  * Pure function, no I/O — safe to call from both main and renderer.
@@ -14,7 +14,7 @@ interface FriendlyInput {
   detail?: string;
 }
 
-const DEFAULT = "진단 도중 알 수 없는 문제가 있었어요. '기술 정보 보기'에서 자세한 내용을 확인할 수 있어요.";
+const DEFAULT = "진단 도중 알 수 없는 문제가 있었어요. '자세한 내용 보기'에서 원인을 확인할 수 있어요.";
 
 export function friendlyErrorMessage(input: FriendlyInput | Error | string | null | undefined): string {
   if (!input) return DEFAULT;
@@ -34,7 +34,7 @@ export function friendlyErrorMessage(input: FriendlyInput | Error | string | nul
     return "진단 스크립트가 변조된 것 같아 실행을 멈췄어요. 포맷버디를 다시 설치해주세요.";
   }
   if (/integrity manifest missing/i.test(message)) {
-    return "포맷버디 내부 검증 파일이 없어요. 다시 설치해주세요.";
+    return "포맷버디 내부 확인 파일이 없어요. 다시 설치해주세요.";
   }
   if (/refusing to spawn/i.test(message)) {
     return "진단 스크립트를 안전하게 준비하지 못해 실행을 보류했어요. 다시 시도해주세요.";
@@ -42,10 +42,10 @@ export function friendlyErrorMessage(input: FriendlyInput | Error | string | nul
 
   // Manifest export specific
   if (/manifest file was not written|manifest file is empty/i.test(message)) {
-    return "백업 검증 목록을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
+    return "빠진 파일 확인 목록을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
   if (/manifest file missing/i.test(message)) {
-    return "백업 검증 목록 파일이 사라졌어요. 다른 폴더를 선택해 다시 시도해보세요.";
+    return "빠진 파일 확인 목록 파일이 사라졌어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
 
   // Cancellation — neutral phrasing
@@ -67,17 +67,17 @@ export function friendlyErrorMessage(input: FriendlyInput | Error | string | nul
     return "다른 프로그램이 파일을 잡고 있어요. 잠시 후 다시 시도해주세요.";
   }
 
-  // PowerShell exit codes
+  // Windows command runner exit codes
   const psExit = message.match(/powershell exited with code (-?\d+)/i);
   if (psExit) {
     const exitCode = psExit[1];
     if (/access.*denied|cannot.*be.*loaded|execution.*policy/i.test(message)) {
-      return "PowerShell 실행 권한이 막혔어요. 관리자 권한으로 다시 실행해보세요.";
+      return "Windows 실행 권한이 막혔어요. 관리자 권한으로 다시 실행해보세요.";
     }
-    return `PowerShell이 코드 ${exitCode}로 멈췄어요. 다시 시도하거나 PC를 잠깐 재시작해주세요.`;
+    return `Windows 작업이 코드 ${exitCode}로 멈췄어요. 다시 시도하거나 PC를 잠깐 재시작해주세요.`;
   }
 
-  // JSON / schema
+  // Raw result parsing
   if (/did not match expected scanreport schema|json/i.test(message)) {
     return "진단 결과 형식이 예상과 달라요. 다시 시도해주세요. 계속 같은 문제면 PC 재시작 후 다시 한 번.";
   }

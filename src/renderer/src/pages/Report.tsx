@@ -66,6 +66,17 @@ function formatGb(value?: number | null) {
   return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} GB`;
 }
 
+function friendlyFolderName(name: string): string {
+  const key = name.trim().toLowerCase();
+  if (key === "desktop") return "바탕화면";
+  if (key === "documents") return "문서";
+  if (key === "downloads") return "다운로드";
+  if (key === "pictures") return "사진";
+  if (key === "videos") return "동영상";
+  if (key === "music") return "음악";
+  return name;
+}
+
 interface HealthPillarCardProps {
   pillar: HealthPillar;
   isWindows: boolean;
@@ -135,9 +146,9 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
   const onExport = useCallback(async () => {
     if (!window.fb) return;
     setExportStatus(null);
-    const res = await window.fb.exportReport(report, { defaultFileName: "formatbuddy-report.json" });
-    if (res.saved && res.path) setExportStatus(`저장했어요: ${res.path}`);
-    else setExportStatus("저장을 취소했어요.");
+    const res = await window.fb.exportReport(report, { defaultFileName: "포맷버디_문제해결용_자세한파일.json" });
+    if (res.saved && res.path) setExportStatus(`${copy.reportSavedPrefix}${res.path}`);
+    else setExportStatus(copy.reportSaveCancelled);
   }, [report]);
 
   const onExportHtml = useCallback(async () => {
@@ -259,7 +270,7 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
                 <span>{a.description}</span>
                 {a.command && isWindows && (
                   <div className="fb-advice-cmd-row">
-                    <code className="fb-advice-cmd">{a.command}</code>
+                    <span className="fb-advice-cmd-hint">{copy.recommendCommandHint}</span>
                     <button
                       type="button"
                       className="fb-run-btn"
@@ -313,7 +324,7 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
                 <span>{a.description}</span>
                 {a.command && isWindows && (
                   <div className="fb-advice-cmd-row">
-                    <code className="fb-advice-cmd">{a.command}</code>
+                    <span className="fb-advice-cmd-hint">{copy.recommendCommandHint}</span>
                     <button
                       type="button"
                       className="fb-run-btn"
@@ -373,7 +384,7 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         <article className="fb-card">
           <h3>사용자 폴더</h3>
           {report.userFolders.map((f) => (
-            <Row key={f.name} label={f.name} value={formatGb(f.sizeGb)} />
+            <Row key={f.name} label={friendlyFolderName(f.name)} value={formatGb(f.sizeGb)} />
           ))}
         </article>
 
@@ -394,9 +405,9 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
           <h3>포맷 전 체크리스트</h3>
           <ul className="fb-report-checklist">
             <li>공동인증서·Wi-Fi 프로필을 직접 옮겨주세요</li>
-            <li>Desktop·Documents·Downloads 백업</li>
+            <li>바탕화면·문서·다운로드 폴더 백업</li>
             <li>클라우드 동기화 완료 확인</li>
-            <li>리포트 JSON 저장 후 포맷</li>
+            <li>공유용 리포트 저장 후 포맷</li>
           </ul>
         </article>
       </section>
@@ -426,11 +437,11 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         <Button variant="primary" size="lg" onClick={onExportHtml}>
           {copy.reportExportHtmlCta}
         </Button>
-        <Button variant="secondary" size="lg" onClick={onExport}>
-          {copy.reportExportCta}
-        </Button>
-        <Button variant="ghost" size="lg" onClick={onOpenWeb}>
+        <Button variant="secondary" size="lg" onClick={onOpenWeb}>
           {copy.reportOpenWebCta}
+        </Button>
+        <Button variant="ghost" size="lg" onClick={onExport}>
+          {copy.reportExportCta}
         </Button>
         {exportStatus && <p className="fb-report-cta-status">{exportStatus}</p>}
       </section>

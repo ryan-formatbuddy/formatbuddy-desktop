@@ -56,6 +56,17 @@ function fmtGb(value: number | null | undefined): string {
   return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} GB`;
 }
 
+function friendlyFolderName(name: string): string {
+  const key = name.trim().toLowerCase();
+  if (key === "desktop") return "바탕화면";
+  if (key === "documents") return "문서";
+  if (key === "downloads") return "다운로드";
+  if (key === "pictures") return "사진";
+  if (key === "videos") return "동영상";
+  if (key === "music") return "음악";
+  return name;
+}
+
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString("ko-KR");
@@ -114,7 +125,7 @@ function renderTryBefore(rec: Recommendation): string {
     <li>
       <strong>${esc(a.title)}</strong>
       <span>${esc(a.description)}</span>
-      ${a.command ? `<code>${esc(a.command)}</code>` : ""}
+      ${a.command ? `<p class="action-hint">${esc(copy.recommendCommandHint)}</p>` : ""}
     </li>`
     )
     .join("");
@@ -159,7 +170,7 @@ function renderAfterFormat(rec: Recommendation): string {
     <li>
       <strong>${esc(a.title)}</strong>
       <span>${esc(a.description)}</span>
-      ${a.command ? `<code>${esc(a.command)}</code>` : ""}
+      ${a.command ? `<p class="action-hint">${esc(copy.recommendCommandHint)}</p>` : ""}
     </li>`
     )
     .join("");
@@ -176,7 +187,7 @@ function renderManifest(report: ScanReport): string {
     .map(
       (f) => `
       <tr>
-        <td>${esc(f.name)}</td>
+        <td>${esc(friendlyFolderName(f.name))}</td>
         <td class="path">${esc(f.path)}</td>
         <td class="num">${fmtGb(f.sizeGb)}</td>
       </tr>`
@@ -186,7 +197,7 @@ function renderManifest(report: ScanReport): string {
   <section class="card card-backup">
     <h3>${esc(copy.manifestSectionTitle)}</h3>
     <p class="explain">${esc(copy.manifestExplain)}</p>
-    <p class="explain">이 리포트에는 폴더 요약만 들어 있어요. 자세한 파일 목록은 따로 저장한 파일에서 볼 수 있어요.</p>
+    <p class="explain">이 리포트에는 폴더 요약만 들어 있어요. 자세한 파일 목록은 따로 만든 빠진 파일 확인 목록에서 볼 수 있어요.</p>
     <table class="backup-list-table">
       <thead>
         <tr><th>폴더</th><th>위치</th><th class="num">크기</th></tr>
@@ -252,7 +263,7 @@ function styles(fontBase64: string | null): string {
   .advice-list li{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:#fff;border:1px solid var(--fb-line);border-radius:12px;}
   .advice-list strong{font-size:14px;font-weight:700;color:var(--fb-ink-1);}
   .advice-list span{font-size:13px;line-height:20px;color:var(--fb-ink-2);font-weight:500;}
-  .advice-list code{margin-top:6px;display:inline-block;font-family:inherit;font-size:12px;font-weight:600;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:6px;align-self:flex-start;word-break:break-all;}
+  .action-hint{margin:6px 0 0;display:inline-flex;font-size:12px;font-weight:650;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:9999px;align-self:flex-start;}
   .weight{font-size:11px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;font-feature-settings:"tnum" on;vertical-align:middle;}
   .weight.heavy{background:var(--fb-blue);color:#fff;}
   .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;}
