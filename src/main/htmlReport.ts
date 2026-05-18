@@ -163,13 +163,13 @@ function renderManifest(report: ScanReport): string {
     )
     .join("");
   return `
-  <section class="card card-manifest">
+  <section class="card card-backup">
     <h3>${esc(copy.manifestSectionTitle)}</h3>
     <p class="explain">${esc(copy.manifestExplain)}</p>
-    <p class="explain">백업 manifest 자체는 별도 JSON 파일로 따로 저장돼요. 이 리포트에는 사용자 폴더 요약만 들어 있어요.</p>
-    <table class="manifest-table">
+    <p class="explain">이 리포트에는 폴더 요약만 들어 있어요. 자세한 파일 목록은 따로 저장한 파일에서 볼 수 있어요.</p>
+    <table class="backup-list-table">
       <thead>
-        <tr><th>폴더</th><th>경로</th><th class="num">크기</th></tr>
+        <tr><th>폴더</th><th>위치</th><th class="num">크기</th></tr>
       </thead>
       <tbody>${folderRows}</tbody>
     </table>
@@ -232,19 +232,19 @@ function styles(fontBase64: string | null): string {
   .advice-list li{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:#fff;border:1px solid var(--fb-line);border-radius:12px;}
   .advice-list strong{font-size:14px;font-weight:700;color:var(--fb-ink-1);}
   .advice-list span{font-size:13px;line-height:20px;color:var(--fb-ink-2);font-weight:500;}
-  .advice-list code{margin-top:6px;display:inline-block;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 8px;border-radius:6px;align-self:flex-start;word-break:break-all;}
+  .advice-list code{margin-top:6px;display:inline-block;font-family:inherit;font-size:12px;font-weight:600;letter-spacing:-0.01em;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:4px 10px;border-radius:6px;align-self:flex-start;word-break:break-all;}
   .weight{font-size:11px;font-weight:600;color:var(--fb-blue-heavy);background:var(--fb-blue-tint);padding:2px 8px;border-radius:9999px;margin-left:6px;font-feature-settings:"tnum" on;vertical-align:middle;}
   .weight.heavy{background:var(--fb-blue);color:#fff;}
   .kv{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;}
   .kv div{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px dashed var(--fb-line-t);padding:6px 0;font-size:13px;}
   .kv div:last-child{border-bottom:none;}
   .kv span{color:var(--fb-ink-3);font-weight:600;}
-  .kv strong{color:var(--fb-ink-1);font-weight:500;}
-  .manifest-table{width:100%;border-collapse:collapse;font-size:12px;}
-  .manifest-table th{text-align:left;font-weight:700;color:var(--fb-ink-3);padding:8px 10px;border-bottom:1px solid var(--fb-line);font-size:11px;letter-spacing:0.04em;text-transform:uppercase;}
-  .manifest-table td{padding:8px 10px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
-  .manifest-table td.num{font-feature-settings:"tnum" on;text-align:right;font-weight:600;}
-  .manifest-table td.path{color:var(--fb-ink-3);font-family:"JetBrains Mono",monospace;font-size:11px;}
+  .kv strong{color:var(--fb-ink-1);font-weight:500;font-family:inherit;}
+  .backup-list-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .backup-list-table th{text-align:left;font-weight:700;color:var(--fb-ink-3);padding:8px 10px;border-bottom:1px solid var(--fb-line);font-size:11px;letter-spacing:0.04em;text-transform:uppercase;}
+  .backup-list-table td{padding:8px 10px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
+  .backup-list-table td.num{font-feature-settings:"tnum" on;text-align:right;font-weight:600;}
+  .backup-list-table td.path{color:var(--fb-ink-3);font-size:11px;letter-spacing:-0.005em;}
   footer{margin-top:32px;padding-top:20px;border-top:1px solid var(--fb-line);font-size:11px;color:var(--fb-ink-3);display:flex;justify-content:space-between;}
   .privacy-pill{display:inline-flex;align-items:center;gap:6px;background:var(--fb-blue-tint);color:var(--fb-blue-heavy);font-size:11px;font-weight:700;padding:4px 10px;border-radius:9999px;letter-spacing:-0.01em;}
   .privacy-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--fb-blue);}
@@ -297,8 +297,8 @@ export function buildHtmlReport(
   ${renderAfterFormat(recommendation)}
   ${renderManifest(report)}
   <footer>
-    <span>포맷버디 · 한국형 PC 포맷 동행</span>
-    <span>schema ${esc(report.schemaVersion)}</span>
+    <span>포맷버디 · PC 포맷 동행</span>
+    <span>로컬에서만 만들어진 리포트예요</span>
   </footer>
 </div>
 </body>

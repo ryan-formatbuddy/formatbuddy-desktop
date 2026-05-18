@@ -115,8 +115,12 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("포맷 전에 먼저 시도해볼 것");
     expect(html).toContain("이런 점들이 신경 쓰여요");
     expect(html).toContain("포맷 후 같이 챙길 것");
-    expect(html).toContain("백업 파일 무결성 manifest");
+    expect(html).toContain("내 파일이 잘 옮겨졌는지 확인하는 목록");
     expect(html).toContain("이 PC");
+    // v0.6.2 — 사용자 카피에서 영문 기술 단어 노출 금지
+    expect(html).not.toContain("manifest");
+    expect(html).not.toContain("schema");
+    expect(html).not.toContain("JetBrains Mono");
     // CSP meta blocks remote loads
     expect(html).toMatch(/default-src 'none'/);
   });

@@ -828,7 +828,8 @@ button { font-family: inherit; }
   border: 1px solid var(--color-fb-line);
   border-radius: 12px;
   padding: 14px 16px;
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* v0.6.2 — 모노스페이스 제거. 기술 정보 박스도 Wanted Sans로. */
+  font-family: inherit;
   font-size: 11px;
   color: var(--color-fb-ink-3);
   line-height: 16px;
@@ -836,7 +837,7 @@ button { font-family: inherit; }
   white-space: pre-wrap;
   word-break: break-word;
 }
-.fb-err-detail pre { margin: 0; }
+.fb-err-detail pre { margin: 0; font-family: inherit; }
 
 .fb-report-card-explain {
   font-size: 13px;
@@ -1014,12 +1015,14 @@ button { font-family: inherit; }
 .fb-advice-cmd {
   margin-top: 6px;
   display: inline-block;
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* v0.6.2 — 영어 모노스페이스 제거. Wanted Sans 한 가족으로 통일. */
+  font-family: inherit;
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--color-fb-blue-heavy);
   background: var(--color-fb-blue-tint);
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   user-select: text;
   word-break: break-all;

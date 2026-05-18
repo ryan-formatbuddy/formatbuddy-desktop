@@ -347,8 +347,8 @@ export function Report({ result, onBack }: ReportProps) {
       </section>
 
       <section className="fb-report-meta">
-        <small>리포트 생성: {new Date(report.generatedAt).toLocaleString("ko-KR")}</small>
-        <small>schema {report.schemaVersion}</small>
+        <small>리포트 만든 시각: {new Date(report.generatedAt).toLocaleString("ko-KR")}</small>
+        <small>로컬에서만 만들어졌어요</small>
       </section>
     </main>
   );

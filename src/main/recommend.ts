@@ -254,8 +254,8 @@ function buildAfterFormat(report: ScanReport): ActionItem[] {
     });
   }
   actions.push({
-    title: "백업 manifest 검증",
-    description: "포맷 전 만든 manifest의 SHA-256과 복원된 파일을 비교해 빠진 게 없는지 확인하세요."
+    title: "옮겨온 파일이 잘 왔는지 확인",
+    description: "포맷 전 만들어둔 백업 검증 목록을 열어, 복원한 파일이 빠진 게 없는지 한 번 살펴주세요."
   });
   if (report.npkiCandidates?.some((n) => n.exists)) {
     actions.push({
