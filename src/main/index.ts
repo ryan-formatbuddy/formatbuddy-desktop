@@ -1,4 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, shell } from "electron";
+import type { Tray } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import log from "electron-log/main";
 import { dirname, join } from "node:path";
@@ -34,6 +35,13 @@ import {
   getThreatHistory,
   runQuickScan
 } from "./security/defender";
+import {
+  loadPrefs as loadMonitorPrefs,
+  markReminderShown,
+  shouldRemind,
+  updatePrefs as updateMonitorPrefs
+} from "./monitor";
+import { createTray, destroyTray } from "./tray";
 import type {
   AppLeftoversSnapshot,
   AppManagerSnapshot,
@@ -41,7 +49,9 @@ import type {
   AppUninstallResult,
   DefenderLiveStatus,
   DefenderQuickScanResult,
-  DefenderThreatSnapshot
+  DefenderThreatSnapshot,
+  MonitorPreferences,
+  UpdateMonitorPreferencesRequest
 } from "@shared/types";
 
 /**
@@ -116,6 +126,83 @@ async function readWantedSansBase64(): Promise<string | null> {
 
 let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
+let trayInstance: Tray | null = null;
+let reminderTimer: NodeJS.Timeout | null = null;
+const REMINDER_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+async function reconcileTray(prefs: MonitorPreferences): Promise<void> {
+  if (prefs.trayEnabled) {
+    if (trayInstance) return;
+    trayInstance = createTray({
+      onShowWindow: focusMainWindow,
+      onStartScan: () => {
+        focusMainWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IpcChannels.monitorTriggerScan);
+        }
+      },
+      onQuit: () => {
+        // Quit fully even if main window was just hidden. Without
+        // app.quit the renderer thread can stay alive on macOS.
+        app.quit();
+      }
+    });
+    if (!trayInstance) {
+      log.warn("monitor:tray failed to initialize (icon missing?)");
+    } else {
+      log.info("monitor:tray active");
+    }
+  } else if (trayInstance) {
+    destroyTray(trayInstance);
+    trayInstance = null;
+    log.info("monitor:tray destroyed");
+  }
+}
+
+async function reconcileReminderTimer(): Promise<void> {
+  // The timer always runs once an hour while the app is alive. The
+  // shouldRemind() decision inside decides whether to actually fire
+  // a notification, so we don't need to start/stop the timer based
+  // on prefs — and that means flipping the toggle takes effect on
+  // the next tick without any wiring.
+  if (reminderTimer) return;
+  reminderTimer = setInterval(() => {
+    void runReminderTick();
+  }, REMINDER_CHECK_INTERVAL_MS);
+  // Run once on startup so users who enable reminders right after
+  // install don't wait an hour for the first check.
+  setTimeout(() => void runReminderTick(), 30_000);
+}
+
+async function runReminderTick(): Promise<void> {
+  try {
+    const prefs = await loadMonitorPrefs(app.getPath("userData"));
+    const lastScanAt = getLastScan()?.report.generatedAt;
+    const decision = shouldRemind(prefs, lastScanAt, new Date());
+    if (!decision.show) return;
+    if (!Notification.isSupported()) return;
+    const notification = new Notification({
+      title: "포맷버디",
+      body:
+        decision.staleDays !== undefined
+          ? `마지막 점검이 ${decision.staleDays}일 전이에요. 한 번 더 살펴볼까요?`
+          : "마지막 점검 이후 시간이 좀 지났어요. 한 번 더 살펴볼까요?"
+    });
+    notification.on("click", () => focusMainWindow());
+    notification.show();
+    await markReminderShown(app.getPath("userData"));
+    log.info(`monitor:reminder shown staleDays=${decision.staleDays}`);
+  } catch (err) {
+    log.warn("monitor:reminder tick failed:", (err as Error).message);
+  }
+}
 
 /**
  * electron-log setup. Logs land at:
@@ -433,6 +520,26 @@ function registerIpc() {
     return getThreatHistory({ shell: defaultPowerShellRunner() });
   });
 
+  ipcMain.handle(IpcChannels.monitorGetPrefs, async (): Promise<MonitorPreferences> => {
+    return loadMonitorPrefs(app.getPath("userData"));
+  });
+
+  ipcMain.handle(
+    IpcChannels.monitorUpdatePrefs,
+    async (_e, patch: UpdateMonitorPreferencesRequest): Promise<MonitorPreferences> => {
+      const next = await updateMonitorPrefs(app.getPath("userData"), patch);
+      log.info(
+        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays}`
+      );
+      await reconcileTray(next);
+      return next;
+    }
+  );
+
+  ipcMain.handle(IpcChannels.monitorReminderShown, async (): Promise<MonitorPreferences> => {
+    return markReminderShown(app.getPath("userData"));
+  });
+
   ipcMain.handle(
     IpcChannels.reportExportHtml,
     async (
@@ -477,6 +584,16 @@ app.whenReady().then(() => {
   createWindow();
   if (mainWindow) initAutoUpdater(mainWindow);
 
+  void (async () => {
+    try {
+      const prefs = await loadMonitorPrefs(app.getPath("userData"));
+      await reconcileTray(prefs);
+      await reconcileReminderTimer();
+    } catch (err) {
+      log.warn("monitor:init failed:", (err as Error).message);
+    }
+  })();
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
     if (mainWindow) initAutoUpdater(mainWindow);
@@ -488,9 +605,19 @@ app.on("before-quit", () => {
     activeAbort.abort();
     activeAbort = null;
   }
+  if (reminderTimer) {
+    clearInterval(reminderTimer);
+    reminderTimer = null;
+  }
+  destroyTray(trayInstance);
+  trayInstance = null;
   shutdownAutoUpdater();
 });
 
 app.on("window-all-closed", () => {
+  // When the tray is active we keep the process alive so the icon
+  // stays in the system tray and the reminder loop keeps ticking.
+  // Without the tray we follow normal platform conventions.
+  if (trayInstance) return;
   if (process.platform !== "darwin") app.quit();
 });

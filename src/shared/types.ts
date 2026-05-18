@@ -877,3 +877,33 @@ export interface DefenderThreatSnapshot {
   records: DefenderThreatRecord[];
   unavailableReason?: string;
 }
+
+/**
+ * v1.3.x — Optional tray + periodic reminder (Phase 5).
+ *
+ * Off by default. The user opts in from Home settings, never the
+ * other way around. When trayEnabled flips on we instantiate Electron
+ * Tray; off again we destroy it. When reminderEnabled is true the
+ * main process checks once an hour: if the last scan is older than
+ * `reminderDays`, surface a Notification — once per stale window,
+ * tracked via lastReminderAt.
+ *
+ * We deliberately stop short of running scans automatically. The
+ * notification only opens the FormatBuddy main window so the user
+ * decides when to scan.
+ */
+export interface MonitorPreferences {
+  trayEnabled: boolean;
+  reminderEnabled: boolean;
+  /** Days since the last scan before we'll show a reminder. 1..90. */
+  reminderDays: number;
+  /** ISO of the last reminder we surfaced (so we don't spam). */
+  lastReminderAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateMonitorPreferencesRequest {
+  trayEnabled?: boolean;
+  reminderEnabled?: boolean;
+  reminderDays?: number;
+}

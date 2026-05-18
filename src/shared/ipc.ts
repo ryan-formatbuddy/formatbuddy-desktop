@@ -33,7 +33,11 @@ export const IpcChannels = {
   appsLeftovers: "apps:leftovers",
   securityStatus: "security:status",
   securityQuickScan: "security:quick-scan",
-  securityThreats: "security:threats"
+  securityThreats: "security:threats",
+  monitorGetPrefs: "monitor:get-prefs",
+  monitorUpdatePrefs: "monitor:update-prefs",
+  monitorReminderShown: "monitor:reminder-shown",
+  monitorTriggerScan: "monitor:trigger-scan"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

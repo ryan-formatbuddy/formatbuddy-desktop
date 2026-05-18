@@ -1,14 +1,88 @@
+import { useCallback, useEffect, useState } from "react";
 import { Button, ArrowRight } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { copy } from "@shared/copy";
-import type { StatusMonitorSnapshot } from "@shared/types";
+import type { MonitorPreferences, StatusMonitorSnapshot } from "@shared/types";
 
 interface HomeProps {
   onStartScan: () => void;
   onOpenWebReport?: () => void;
   isMacPreview?: boolean;
   monitor?: StatusMonitorSnapshot;
+}
+
+function MonitorPrefsCard() {
+  const [prefs, setPrefs] = useState<MonitorPreferences | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!window.fb?.getMonitorPrefs) return;
+    void window.fb.getMonitorPrefs().then(setPrefs).catch(() => setPrefs(null));
+  }, []);
+
+  const update = useCallback(async (patch: Parameters<NonNullable<typeof window.fb.updateMonitorPrefs>>[0]) => {
+    if (!window.fb?.updateMonitorPrefs) return;
+    setBusy(true);
+    try {
+      const next = await window.fb.updateMonitorPrefs(patch);
+      setPrefs(next);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  if (!prefs) return null;
+
+  return (
+    <section
+      className="fb-home-monitor"
+      style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "stretch" }}
+    >
+      <div>
+        <h2 className="fb-h2">버디 자동 알림 설정</h2>
+        <small style={{ opacity: 0.7 }}>
+          기본은 모두 꺼짐이에요. 켜야만 트레이/알림이 동작해요.
+        </small>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={prefs.trayEnabled}
+          disabled={busy}
+          onChange={(e) => void update({ trayEnabled: e.target.checked })}
+        />
+        <span>시스템 트레이 아이콘 표시 (PC 점검 시작 / 종료 메뉴)</span>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={prefs.reminderEnabled}
+          disabled={busy}
+          onChange={(e) => void update({ reminderEnabled: e.target.checked })}
+        />
+        <span>주기 알림 (마지막 점검 후 며칠이 지나면 알려줘요)</span>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <span>알림 주기:</span>
+        <input
+          type="number"
+          min={1}
+          max={90}
+          value={prefs.reminderDays}
+          disabled={busy || !prefs.reminderEnabled}
+          onChange={(e) =>
+            void update({ reminderDays: Math.max(1, Math.min(90, Number(e.target.value) || 14)) })
+          }
+          style={{ width: 70, padding: "4px 6px" }}
+        />
+        <span>일</span>
+      </label>
+      <small style={{ opacity: 0.6 }}>
+        포맷버디는 자동 점검을 하지 않아요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
+      </small>
+    </section>
+  );
 }
 
 function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
@@ -80,6 +154,8 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
       </section>
 
       <MonitorCard monitor={monitor} />
+
+      <MonitorPrefsCard />
 
       <section className="fb-home-privacy">
         <h2 className="fb-h2">{copy.privacyHeadline}</h2>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
@@ -122,6 +122,16 @@ export function App() {
     };
   }, []);
 
+  // Tray "PC 점검 시작" forwards through window.fb.onTrayTriggerScan.
+  // We re-bind whenever startScan changes (which is never, since
+  // startScan is memoized with no deps, but the lint rule wants it).
+  useEffect(() => {
+    if (!window.fb?.onTrayTriggerScan) return;
+    return window.fb.onTrayTriggerScan(() => {
+      void startScanRef.current();
+    });
+  }, []);
+
   const startScan = useCallback(async () => {
     if (!window.fb) {
       setPhase({ kind: "error", error: { message: "Electron 브리지를 찾지 못했어요." } });
@@ -136,6 +146,13 @@ export function App() {
       // 에러는 onScanError 이벤트로 처리
     }
   }, []);
+
+  // Stable ref so the tray listener (registered once) always invokes
+  // the latest startScan implementation.
+  const startScanRef = useRef(startScan);
+  useEffect(() => {
+    startScanRef.current = startScan;
+  }, [startScan]);
 
   const cancelScan = useCallback(async () => {
     if (!window.fb) return;

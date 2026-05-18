@@ -20,6 +20,7 @@ import type {
   IgnoreListUpdate,
   LargeFileCandidate,
   ManifestExportResult,
+  MonitorPreferences,
   Recommendation,
   ScanError,
   ScanProgress,
@@ -28,6 +29,7 @@ import type {
   UpdateDownloadProgress,
   UpdateErrorPayload,
   UpdateInfo,
+  UpdateMonitorPreferencesRequest,
   WindowState
 } from "@shared/types";
 
@@ -149,7 +151,21 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.securityQuickScan),
 
   getDefenderThreats: (): Promise<DefenderThreatSnapshot> =>
-    ipcRenderer.invoke(IpcChannels.securityThreats)
+    ipcRenderer.invoke(IpcChannels.securityThreats),
+
+  getMonitorPrefs: (): Promise<MonitorPreferences> =>
+    ipcRenderer.invoke(IpcChannels.monitorGetPrefs),
+
+  updateMonitorPrefs: (
+    patch: UpdateMonitorPreferencesRequest
+  ): Promise<MonitorPreferences> =>
+    ipcRenderer.invoke(IpcChannels.monitorUpdatePrefs, patch),
+
+  onTrayTriggerScan(cb: () => void): () => void {
+    const wrapped = () => cb();
+    ipcRenderer.on(IpcChannels.monitorTriggerScan, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.monitorTriggerScan, wrapped);
+  }
 };
 
 contextBridge.exposeInMainWorld("fb", fb);
