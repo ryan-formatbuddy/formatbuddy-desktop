@@ -45,6 +45,14 @@ export interface InstalledApp {
   name: string;
   version?: string | null;
   publisher?: string | null;
+  /** Windows Uninstall registry — used by main/apps/uninstaller.ts. Never invented. */
+  uninstallString?: string | null;
+  quietUninstallString?: string | null;
+  installLocation?: string | null;
+  estimatedSizeKb?: number | null;
+  installDate?: string | null;
+  /** SystemComponent=1 in registry — hide from user-facing uninstall lists. */
+  systemComponent?: boolean | null;
 }
 
 export interface DriverInfo {
@@ -686,4 +694,124 @@ export interface CleanupExecuteResult {
 
 export interface CleanupHistorySnapshot {
   entries: CleanupLogEntry[];
+}
+
+/**
+ * v1.3.x — App manager. Phase 2 of the professional-grade rollout.
+ *
+ * Two surfaces:
+ *   1. apps:list      → enriched + classified view of installed apps.
+ *                       Source of truth is the last scan's
+ *                       installedApps array, cached in the main
+ *                       process so the renderer cannot inject a
+ *                       fake UninstallString.
+ *   2. apps:leftovers → per-app AppData / ProgramData paths that
+ *                       might be left behind after Windows uninstall.
+ *                       Display only; never deleted from this surface.
+ *                       The Cleanup engine (Phase 1) is the only place
+ *                       that ever removes user files.
+ *   3. apps:uninstall → main process looks up the app by (name,
+ *                       publisher) in the cached scan, validates the
+ *                       UninstallString, then spawns Windows' own
+ *                       uninstaller through cmd.exe. We never run a
+ *                       string supplied directly by the renderer.
+ */
+export type AppManagerCategory =
+  | "browser"
+  | "messenger"
+  | "cloud"
+  | "office"
+  | "security"
+  | "driver"
+  | "work"
+  | "finance"
+  | "creative"
+  | "developer"
+  | "game"
+  | "media"
+  | "utility"
+  | "system"
+  | "unknown";
+
+export type AppUninstallAvailability =
+  | "ready"
+  | "no-uninstall-string"
+  | "system-component"
+  | "registry-only";
+
+export interface AppManagerItem {
+  id: string;
+  name: string;
+  publisher?: string | null;
+  version?: string | null;
+  category: AppManagerCategory;
+  categoryLabel: string;
+  installLocation?: string | null;
+  estimatedSizeBytes?: number | null;
+  installDate?: string | null;
+  uninstallAvailability: AppUninstallAvailability;
+  /** Short human note explaining the availability state. */
+  availabilityNote: string;
+  /** When availability === "ready", how the uninstaller will be invoked. */
+  uninstallMode?: "interactive" | "quiet";
+}
+
+export interface AppManagerGroup {
+  category: AppManagerCategory;
+  label: string;
+  count: number;
+  items: AppManagerItem[];
+}
+
+export interface AppManagerSnapshot {
+  generatedAt: string;
+  total: number;
+  classified: number;
+  groups: AppManagerGroup[];
+  /** Items the user agent chose to hide (system components, mostly). */
+  hiddenSystemCount: number;
+}
+
+export interface AppLeftoverPath {
+  path: string;
+  exists: boolean;
+  sizeBytes?: number | null;
+  lastModifiedAt?: string | null;
+  /** When true, the path is inside a Phase 1 blocklist root and must not be cleaned. */
+  protectedBy?: string;
+}
+
+export interface AppLeftoverGroup {
+  appName: string;
+  publisher?: string | null;
+  paths: AppLeftoverPath[];
+}
+
+export interface AppLeftoversSnapshot {
+  generatedAt: string;
+  groups: AppLeftoverGroup[];
+}
+
+export type AppUninstallMode = "interactive" | "quiet";
+
+export interface AppUninstallRequest {
+  appName: string;
+  publisher?: string | null;
+  mode?: AppUninstallMode;
+}
+
+export type AppUninstallStatus =
+  | "launched"
+  | "no-uninstall-string"
+  | "app-not-found"
+  | "blocked"
+  | "spawn-failed"
+  | "no-scan-cache";
+
+export interface AppUninstallResult {
+  status: AppUninstallStatus;
+  appName: string;
+  message: string;
+  /** Detail used by the UI to disambiguate similar statuses (e.g. blocked reason). */
+  detail?: string;
 }

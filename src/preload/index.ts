@@ -2,7 +2,11 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
+  AppLeftoversSnapshot,
+  AppManagerSnapshot,
   AppStateSnapshot,
+  AppUninstallRequest,
+  AppUninstallResult,
   CleanupExecuteRequest,
   CleanupExecuteResult,
   CleanupHistorySnapshot,
@@ -125,7 +129,15 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.cleanupExecute, request),
 
   getCleanupHistory: (): Promise<CleanupHistorySnapshot> =>
-    ipcRenderer.invoke(IpcChannels.cleanupHistory)
+    ipcRenderer.invoke(IpcChannels.cleanupHistory),
+
+  listApps: (): Promise<AppManagerSnapshot> => ipcRenderer.invoke(IpcChannels.appsList),
+
+  listAppLeftovers: (): Promise<AppLeftoversSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.appsLeftovers),
+
+  uninstallApp: (request: AppUninstallRequest): Promise<AppUninstallResult> =>
+    ipcRenderer.invoke(IpcChannels.appsUninstall, request)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

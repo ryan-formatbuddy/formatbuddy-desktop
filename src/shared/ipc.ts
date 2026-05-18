@@ -27,7 +27,10 @@ export const IpcChannels = {
   ignoreListUpdate: "ignore-list:update",
   cleanupPlan: "cleanup:plan",
   cleanupExecute: "cleanup:execute",
-  cleanupHistory: "cleanup:history"
+  cleanupHistory: "cleanup:history",
+  appsList: "apps:list",
+  appsUninstall: "apps:uninstall",
+  appsLeftovers: "apps:leftovers"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

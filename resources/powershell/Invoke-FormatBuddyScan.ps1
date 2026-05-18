@@ -37,6 +37,9 @@ function Join-PathSafe {
 }
 
 function Get-InstalledApps {
+  # v1.3.x - expanded with UninstallString, InstallLocation, EstimatedSize
+  # and InstallDate. main/apps/uninstaller.ts will hand UninstallString
+  # to cmd.exe for the user-confirmed Windows uninstall flow.
   $paths = @(
     "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
     "HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -49,6 +52,12 @@ function Get-InstalledApps {
         name = $_.DisplayName
         version = $_.DisplayVersion
         publisher = $_.Publisher
+        uninstallString = $_.UninstallString
+        quietUninstallString = $_.QuietUninstallString
+        installLocation = $_.InstallLocation
+        estimatedSizeKb = $_.EstimatedSize
+        installDate = $_.InstallDate
+        systemComponent = if ($null -ne $_.SystemComponent) { [bool]$_.SystemComponent } else { $null }
       }
     }
   }

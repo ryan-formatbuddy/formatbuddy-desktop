@@ -3,6 +3,7 @@ import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
 import { Cleanup } from "./pages/Cleanup";
+import { AppManager } from "./pages/AppManager";
 import { Onboarding } from "./pages/Onboarding";
 import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -25,6 +26,7 @@ type Phase =
   | { kind: "scanning"; progress: ScanProgress }
   | { kind: "report"; result: ScanResult }
   | { kind: "cleanup"; report?: ScanReport }
+  | { kind: "apps" }
   | { kind: "error"; error: ScanError };
 
 function readOnboardingSeen(): boolean {
@@ -171,6 +173,15 @@ export function App() {
           onBack={goHome}
         />
       );
+    if (phase.kind === "apps")
+      return (
+        <TopBar
+          here="앱 정리"
+          meta={isMacPreview ? "Mac 미리보기 모드" : "로컬에서만 처리됨"}
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
@@ -199,6 +210,7 @@ export function App() {
             appPlatform={appPlatform}
             appState={phase.result.appState ?? appState ?? undefined}
             onOpenCleanup={(report) => setPhase({ kind: "cleanup", report })}
+            onOpenAppManager={() => setPhase({ kind: "apps" })}
           />
         );
       case "cleanup":
@@ -208,6 +220,14 @@ export function App() {
             isWindows={appPlatform === "win32"}
             onBack={goHome}
             onComplete={goHome}
+          />
+        );
+      case "apps":
+        return (
+          <AppManager
+            isWindows={appPlatform === "win32"}
+            onBack={goHome}
+            onOpenCleanup={() => setPhase({ kind: "cleanup" })}
           />
         );
       case "error":

@@ -24,6 +24,16 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { getCleanupHistory } from "./cleanup/log";
+import { buildAppManagerSnapshot } from "./apps/manager";
+import { planAppLeftovers } from "./apps/leftovers";
+import { runUninstall } from "./apps/uninstaller";
+import { findInstalledApp, getLastScan, setLastScan } from "./lastScan";
+import type {
+  AppLeftoversSnapshot,
+  AppManagerSnapshot,
+  AppUninstallRequest,
+  AppUninstallResult
+} from "@shared/types";
 
 /**
  * Whitelist of safe URL schemes that we let `shell.openExternal` hand to
@@ -201,6 +211,9 @@ function registerIpc() {
         enforceIntegrity: app.isPackaged
       });
       result.appState = await recordScanResult(app.getPath("userData"), result.report, result.recommendation);
+      // Cache the result for app-manager IPC handlers — they need
+      // installedApps with UninstallString, which only the scan has.
+      setLastScan(result);
       if (!sender.isDestroyed() && !controller.signal.aborted) {
         sender.send(IpcChannels.scanComplete, result);
       }
@@ -366,6 +379,36 @@ function registerIpc() {
   ipcMain.handle(IpcChannels.cleanupHistory, async (): Promise<CleanupHistorySnapshot> => {
     return getCleanupHistory(app.getPath("userData"));
   });
+
+  ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
+    const cached = getLastScan();
+    return buildAppManagerSnapshot(cached?.report.installedApps ?? []);
+  });
+
+  ipcMain.handle(IpcChannels.appsLeftovers, async (): Promise<AppLeftoversSnapshot> => {
+    const cached = getLastScan();
+    return planAppLeftovers(cached?.report.installedApps ?? []);
+  });
+
+  ipcMain.handle(
+    IpcChannels.appsUninstall,
+    async (_e, request: AppUninstallRequest): Promise<AppUninstallResult> => {
+      if (!getLastScan()) {
+        return {
+          status: "no-scan-cache",
+          appName: request?.appName ?? "",
+          message: "최근 진단 결과가 없어요. 점검을 한 번 돌린 뒤 다시 시도해주세요."
+        };
+      }
+      const result = await runUninstall(request, {
+        findApp: (req) => findInstalledApp(req.appName, req.publisher)
+      });
+      log.info(
+        `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`
+      );
+      return result;
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.reportExportHtml,
