@@ -113,7 +113,7 @@ describe("verifyAndStageScript", () => {
     }
   });
 
-  it("on match returns a private temp path with verified bytes", async () => {
+  it("on match returns a private per-run temp path with verified bytes", async () => {
     const dir = mkdtempSync(join(tmpdir(), "fb-integ-ok-"));
     const scriptPath = join(dir, "fake.ps1");
     const body = "Get-ChildItem -Path C:\\";
@@ -128,8 +128,12 @@ describe("verifyAndStageScript", () => {
       expect(stagedPath).not.toBe(scriptPath);
       const stagedBody = readFileSync(stagedPath as string, "utf8");
       expect(stagedBody).toBe(body);
+      // staged path is inside a per-run mkdtemp dir (prefix fb-script-)
+      const parent = stagedPath as string;
+      expect(parent).toMatch(/fb-script-/);
       // cleanup
       rmSync(stagedPath as string, { force: true });
+      rmSync(parent.replace(/[/\\]script\.ps1$/, ""), { recursive: true, force: true });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

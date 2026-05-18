@@ -46,12 +46,24 @@ async function verifyAndStageScript(
     return null;
   }
 
-  // hash matches: stage verified bytes to a private temp file so the path
-  // we spawn is the same bytes we just verified.
-  const stagedDir = join(tmpdir(), "formatbuddy-script");
-  ensureDir(stagedDir);
-  const stagedPath = join(stagedDir, `script-${randomUUID()}.ps1`);
-  await fs.writeFile(stagedPath, buf);
+  // Hash matches: stage verified bytes to a FRESH per-run private directory
+  // so an attacker cannot pre-seed the staging path (predictable shared dir
+  // would allow ACL/symlink games even with a random filename).
+  //   - mkdtemp creates a brand-new directory with a random suffix
+  //   - chmod 0700 restricts to the current user (POSIX; ignored on Windows
+  //     where NTFS ACLs inherit from the parent — fail-open is acceptable
+  //     because the prefix is per-run unpredictable)
+  //   - writeFile with flag "wx" refuses to overwrite if the path somehow
+  //     already exists (e.g. symlink) and mode 0600 on POSIX
+  const stagedDir = await fs.mkdtemp(join(tmpdir(), "fb-script-"));
+  try {
+    await fs.chmod(stagedDir, 0o700);
+  } catch {
+    // non-POSIX (Windows) — directory inherits parent ACL; the per-run
+    // random prefix is the main barrier
+  }
+  const stagedPath = join(stagedDir, "script.ps1");
+  await fs.writeFile(stagedPath, buf, { flag: "wx", mode: 0o600 });
   return stagedPath;
 }
 
@@ -155,8 +167,13 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
     });
   } finally {
     if (stagedPath) {
+      const stagedDir = dirname(stagedPath);
       await fs.unlink(stagedPath).catch(() => {
-        // best-effort: the temp file is in os.tmpdir() and will be reaped
+        // best-effort: the temp file is in a per-run mkdtemp directory and
+        // will be reaped by the OS even if unlink fails
+      });
+      await fs.rmdir(stagedDir).catch(() => {
+        // best-effort cleanup of the per-run directory
       });
     }
   }
