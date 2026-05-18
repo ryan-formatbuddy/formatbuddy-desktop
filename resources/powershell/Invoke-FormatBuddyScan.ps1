@@ -188,6 +188,162 @@ function Get-FilesSkippingReparsePoints {
   return $results
 }
 
+function Get-DiskHealth {
+  $physical = try { Get-PhysicalDisk -ErrorAction Stop } catch { Add-Diagnostic -Step "DiskHealth" -Message $_.Exception.Message; @() }
+  foreach ($d in $physical) {
+    [ordered]@{
+      friendlyName = $d.FriendlyName
+      mediaType = "$($d.MediaType)"
+      busType = "$($d.BusType)"
+      sizeGb = if ($d.Size) { [Math]::Round($d.Size / 1GB, 2) } else { $null }
+      healthStatus = "$($d.HealthStatus)"
+      operationalStatus = "$($d.OperationalStatus)"
+    }
+  }
+}
+
+function Get-MemoryPressure {
+  $os = Get-SafeCimInstance Win32_OperatingSystem | Select-Object -First 1
+  $pageFiles = Get-SafeCimInstance Win32_PageFileUsage
+  $totalKb = if ($os) { $os.TotalVisibleMemorySize } else { 0 }
+  $freeKb = if ($os) { $os.FreePhysicalMemory } else { 0 }
+  $totalPageFileMb = ($pageFiles | Measure-Object -Property AllocatedBaseSize -Sum).Sum
+  $usedPageFileMb = ($pageFiles | Measure-Object -Property CurrentUsage -Sum).Sum
+  if ($null -eq $totalPageFileMb) { $totalPageFileMb = 0 }
+  if ($null -eq $usedPageFileMb) { $usedPageFileMb = 0 }
+  $pageFileUsagePercent = if ($totalPageFileMb -gt 0) { [Math]::Round(($usedPageFileMb / $totalPageFileMb) * 100, 1) } else { 0 }
+  $freeMemPercent = if ($totalKb -gt 0) { [Math]::Round(($freeKb / $totalKb) * 100, 1) } else { $null }
+  [ordered]@{
+    totalMemoryMb = if ($totalKb) { [Math]::Round($totalKb / 1024, 0) } else { $null }
+    freeMemoryMb = if ($freeKb) { [Math]::Round($freeKb / 1024, 0) } else { $null }
+    freeMemoryPercent = $freeMemPercent
+    pageFileTotalMb = $totalPageFileMb
+    pageFileUsedMb = $usedPageFileMb
+    pageFileUsagePercent = $pageFileUsagePercent
+  }
+}
+
+function Get-WindowsUpdateStatus {
+  $hotfixes = Get-SafeCimInstance Win32_QuickFixEngineering | Sort-Object -Property InstalledOn -Descending
+  $latestInstalledOn = if ($hotfixes -and $hotfixes.Count -gt 0) {
+    try { $hotfixes[0].InstalledOn.ToString("o") } catch { $null }
+  } else { $null }
+  $daysSinceLatest = if ($latestInstalledOn) {
+    try { [int]((Get-Date) - [DateTime]$latestInstalledOn).TotalDays } catch { $null }
+  } else { $null }
+  [ordered]@{
+    installedHotfixCount = if ($hotfixes) { @($hotfixes).Count } else { 0 }
+    latestHotfixInstalledOn = $latestInstalledOn
+    daysSinceLatestHotfix = $daysSinceLatest
+  }
+}
+
+function Get-EventLogSummary {
+  $since = (Get-Date).AddDays(-7)
+  $criticalCount = 0
+  $errorCount = 0
+  try {
+    $events = Get-WinEvent -FilterHashtable @{ LogName = "System"; Level = 1,2; StartTime = $since } -ErrorAction Stop
+    foreach ($e in $events) {
+      if ($e.Level -eq 1) { $criticalCount++ }
+      elseif ($e.Level -eq 2) { $errorCount++ }
+    }
+  } catch {
+    Add-Diagnostic -Step "EventLog" -Message $_.Exception.Message
+  }
+  [ordered]@{
+    windowDays = 7
+    criticalCount = $criticalCount
+    errorCount = $errorCount
+  }
+}
+
+function Get-DriverAgeSummary {
+  $drivers = Get-SafeCimInstance Win32_PnPSignedDriver
+  $total = 0
+  $olderThan2Years = 0
+  $cutoff = (Get-Date).AddYears(-2)
+  foreach ($d in $drivers) {
+    if ($d.DriverDate) {
+      $total++
+      try {
+        $date = [Management.ManagementDateTimeConverter]::ToDateTime($d.DriverDate)
+        if ($date -lt $cutoff) { $olderThan2Years++ }
+      } catch { }
+    }
+  }
+  $pct = if ($total -gt 0) { [Math]::Round(($olderThan2Years / $total) * 100, 1) } else { 0 }
+  [ordered]@{
+    totalWithDate = $total
+    olderThan2Years = $olderThan2Years
+    olderThan2YearsPercent = $pct
+  }
+}
+
+function Get-StartupPrograms {
+  $items = Get-SafeCimInstance Win32_StartupCommand
+  $list = New-Object System.Collections.Generic.List[object]
+  foreach ($i in $items) {
+    $list.Add([ordered]@{
+      name = $i.Name
+      command = $i.Command
+      location = $i.Location
+      user = $i.User
+    }) | Out-Null
+  }
+  [ordered]@{
+    count = $list.Count
+    items = @($list)
+  }
+}
+
+function Get-DefenderStatus {
+  try {
+    $s = Get-MpComputerStatus -ErrorAction Stop
+    [ordered]@{
+      antivirusEnabled = [bool]$s.AntivirusEnabled
+      realTimeProtectionEnabled = [bool]$s.RealTimeProtectionEnabled
+      antivirusSignatureAgeDays = $s.AntivirusSignatureAge
+      lastQuickScanDaysAgo = $s.QuickScanAge
+      lastFullScanDaysAgo = $s.FullScanAge
+    }
+  } catch {
+    Add-Diagnostic -Step "DefenderStatus" -Message $_.Exception.Message
+    [ordered]@{
+      antivirusEnabled = $null
+      realTimeProtectionEnabled = $null
+      antivirusSignatureAgeDays = $null
+      lastQuickScanDaysAgo = $null
+      lastFullScanDaysAgo = $null
+    }
+  }
+}
+
+function Get-StorageWaste {
+  function Get-PathSizeGb {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return 0 }
+    try {
+      $sum = Get-ChildItem -LiteralPath $Path -Force -Recurse -File -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum
+      if ($null -eq $sum.Sum) { return 0 }
+      return [Math]::Round($sum.Sum / 1GB, 2)
+    } catch { return 0 }
+  }
+  $tempGb = Get-PathSizeGb -Path $env:TEMP
+  $localAppDataTempGb = Get-PathSizeGb -Path (Join-Path $env:LOCALAPPDATA "Temp")
+  $windowsTempGb = Get-PathSizeGb -Path (Join-Path $env:SystemRoot "Temp")
+  $windowsOldExists = Test-Path (Join-Path $env:SystemDrive "Windows.old")
+  $windowsOldGb = if ($windowsOldExists) { Get-PathSizeGb -Path (Join-Path $env:SystemDrive "Windows.old") } else { 0 }
+  [ordered]@{
+    userTempGb = $tempGb
+    localAppDataTempGb = $localAppDataTempGb
+    windowsTempGb = $windowsTempGb
+    windowsOldExists = $windowsOldExists
+    windowsOldGb = $windowsOldGb
+  }
+}
+
 function Get-BackupManifest {
   param(
     [string[]]$Folders,
@@ -302,7 +458,7 @@ if ($Mode -eq "manifest") {
   $bitlocker = try { Get-BitLockerVolume | Select-Object MountPoint, VolumeStatus, ProtectionStatus, EncryptionPercentage } catch { Add-Diagnostic -Step "BitLocker" -Message $_.Exception.Message; @() }
 
   $report = [ordered]@{
-    schemaVersion = "0.2.0-quick"
+    schemaVersion = "0.4.0-quick"
     generatedAt = (Get-Date).ToString("o")
     mode = "quick"
     privacy = [ordered]@{
@@ -327,6 +483,14 @@ if ($Mode -eq "manifest") {
         freeGb = [Math]::Round($_.FreeSpace / 1GB, 2)
       }
     })
+    diskHealth = @(Get-DiskHealth)
+    memoryPressure = Get-MemoryPressure
+    windowsUpdate = Get-WindowsUpdateStatus
+    eventLog = Get-EventLogSummary
+    driverAge = Get-DriverAgeSummary
+    startupPrograms = Get-StartupPrograms
+    defender = Get-DefenderStatus
+    storageWaste = Get-StorageWaste
     userFolders = @(Get-UserFolders)
     gpu = @($gpu | ForEach-Object { $_.Name })
     installedApps = @(Get-InstalledApps | Sort-Object name -Unique)

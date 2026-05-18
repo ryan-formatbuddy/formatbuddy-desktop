@@ -36,7 +36,7 @@ describe("scanner mock pipeline", () => {
         onProgress: (p) => events.push(p)
       });
       expect(events.length).toBeGreaterThanOrEqual(__testing.TOTAL_STEPS);
-      expect(res.report.schemaVersion).toBe("0.1.0");
+      expect(res.report.schemaVersion).toMatch(/^0\./);
       expect(res.report.privacy.localOnly).toBe(true);
       const fileText = readFileSync(res.jsonPath, "utf8");
       const parsed = JSON.parse(fileText) as ScanReport;

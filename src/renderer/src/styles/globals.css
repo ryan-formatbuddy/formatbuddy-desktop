@@ -561,3 +561,137 @@ button { font-family: inherit; }
 .fb-report-manifest .fb-h2 {
   margin-top: 0;
 }
+
+/* ============================================================
+   Recommendation score card
+   ============================================================ */
+.fb-score-card {
+  border-radius: 24px;
+  padding: 28px 32px;
+  background: var(--color-fb-blue-tint);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.fb-score-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+.fb-score-card-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-fb-blue-heavy);
+  margin-bottom: 4px;
+}
+.fb-score-card-value {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  color: var(--color-fb-ink-1);
+  line-height: 1;
+  font-feature-settings: "tnum" on;
+}
+.fb-score-card-unit {
+  font-size: 24px;
+  font-weight: 700;
+  margin-left: 4px;
+  letter-spacing: -0.02em;
+  color: var(--color-fb-ink-2);
+}
+.fb-score-card-headline {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-fb-ink-1);
+  letter-spacing: -0.012em;
+}
+.fb-score-card-summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-fb-ink-2);
+  font-weight: 500;
+}
+.fb-score-card-badge {
+  align-self: flex-start;
+  background: var(--color-fb-blue);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+/* Severity tint variants — stays within white + blue token family */
+.fb-score-healthy .fb-score-card-badge { background: var(--color-fb-positive); }
+.fb-score-watch   .fb-score-card-badge { background: var(--color-fb-blue); }
+.fb-score-recommend .fb-score-card-badge { background: var(--color-fb-blue-heavy); }
+.fb-score-required .fb-score-card-badge { background: var(--color-fb-ink-1); }
+
+/* ============================================================
+   Advice cards (try-first / reasons / after-format)
+   ============================================================ */
+.fb-report-advice {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+.fb-report-advice .fb-card:nth-child(1) { grid-column: span 2; }
+.fb-advice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fb-advice-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--color-fb-bg);
+  border: 1px solid var(--color-fb-line);
+  border-radius: 12px;
+}
+.fb-advice-list strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-fb-ink-1);
+  letter-spacing: -0.012em;
+}
+.fb-advice-list span {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--color-fb-ink-2);
+  font-weight: 500;
+}
+.fb-advice-cmd {
+  margin-top: 6px;
+  display: inline-block;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-fb-blue-heavy);
+  background: var(--color-fb-blue-tint);
+  padding: 4px 8px;
+  border-radius: 6px;
+  user-select: text;
+  word-break: break-all;
+}
+.fb-advice-weight {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-fb-blue-heavy);
+  background: var(--color-fb-blue-tint);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  margin-left: 6px;
+  font-feature-settings: "tnum" on;
+  vertical-align: middle;
+}

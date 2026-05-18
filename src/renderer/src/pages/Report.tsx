@@ -4,6 +4,19 @@ import { Lockup } from "../components/Lockup";
 import { copy } from "@shared/copy";
 import type { ScanResult } from "@shared/types";
 
+function severityClass(s: ScanResult["recommendation"]["severity"]): string {
+  switch (s) {
+    case "healthy":
+      return "fb-score-healthy";
+    case "watch":
+      return "fb-score-watch";
+    case "format-recommended":
+      return "fb-score-recommend";
+    case "format-required":
+      return "fb-score-required";
+  }
+}
+
 interface ReportProps {
   result: ScanResult;
   onBack: () => void;
@@ -29,7 +42,7 @@ function formatGb(value?: number | null) {
 }
 
 export function Report({ result, onBack }: ReportProps) {
-  const { report } = result;
+  const { report, recommendation } = result;
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [manifestStatus, setManifestStatus] = useState<string | null>(null);
   const [manifestRunning, setManifestRunning] = useState(false);
@@ -98,6 +111,78 @@ export function Report({ result, onBack }: ReportProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">{copy.reportTitle}</h1>
         <p className="fb-lede">{copy.reportLede}</p>
+      </section>
+
+      <section className={`fb-score-card ${severityClass(recommendation.severity)}`}>
+        <div className="fb-score-card-head">
+          <div>
+            <div className="fb-score-card-label">{copy.recommendSectionTitle}</div>
+            <div className="fb-score-card-value">
+              {recommendation.formatScore}
+              <span className="fb-score-card-unit">{copy.recommendScoreSuffix}</span>
+            </div>
+            <div className="fb-score-card-headline">{recommendation.headline}</div>
+          </div>
+          <div className="fb-score-card-badge">
+            {copy.recommendSeverity[recommendation.severity]}
+          </div>
+        </div>
+        <p className="fb-score-card-summary">{recommendation.summary}</p>
+      </section>
+
+      <section className="fb-report-advice">
+        <article className="fb-card">
+          <h3>{copy.recommendTryFirstTitle}</h3>
+          <ul className="fb-advice-list">
+            {recommendation.tryFirst.map((a, i) => (
+              <li key={`tf-${i}`}>
+                <strong>{a.title}</strong>
+                <span>{a.description}</span>
+                {a.command && (
+                  <code className="fb-advice-cmd" title={copy.recommendCommandLabel}>
+                    {a.command}
+                  </code>
+                )}
+              </li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="fb-card">
+          <h3>{copy.recommendFormatReasonsTitle}</h3>
+          {recommendation.formatReasons.length === 0 ? (
+            <p className="fb-report-card-explain">{copy.recommendNoReasons}</p>
+          ) : (
+            <ul className="fb-advice-list">
+              {recommendation.formatReasons.map((r, i) => (
+                <li key={`fr-${i}`}>
+                  <strong>
+                    {r.label}{" "}
+                    <span className="fb-advice-weight">+{r.weightedScore.toFixed(1)}</span>
+                  </strong>
+                  <span>{r.description}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+
+        <article className="fb-card">
+          <h3>{copy.recommendAfterFormatTitle}</h3>
+          <ul className="fb-advice-list">
+            {recommendation.afterFormat.map((a, i) => (
+              <li key={`af-${i}`}>
+                <strong>{a.title}</strong>
+                <span>{a.description}</span>
+                {a.command && (
+                  <code className="fb-advice-cmd" title={copy.recommendCommandLabel}>
+                    {a.command}
+                  </code>
+                )}
+              </li>
+            ))}
+          </ul>
+        </article>
       </section>
 
       <section className="fb-report-grid">

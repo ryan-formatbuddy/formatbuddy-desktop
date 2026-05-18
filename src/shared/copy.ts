@@ -59,5 +59,19 @@ export const copy = {
   manifestExportSavedPrefix: "저장했어요: ",
   manifestExportCancelled: "저장을 취소했어요.",
   manifestExportErrorPrefix: "지금 만들지 못했어요: ",
-  manifestWindowsOnly: "이 기능은 Windows에서만 동작해요."
+  manifestWindowsOnly: "이 기능은 Windows에서만 동작해요.",
+
+  recommendSectionTitle: "버디의 포맷 추천 점수",
+  recommendScoreSuffix: "점",
+  recommendTryFirstTitle: "포맷 전에 먼저 시도해볼 것",
+  recommendFormatReasonsTitle: "이런 점들이 신경 쓰여요",
+  recommendAfterFormatTitle: "포맷 후 같이 챙길 것",
+  recommendNoReasons: "지금 발견된 큰 문제는 없어요. 정기 정리만 해도 충분해요.",
+  recommendCommandLabel: "직접 실행",
+  recommendSeverity: {
+    healthy: "건강해요",
+    watch: "조금 지쳐 있어요",
+    "format-recommended": "새로 시작 추천",
+    "format-required": "새로 시작 강력 추천"
+  } as const
 } as const;

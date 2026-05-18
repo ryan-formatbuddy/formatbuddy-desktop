@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared/types";
 import { EXPECTED_PS_SCRIPT_HASH } from "@shared/ps-script-hash";
+import { generateRecommendation } from "./recommend";
 
 const STDERR_MAX_BYTES = 64 * 1024;
 
@@ -80,6 +81,8 @@ async function verifyAndStageScript(
 function isScanReport(value: unknown): value is ScanReport {
   if (!value || typeof value !== "object") return false;
   const r = value as Record<string, unknown>;
+  // v0.4.0+ adds optional health-signal fields; we keep the guard tolerant
+  // (presence-only on optional fields) so older mock fixtures stay valid.
   return (
     typeof r.schemaVersion === "string" &&
     typeof r.generatedAt === "string" &&
@@ -228,7 +231,7 @@ async function runMockScan(args: InternalRunArgs): Promise<ScanResult> {
   await fs.writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
 
   // Mock pipeline echoes the on-disk path for parity but the file is ephemeral.
-  return { report, jsonPath: outPath };
+  return { report, recommendation: generateRecommendation(report), jsonPath: outPath };
 }
 
 interface PowershellRunArgs extends RunScanOptions {
@@ -302,7 +305,7 @@ function runPowershellScan(args: PowershellRunArgs): Promise<ScanResult> {
         }
         const report = parsed;
         onProgress?.(progressFor(TOTAL_STEPS, startedAt, "살펴보기 끝났어요"));
-        resolveScan({ report, jsonPath: outPath });
+        resolveScan({ report, recommendation: generateRecommendation(report), jsonPath: outPath });
       } catch (e) {
         rejectScan(e as Error);
       }
@@ -316,8 +319,9 @@ function delay(ms: number) {
 
 function buildMockReport(): ScanReport {
   return {
-    schemaVersion: "0.1.0",
+    schemaVersion: "0.4.0-quick-mock",
     generatedAt: new Date().toISOString(),
+    mode: "quick",
     privacy: {
       localOnly: true,
       noPasswordCollection: true,
@@ -334,6 +338,46 @@ function buildMockReport(): ScanReport {
       memoryGb: 16
     },
     disks: [{ drive: "C:", sizeGb: 476.62, freeGb: 128.41 }],
+    diskHealth: [
+      {
+        friendlyName: "Mock NVMe",
+        mediaType: "SSD",
+        busType: "NVMe",
+        sizeGb: 476.62,
+        healthStatus: "Healthy",
+        operationalStatus: "OK"
+      }
+    ],
+    memoryPressure: {
+      totalMemoryMb: 16384,
+      freeMemoryMb: 6200,
+      freeMemoryPercent: 37.8,
+      pageFileTotalMb: 8192,
+      pageFileUsedMb: 1024,
+      pageFileUsagePercent: 12.5
+    },
+    windowsUpdate: {
+      installedHotfixCount: 24,
+      latestHotfixInstalledOn: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+      daysSinceLatestHotfix: 14
+    },
+    eventLog: { windowDays: 7, criticalCount: 0, errorCount: 3 },
+    driverAge: { totalWithDate: 42, olderThan2Years: 8, olderThan2YearsPercent: 19.0 },
+    startupPrograms: { count: 6, items: [] },
+    defender: {
+      antivirusEnabled: true,
+      realTimeProtectionEnabled: true,
+      antivirusSignatureAgeDays: 1,
+      lastQuickScanDaysAgo: 2,
+      lastFullScanDaysAgo: 12
+    },
+    storageWaste: {
+      userTempGb: 0.8,
+      localAppDataTempGb: 1.2,
+      windowsTempGb: 0.3,
+      windowsOldExists: false,
+      windowsOldGb: 0
+    },
     userFolders: [
       { name: "Desktop", path: "C:\\Users\\Ryan\\Desktop", exists: true, sizeGb: 0.42 },
       { name: "Documents", path: "C:\\Users\\Ryan\\Documents", exists: true, sizeGb: 3.7 },
@@ -362,7 +406,8 @@ function buildMockReport(): ScanReport {
       { name: "Firefox", installed: false },
       { name: "Whale", installed: true }
     ],
-    winget: { available: true, note: "winget is available. App export can be added in Phase 2." },
+    winget: { available: true, note: "winget is available." },
+    wingetExport: null,
     diagnostics: [],
     checklist: {
       reviewNpkiManually: true,

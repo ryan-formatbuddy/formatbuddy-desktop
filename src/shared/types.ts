@@ -108,6 +108,95 @@ export interface WingetExport {
   [k: string]: unknown;
 }
 
+export interface DiskHealthDevice {
+  friendlyName?: string;
+  mediaType?: string;
+  busType?: string;
+  sizeGb?: number | null;
+  healthStatus?: string;
+  operationalStatus?: string;
+}
+
+export interface MemoryPressureInfo {
+  totalMemoryMb?: number | null;
+  freeMemoryMb?: number | null;
+  freeMemoryPercent?: number | null;
+  pageFileTotalMb?: number;
+  pageFileUsedMb?: number;
+  pageFileUsagePercent?: number;
+}
+
+export interface WindowsUpdateStatusInfo {
+  installedHotfixCount: number;
+  latestHotfixInstalledOn?: string | null;
+  daysSinceLatestHotfix?: number | null;
+}
+
+export interface EventLogSummaryInfo {
+  windowDays: number;
+  criticalCount: number;
+  errorCount: number;
+}
+
+export interface DriverAgeSummaryInfo {
+  totalWithDate: number;
+  olderThan2Years: number;
+  olderThan2YearsPercent: number;
+}
+
+export interface StartupProgramItem {
+  name?: string;
+  command?: string;
+  location?: string;
+  user?: string;
+}
+
+export interface StartupProgramsInfo {
+  count: number;
+  items: StartupProgramItem[];
+}
+
+export interface DefenderStatusInfo {
+  antivirusEnabled?: boolean | null;
+  realTimeProtectionEnabled?: boolean | null;
+  antivirusSignatureAgeDays?: number | null;
+  lastQuickScanDaysAgo?: number | null;
+  lastFullScanDaysAgo?: number | null;
+}
+
+export interface StorageWasteInfo {
+  userTempGb: number;
+  localAppDataTempGb: number;
+  windowsTempGb: number;
+  windowsOldExists: boolean;
+  windowsOldGb: number;
+}
+
+export type FormatSeverity = "healthy" | "watch" | "format-recommended" | "format-required";
+
+export interface ActionItem {
+  title: string;
+  description: string;
+  command?: string;
+}
+
+export interface ReasonItem {
+  signal: string;
+  label: string;
+  weightedScore: number;
+  description: string;
+}
+
+export interface Recommendation {
+  formatScore: number;
+  severity: FormatSeverity;
+  headline: string;
+  summary: string;
+  tryFirst: ActionItem[];
+  formatReasons: ReasonItem[];
+  afterFormat: ActionItem[];
+}
+
 export interface PrivacyInfo {
   localOnly: boolean;
   noPasswordCollection: boolean;
@@ -130,6 +219,14 @@ export interface ScanReport {
   privacy: PrivacyInfo;
   system: SystemInfo;
   disks: DiskInfo[];
+  diskHealth?: DiskHealthDevice[];
+  memoryPressure?: MemoryPressureInfo;
+  windowsUpdate?: WindowsUpdateStatusInfo;
+  eventLog?: EventLogSummaryInfo;
+  driverAge?: DriverAgeSummaryInfo;
+  startupPrograms?: StartupProgramsInfo;
+  defender?: DefenderStatusInfo;
+  storageWaste?: StorageWasteInfo;
   userFolders: UserFolderInfo[];
   gpu: string[];
   installedApps: InstalledApp[];
@@ -148,6 +245,7 @@ export interface ScanReport {
 
 export interface ScanResult {
   report: ScanReport;
+  recommendation: Recommendation;
   jsonPath: string;
 }
 
