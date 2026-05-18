@@ -657,6 +657,187 @@ button { font-family: inherit; }
   font-size: 11px;
 }
 
+/* ============================================================
+   Onboarding (v0.5.2) — 3-step intro, left copy + right CloudBuddy on blue
+   ============================================================ */
+.fb-onboard {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+}
+.fb-onboard-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 48px 56px;
+  gap: 14px;
+}
+.fb-onboard-tag {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-fb-blue-heavy);
+  background: var(--color-fb-blue-tint);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  width: max-content;
+}
+.fb-onboard-head {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--color-fb-ink-1);
+}
+.fb-onboard-head em {
+  font-style: normal;
+  color: var(--color-fb-blue);
+}
+.fb-onboard-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-fb-ink-2);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  max-width: 360px;
+}
+.fb-onboard-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+.fb-onboard-dot {
+  width: 24px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--color-fb-line);
+}
+.fb-onboard-dot.on {
+  background: var(--color-fb-blue);
+}
+.fb-onboard-foot {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  align-items: center;
+}
+.fb-onboard-skip {
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  color: var(--color-fb-ink-3);
+  cursor: pointer;
+  padding: 0 8px;
+  font-weight: 600;
+  font-family: inherit;
+}
+.fb-onboard-skip:hover { color: var(--color-fb-ink-1); }
+.fb-onboard-right {
+  background: var(--color-fb-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+.fb-onboard-right::before,
+.fb-onboard-right::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+.fb-onboard-right::before {
+  width: 380px;
+  height: 380px;
+  top: -60px;
+  right: -120px;
+}
+.fb-onboard-right::after {
+  width: 260px;
+  height: 260px;
+  bottom: -80px;
+  left: -60px;
+}
+
+/* ============================================================
+   Error screen (v0.5.2) — replaces the old red banner in Scanning
+   ============================================================ */
+.fb-err-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 40px;
+  gap: 16px;
+  text-align: center;
+}
+.fb-err-head {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--color-fb-ink-1);
+  margin: 0;
+}
+.fb-err-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-fb-ink-2);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  max-width: 460px;
+  word-break: break-word;
+}
+.fb-err-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.fb-err-toggle {
+  margin-top: 8px;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--color-fb-ink-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.fb-err-toggle:hover { color: var(--color-fb-ink-1); }
+.fb-err-code {
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-feature-settings: "tnum" on;
+}
+.fb-err-detail {
+  margin-top: 4px;
+  max-width: 640px;
+  background: #ffffff;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--color-fb-ink-3);
+  line-height: 16px;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fb-err-detail pre { margin: 0; }
+
 .fb-report-card-explain {
   font-size: 13px;
   line-height: 20px;

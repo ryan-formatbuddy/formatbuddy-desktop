@@ -61,6 +61,37 @@ export const copy = {
   manifestExportErrorPrefix: "지금 만들지 못했어요: ",
   manifestWindowsOnly: "이 기능은 Windows에서만 동작해요.",
 
+  onboardingSteps: [
+    {
+      tag: "01 / 03 · 진단",
+      head: "먼저, 같이 한 번",
+      headEm: "살펴볼게요.",
+      body: "내 PC를 천천히 훑어서 무엇을 챙겨야 할지 정리해요. 서버로는 아무것도 보내지 않아요."
+    },
+    {
+      tag: "02 / 03 · 백업",
+      head: "놓치기 쉬운 것부터",
+      headEm: "먼저 챙길게요.",
+      body: "공동인증서, 카카오톡, Wi-Fi. 한국 사용자가 가장 자주 빠뜨리는 항목을 우선으로 안내해요."
+    },
+    {
+      tag: "03 / 03 · 포맷",
+      head: "결정은 그때",
+      headEm: "같이 정해요.",
+      body: "버디는 포맷을 강요하지 않아요. 정리만으로 충분하면 그렇게 안내하고, 필요할 때만 다음 단계로 가요."
+    }
+  ] as const,
+  onboardingNext: "다음",
+  onboardingStart: "시작하기",
+  onboardingSkip: "건너뛰기",
+
+  errorHead: "지금은 진단을 잠깐 멈출게요.",
+  errorBodyDefault:
+    "한 번 더 시도하면 대부분 풀려요. 안 풀리면 PC를 잠깐 재시작해주세요.",
+  errorRetry: "다시 시도",
+  errorOpenLogs: "로그 위치 열기",
+  errorCodePrefix: "오류 코드 ",
+
   recommendSectionTitle: "버디의 포맷 추천 점수",
   recommendScoreSuffix: "/ 100",
   recommendTryFirstTitle: "포맷 전에 먼저 시도해볼 것",

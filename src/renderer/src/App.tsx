@@ -2,16 +2,37 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
+import { Onboarding } from "./pages/Onboarding";
+import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { WinChrome } from "./components/WinChrome";
 import { TopBar } from "./components/TopBar";
 import type { ScanError, ScanProgress, ScanResult } from "@shared/types";
 
+const ONBOARDING_SEEN_KEY = "formatbuddy:onboardingSeenAt";
+
 type Phase =
+  | { kind: "onboarding" }
   | { kind: "home" }
   | { kind: "scanning"; progress: ScanProgress }
   | { kind: "report"; result: ScanResult }
   | { kind: "error"; error: ScanError };
+
+function readOnboardingSeen(): boolean {
+  try {
+    return Boolean(localStorage.getItem(ONBOARDING_SEEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function markOnboardingSeen() {
+  try {
+    localStorage.setItem(ONBOARDING_SEEN_KEY, new Date().toISOString());
+  } catch {
+    // private mode / quota — ignore, user just sees onboarding next time
+  }
+}
 
 const INITIAL_PROGRESS: ScanProgress = {
   step: "준비",
@@ -30,8 +51,15 @@ const INITIAL_PROGRESS: ScanProgress = {
 };
 
 export function App() {
-  const [phase, setPhase] = useState<Phase>({ kind: "home" });
+  const [phase, setPhase] = useState<Phase>(() =>
+    readOnboardingSeen() ? { kind: "home" } : { kind: "onboarding" }
+  );
   const [appVersion, setAppVersion] = useState<string>("");
+
+  const finishOnboarding = useCallback(() => {
+    markOnboardingSeen();
+    setPhase({ kind: "home" });
+  }, []);
 
   useEffect(() => {
     if (typeof window.fb?.appVersion === "function") {
@@ -81,7 +109,7 @@ export function App() {
   const goHome = useCallback(() => setPhase({ kind: "home" }), []);
 
   const topBar = useMemo(() => {
-    if (phase.kind === "home") return null;
+    if (phase.kind === "home" || phase.kind === "onboarding") return null;
     const versionLabel = appVersion ? `v${appVersion}` : undefined;
     if (phase.kind === "scanning")
       return <TopBar here="진단 중" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
@@ -94,6 +122,8 @@ export function App() {
 
   const content = useMemo(() => {
     switch (phase.kind) {
+      case "onboarding":
+        return <Onboarding onComplete={finishOnboarding} />;
       case "home":
         return <Home onStartScan={startScan} />;
       case "scanning":
@@ -101,16 +131,9 @@ export function App() {
       case "report":
         return <Report result={phase.result} onBack={goHome} />;
       case "error":
-        return (
-          <Scanning
-            progress={INITIAL_PROGRESS}
-            errorMessage={phase.error.message}
-            onCancel={goHome}
-            onRetry={startScan}
-          />
-        );
+        return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }
-  }, [phase, startScan, cancelScan, goHome]);
+  }, [phase, startScan, cancelScan, goHome, finishOnboarding]);
 
   return (
     <div className="fb-app">
