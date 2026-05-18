@@ -19,7 +19,8 @@ export const IpcChannels = {
   windowMaximizeToggle: "window:maximize-toggle",
   windowClose: "window:close",
   windowState: "window:state",
-  actionRun: "action:run"
+  actionRun: "action:run",
+  logsOpenFolder: "logs:open-folder"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

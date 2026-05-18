@@ -1,6 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
-import { join } from "node:path";
+import log from "electron-log/main";
+import { dirname, join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import type {
@@ -59,6 +60,23 @@ import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updat
 
 let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
+
+/**
+ * electron-log setup. Logs land at:
+ *   Windows: %APPDATA%/FormatBuddy/logs/main.log
+ *   macOS:   ~/Library/Logs/FormatBuddy/main.log
+ *   Linux:   ~/.config/FormatBuddy/logs/main.log
+ * Rotating cap: 5 MiB per file. Renderer logs flow through the same
+ * file via log.initialize() (works with our `frame: false` setup).
+ */
+log.initialize({ preload: false });
+log.transports.file.level = "info";
+log.transports.file.maxSize = 5 * 1024 * 1024;
+log.transports.console.level = "warn";
+
+function logFilePath(): string {
+  return log.transports.file.getFile().path;
+}
 
 const DEV_RENDERER_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i;
 
@@ -128,6 +146,7 @@ function registerIpc() {
       sender.send(IpcChannels.scanProgress, progress);
     };
 
+    log.info("scan:start invoked");
     try {
       const result: ScanResult = await runScan({
         scriptPath: getScanScriptPath(),
@@ -148,6 +167,11 @@ function registerIpc() {
         code: (e as NodeJS.ErrnoException).code ?? undefined,
         detail: e.stack
       };
+      if (isAbort) {
+        log.info("scan cancelled");
+      } else {
+        log.error("scan failed:", e.message, "\n", e.stack);
+      }
       if (!isAbort && !sender.isDestroyed()) {
         sender.send(IpcChannels.scanError, payload);
       }
@@ -238,6 +262,21 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.actionRun, async (_e, payload: { command: string }) => {
     return runActionCommand(payload?.command ?? "");
+  });
+
+  ipcMain.handle(IpcChannels.logsOpenFolder, async () => {
+    try {
+      const folder = dirname(logFilePath());
+      const result = await shell.openPath(folder);
+      if (result) {
+        log.warn("logs:open-folder failed:", result);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      log.error("logs:open-folder threw:", err);
+      return false;
+    }
   });
 }
 

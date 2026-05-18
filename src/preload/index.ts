@@ -97,7 +97,9 @@ const fb = {
   },
 
   runActionCommand: (command: string): Promise<ActionRunResult> =>
-    ipcRenderer.invoke(IpcChannels.actionRun, { command })
+    ipcRenderer.invoke(IpcChannels.actionRun, { command }),
+
+  openLogsFolder: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.logsOpenFolder)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);
