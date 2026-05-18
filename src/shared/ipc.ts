@@ -14,7 +14,11 @@ export const IpcChannels = {
   updateDownloaded: "update:downloaded",
   updateError: "update:error",
   updateInstall: "update:install",
-  manifestExport: "manifest:export"
+  manifestExport: "manifest:export",
+  windowMinimize: "window:minimize",
+  windowMaximizeToggle: "window:maximize-toggle",
+  windowClose: "window:close",
+  windowState: "window:state"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

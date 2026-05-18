@@ -10,7 +10,8 @@ import type {
   ScanResult,
   UpdateDownloadProgress,
   UpdateErrorPayload,
-  UpdateInfo
+  UpdateInfo,
+  WindowState
 } from "@shared/types";
 
 type ProgressListener = (progress: ScanProgress) => void;
@@ -81,7 +82,18 @@ const fb = {
   installUpdate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.updateInstall),
 
   exportBackupManifest: (): Promise<ManifestExportResult> =>
-    ipcRenderer.invoke(IpcChannels.manifestExport)
+    ipcRenderer.invoke(IpcChannels.manifestExport),
+
+  // v0.5.1 — custom WinChrome controls
+  minimizeWindow: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.windowMinimize),
+  toggleMaximizeWindow: (): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.windowMaximizeToggle),
+  closeWindow: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.windowClose),
+  onWindowState(cb: (state: WindowState) => void): () => void {
+    const wrapped = (_e: unknown, state: WindowState) => cb(state);
+    ipcRenderer.on(IpcChannels.windowState, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.windowState, wrapped);
+  }
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

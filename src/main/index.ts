@@ -28,6 +28,7 @@ function createWindow() {
     minHeight: 640,
     show: false,
     autoHideMenuBar: true,
+    frame: false, // v0.5.1 — custom WinChrome handles min/max/close
     backgroundColor: "#FFFFFF",
     title: "FormatBuddy",
     webPreferences: {
@@ -41,6 +42,15 @@ function createWindow() {
   mainWindow.on("ready-to-show", () => {
     mainWindow?.show();
   });
+
+  const emitWindowState = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send(IpcChannels.windowState, {
+      isMaximized: mainWindow.isMaximized()
+    });
+  };
+  mainWindow.on("maximize", emitWindowState);
+  mainWindow.on("unmaximize", emitWindowState);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
@@ -139,6 +149,24 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.updateInstall, () => {
     installAndRestart();
+    return true;
+  });
+
+  ipcMain.handle(IpcChannels.windowMinimize, () => {
+    BrowserWindow.getFocusedWindow()?.minimize();
+    return true;
+  });
+
+  ipcMain.handle(IpcChannels.windowMaximizeToggle, () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return false;
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+    return win.isMaximized();
+  });
+
+  ipcMain.handle(IpcChannels.windowClose, () => {
+    BrowserWindow.getFocusedWindow()?.close();
     return true;
   });
 

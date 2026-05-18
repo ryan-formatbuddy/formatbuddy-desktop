@@ -3,6 +3,8 @@ import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { WinChrome } from "./components/WinChrome";
+import { TopBar } from "./components/TopBar";
 import type { ScanError, ScanProgress, ScanResult } from "@shared/types";
 
 type Phase =
@@ -78,6 +80,18 @@ export function App() {
 
   const goHome = useCallback(() => setPhase({ kind: "home" }), []);
 
+  const topBar = useMemo(() => {
+    if (phase.kind === "home") return null;
+    const versionLabel = appVersion ? `v${appVersion}` : undefined;
+    if (phase.kind === "scanning")
+      return <TopBar here="진단 중" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
+    if (phase.kind === "report")
+      return <TopBar here="리포트" meta="로컬에서만 처리됨" version={versionLabel} onBack={goHome} />;
+    if (phase.kind === "error")
+      return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
+    return null;
+  }, [phase, appVersion, goHome]);
+
   const content = useMemo(() => {
     switch (phase.kind) {
       case "home":
@@ -100,7 +114,9 @@ export function App() {
 
   return (
     <div className="fb-app">
-      {content}
+      <WinChrome />
+      {topBar}
+      <div className="fb-app-body">{content}</div>
       <UpdateBanner />
       <footer className="fb-app-footer">
         <span>FormatBuddy Desktop</span>

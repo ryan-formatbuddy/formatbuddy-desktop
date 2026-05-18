@@ -299,3 +299,7 @@ export interface UpdateDownloadProgress {
 export interface UpdateErrorPayload {
   message: string;
 }
+
+export interface WindowState {
+  isMaximized: boolean;
+}
