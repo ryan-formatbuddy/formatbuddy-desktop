@@ -815,3 +815,65 @@ export interface AppUninstallResult {
   /** Detail used by the UI to disambiguate similar statuses (e.g. blocked reason). */
   detail?: string;
 }
+
+/**
+ * v1.3.x — Defender bridge (Phase 3 of the professional-grade rollout).
+ *
+ * What we do:
+ *   - Read Windows Defender state via Get-MpComputerStatus.
+ *   - Trigger a Quick Scan via Start-MpScan -ScanType QuickScan
+ *     (detached; Windows Security UI surfaces the progress).
+ *   - List threat history via Get-MpThreatDetection.
+ *
+ * What we never do:
+ *   - Claim FormatBuddy "removed" or "treated" a threat. Only
+ *     Windows itself takes that action.
+ *   - Disable or alter Defender's settings.
+ *   - Hide Defender errors — we surface them so Ryan can act.
+ */
+export interface DefenderLiveStatus {
+  /** ISO timestamp this status was sampled. */
+  capturedAt: string;
+  available: boolean;
+  antivirusEnabled?: boolean | null;
+  realTimeProtectionEnabled?: boolean | null;
+  tamperProtectionEnabled?: boolean | null;
+  signatureAgeDays?: number | null;
+  lastQuickScanDaysAgo?: number | null;
+  lastFullScanDaysAgo?: number | null;
+  /** Diagnostic string when Defender cannot be queried (non-Windows, missing module, etc.). */
+  unavailableReason?: string;
+}
+
+export type DefenderQuickScanStatus =
+  | "launched"
+  | "blocked"
+  | "spawn-failed"
+  | "unavailable";
+
+export interface DefenderQuickScanResult {
+  status: DefenderQuickScanStatus;
+  startedAt: string;
+  message: string;
+  detail?: string;
+}
+
+export type DefenderThreatActionSuccess = "cleaned" | "quarantined" | "removed" | "allowed" | "blocked" | "no-action" | "unknown";
+
+export interface DefenderThreatRecord {
+  id: string;
+  threatName?: string | null;
+  detectionTime?: string | null;
+  severity?: "low" | "moderate" | "high" | "severe" | "unknown";
+  /** Defender's own status string (translated by Windows, not by us). */
+  actionStatus: DefenderThreatActionSuccess;
+  resources?: string[];
+  rawStatus?: string;
+}
+
+export interface DefenderThreatSnapshot {
+  capturedAt: string;
+  available: boolean;
+  records: DefenderThreatRecord[];
+  unavailableReason?: string;
+}

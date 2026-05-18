@@ -28,11 +28,20 @@ import { buildAppManagerSnapshot } from "./apps/manager";
 import { planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
 import { findInstalledApp, getLastScan, setLastScan } from "./lastScan";
+import {
+  defaultPowerShellRunner,
+  getDefenderStatus,
+  getThreatHistory,
+  runQuickScan
+} from "./security/defender";
 import type {
   AppLeftoversSnapshot,
   AppManagerSnapshot,
   AppUninstallRequest,
-  AppUninstallResult
+  AppUninstallResult,
+  DefenderLiveStatus,
+  DefenderQuickScanResult,
+  DefenderThreatSnapshot
 } from "@shared/types";
 
 /**
@@ -409,6 +418,20 @@ function registerIpc() {
       return result;
     }
   );
+
+  ipcMain.handle(IpcChannels.securityStatus, async (): Promise<DefenderLiveStatus> => {
+    return getDefenderStatus({ shell: defaultPowerShellRunner() });
+  });
+
+  ipcMain.handle(IpcChannels.securityQuickScan, async (): Promise<DefenderQuickScanResult> => {
+    const result = await runQuickScan({ shell: defaultPowerShellRunner() });
+    log.info(`security:quick-scan status=${result.status} detail=${result.detail ?? ""}`);
+    return result;
+  });
+
+  ipcMain.handle(IpcChannels.securityThreats, async (): Promise<DefenderThreatSnapshot> => {
+    return getThreatHistory({ shell: defaultPowerShellRunner() });
+  });
 
   ipcMain.handle(
     IpcChannels.reportExportHtml,

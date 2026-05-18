@@ -11,6 +11,9 @@ import type {
   CleanupExecuteResult,
   CleanupHistorySnapshot,
   CleanupPlan,
+  DefenderLiveStatus,
+  DefenderQuickScanResult,
+  DefenderThreatSnapshot,
   ExportOptions,
   ExportResult,
   IgnoreListState,
@@ -137,7 +140,16 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.appsLeftovers),
 
   uninstallApp: (request: AppUninstallRequest): Promise<AppUninstallResult> =>
-    ipcRenderer.invoke(IpcChannels.appsUninstall, request)
+    ipcRenderer.invoke(IpcChannels.appsUninstall, request),
+
+  getDefenderStatus: (): Promise<DefenderLiveStatus> =>
+    ipcRenderer.invoke(IpcChannels.securityStatus),
+
+  runDefenderQuickScan: (): Promise<DefenderQuickScanResult> =>
+    ipcRenderer.invoke(IpcChannels.securityQuickScan),
+
+  getDefenderThreats: (): Promise<DefenderThreatSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.securityThreats)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

@@ -149,6 +149,7 @@ interface ReportProps {
   appState?: AppStateSnapshot;
   onOpenCleanup?: (report: ScanResult["report"]) => void;
   onOpenAppManager?: () => void;
+  onOpenSecurity?: () => void;
 }
 
 interface RowProps {
@@ -727,7 +728,7 @@ function SmartCareOverview({ result, appState }: { result: ScanResult; appState?
   );
 }
 
-export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager, onOpenSecurity }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
   const initialIgnoreList = appState?.ignoreList ?? result.appState?.ignoreList ?? { cleanupItemIds: [], pathHints: [] };
@@ -1087,6 +1088,16 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             disabled={!isWindows}
           >
             {isWindows ? "앱 정리 시작" : "앱 정리는 Windows 전용"}
+          </Button>
+        )}
+        {onOpenSecurity && (
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={onOpenSecurity}
+            disabled={!isWindows}
+          >
+            {isWindows ? "보안 점검 열기" : "보안 점검은 Windows 전용"}
           </Button>
         )}
         <Button variant="primary" size="lg" onClick={onExportHtml}>

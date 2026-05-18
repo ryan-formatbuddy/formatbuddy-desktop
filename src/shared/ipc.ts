@@ -30,7 +30,10 @@ export const IpcChannels = {
   cleanupHistory: "cleanup:history",
   appsList: "apps:list",
   appsUninstall: "apps:uninstall",
-  appsLeftovers: "apps:leftovers"
+  appsLeftovers: "apps:leftovers",
+  securityStatus: "security:status",
+  securityQuickScan: "security:quick-scan",
+  securityThreats: "security:threats"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
