@@ -223,14 +223,31 @@ function Get-MemoryPressure {
   }
 }
 
+function ConvertTo-HotfixDate {
+  param($Value)
+  if ($null -eq $Value) { return $null }
+  if ($Value -is [DateTime]) { return $Value }
+  $asString = "$Value"
+  if ([string]::IsNullOrWhiteSpace($asString)) { return $null }
+  $parsed = [DateTime]::MinValue
+  if ([DateTime]::TryParse($asString, [Globalization.CultureInfo]::InvariantCulture,
+      [Globalization.DateTimeStyles]::AssumeLocal, [ref]$parsed)) { return $parsed }
+  if ([DateTime]::TryParse($asString, [Globalization.CultureInfo]::CurrentCulture,
+      [Globalization.DateTimeStyles]::AssumeLocal, [ref]$parsed)) { return $parsed }
+  return $null
+}
+
 function Get-WindowsUpdateStatus {
-  $hotfixes = Get-SafeCimInstance Win32_QuickFixEngineering | Sort-Object -Property InstalledOn -Descending
-  $latestInstalledOn = if ($hotfixes -and $hotfixes.Count -gt 0) {
-    try { $hotfixes[0].InstalledOn.ToString("o") } catch { $null }
-  } else { $null }
-  $daysSinceLatest = if ($latestInstalledOn) {
-    try { [int]((Get-Date) - [DateTime]$latestInstalledOn).TotalDays } catch { $null }
-  } else { $null }
+  $hotfixes = Get-SafeCimInstance Win32_QuickFixEngineering
+  $latestDt = $null
+  if ($hotfixes) {
+    foreach ($h in $hotfixes) {
+      $dt = ConvertTo-HotfixDate $h.InstalledOn
+      if ($dt -and (-not $latestDt -or $dt -gt $latestDt)) { $latestDt = $dt }
+    }
+  }
+  $latestInstalledOn = if ($latestDt) { $latestDt.ToString("o") } else { $null }
+  $daysSinceLatest = if ($latestDt) { [int]((Get-Date) - $latestDt).TotalDays } else { $null }
   [ordered]@{
     installedHotfixCount = if ($hotfixes) { @($hotfixes).Count } else { 0 }
     latestHotfixInstalledOn = $latestInstalledOn
@@ -320,24 +337,43 @@ function Get-DefenderStatus {
 }
 
 function Get-StorageWaste {
-  function Get-PathSizeGb {
+  function Get-PathSizeGbReparseSafe {
     param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return 0 }
     if (-not (Test-Path $Path)) { return 0 }
     try {
-      $sum = Get-ChildItem -LiteralPath $Path -Force -Recurse -File -ErrorAction SilentlyContinue |
-        Measure-Object -Property Length -Sum
-      if ($null -eq $sum.Sum) { return 0 }
-      return [Math]::Round($sum.Sum / 1GB, 2)
+      # Reuse the reparse-point-skipping walk so junctions (e.g. AppData\Local
+      # → AppData\LocalLow on some installs, or Windows.old containing links
+      # back into the live tree) don't make us hang or overcount.
+      $files = Get-FilesSkippingReparsePoints -Root $Path
+      $total = ($files | Measure-Object -Property Length -Sum).Sum
+      if ($null -eq $total) { return 0 }
+      return [Math]::Round($total / 1GB, 2)
     } catch { return 0 }
   }
-  $tempGb = Get-PathSizeGb -Path $env:TEMP
-  $localAppDataTempGb = Get-PathSizeGb -Path (Join-Path $env:LOCALAPPDATA "Temp")
-  $windowsTempGb = Get-PathSizeGb -Path (Join-Path $env:SystemRoot "Temp")
-  $windowsOldExists = Test-Path (Join-Path $env:SystemDrive "Windows.old")
-  $windowsOldGb = if ($windowsOldExists) { Get-PathSizeGb -Path (Join-Path $env:SystemDrive "Windows.old") } else { 0 }
+
+  # v0.4.1: %TEMP% is usually identical to %LOCALAPPDATA%\Temp on stock
+  # Windows profiles. De-duplicate so we don't count the same tree twice.
+  $candidates = @($env:TEMP, (Join-Path $env:LOCALAPPDATA "Temp")) |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+    ForEach-Object {
+      try { (Resolve-Path -LiteralPath $_ -ErrorAction Stop).Path }
+      catch { $_ }
+    } |
+    ForEach-Object { $_.TrimEnd('\','/').ToLowerInvariant() } |
+    Sort-Object -Unique
+
+  $userTempGb = 0
+  foreach ($p in $candidates) { $userTempGb += (Get-PathSizeGbReparseSafe -Path $p) }
+
+  $windowsTempGb = Get-PathSizeGbReparseSafe -Path (Join-Path $env:SystemRoot "Temp")
+  $windowsOldPath = Join-Path $env:SystemDrive "Windows.old"
+  $windowsOldExists = Test-Path $windowsOldPath
+  $windowsOldGb = if ($windowsOldExists) { Get-PathSizeGbReparseSafe -Path $windowsOldPath } else { 0 }
+
   [ordered]@{
-    userTempGb = $tempGb
-    localAppDataTempGb = $localAppDataTempGb
+    userTempGb = [Math]::Round($userTempGb, 2)
+    localAppDataTempGb = 0  # deprecated in v0.4.1 — userTempGb now includes both sources, deduped
     windowsTempGb = $windowsTempGb
     windowsOldExists = $windowsOldExists
     windowsOldGb = $windowsOldGb

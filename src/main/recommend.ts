@@ -133,10 +133,29 @@ function storageWasteScore(report: ScanReport): number {
 }
 
 function getSeverity(score: number): FormatSeverity {
-  if (score <= 30) return "healthy";
-  if (score <= 60) return "watch";
-  if (score <= 85) return "format-recommended";
+  // Thresholds tightened in v0.4.1 so a single critical signal (e.g. failing
+  // disk weighted = 100 * 0.30 = 30) cannot land in the "healthy" bucket.
+  if (score < 15) return "healthy";
+  if (score < 40) return "watch";
+  if (score < 70) return "format-recommended";
   return "format-required";
+}
+
+/**
+ * Disk-health override: if any disk reports Unhealthy/Failed/Warning, the
+ * severity is forced upward regardless of the weighted total. A failing
+ * drive is "back up RIGHT NOW", not "healthy", even if every other signal
+ * is clean.
+ */
+function applyDiskHealthOverride(severity: FormatSeverity, rawDiskHealth: number): FormatSeverity {
+  if (rawDiskHealth >= 100) {
+    // Unhealthy / Failed
+    if (severity === "healthy" || severity === "watch") return "format-recommended";
+  } else if (rawDiskHealth >= 70) {
+    // Warning
+    if (severity === "healthy") return "watch";
+  }
+  return severity;
 }
 
 function getHeadline(severity: FormatSeverity, score: number): string {
@@ -169,8 +188,11 @@ function pushReason(
   description: string
 ) {
   if (rawScore <= 0) return;
+  // v0.4.1: floor is now based on raw score (must be ≥30/100) so low-weight
+  // signals (Defender = 5%) still surface when they go bad — previously the
+  // absolute `weighted < 5` floor silently dropped every Defender problem.
+  if (rawScore < 30) return;
   const weighted = rawScore * weight;
-  if (weighted < 5) return;
   reasons.push({ signal, label, weightedScore: Math.round(weighted * 10) / 10, description });
 }
 
@@ -215,7 +237,12 @@ function buildTryFirst(report: ScanReport, reasons: ReasonItem[]): ActionItem[] 
       command: "taskmgr /0 /startup"
     });
   }
-  if (signals.has("defender")) {
+  // v0.4.1: Defender action is now built directly from report.defender, not
+  // gated on signals.has("defender") — Defender's 5% weight means it could
+  // be filtered out of `reasons` even when antivirus is fully disabled.
+  const def = report.defender;
+  if (def && (def.antivirusEnabled === false || def.realTimeProtectionEnabled === false ||
+              (typeof def.antivirusSignatureAgeDays === "number" && def.antivirusSignatureAgeDays > 14))) {
     actions.push({
       title: "Windows Defender 보호 켜기",
       description: "실시간 보호가 꺼져 있거나 시그니처가 오래됐어요. 보안 설정에서 한 번 확인해 주세요.",
@@ -301,7 +328,7 @@ export function generateRecommendation(report: ScanReport): Recommendation {
     sw * WEIGHTS.storageWaste;
 
   const formatScore = Math.round(clamp01to100(totalWeighted));
-  const severity = getSeverity(formatScore);
+  const severity = applyDiskHealthOverride(getSeverity(formatScore), dHealth);
   const headline = getHeadline(severity, formatScore);
   const summary = getSummary(severity, reasons);
 
@@ -326,5 +353,6 @@ export const __testing = {
   defenderScore,
   storageWasteScore,
   getSeverity,
+  applyDiskHealthOverride,
   WEIGHTS
 };

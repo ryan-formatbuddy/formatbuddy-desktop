@@ -180,20 +180,59 @@ describe("generateRecommendation — severity buckets", () => {
   });
 });
 
-describe("severity thresholds", () => {
+describe("severity thresholds (v0.4.1 tightened)", () => {
   it("getSeverity maps boundaries correctly", () => {
     expect(__testing.getSeverity(0)).toBe("healthy");
-    expect(__testing.getSeverity(30)).toBe("healthy");
-    expect(__testing.getSeverity(31)).toBe("watch");
-    expect(__testing.getSeverity(60)).toBe("watch");
-    expect(__testing.getSeverity(61)).toBe("format-recommended");
-    expect(__testing.getSeverity(85)).toBe("format-recommended");
-    expect(__testing.getSeverity(86)).toBe("format-required");
+    expect(__testing.getSeverity(14)).toBe("healthy");
+    expect(__testing.getSeverity(15)).toBe("watch");
+    expect(__testing.getSeverity(39)).toBe("watch");
+    expect(__testing.getSeverity(40)).toBe("format-recommended");
+    expect(__testing.getSeverity(69)).toBe("format-recommended");
+    expect(__testing.getSeverity(70)).toBe("format-required");
     expect(__testing.getSeverity(100)).toBe("format-required");
   });
 
   it("weights sum to 1.0", () => {
     const total = Object.values(__testing.WEIGHTS).reduce((s, w) => s + w, 0);
     expect(total).toBeCloseTo(1.0, 5);
+  });
+});
+
+describe("disk-health override + Defender visibility (v0.4.1 fixes)", () => {
+  it("failed disk alone forces at least format-recommended even with low score", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        diskHealth: [{ healthStatus: "Failed", operationalStatus: "Lost Communication" }]
+      })
+    );
+    // dHealth 100 * 0.30 = 30 raw → would map to healthy without override
+    expect(rec.severity).toBe("format-recommended");
+    expect(rec.formatReasons[0].signal).toBe("disk-health");
+  });
+
+  it("disabled Defender surfaces as both a reason AND a try-first action", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        defender: {
+          antivirusEnabled: false,
+          realTimeProtectionEnabled: false,
+          antivirusSignatureAgeDays: 40,
+          lastQuickScanDaysAgo: 90,
+          lastFullScanDaysAgo: 365
+        }
+      })
+    );
+    expect(rec.formatReasons.some((r) => r.signal === "defender")).toBe(true);
+    const defenderAction = rec.tryFirst.find((a) => a.title.includes("Defender"));
+    expect(defenderAction).toBeDefined();
+  });
+
+  it("warning disk forces severity into at least watch", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        diskHealth: [{ healthStatus: "Warning", operationalStatus: "OK", sizeGb: 500, mediaType: "SSD" }]
+      })
+    );
+    expect(["watch", "format-recommended", "format-required"]).toContain(rec.severity);
   });
 });
