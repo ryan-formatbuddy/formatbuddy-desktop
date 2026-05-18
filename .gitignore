@@ -9,4 +9,3 @@ logs/*.log
 .vite-temp
 coverage
 .omc/
-resources/powershell/script.sha256

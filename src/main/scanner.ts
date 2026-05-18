@@ -4,37 +4,55 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared/types";
+import { EXPECTED_PS_SCRIPT_HASH } from "@shared/ps-script-hash";
 
 const STDERR_MAX_BYTES = 64 * 1024;
-const INTEGRITY_MANIFEST = "script.sha256";
 
-async function verifyScriptIntegrity(
+/**
+ * Read the on-disk PowerShell script, hash it, compare against the bundled
+ * expected digest, and (on match) copy the verified bytes into a private
+ * temp file. The returned path is what the caller MUST spawn — that closes
+ * the TOCTOU window between hash check and PowerShell open.
+ *
+ * Returns the staged path on success. Returns null when the on-disk script
+ * cannot be read OR the hash does not match AND `enforce` is false (dev
+ * workflow): the caller may then fall back to the original path or refuse
+ * to run.
+ */
+async function verifyAndStageScript(
   scriptPath: string,
-  opts: { enforce: boolean }
-): Promise<void> {
-  const manifestPath = join(dirname(scriptPath), INTEGRITY_MANIFEST);
-  let expected: string;
+  opts: { enforce: boolean; expectedHash?: string }
+): Promise<string | null> {
+  const expected = opts.expectedHash ?? EXPECTED_PS_SCRIPT_HASH;
+
+  let buf: Buffer;
   try {
-    expected = (await fs.readFile(manifestPath, "utf8")).trim();
-  } catch {
-    if (opts.enforce) {
-      throw new Error(`PowerShell integrity manifest missing: ${manifestPath}`);
-    }
-    return; // dev / mock — silent skip when manifest hasn't been generated
-  }
-  let actual: string;
-  try {
-    const buf = await fs.readFile(scriptPath);
-    actual = createHash("sha256").update(buf).digest("hex");
+    buf = await fs.readFile(scriptPath);
   } catch (e) {
     if (opts.enforce) throw e;
-    return;
+    return null;
   }
+
+  const actual = createHash("sha256").update(buf).digest("hex");
   if (actual !== expected) {
-    throw new Error(
-      `PowerShell integrity check failed (expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…)`
+    if (opts.enforce) {
+      throw new Error(
+        `PowerShell integrity check failed (expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…)`
+      );
+    }
+    console.warn(
+      `[scanner] PowerShell hash mismatch in dev mode — using original path. expected=${expected.slice(0, 12)}… actual=${actual.slice(0, 12)}…`
     );
+    return null;
   }
+
+  // hash matches: stage verified bytes to a private temp file so the path
+  // we spawn is the same bytes we just verified.
+  const stagedDir = join(tmpdir(), "formatbuddy-script");
+  ensureDir(stagedDir);
+  const stagedPath = join(stagedDir, `script-${randomUUID()}.ps1`);
+  await fs.writeFile(stagedPath, buf);
+  return stagedPath;
 }
 
 function isScanReport(value: unknown): value is ScanReport {
@@ -111,11 +129,13 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   const { onProgress, signal, mock, enforceIntegrity } = options;
   const startedAt = Date.now();
 
-  // Integrity check runs even for mock when a manifest is present (catches
-  // accidental script tampering in dev). It only throws when enforced.
-  if (!mock || enforceIntegrity) {
-    await verifyScriptIntegrity(options.scriptPath, { enforce: !!enforceIntegrity });
+  let stagedPath: string | null = null;
+  if (!mock) {
+    stagedPath = await verifyAndStageScript(options.scriptPath, {
+      enforce: !!enforceIntegrity
+    });
   }
+  const effectiveScriptPath = stagedPath ?? options.scriptPath;
 
   const tmpDir = join(tmpdir(), "formatbuddy-scans");
   ensureDir(tmpDir);
@@ -123,11 +143,23 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
 
   onProgress?.(progressFor(0, startedAt, "버디가 살펴볼 준비 중이에요"));
 
-  if (mock || process.platform !== "win32") {
-    return runMockScan({ outPath, startedAt, onProgress, signal });
+  try {
+    if (mock || process.platform !== "win32") {
+      return await runMockScan({ outPath, startedAt, onProgress, signal });
+    }
+    return await runPowershellScan({
+      ...options,
+      scriptPath: effectiveScriptPath,
+      outPath,
+      startedAt
+    });
+  } finally {
+    if (stagedPath) {
+      await fs.unlink(stagedPath).catch(() => {
+        // best-effort: the temp file is in os.tmpdir() and will be reaped
+      });
+    }
   }
-
-  return runPowershellScan({ ...options, outPath, startedAt });
 }
 
 function ensureDir(dir: string) {
@@ -301,4 +333,4 @@ function buildMockReport(): ScanReport {
   };
 }
 
-export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor, verifyScriptIntegrity };
+export const __testing = { PIPELINE_STEPS, TOTAL_STEPS, buildSteps, progressFor, verifyAndStageScript };

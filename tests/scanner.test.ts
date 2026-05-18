@@ -64,58 +64,72 @@ describe("scanner mock pipeline", () => {
   });
 });
 
-describe("verifyScriptIntegrity", () => {
-  it("silently passes when manifest is missing and enforce=false", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "fb-integ-skip-"));
+describe("verifyAndStageScript", () => {
+  it("returns null when script is missing and enforce=false", async () => {
+    const result = await __testing.verifyAndStageScript("/tmp/does-not-exist.ps1", {
+      enforce: false,
+      expectedHash: "0".repeat(64)
+    });
+    expect(result).toBeNull();
+  });
+
+  it("throws when script is missing and enforce=true", async () => {
+    await expect(
+      __testing.verifyAndStageScript("/tmp/also-does-not-exist.ps1", {
+        enforce: true,
+        expectedHash: "0".repeat(64)
+      })
+    ).rejects.toThrow();
+  });
+
+  it("returns null on hash mismatch when enforce=false (dev)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-devmiss-"));
     const scriptPath = join(dir, "fake.ps1");
-    writeFileSync(scriptPath, "echo hi", "utf8");
+    writeFileSync(scriptPath, "Get-Process", "utf8");
     try {
-      await expect(
-        __testing.verifyScriptIntegrity(scriptPath, { enforce: false })
-      ).resolves.toBeUndefined();
+      const result = await __testing.verifyAndStageScript(scriptPath, {
+        enforce: false,
+        expectedHash: "0".repeat(64)
+      });
+      expect(result).toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("throws when manifest is missing and enforce=true", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "fb-integ-strict-"));
-    const scriptPath = join(dir, "fake.ps1");
-    writeFileSync(scriptPath, "echo hi", "utf8");
-    try {
-      await expect(
-        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
-      ).rejects.toThrowError(/integrity manifest missing/i);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("passes when manifest matches script hash", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "fb-integ-ok-"));
-    const scriptPath = join(dir, "fake.ps1");
-    const body = "Get-ChildItem";
-    writeFileSync(scriptPath, body, "utf8");
-    const hash = createHash("sha256").update(body).digest("hex");
-    writeFileSync(join(dir, "script.sha256"), `${hash}\n`, "utf8");
-    try {
-      await expect(
-        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
-      ).resolves.toBeUndefined();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("throws when manifest does not match script hash", async () => {
+  it("throws on hash mismatch when enforce=true", async () => {
     const dir = mkdtempSync(join(tmpdir(), "fb-integ-bad-"));
     const scriptPath = join(dir, "fake.ps1");
     writeFileSync(scriptPath, "Get-Process", "utf8");
-    writeFileSync(join(dir, "script.sha256"), "0".repeat(64) + "\n", "utf8");
     try {
       await expect(
-        __testing.verifyScriptIntegrity(scriptPath, { enforce: true })
+        __testing.verifyAndStageScript(scriptPath, {
+          enforce: true,
+          expectedHash: "0".repeat(64)
+        })
       ).rejects.toThrowError(/integrity check failed/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("on match returns a private temp path with verified bytes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-integ-ok-"));
+    const scriptPath = join(dir, "fake.ps1");
+    const body = "Get-ChildItem -Path C:\\";
+    writeFileSync(scriptPath, body, "utf8");
+    const expected = createHash("sha256").update(body).digest("hex");
+    try {
+      const stagedPath = await __testing.verifyAndStageScript(scriptPath, {
+        enforce: true,
+        expectedHash: expected
+      });
+      expect(stagedPath).toBeTypeOf("string");
+      expect(stagedPath).not.toBe(scriptPath);
+      const stagedBody = readFileSync(stagedPath as string, "utf8");
+      expect(stagedBody).toBe(body);
+      // cleanup
+      rmSync(stagedPath as string, { force: true });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
