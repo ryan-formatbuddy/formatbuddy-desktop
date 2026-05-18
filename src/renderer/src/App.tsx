@@ -223,6 +223,7 @@ export function App() {
             onOpenCleanup={(report) => setPhase({ kind: "cleanup", report })}
             onOpenAppManager={() => setPhase({ kind: "apps" })}
             onOpenSecurity={() => setPhase({ kind: "security" })}
+            onRescan={() => void startScan()}
           />
         );
       case "cleanup":

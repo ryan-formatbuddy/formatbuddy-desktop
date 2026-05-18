@@ -17,6 +17,7 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
       <section className="fb-home-monitor">
         <div>
           <h2 className="fb-h2">{copy.monitorTitle}</h2>
+          <small style={{ opacity: 0.7 }}>{copy.monitorSubtitle}</small>
           <p>{copy.monitorNoScan}</p>
         </div>
         <span>대기 중</span>
@@ -28,6 +29,7 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
     <section className="fb-home-monitor">
       <div>
         <h2 className="fb-h2">{copy.monitorTitle}</h2>
+        <small style={{ opacity: 0.7 }}>{copy.monitorSubtitle}</small>
         <p>{monitor.message}</p>
       </div>
       <div className="fb-home-monitor-stats">

@@ -150,6 +150,7 @@ interface ReportProps {
   onOpenCleanup?: (report: ScanResult["report"]) => void;
   onOpenAppManager?: () => void;
   onOpenSecurity?: () => void;
+  onRescan?: () => void;
 }
 
 interface RowProps {
@@ -728,7 +729,7 @@ function SmartCareOverview({ result, appState }: { result: ScanResult; appState?
   );
 }
 
-export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager, onOpenSecurity }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager, onOpenSecurity, onRescan }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
   const initialIgnoreList = appState?.ignoreList ?? result.appState?.ignoreList ?? { cleanupItemIds: [], pathHints: [] };
@@ -863,6 +864,90 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       </section>
 
       <SmartCareOverview result={result} appState={appState ?? result.appState} />
+
+      <section
+        className="fb-report-next-steps"
+        aria-labelledby="report-next-steps-title"
+        style={{ marginTop: 24 }}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <h2 id="report-next-steps-title" className="fb-h2">
+            {copy.nextStepsTitle}
+          </h2>
+          <p style={{ opacity: 0.75 }}>{copy.nextStepsLede}</p>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12
+          }}
+        >
+          {onOpenCleanup && (
+            <article className="fb-card">
+              <h3 style={{ marginTop: 0 }}>{copy.nextStepsCleanup}</h3>
+              <p style={{ fontSize: 13 }}>{copy.nextStepsCleanupHint}</p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => onOpenCleanup(report)}
+                disabled={!isWindows}
+              >
+                {isWindows ? "열기" : "Windows 전용"}
+              </Button>
+            </article>
+          )}
+          {onOpenAppManager && (
+            <article className="fb-card">
+              <h3 style={{ marginTop: 0 }}>{copy.nextStepsApps}</h3>
+              <p style={{ fontSize: 13 }}>{copy.nextStepsAppsHint}</p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onOpenAppManager}
+                disabled={!isWindows}
+              >
+                {isWindows ? "열기" : "Windows 전용"}
+              </Button>
+            </article>
+          )}
+          {onOpenSecurity && (
+            <article className="fb-card">
+              <h3 style={{ marginTop: 0 }}>{copy.nextStepsSecurity}</h3>
+              <p style={{ fontSize: 13 }}>{copy.nextStepsSecurityHint}</p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={onOpenSecurity}
+                disabled={!isWindows}
+              >
+                {isWindows ? "열기" : "Windows 전용"}
+              </Button>
+            </article>
+          )}
+          <article className="fb-card">
+            <h3 style={{ marginTop: 0 }}>{copy.nextStepsReport}</h3>
+            <p style={{ fontSize: 13 }}>{copy.nextStepsReportHint}</p>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Button variant="primary" size="sm" onClick={onExportHtml}>
+                HTML 저장
+              </Button>
+              <Button variant="ghost" size="sm" onClick={onExport}>
+                JSON 저장
+              </Button>
+            </div>
+          </article>
+          {onRescan && (
+            <article className="fb-card">
+              <h3 style={{ marginTop: 0 }}>{copy.nextStepsRescan}</h3>
+              <p style={{ fontSize: 13 }}>{copy.nextStepsRescanHint}</p>
+              <Button variant="primary" size="sm" onClick={onRescan}>
+                다시 점검
+              </Button>
+            </article>
+          )}
+        </div>
+      </section>
 
       <HistoryComparePanel appState={appState ?? result.appState} />
 
