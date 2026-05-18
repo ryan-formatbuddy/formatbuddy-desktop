@@ -157,6 +157,36 @@ function renderCareActions(rec: Recommendation): string {
   </section>`;
 }
 
+function renderAppInventory(rec: Recommendation): string {
+  const inv = rec.appInventory;
+  if (inv.total === 0) return "";
+  const groups = inv.groups
+    .map((group) => {
+      const rows = group.items
+        .map(
+          (item) => `
+      <tr>
+        <td>${esc(item.name)}</td>
+        <td>${esc(item.publisher ?? "제조사 정보 없음")}</td>
+        <td>${esc(item.attentionLabel)}</td>
+      </tr>`
+        )
+        .join("");
+      return `
+    <h4>${esc(group.label)} · ${group.count}개</h4>
+    <table class="app-list-table"><tbody>${rows}</tbody></table>`;
+    })
+    .join("");
+  return `
+  <section class="card">
+    <h3>${esc(copy.appInventoryTitle)}</h3>
+    <p class="explain">${esc(copy.appInventoryLede)}</p>
+    <p class="action-hint">${inv.total}개 중 ${inv.classified}개 분류 · ${inv.needsCheck}개 확인 추천</p>
+    <p class="explain">${esc(copy.appInventoryCoverageNote)}</p>
+    ${groups}
+  </section>`;
+}
+
 function renderConcerns(rec: Recommendation): string {
   if (rec.formatReasons.length === 0) {
     return `
@@ -297,6 +327,11 @@ function styles(fontBase64: string | null): string {
   .backup-list-table td{padding:8px 10px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
   .backup-list-table td.num{font-feature-settings:"tnum" on;text-align:right;font-weight:600;}
   .backup-list-table td.path{color:var(--fb-ink-3);font-size:11px;letter-spacing:-0.005em;}
+  .app-list-table{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 12px;}
+  .card h4{margin:14px 0 6px;font-size:13px;color:var(--fb-ink-1);}
+  .app-list-table td{padding:7px 8px;border-bottom:1px dashed var(--fb-line-t);color:var(--fb-ink-1);}
+  .app-list-table td:nth-child(2){color:var(--fb-ink-3);}
+  .app-list-table td:nth-child(3){text-align:right;color:var(--fb-blue-heavy);font-weight:700;}
   .health-mini{margin-top:18px;padding-top:16px;border-top:1px solid var(--fb-line);}
   .health-mini h4{margin:0 0 10px;font-size:13px;color:var(--fb-ink-1);}
   .health-mini-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
@@ -352,6 +387,7 @@ export function buildHtmlReport(
   ${renderScoreHero(recommendation)}
   ${renderSystemInline(report)}
   ${renderCareActions(recommendation)}
+  ${renderAppInventory(recommendation)}
   ${renderTryBefore(recommendation)}
   ${renderConcerns(recommendation)}
   ${renderAfterFormat(recommendation)}

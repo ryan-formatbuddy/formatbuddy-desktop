@@ -157,6 +157,10 @@ export const copy = {
     warning: "먼저 확인",
     unavailable: "확인 못함"
   } as const,
+  appInventoryTitle: "설치된 프로그램 분류",
+  appInventoryLede:
+    "Windows에 설치 기록이 남아 있는 프로그램을 모두 모아, 포맷 전에 챙길 이유별로 나눠봤어요.",
+  appInventoryCoverageNote: "포터블 앱처럼 설치 기록이 없는 프로그램은 안 보일 수 있어요.",
   buddyChecklistTitle: "버디가 먼저 확인해뒀어요",
   buddyChecklistLede:
     "제가 볼 수 있는 항목은 체크해두고, 직접 확인해야 하는 건 따로 표시했어요.",

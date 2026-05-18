@@ -24,6 +24,7 @@ import type {
 } from "@shared/types";
 import { copy } from "@shared/copy";
 import { buildBuddyChecklist } from "./buddyChecklist";
+import { buildAppInventory } from "./appInventory";
 
 const WEIGHTS = {
   diskHealth: 0.30,
@@ -600,6 +601,7 @@ export function generateRecommendation(report: ScanReport): Recommendation {
       defender: def,
       storageWaste: sw
     }),
+    appInventory: buildAppInventory(report),
     buddyChecklist: buildBuddyChecklist(report),
     careActions: buildCareActions(report, {
       defender: def,

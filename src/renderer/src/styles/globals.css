@@ -1380,6 +1380,152 @@ button { font-family: inherit; }
 }
 
 /* ============================================================
+   App inventory (v0.7.7)
+   ============================================================ */
+.fb-app-inventory {
+  background: #ffffff;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 20px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.fb-app-inventory-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.fb-app-inventory-head p {
+  margin: 6px 0 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+}
+.fb-app-inventory-summary {
+  min-width: 104px;
+  border-radius: 14px;
+  background: var(--color-fb-blue-tint);
+  padding: 12px 14px;
+  text-align: center;
+  color: var(--color-fb-blue-heavy);
+}
+.fb-app-inventory-summary strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 850;
+  font-feature-settings: "tnum" on;
+}
+.fb-app-inventory-summary span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.fb-app-inventory-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fb-app-inventory-stats span {
+  border: 1px solid rgba(0,102,255,0.14);
+  border-radius: 999px;
+  background: #f8fbff;
+  padding: 7px 10px;
+  color: var(--color-fb-ink-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+.fb-app-inventory-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.fb-app-inventory-group {
+  border: 1px solid var(--color-fb-line-t);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+.fb-app-inventory-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-fb-line-t);
+  background: #f8fafc;
+}
+.fb-app-inventory-group-head h3 {
+  margin: 0;
+  color: var(--color-fb-ink-1);
+  font-size: 13px;
+  font-weight: 850;
+}
+.fb-app-inventory-group-head span {
+  color: var(--color-fb-blue-heavy);
+  font-size: 12px;
+  font-weight: 800;
+}
+.fb-app-inventory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+}
+.fb-app-inventory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 44%);
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-fb-line-t);
+}
+.fb-app-inventory-row:last-child { border-bottom: none; }
+.fb-app-inventory-name,
+.fb-app-inventory-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.fb-app-inventory-name strong {
+  overflow-wrap: anywhere;
+  color: var(--color-fb-ink-1);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 780;
+}
+.fb-app-inventory-name span,
+.fb-app-inventory-meta small {
+  overflow-wrap: anywhere;
+  color: var(--color-fb-ink-3);
+  font-size: 11px;
+  line-height: 16px;
+}
+.fb-app-inventory-meta span {
+  align-self: flex-start;
+  border-radius: 999px;
+  background: #f4f4f5;
+  padding: 4px 8px;
+  color: var(--color-fb-ink-2);
+  font-size: 11px;
+  font-weight: 800;
+}
+.fb-app-inventory-attention-backup .fb-app-inventory-meta span,
+.fb-app-inventory-attention-license .fb-app-inventory-meta span,
+.fb-app-inventory-attention-sync .fb-app-inventory-meta span {
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+}
+.fb-app-inventory-attention-security .fb-app-inventory-meta span,
+.fb-app-inventory-attention-driver .fb-app-inventory-meta span {
+  background: rgba(0,102,255,0.12);
+  color: var(--color-fb-blue);
+}
+
+/* ============================================================
    Health panel (v0.7.0)
    ============================================================ */
 .fb-health-panel {

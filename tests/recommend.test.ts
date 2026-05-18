@@ -96,6 +96,7 @@ describe("generateRecommendation — severity buckets", () => {
       "startup-review",
       "windows-update-review"
     ]);
+    expect(rec.appInventory.total).toBe(0);
   });
 
   it("low disk free + memory pressure pushes into watch / organize", () => {
@@ -257,6 +258,44 @@ describe("disk-health override + Defender visibility", () => {
       })
     );
     expect(["watch", "organize", "format"]).toContain(rec.severity);
+  });
+});
+
+describe("app inventory classification", () => {
+  it("classifies every installed app into a user-facing inventory", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        installedApps: [
+          { name: "Google Chrome", publisher: "Google", version: "126" },
+          { name: "KakaoTalk", publisher: "Kakao" },
+          { name: "Adobe Creative Cloud", publisher: "Adobe" },
+          { name: "Hancom Office", publisher: "Hancom" },
+          { name: "Steam", publisher: "Valve" },
+          { name: "Visual Studio Code", publisher: "Microsoft" },
+          { name: "Realtek Audio Driver", publisher: "Realtek" },
+          { name: "Unknown Business Tool", publisher: "Acme" }
+        ]
+      })
+    );
+
+    expect(rec.appInventory.total).toBe(8);
+    expect(rec.appInventory.classified).toBe(7);
+    expect(rec.appInventory.needsCheck).toBeGreaterThanOrEqual(7);
+    expect(rec.appInventory.groups.flatMap((g) => g.items).map((i) => i.name)).toEqual(
+      expect.arrayContaining([
+        "Google Chrome",
+        "KakaoTalk",
+        "Adobe Creative Cloud",
+        "Hancom Office",
+        "Steam",
+        "Visual Studio Code",
+        "Realtek Audio Driver",
+        "Unknown Business Tool"
+      ])
+    );
+    expect(rec.appInventory.groups.find((g) => g.category === "browser")?.count).toBe(1);
+    expect(rec.appInventory.groups.find((g) => g.category === "messenger")?.count).toBe(1);
+    expect(rec.appInventory.groups.find((g) => g.category === "unknown")?.items[0].attention).toBe("reinstall");
   });
 });
 

@@ -6,6 +6,8 @@ import { TooltipDetail } from "../components/TooltipDetail";
 import { copy } from "@shared/copy";
 import type {
   ActionItem,
+  AppInventoryGroup,
+  AppInventoryItem,
   AppPlatform,
   BuddyChecklistCategory,
   BuddyChecklistItem,
@@ -286,6 +288,71 @@ function CareActionsPanel({
   );
 }
 
+function AppInventoryRow({ item }: { item: AppInventoryItem }) {
+  return (
+    <li className={`fb-app-inventory-row fb-app-inventory-attention-${item.attention}`}>
+      <div className="fb-app-inventory-name">
+        <strong>{item.name}</strong>
+        <span>{[item.publisher, item.version].filter(Boolean).join(" · ") || "제조사 정보 없음"}</span>
+      </div>
+      <div className="fb-app-inventory-meta">
+        <span>{item.attentionLabel}</span>
+        <small>{item.reason}</small>
+      </div>
+    </li>
+  );
+}
+
+function AppInventoryGroupCard({ group }: { group: AppInventoryGroup }) {
+  return (
+    <article className="fb-app-inventory-group">
+      <div className="fb-app-inventory-group-head">
+        <h3>{group.label}</h3>
+        <span>{group.count}개</span>
+      </div>
+      <ul className="fb-app-inventory-list">
+        {group.items.map((item) => (
+          <AppInventoryRow key={`${group.category}-${item.name}-${item.publisher ?? ""}`} item={item} />
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function AppInventoryPanel({ groups, total, classified, needsCheck }: {
+  groups: AppInventoryGroup[];
+  total: number;
+  classified: number;
+  needsCheck: number;
+}) {
+  return (
+    <section className="fb-app-inventory" aria-labelledby="app-inventory-title">
+      <div className="fb-app-inventory-head">
+        <div>
+          <h2 id="app-inventory-title" className="fb-h2">
+            {copy.appInventoryTitle}
+          </h2>
+          <p>{copy.appInventoryLede}</p>
+        </div>
+        <div className="fb-app-inventory-summary" aria-label="앱 분류 요약">
+          <strong>{total}</strong>
+          <span>설치 앱</span>
+        </div>
+      </div>
+      <div className="fb-app-inventory-stats">
+        <span>{classified}개 분류됨</span>
+        <span>{needsCheck}개 확인 추천</span>
+        <span>{copy.appInventoryCoverageNote}</span>
+      </div>
+      <div className="fb-app-inventory-groups">
+        {groups.map((group) => (
+          <AppInventoryGroupCard key={group.category} group={group} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
@@ -411,6 +478,13 @@ export function Report({ result, onBack, appPlatform = "unknown" }: ReportProps)
         actions={recommendation.careActions}
         isWindows={isWindows}
         onRunAction={runAction}
+      />
+
+      <AppInventoryPanel
+        groups={recommendation.appInventory.groups}
+        total={recommendation.appInventory.total}
+        classified={recommendation.appInventory.classified}
+        needsCheck={recommendation.appInventory.needsCheck}
       />
 
       <section className="fb-health-panel" aria-labelledby="health-panel-title">

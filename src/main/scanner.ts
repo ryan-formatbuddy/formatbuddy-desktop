@@ -419,7 +419,12 @@ function buildMockReport(options: { demoPlatform?: NodeJS.Platform } = {}): Scan
     gpu: ["Mock GPU"],
     installedApps: [
       { name: "Chrome", version: "131.0", publisher: "Google" },
-      { name: "KakaoTalk", version: "3.x", publisher: "Kakao" }
+      { name: "KakaoTalk", version: "3.x", publisher: "Kakao" },
+      { name: "Microsoft Office 365", version: "16.x", publisher: "Microsoft" },
+      { name: "Adobe Creative Cloud", version: "6.x", publisher: "Adobe" },
+      { name: "Visual Studio Code", version: "1.x", publisher: "Microsoft" },
+      { name: "Steam", version: "2.x", publisher: "Valve" },
+      { name: "Realtek Audio Driver", version: "6.x", publisher: "Realtek" }
     ],
     drivers: [],
     printers: [],

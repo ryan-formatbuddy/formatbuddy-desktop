@@ -247,6 +247,59 @@ export interface HealthPillar {
   actions: ActionItem[];
 }
 
+export type AppInventoryCategory =
+  | "browser"
+  | "messenger"
+  | "cloud"
+  | "office"
+  | "security"
+  | "driver"
+  | "work"
+  | "finance"
+  | "creative"
+  | "developer"
+  | "game"
+  | "media"
+  | "utility"
+  | "system"
+  | "unknown";
+
+export type AppInventoryAttention =
+  | "none"
+  | "backup"
+  | "license"
+  | "sync"
+  | "security"
+  | "driver"
+  | "cleanup"
+  | "reinstall";
+
+export interface AppInventoryItem {
+  name: string;
+  version?: string | null;
+  publisher?: string | null;
+  category: AppInventoryCategory;
+  categoryLabel: string;
+  confidence: "high" | "medium" | "low";
+  attention: AppInventoryAttention;
+  attentionLabel: string;
+  reason: string;
+}
+
+export interface AppInventoryGroup {
+  category: AppInventoryCategory;
+  label: string;
+  count: number;
+  items: AppInventoryItem[];
+}
+
+export interface AppInventorySummary {
+  total: number;
+  classified: number;
+  needsCheck: number;
+  groups: AppInventoryGroup[];
+}
+
 export type BuddyCheckStatus = "confirmed" | "needs_user" | "warning" | "unknown";
 
 export type BuddyChecklistCategory =
@@ -285,6 +338,7 @@ export interface Recommendation {
   formatReasons: ReasonItem[];
   afterFormat: ActionItem[];
   healthPillars: HealthPillar[];
+  appInventory: AppInventorySummary;
   buddyChecklist: BuddyChecklistItem[];
   careActions: CareAction[];
 }

@@ -118,6 +118,7 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("PC 건강 점검");
     expect(html).toContain("깔끔 정리");
     expect(html).toContain("바로 해볼 수 있는 관리 기능");
+    expect(html).toContain("설치된 프로그램 분류");
     expect(html).toContain("빠진 파일이 있는지 확인하는 목록");
     expect(html).toContain("이 PC");
     // v0.6.2 — 사용자 카피에서 영문 기술 단어 노출 금지
