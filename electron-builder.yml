@@ -46,3 +46,9 @@ nsis:
 asar: true
 asarUnpack:
   - resources/**
+
+publish:
+  - provider: github
+    owner: ryan-formatbuddy
+    repo: formatbuddy-desktop
+    releaseType: release

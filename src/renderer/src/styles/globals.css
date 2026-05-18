@@ -73,6 +73,36 @@ button { font-family: inherit; }
 }
 .fb-app-version { font-feature-settings: "tnum" on; }
 
+.fb-update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--color-fb-blue-tint);
+  color: var(--color-fb-blue-heavy);
+  border-top: 1px solid var(--color-fb-line);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.fb-update-banner-detail {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-fb-ink-3);
+  font-weight: 500;
+  font-feature-settings: "tnum" on;
+}
+.fb-update-banner-quiet {
+  background: #ffffff;
+  color: var(--color-fb-ink-2);
+}
+.fb-update-banner-ready {
+  background: var(--color-fb-blue);
+  color: #ffffff;
+}
+.fb-update-banner-ready .fb-update-banner-detail { color: rgba(255,255,255,0.7); }
+.fb-update-banner-ready .fb-btn-on-blue { margin-left: auto; }
+
 /* ============================================================
    Typography helpers
    ============================================================ */

@@ -6,12 +6,19 @@ import type {
   ScanError,
   ScanProgress,
   ScanReport,
-  ScanResult
+  ScanResult,
+  UpdateDownloadProgress,
+  UpdateErrorPayload,
+  UpdateInfo
 } from "@shared/types";
 
 type ProgressListener = (progress: ScanProgress) => void;
 type CompleteListener = (result: ScanResult) => void;
 type ErrorListener = (error: ScanError) => void;
+type UpdateInfoListener = (info: UpdateInfo) => void;
+type UpdateProgressListener = (p: UpdateDownloadProgress) => void;
+type UpdateErrorListener = (e: UpdateErrorPayload) => void;
+type VoidListener = () => void;
 
 const fb = {
   appVersion: (): Promise<string> => ipcRenderer.invoke(IpcChannels.appVersion),
@@ -38,7 +45,39 @@ const fb = {
   exportReport: (report: ScanReport, options?: ExportOptions): Promise<ExportResult> =>
     ipcRenderer.invoke(IpcChannels.reportExport, { report, options }),
 
-  openWebReport: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.reportOpenWeb)
+  openWebReport: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.reportOpenWeb),
+
+  onUpdateChecking(cb: VoidListener): () => void {
+    const wrapped = () => cb();
+    ipcRenderer.on(IpcChannels.updateChecking, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateChecking, wrapped);
+  },
+  onUpdateAvailable(cb: UpdateInfoListener): () => void {
+    const wrapped = (_e: unknown, info: UpdateInfo) => cb(info);
+    ipcRenderer.on(IpcChannels.updateAvailable, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateAvailable, wrapped);
+  },
+  onUpdateNotAvailable(cb: VoidListener): () => void {
+    const wrapped = () => cb();
+    ipcRenderer.on(IpcChannels.updateNotAvailable, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateNotAvailable, wrapped);
+  },
+  onUpdateDownloadProgress(cb: UpdateProgressListener): () => void {
+    const wrapped = (_e: unknown, p: UpdateDownloadProgress) => cb(p);
+    ipcRenderer.on(IpcChannels.updateDownloadProgress, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateDownloadProgress, wrapped);
+  },
+  onUpdateDownloaded(cb: UpdateInfoListener): () => void {
+    const wrapped = (_e: unknown, info: UpdateInfo) => cb(info);
+    ipcRenderer.on(IpcChannels.updateDownloaded, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateDownloaded, wrapped);
+  },
+  onUpdateError(cb: UpdateErrorListener): () => void {
+    const wrapped = (_e: unknown, err: UpdateErrorPayload) => cb(err);
+    ipcRenderer.on(IpcChannels.updateError, wrapped);
+    return () => ipcRenderer.removeListener(IpcChannels.updateError, wrapped);
+  },
+  installUpdate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.updateInstall)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

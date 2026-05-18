@@ -39,5 +39,11 @@ export const copy = {
 
   windowsOnlyHeadline: "이 버전은 Windows에서 동작해요",
   windowsOnlyBody:
-    "지금은 Mac에서 테스트용 화면을 보고 계세요. 실제 PC 진단은 Windows에서 같이 살펴볼게요."
+    "지금은 Mac에서 테스트용 화면을 보고 계세요. 실제 PC 진단은 Windows에서 같이 살펴볼게요.",
+
+  updateAvailable: "새 버전 받는 중이에요",
+  updateDownloading: "버디가 새 버전을 챙겨오고 있어요",
+  updateDownloaded: "준비 끝났어요. 다시 켜면 새 버전으로 시작해요",
+  updateInstallCta: "지금 재시작",
+  updateErrorLabel: "업데이트를 받지 못했어요"
 } as const;

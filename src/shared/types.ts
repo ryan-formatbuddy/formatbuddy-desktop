@@ -142,3 +142,20 @@ export interface ExportResult {
   saved: boolean;
   path?: string;
 }
+
+export interface UpdateInfo {
+  version: string;
+  releaseDate?: string;
+  releaseNotes?: string | null;
+}
+
+export interface UpdateDownloadProgress {
+  bytesPerSecond: number;
+  percent: number;
+  transferred: number;
+  total: number;
+}
+
+export interface UpdateErrorPayload {
+  message: string;
+}

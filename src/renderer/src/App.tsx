@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Home } from "./pages/Home";
 import { Scanning } from "./pages/Scanning";
 import { Report } from "./pages/Report";
+import { UpdateBanner } from "./components/UpdateBanner";
 import type { ScanError, ScanProgress, ScanResult } from "@shared/types";
 
 type Phase =
@@ -100,6 +101,7 @@ export function App() {
   return (
     <div className="fb-app">
       {content}
+      <UpdateBanner />
       <footer className="fb-app-footer">
         <span>FormatBuddy Desktop</span>
         {appVersion && <span className="fb-app-version">v{appVersion}</span>}

@@ -6,6 +6,7 @@ import { IpcChannels } from "@shared/ipc";
 import type { ExportOptions, ExportResult, ScanError, ScanProgress, ScanResult } from "@shared/types";
 import { runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
+import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
 
 let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
@@ -128,6 +129,11 @@ function registerIpc() {
     await shell.openExternal(getWebReportImportUrl());
     return true;
   });
+
+  ipcMain.handle(IpcChannels.updateInstall, () => {
+    installAndRestart();
+    return true;
+  });
 }
 
 app.whenReady().then(() => {
@@ -139,9 +145,11 @@ app.whenReady().then(() => {
 
   registerIpc();
   createWindow();
+  if (mainWindow) initAutoUpdater(mainWindow);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (mainWindow) initAutoUpdater(mainWindow);
   });
 });
 
@@ -150,6 +158,7 @@ app.on("before-quit", () => {
     activeAbort.abort();
     activeAbort = null;
   }
+  shutdownAutoUpdater();
 });
 
 app.on("window-all-closed", () => {
