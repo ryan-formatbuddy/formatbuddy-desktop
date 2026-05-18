@@ -25,6 +25,17 @@ function Get-SafeCimInstance {
   try { Get-CimInstance -ClassName $ClassName } catch { Add-Diagnostic -Step "CIM:$ClassName" -Message $_.Exception.Message; @() }
 }
 
+function Join-PathSafe {
+  param([string]$Base, [string]$Child)
+  if ([string]::IsNullOrWhiteSpace($Base)) { return $null }
+  try {
+    return (Join-Path -Path $Base -ChildPath $Child -ErrorAction Stop)
+  } catch {
+    Add-Diagnostic -Step "JoinPath:$Child" -Message $_.Exception.Message
+    return $null
+  }
+}
+
 function Get-InstalledApps {
   $paths = @(
     "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -45,10 +56,10 @@ function Get-InstalledApps {
 
 function Test-NpkiLocation {
   $candidates = @(
-    "$env:USERPROFILE\AppData\LocalLow\NPKI",
-    "$env:USERPROFILE\AppData\Roaming\NPKI",
-    "$env:SystemDrive\NPKI"
-  )
+    (Join-PathSafe -Base $env:USERPROFILE -Child "AppData\LocalLow\NPKI"),
+    (Join-PathSafe -Base $env:USERPROFILE -Child "AppData\Roaming\NPKI"),
+    (Join-PathSafe -Base $env:SystemDrive -Child "NPKI")
+  ) | Where-Object { $_ }
 
   foreach ($path in $candidates) {
     [ordered]@{
@@ -64,7 +75,8 @@ function Get-FolderSizeGb {
   if (!(Test-Path $Path)) { return $null }
 
   try {
-    $sum = Get-ChildItem -LiteralPath $Path -Force -Recurse -File -ErrorAction SilentlyContinue |
+    $sum = Get-ChildItem -LiteralPath $Path -Force -Recurse -ErrorAction SilentlyContinue |
+      Where-Object { -not $_.PSIsContainer } |
       Measure-Object -Property Length -Sum
 
     if ($null -eq $sum.Sum) { return 0 }
@@ -87,16 +99,17 @@ function Get-FolderLastModifiedIso {
 }
 
 function Get-UserFolders {
+  $downloads = Join-PathSafe -Base $env:USERPROFILE -Child "Downloads"
   $folders = @(
     @{ name = "Desktop"; path = [Environment]::GetFolderPath("Desktop") },
     @{ name = "Documents"; path = [Environment]::GetFolderPath("MyDocuments") },
     @{ name = "Pictures"; path = [Environment]::GetFolderPath("MyPictures") },
     @{ name = "Music"; path = [Environment]::GetFolderPath("MyMusic") },
     @{ name = "Videos"; path = [Environment]::GetFolderPath("MyVideos") },
-    @{ name = "Downloads"; path = Join-Path $env:USERPROFILE "Downloads" }
+    @{ name = "Downloads"; path = $downloads }
   )
 
-  foreach ($folder in $folders) {
+  foreach ($folder in ($folders | Where-Object { $_.path })) {
     $exists = Test-Path $folder.path
     [ordered]@{
       name = $folder.name
@@ -108,12 +121,13 @@ function Get-UserFolders {
 }
 
 function Get-CloudSyncCandidates {
+  $userProfile = $env:USERPROFILE
   $candidates = @(
     @{ provider = "OneDrive"; path = $env:OneDrive },
-    @{ provider = "OneDrive"; path = Join-Path $env:USERPROFILE "OneDrive" },
-    @{ provider = "Google Drive"; path = Join-Path $env:USERPROFILE "Google Drive" },
-    @{ provider = "Google Drive"; path = Join-Path $env:USERPROFILE "My Drive" },
-    @{ provider = "Dropbox"; path = Join-Path $env:USERPROFILE "Dropbox" }
+    @{ provider = "OneDrive"; path = (Join-PathSafe -Base $userProfile -Child "OneDrive") },
+    @{ provider = "Google Drive"; path = (Join-PathSafe -Base $userProfile -Child "Google Drive") },
+    @{ provider = "Google Drive"; path = (Join-PathSafe -Base $userProfile -Child "My Drive") },
+    @{ provider = "Dropbox"; path = (Join-PathSafe -Base $userProfile -Child "Dropbox") }
   ) | Where-Object { $_.path }
 
   foreach ($candidate in $candidates) {
@@ -126,35 +140,53 @@ function Get-CloudSyncCandidates {
 }
 
 function Get-BrowserPresence {
+  $programFiles = [Environment]::GetFolderPath("ProgramFiles")
+  $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+  $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
+  $roamingAppData = [Environment]::GetFolderPath("ApplicationData")
+
   $browsers = @(
     @{
       name = "Chrome"
-      paths = @("${env:ProgramFiles}\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe", "${env:LOCALAPPDATA}\Google\Chrome\Application\chrome.exe")
-      profilePath = "${env:LOCALAPPDATA}\Google\Chrome\User Data\Default"
-      bookmarksPath = "${env:LOCALAPPDATA}\Google\Chrome\User Data\Default\Bookmarks"
+      paths = @(
+        (Join-PathSafe -Base $programFiles -Child "Google\Chrome\Application\chrome.exe"),
+        (Join-PathSafe -Base $programFilesX86 -Child "Google\Chrome\Application\chrome.exe"),
+        (Join-PathSafe -Base $localAppData -Child "Google\Chrome\Application\chrome.exe")
+      )
+      profilePath = (Join-PathSafe -Base $localAppData -Child "Google\Chrome\User Data\Default")
+      bookmarksPath = (Join-PathSafe -Base $localAppData -Child "Google\Chrome\User Data\Default\Bookmarks")
     },
     @{
       name = "Edge"
-      paths = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "${env:ProgramFiles}\Microsoft\Edge\Application\msedge.exe")
-      profilePath = "${env:LOCALAPPDATA}\Microsoft\Edge\User Data\Default"
-      bookmarksPath = "${env:LOCALAPPDATA}\Microsoft\Edge\User Data\Default\Bookmarks"
+      paths = @(
+        (Join-PathSafe -Base $programFilesX86 -Child "Microsoft\Edge\Application\msedge.exe"),
+        (Join-PathSafe -Base $programFiles -Child "Microsoft\Edge\Application\msedge.exe")
+      )
+      profilePath = (Join-PathSafe -Base $localAppData -Child "Microsoft\Edge\User Data\Default")
+      bookmarksPath = (Join-PathSafe -Base $localAppData -Child "Microsoft\Edge\User Data\Default\Bookmarks")
     },
     @{
       name = "Firefox"
-      paths = @("${env:ProgramFiles}\Mozilla Firefox\firefox.exe", "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe")
-      profilePath = "${env:APPDATA}\Mozilla\Firefox\Profiles"
+      paths = @(
+        (Join-PathSafe -Base $programFiles -Child "Mozilla Firefox\firefox.exe"),
+        (Join-PathSafe -Base $programFilesX86 -Child "Mozilla Firefox\firefox.exe")
+      )
+      profilePath = (Join-PathSafe -Base $roamingAppData -Child "Mozilla\Firefox\Profiles")
       bookmarksPath = $null
     },
     @{
       name = "Whale"
-      paths = @("${env:ProgramFiles}\Naver\Naver Whale\Application\whale.exe", "${env:LOCALAPPDATA}\Naver\Naver Whale\Application\whale.exe")
-      profilePath = "${env:LOCALAPPDATA}\Naver\Naver Whale\User Data\Default"
-      bookmarksPath = "${env:LOCALAPPDATA}\Naver\Naver Whale\User Data\Default\Bookmarks"
+      paths = @(
+        (Join-PathSafe -Base $programFiles -Child "Naver\Naver Whale\Application\whale.exe"),
+        (Join-PathSafe -Base $localAppData -Child "Naver\Naver Whale\Application\whale.exe")
+      )
+      profilePath = (Join-PathSafe -Base $localAppData -Child "Naver\Naver Whale\User Data\Default")
+      bookmarksPath = (Join-PathSafe -Base $localAppData -Child "Naver\Naver Whale\User Data\Default\Bookmarks")
     }
   )
 
   foreach ($browser in $browsers) {
-    $installed = [bool]($browser.paths | Where-Object { Test-Path $_ } | Select-Object -First 1)
+    $installed = [bool]($browser.paths | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1)
     $profileExists = if ($browser.profilePath) { Test-Path $browser.profilePath } else { $false }
     $bookmarksFileExists = if ($browser.bookmarksPath) { Test-Path $browser.bookmarksPath } else { $false }
     [ordered]@{
@@ -168,9 +200,11 @@ function Get-BrowserPresence {
 }
 
 function Get-AppDataCandidates {
+  $roamingAppData = [Environment]::GetFolderPath("ApplicationData")
+  $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
   $candidates = @(
-    @{ app = "KakaoTalk"; path = Join-Path $env:APPDATA "KakaoTalk" },
-    @{ app = "KakaoTalk"; path = Join-Path $env:LOCALAPPDATA "Kakao\KakaoTalk" }
+    @{ app = "KakaoTalk"; path = (Join-PathSafe -Base $roamingAppData -Child "KakaoTalk") },
+    @{ app = "KakaoTalk"; path = (Join-PathSafe -Base $localAppData -Child "Kakao\KakaoTalk") }
   ) | Where-Object { $_.path }
 
   foreach ($candidate in $candidates) {
@@ -186,16 +220,18 @@ function Get-AppDataCandidates {
 }
 
 function Get-MailDataFiles {
+  $documents = [Environment]::GetFolderPath("MyDocuments")
+  $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
   $dirs = @(
-    (Join-Path ([Environment]::GetFolderPath("MyDocuments")) "Outlook Files"),
-    (Join-Path $env:LOCALAPPDATA "Microsoft\Outlook")
+    (Join-PathSafe -Base $documents -Child "Outlook Files"),
+    (Join-PathSafe -Base $localAppData -Child "Microsoft\Outlook")
   ) | Where-Object { $_ } | Sort-Object -Unique
 
   foreach ($dir in $dirs) {
     if (-not (Test-Path $dir)) { continue }
     try {
-      Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -match '^\.(pst|ost)$' } |
+      Get-ChildItem -LiteralPath $dir -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.PSIsContainer -and $_.Extension -match '^\.(pst|ost)$' } |
         Select-Object -First 25 |
         ForEach-Object {
           [ordered]@{
@@ -435,7 +471,7 @@ function Get-StorageWaste {
 
   # v0.4.1: %TEMP% is usually identical to %LOCALAPPDATA%\Temp on stock
   # Windows profiles. De-duplicate so we don't count the same tree twice.
-  $candidates = @($env:TEMP, (Join-Path $env:LOCALAPPDATA "Temp")) |
+  $candidates = @($env:TEMP, (Join-PathSafe -Base $env:LOCALAPPDATA -Child "Temp")) |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
     ForEach-Object {
       try { (Resolve-Path -LiteralPath $_ -ErrorAction Stop).Path }
@@ -545,7 +581,7 @@ if ($Mode -eq "manifest") {
     [Environment]::GetFolderPath("MyPictures"),
     [Environment]::GetFolderPath("MyMusic"),
     [Environment]::GetFolderPath("MyVideos"),
-    (Join-Path $env:USERPROFILE "Downloads")
+    (Join-PathSafe -Base $env:USERPROFILE -Child "Downloads")
   ) | Where-Object { $_ }
 
   $report = [ordered]@{
