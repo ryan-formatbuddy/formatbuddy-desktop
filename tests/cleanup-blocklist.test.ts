@@ -121,9 +121,14 @@ describe("evaluatePath — user-scoped blocklist", () => {
     "C:\\Users\\Ryan\\AppData\\Roaming\\KakaoTalk\\database.db",
     "C:\\Users\\Ryan\\AppData\\Local\\Kakao\\KakaoTalk\\cache",
     "C:\\Users\\Ryan\\OneDrive\\Documents\\report.docx",
-    "C:\\Users\\Ryan\\Dropbox\\file.txt"
+    "C:\\Users\\Ryan\\OneDrive - Ryan AI\\Client\\proposal.docx",
+    "C:\\Users\\Ryan\\Dropbox\\file.txt",
+    "C:\\Users\\Ryan\\iCloudDrive\\Desktop\\photo.jpg",
+    "C:\\Users\\Ryan\\iCloud Photos\\Downloads\\family.jpg",
+    "C:\\Users\\Ryan\\AppData\\Local\\Google\\DriveFS\\accounts.db",
+    "G:\\My Drive\\FormatBuddy\\report.xlsx"
   ])("blocks sensitive user path %s", (path) => {
-    const result = evaluatePath(path, { allowRoots: [HOME], home: HOME });
+    const result = evaluatePath(path, { allowRoots: [HOME, "G:\\"], home: HOME });
     expect(result.allowed).toBe(false);
     expect(result.blockedBy).toBeTruthy();
   });
@@ -178,7 +183,7 @@ describe("evaluatePath — user-scoped blocklist", () => {
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(5);
+    expect(BLOCKLIST_VERSION).toBe(6);
   });
 });
 

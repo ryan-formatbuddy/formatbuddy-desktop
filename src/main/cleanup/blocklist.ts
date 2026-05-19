@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 5;
+export const BLOCKLIST_VERSION = 6;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -157,6 +157,28 @@ function includesKoreanCertificateFolder(p: string): boolean {
     });
 }
 
+function includesCloudSyncFolder(p: string): boolean {
+  return p
+    .split("\\")
+    .filter(Boolean)
+    .some((segment) => {
+      const name = segment.toLowerCase();
+      return (
+        name === "onedrive" ||
+        name.startsWith("onedrive - ") ||
+        name === "dropbox" ||
+        name === "google drive" ||
+        name === "google 드라이브" ||
+        name === "my drive" ||
+        name === "drivefs" ||
+        name === "icloud drive" ||
+        name === "iclouddrive" ||
+        name === "icloud photos" ||
+        name === "icloudphotos"
+      );
+    });
+}
+
 /** Build the user-specific rules each time so tests can override $HOME. */
 function userScopedRules(home: string): BlockRule[] {
   const userHome = normalizePath(home);
@@ -261,6 +283,11 @@ const SYSTEM_BLOCK_RULES: BlockRule[] = [
     id: "system:korean-certificate-folders",
     label: "공동인증서/NPKI 보관 폴더",
     match: includesKoreanCertificateFolder
+  },
+  {
+    id: "system:cloud-sync-folders",
+    label: "클라우드 동기화 폴더 (OneDrive, Google Drive, Dropbox, iCloud)",
+    match: includesCloudSyncFolder
   },
   {
     id: "system:browser-profile-root",
