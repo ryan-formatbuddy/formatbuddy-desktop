@@ -17,6 +17,13 @@ describe("runUninstall", () => {
     expect(canLaunchUninstall({ appName: "Slack", mode: "quiet" }, baseApp, "win32")).toBe(false);
     expect(
       canLaunchUninstall(
+        { appName: "Slack", mode: "quiet" },
+        { ...baseApp, quietUninstallString: "unins000.exe /S" },
+        "win32"
+      )
+    ).toBe(false);
+    expect(
+      canLaunchUninstall(
         { appName: "Runtime" },
         { ...baseApp, systemComponent: true },
         "win32"
@@ -48,19 +55,24 @@ describe("runUninstall", () => {
     expect(result.detail).toMatch(/pid=1234/);
   });
 
-  it("uses quietUninstallString in quiet mode and rejects when missing", async () => {
+  it("blocks quiet uninstall mode even when a quiet command exists", async () => {
     const noisy = { ...baseApp, quietUninstallString: "unins000.exe /S" };
-    const ok = await runUninstall(
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1 });
+    const result = await runUninstall(
       { appName: noisy.name, mode: "quiet" },
-      { findApp: () => noisy, spawnCmd: vi.fn().mockResolvedValue({ pid: 1 }), platform: "win32" }
+      { findApp: () => noisy, spawnCmd, platform: "win32" }
     );
-    expect(ok.status).toBe("launched");
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/Windows 제거 마법사|직접 확인/);
+    expect(result.detail).toBe("quiet-uninstall-blocked");
+    expect(spawnCmd).not.toHaveBeenCalled();
 
     const missing = await runUninstall(
       { appName: baseApp.name, mode: "quiet" },
       { findApp: () => baseApp, spawnCmd: vi.fn(), platform: "win32" }
     );
-    expect(missing.status).toBe("no-uninstall-string");
+    expect(missing.status).toBe("blocked");
+    expect(missing.detail).toBe("quiet-uninstall-blocked");
   });
 
   it("returns app-not-found when the cached scan has no match", async () => {

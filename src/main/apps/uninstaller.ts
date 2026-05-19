@@ -17,7 +17,8 @@
  *   - it must not be flagged systemComponent=true
  *   - the resolved string must not be empty / whitespace
  *   - it must not include cmd control, expansion, or escape syntax
- *   - we never run quietUninstallString unless the caller opted in
+ *   - we never run quietUninstallString; FormatBuddy only opens the
+ *     interactive Windows uninstall wizard so the user can confirm
  *
  * After spawning, the process detaches — we don't wait for Windows'
  * GUI uninstaller to finish, and we don't capture its stdio (it
@@ -152,13 +153,10 @@ export function canLaunchUninstall(
   platform: NodeJS.Platform = process.platform
 ): boolean {
   if (platform !== "win32") return false;
+  if (request.mode === "quiet") return false;
   if (!app) return false;
   if (app.systemComponent === true) return false;
-  const mode = request.mode ?? "interactive";
-  const chosen =
-    mode === "quiet"
-      ? app.quietUninstallString || ""
-      : app.uninstallString || "";
+  const chosen = app.uninstallString || "";
   return chosen.trim().length > 0 && !isUnsafeUninstallCommand(chosen);
 }
 
@@ -214,19 +212,21 @@ export async function runUninstall(
   }
 
   const mode = request.mode ?? "interactive";
-  const chosen =
-    mode === "quiet"
-      ? app.quietUninstallString || ""
-      : app.uninstallString || "";
+  if (mode === "quiet") {
+    return {
+      status: "blocked",
+      appName: request.appName,
+      message: "포맷버디는 Windows 제거 마법사만 띄워요. 제거 여부는 직접 확인해주세요.",
+      detail: "quiet-uninstall-blocked"
+    };
+  }
+  const chosen = app.uninstallString || "";
 
   if (!chosen.trim()) {
     return {
       status: "no-uninstall-string",
       appName: request.appName,
-      message:
-        mode === "quiet"
-          ? "자동 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
-          : "Windows 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
+      message: "Windows 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
     };
   }
 
@@ -244,10 +244,7 @@ export async function runUninstall(
     return {
       status: "launched",
       appName: request.appName,
-      message:
-        mode === "quiet"
-          ? "자동 제거를 시작했어요. 진행 상태는 Windows 알림에서 확인해주세요."
-          : "Windows 제거 마법사를 띄웠어요. 진행 여부는 마법사에서 직접 결정해주세요.",
+      message: "Windows 제거 마법사를 띄웠어요. 진행 여부는 마법사에서 직접 결정해주세요.",
       detail: result.pid ? `pid=${result.pid}` : undefined
     };
   } catch (err) {
