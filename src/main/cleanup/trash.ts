@@ -182,6 +182,20 @@ export function isManagedTrashStoredPath(userDataDir: string, candidatePath: str
   return candidate.startsWith(`${root}\\`);
 }
 
+export function isManagedTrashEntryStoredPath(
+  userDataDir: string,
+  entryId: string,
+  candidatePath: string
+): boolean {
+  const items = normalizePath(resolve(itemsRoot(userDataDir)));
+  const entry = normalizePath(resolve(entryDir(userDataDir, entryId)));
+  if (!(entry === items || entry.startsWith(`${items}\\`))) return false;
+
+  const files = normalizePath(resolve(entryDir(userDataDir, entryId), "files"));
+  const candidate = normalizePath(resolve(candidatePath));
+  return candidate === files || candidate.startsWith(`${files}\\`);
+}
+
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);

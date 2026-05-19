@@ -36,7 +36,7 @@ import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
-import { isManagedTrashStoredPath, moveToFormatBuddyTrash } from "./trash";
+import { isManagedTrashEntryStoredPath, isManagedTrashStoredPath, moveToFormatBuddyTrash } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
 
@@ -306,6 +306,9 @@ async function attemptItem(
       }
       if (!isManagedTrashStoredPath(context.userDataDir, trashEntry.storedPath)) {
         throw new Error("FormatBuddy stored trash path is outside the managed restore bin");
+      }
+      if (!isManagedTrashEntryStoredPath(context.userDataDir, trashEntry.id, trashEntry.storedPath)) {
+        throw new Error("FormatBuddy stored trash path is outside the restore entry folder");
       }
     }
     return {

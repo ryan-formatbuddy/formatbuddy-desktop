@@ -72,11 +72,12 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   const deps: ExecutorDeps = {
     trashItem: async (item, _sizeBytes, context) => {
       trashed.push(item.path);
-      const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", `spy-${item.id}`, "files", "stored");
+      const entryId = `trash-${item.id}`;
+      const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", entryId, "files", "stored");
       await fs.mkdir(join(storedPath, ".."), { recursive: true });
       await fs.writeFile(storedPath, "stored", "utf8");
       await fs.rm(item.path, { recursive: true, force: true });
-      return { id: `trash-${item.id}`, expiresAt: trashExpiresAt, storedPath };
+      return { id: entryId, expiresAt: trashExpiresAt, storedPath };
     },
     permanentRemove: async (p) => {
       permanently.push(p);
@@ -472,7 +473,7 @@ describe("executeCleanup", () => {
 
   it("does not count trash mode as successful without a valid restore expiry", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
-    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "bad-expiry", "files", "old.tmp");
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "trash-without-expiry", "files", "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({
@@ -565,9 +566,51 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/managed restore bin/i);
   });
 
+  it("does not count trash mode as successful when the stored path belongs to a different restore entry", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const storedPath = join(
+      fx.userData,
+      "formatbuddy-trash",
+      "items",
+      "different-entry",
+      "files",
+      "old.tmp"
+    );
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(storedPath, "stored in another entry", "utf8");
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: "expected-entry",
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          storedPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect(await fs.readFile(storedPath, "utf8")).toBe("stored in another entry");
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/restore entry folder/i);
+  });
+
   it("does not count trash mode as successful when the original path still exists", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
-    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "source-left", "files", "old.tmp");
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "trash-but-source-left", "files", "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({
