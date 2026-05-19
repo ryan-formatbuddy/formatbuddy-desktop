@@ -21,6 +21,7 @@ import type {
   ScanError,
   ScanProgress,
   ScanReport,
+  ScanStartRequest,
   ScanResult
 } from "@shared/types";
 
@@ -184,14 +185,14 @@ export function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const startScan = useCallback(async () => {
+  const startScan = useCallback(async (opts: ScanStartRequest = {}) => {
     if (!window.fb) {
       setPhase({ kind: "error", error: { message: "Electron 브리지를 찾지 못했어요." } });
       return;
     }
     setPhase({ kind: "scanning", progress: INITIAL_PROGRESS });
     try {
-      const result = await window.fb.startScan();
+      const result = await window.fb.startScan(opts);
       if (result.appState) setAppState(result.appState);
       setPhase({ kind: "report", result });
     } catch {
@@ -346,6 +347,7 @@ export function App() {
             onOpenAppManager={() => setPhase({ kind: "apps" })}
             onOpenSecurity={() => setPhase({ kind: "security" })}
             onRescan={() => void startScan()}
+            onQuickRescan={() => void startScan({ fast: true })}
           />
         );
       case "cleanup":

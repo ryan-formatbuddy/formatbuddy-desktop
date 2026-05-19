@@ -151,6 +151,13 @@ interface ReportProps {
   onOpenAppManager?: () => void;
   onOpenSecurity?: () => void;
   onRescan?: () => void;
+  /**
+   * v2.0 (D-37) — opt-in fast rescan. If main has a fresh cached scan
+   * (<1h since the last fresh run) this replays it without spawning
+   * PowerShell. cleanup:execute / apps:uninstall invalidate the cache
+   * automatically (D-34), so this button never serves stale data.
+   */
+  onQuickRescan?: () => void;
 }
 
 interface RowProps {
@@ -729,7 +736,7 @@ function SmartCareOverview({ result, appState }: { result: ScanResult; appState?
   );
 }
 
-export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager, onOpenSecurity, onRescan }: ReportProps) {
+export function Report({ result, onBack, appPlatform = "unknown", appState, onOpenCleanup, onOpenAppManager, onOpenSecurity, onRescan, onQuickRescan }: ReportProps) {
   const { report, recommendation } = result;
   const isWindows = appPlatform === "win32";
   const initialIgnoreList = appState?.ignoreList ?? result.appState?.ignoreList ?? { cleanupItemIds: [], pathHints: [] };
@@ -1057,9 +1064,16 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             <article className="fb-card fb-card-hover">
               <h3 style={{ marginTop: 0 }}>{copy.nextStepsRescan}</h3>
               <p style={{ fontSize: 13 }}>{copy.nextStepsRescanHint}</p>
-              <Button variant="primary" size="sm" onClick={onRescan}>
-                다시 점검
-              </Button>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <Button variant="primary" size="sm" onClick={onRescan}>
+                  다시 점검
+                </Button>
+                {onQuickRescan && (
+                  <Button variant="ghost" size="sm" onClick={onQuickRescan}>
+                    ⚡ 빠르게 (캐시)
+                  </Button>
+                )}
+              </div>
             </article>
           )}
         </div>
