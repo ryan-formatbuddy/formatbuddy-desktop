@@ -57,6 +57,15 @@ describe("enforceProductCleanupPolicy", () => {
     ).toThrow(/정리 계획/);
   });
 
+  it("blocks duplicate cleanup selections before execution can start", () => {
+    expect(() =>
+      enforceProductCleanupPolicy({
+        ...request("trash"),
+        selectedItemIds: ["item", "item"]
+      })
+    ).toThrow(/중복|선택한 항목/);
+  });
+
   it("blocks unknown cleanup modes at the product IPC boundary", () => {
     expect(() =>
       enforceProductCleanupPolicy({
@@ -99,5 +108,14 @@ describe("enforceAppLeftoversCleanupPolicy", () => {
         confirmationToken: ""
       })
     ).toThrow(/앱 잔여 정리 계획|정리 계획/);
+  });
+
+  it("blocks duplicate app leftovers selections before execution can start", () => {
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        selectedPathIds: ["path-1", "path-1"]
+      })
+    ).toThrow(/중복|앱 잔여 항목|선택한 항목/);
   });
 });

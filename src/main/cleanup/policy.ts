@@ -4,6 +4,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function hasDuplicates(values: string[]): boolean {
+  return new Set(values).size !== values.length;
+}
+
 export function enforceProductCleanupPolicy(
   request: CleanupExecuteRequest
 ): CleanupExecuteRequest {
@@ -16,6 +20,9 @@ export function enforceProductCleanupPolicy(
     !request.selectedItemIds.every(isNonEmptyString)
   ) {
     throw new Error("선택한 항목을 확인하지 못했어요. 정리할 항목을 다시 선택해주세요.");
+  }
+  if (hasDuplicates(request.selectedItemIds)) {
+    throw new Error("선택한 항목에 중복이 있어요. 정리할 항목을 다시 선택해주세요.");
   }
   if (request.mode === "permanent") {
     throw new Error(
@@ -41,6 +48,9 @@ export function enforceAppLeftoversCleanupPolicy(
     !request.selectedPathIds.every(isNonEmptyString)
   ) {
     throw new Error("선택한 앱 잔여 항목을 확인하지 못했어요. 정리할 항목을 다시 선택해주세요.");
+  }
+  if (hasDuplicates(request.selectedPathIds)) {
+    throw new Error("선택한 앱 잔여 항목에 중복이 있어요. 정리할 항목을 다시 선택해주세요.");
   }
 
   return request;
