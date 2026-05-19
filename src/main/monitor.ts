@@ -63,7 +63,9 @@ export function defaultPrefs(): MonitorPreferences {
     restorePointEnabled: true,
     // D-31 — system follow by default so a fresh install picks up
     // whichever theme the OS is already in without any opt-in click.
-    themeMode: DEFAULT_THEME_MODE
+    themeMode: DEFAULT_THEME_MODE,
+    // D-32 — telemetry stays OFF until the user explicitly opts in.
+    telemetryOptIn: false
   };
 }
 
@@ -87,6 +89,9 @@ function coerce(value: unknown): MonitorPreferences {
     // keeps the safety net. Older state files without the field opt in.
     restorePointEnabled: prefs?.restorePointEnabled !== false,
     themeMode: coerceThemeMode(prefs?.themeMode),
+    // Strict opt-in: only the explicit boolean true keeps telemetry on.
+    // Any other shape (undefined, "true", 1, etc.) collapses to false.
+    telemetryOptIn: prefs?.telemetryOptIn === true,
     lastReminderAt:
       typeof prefs?.lastReminderAt === "string" ? prefs.lastReminderAt : undefined,
     updatedAt: typeof prefs?.updatedAt === "string" ? prefs.updatedAt : undefined
@@ -135,6 +140,9 @@ export async function updatePrefs(
       : {}),
     ...(patch.themeMode !== undefined
       ? { themeMode: coerceThemeMode(patch.themeMode) }
+      : {}),
+    ...(patch.telemetryOptIn !== undefined
+      ? { telemetryOptIn: patch.telemetryOptIn === true }
       : {})
   };
   return savePrefs(userDataDir, next);

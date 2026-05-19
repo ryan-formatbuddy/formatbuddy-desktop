@@ -1123,9 +1123,9 @@ export type UpdateChannel = "stable" | "beta";
  *   "light"  : force the light token set even on a dark OS.
  *   "dark"   : force the dark token set even on a light OS.
  *
- * Renderer translates this into a body class (`theme-light` /
- * `theme-dark`) which the dark @media block in globals.css respects
- * via a `:where(:root[data-theme="dark"], …)` companion selector.
+ * Renderer translates this into `<html data-theme="light|dark">`.
+ * For "system", the renderer watches `prefers-color-scheme` and keeps
+ * that same attribute in sync so the CSS has one source of truth.
  */
 export type ThemeMode = "system" | "light" | "dark";
 
@@ -1150,6 +1150,16 @@ export interface MonitorPreferences {
   restorePointEnabled: boolean;
   /** v2.0 (D-31) — manual theme override; defaults to "system". */
   themeMode: ThemeMode;
+  /**
+   * v2.0 (D-32 / F2) — anonymous, opt-in telemetry. Default OFF.
+   * When true, FormatBuddy is allowed to send aggregate counts (scan
+   * count, cleanup category bytes freed, app uninstall count, error
+   * counts, Windows version bucket) to the FormatBuddy team. No file
+   * names, no paths, no app names, no IP. The transport is gated on
+   * a follow-up round; this round just lands the persistence so the
+   * UI toggle has somewhere to write.
+   */
+  telemetryOptIn: boolean;
   updatedAt?: string;
 }
 
@@ -1160,4 +1170,5 @@ export interface UpdateMonitorPreferencesRequest {
   updateChannel?: UpdateChannel;
   restorePointEnabled?: boolean;
   themeMode?: ThemeMode;
+  telemetryOptIn?: boolean;
 }

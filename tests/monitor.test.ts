@@ -38,6 +38,10 @@ describe("defaultPrefs", () => {
   it("defaults themeMode to system", () => {
     expect(defaultPrefs().themeMode).toBe("system");
   });
+
+  it("defaults telemetryOptIn to false (strict opt-in)", () => {
+    expect(defaultPrefs().telemetryOptIn).toBe(false);
+  });
 });
 
 describe("coerce + clampReminderDays", () => {
@@ -166,6 +170,22 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     expect(next.themeMode).toBe("light");
     next = await updatePrefs(dir, { themeMode: "system" });
     expect(next.themeMode).toBe("system");
+  });
+
+  it("updatePrefs flips telemetryOptIn on and back off", async () => {
+    await savePrefs(dir, prefs());
+    let next = await updatePrefs(dir, { telemetryOptIn: true });
+    expect(next.telemetryOptIn).toBe(true);
+    next = await updatePrefs(dir, { telemetryOptIn: false });
+    expect(next.telemetryOptIn).toBe(false);
+  });
+
+  it("coerces non-boolean telemetryOptIn to false (strict opt-in)", () => {
+    // coerce() accepts `unknown`, so passing string/numeric values
+    // here mimics a tampered-with prefs file on disk.
+    expect(__testing.coerce({ telemetryOptIn: "true" }).telemetryOptIn).toBe(false);
+    expect(__testing.coerce({ telemetryOptIn: 1 }).telemetryOptIn).toBe(false);
+    expect(__testing.coerce({ telemetryOptIn: true }).telemetryOptIn).toBe(true);
   });
 
   it("coerces a garbage updateChannel back to 'stable'", async () => {

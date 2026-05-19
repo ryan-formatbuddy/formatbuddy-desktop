@@ -114,6 +114,17 @@ function MonitorPrefsCard() {
         </select>
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={prefs.telemetryOptIn}
+          disabled={busy}
+          onChange={(e) => void update({ telemetryOptIn: e.target.checked })}
+        />
+        <span>
+          향후 익명 사용 통계 허용 (기본 꺼짐 — 아직 전송 기능은 없어요)
+        </span>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
         <span>화면 모드:</span>
         <select
           value={prefs.themeMode}
