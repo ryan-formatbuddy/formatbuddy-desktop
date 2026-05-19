@@ -38,6 +38,7 @@ import type {
 } from "@shared/types";
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
+import { enforceProductCleanupPolicy } from "./cleanup/policy";
 import { getCleanupHistory } from "./cleanup/log";
 import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
 import { purgeExpiredTrashWithAudit } from "./cleanup/trashAudit";
@@ -685,11 +686,12 @@ function registerIpc() {
       const userDataDir = app.getPath("userData");
       const deps = defaultDeps(userDataDir);
       try {
+        const safeRequest = enforceProductCleanupPolicy(request);
         // Safety net first. If the prefs disabled this, the helper
         // logs + returns silently. We never block cleanup on the
         // restore point succeeding.
-        await maybeCreateRestorePoint(`정리 실행 (${request.mode})`);
-        const result = await executeCleanup(request, {
+        await maybeCreateRestorePoint(`정리 실행 (${safeRequest.mode})`);
+        const result = await executeCleanup(safeRequest, {
           userDataDir,
           deps
         });
