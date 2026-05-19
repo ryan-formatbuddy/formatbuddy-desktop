@@ -218,6 +218,15 @@ async function validateLivePath(
   return undefined;
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function attemptItem(
   item: CleanupItem,
   mode: CleanupExecuteMode,
@@ -279,6 +288,9 @@ async function attemptItem(
       throw new Error("FormatBuddy restore entry was not created");
     }
     if (mode === "permanent") await deps.permanentRemove(item.path);
+    if (await pathExists(item.path)) {
+      throw new Error("Source path still exists after cleanup");
+    }
     return {
       removed: {
         itemId: item.id,
