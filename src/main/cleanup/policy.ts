@@ -1,4 +1,4 @@
-import type { CleanupExecuteRequest } from "@shared/types";
+import type { AppLeftoversCleanupRequest, CleanupExecuteRequest } from "@shared/types";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -24,6 +24,23 @@ export function enforceProductCleanupPolicy(
   }
   if (request.mode !== "trash") {
     throw new Error("포맷버디 정리는 30일 복구함으로 보내는 방식만 지원해요.");
+  }
+
+  return request;
+}
+
+export function enforceAppLeftoversCleanupPolicy(
+  request: AppLeftoversCleanupRequest
+): AppLeftoversCleanupRequest {
+  if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
+    throw new Error("앱 잔여 정리 계획을 확인하지 못했어요. 다시 점검한 뒤 정리해주세요.");
+  }
+  if (
+    !Array.isArray(request.selectedPathIds) ||
+    request.selectedPathIds.length === 0 ||
+    !request.selectedPathIds.every(isNonEmptyString)
+  ) {
+    throw new Error("선택한 앱 잔여 항목을 확인하지 못했어요. 정리할 항목을 다시 선택해주세요.");
   }
 
   return request;

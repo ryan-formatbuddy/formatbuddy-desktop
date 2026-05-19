@@ -42,7 +42,7 @@ import type {
 } from "@shared/types";
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
-import { enforceProductCleanupPolicy } from "./cleanup/policy";
+import { enforceAppLeftoversCleanupPolicy, enforceProductCleanupPolicy } from "./cleanup/policy";
 import {
   normalizeCleanupTrashRestoreRequest,
   normalizeRegistryBackupRestoreRequest
@@ -978,6 +978,7 @@ function registerIpc() {
     async (_e, request: AppLeftoversCleanupRequest): Promise<CleanupExecuteResult> => {
       const userDataDir = app.getPath("userData");
       try {
+        const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request);
         await maybeCreateRestorePoint("앱 잔여 폴더 정리");
         await purgeExpiredRegistryBackupsWithAudit({
           userDataDir,
@@ -985,7 +986,7 @@ function registerIpc() {
         }).catch((err) => {
           log.warn("registry-backup:purge-before-app-leftovers failed:", (err as Error).message);
         });
-        const result = await cleanupAppLeftovers(request, {
+        const result = await cleanupAppLeftovers(safeLeftoversRequest, {
           userDataDir,
           onFollowupCleaned: async (cleanedApp) => {
             forgetRecentlyUninstallLaunchedApp(cleanedApp);

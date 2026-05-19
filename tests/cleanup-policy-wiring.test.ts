@@ -31,4 +31,20 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("entryId: safeRequest.entryId");
     expect(source).toContain("backupId: safeRequest.backupId");
   });
+
+  it("enforces the app leftovers cleanup policy before creating restore points", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("enforceAppLeftoversCleanupPolicy");
+    expect(source).toContain(
+      "const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request)"
+    );
+    expect(source).toContain("cleanupAppLeftovers(safeLeftoversRequest");
+
+    const policyIndex = source.indexOf("const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request)");
+    const restoreIndex = source.indexOf('await maybeCreateRestorePoint("앱 잔여 폴더 정리")');
+    expect(policyIndex).toBeGreaterThanOrEqual(0);
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(policyIndex).toBeLessThan(restoreIndex);
+  });
 });

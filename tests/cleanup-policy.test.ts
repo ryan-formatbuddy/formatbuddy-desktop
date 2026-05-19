@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { enforceProductCleanupPolicy } from "../src/main/cleanup/policy";
-import type { CleanupExecuteRequest } from "../src/shared/types";
+import {
+  enforceAppLeftoversCleanupPolicy,
+  enforceProductCleanupPolicy
+} from "../src/main/cleanup/policy";
+import type { AppLeftoversCleanupRequest, CleanupExecuteRequest } from "../src/shared/types";
 
 function request(mode: CleanupExecuteRequest["mode"]): CleanupExecuteRequest {
   return {
@@ -8,6 +11,14 @@ function request(mode: CleanupExecuteRequest["mode"]): CleanupExecuteRequest {
     confirmationToken: "token",
     selectedItemIds: ["item"],
     mode
+  };
+}
+
+function leftoversRequest(): AppLeftoversCleanupRequest {
+  return {
+    planId: "leftovers-plan",
+    confirmationToken: "leftovers-token",
+    selectedPathIds: ["path-1"]
   };
 }
 
@@ -53,5 +64,40 @@ describe("enforceProductCleanupPolicy", () => {
         mode: "wipe-now"
       } as unknown as CleanupExecuteRequest)
     ).toThrow(/30일 복구함/);
+  });
+});
+
+describe("enforceAppLeftoversCleanupPolicy", () => {
+  it("allows a confirmed app leftovers cleanup request", () => {
+    const input = leftoversRequest();
+
+    expect(enforceAppLeftoversCleanupPolicy(input)).toBe(input);
+  });
+
+  it("blocks malformed app leftovers requests before execution can start", () => {
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({ ...leftoversRequest(), selectedPathIds: [] })
+    ).toThrow(/앱 잔여 항목|선택한 항목/);
+
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        selectedPathIds: ["path-1", 123]
+      } as unknown as AppLeftoversCleanupRequest)
+    ).toThrow(/앱 잔여 항목|선택한 항목/);
+
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        planId: ""
+      })
+    ).toThrow(/앱 잔여 정리 계획|정리 계획/);
+
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        confirmationToken: ""
+      })
+    ).toThrow(/앱 잔여 정리 계획|정리 계획/);
   });
 });
