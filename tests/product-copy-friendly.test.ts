@@ -26,6 +26,13 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("Blocklist 버전");
     expect(source).not.toContain("PowerShell을 다시 돌리지");
     expect(source).not.toContain("레지스트리 하이브");
+    expect(source).not.toContain("Get-CimInstance");
+    expect(source).not.toContain("Start-MpScan");
+    expect(source).not.toContain("cmd.exe /c");
+    expect(source).not.toContain("HKLM/HKCU");
+    expect(source).not.toContain("formatbuddy-trash/items");
+    expect(source).toContain("Windows가 제공하는 기본 제거 화면으로 연결해요");
+    expect(source).toContain("포맷버디 복구함 안에 30일 동안 보관해요");
   });
 
   it("uses friendly 30-day restore-bin language instead of permanent-delete wording", () => {

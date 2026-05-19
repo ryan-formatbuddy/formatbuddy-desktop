@@ -8,7 +8,7 @@ interface PermissionsProps {
 interface PermissionItem {
   what: string;
   why: string;
-  /** PowerShell command, registry path, or API name we actually touch. */
+  /** Plain-Korean summary of what FormatBuddy actually touches. */
   evidence?: string;
 }
 
@@ -22,7 +22,7 @@ interface PermissionCategory {
 }
 
 /**
- * v2.0 — Permissions manifest. Everything FormatBuddy does on the user's
+ * v2.0 — Permissions screen. Everything FormatBuddy does on the user's
  * PC is listed here in plain Korean. We update this list any time a new
  * action lands (cleanup engine, app uninstaller, defender bridge, etc.)
  * so a user can answer "이 앱이 내 PC에서 정확히 뭘 해?" in one screen.
@@ -45,42 +45,42 @@ const CATEGORIES: PermissionCategory[] = [
       {
         what: "디스크/메모리/CPU 정보",
         why: "PC 상태를 점수로 알려드리기 위해서요.",
-        evidence: "Get-CimInstance Win32_OperatingSystem / Win32_LogicalDisk"
+        evidence: "PC 모델, 저장공간, 메모리 같은 기본 상태만 확인해요."
       },
       {
         what: "설치된 프로그램 목록",
         why: "포맷 후 다시 깔 앱과 정리 후보를 보여드리기 위해서요.",
-        evidence: "HKLM/HKCU\\Software\\…\\Uninstall (이름·버전·제조사만)"
+        evidence: "프로그램 이름, 버전, 만든 회사 정보만 확인해요."
       },
       {
         what: "Windows 업데이트 / 이벤트 로그 / 드라이버 날짜",
         why: "PC가 얼마나 지쳐 있는지 객관적으로 보여드리기 위해서요.",
-        evidence: "Get-CimInstance Win32_QuickFixEngineering / Get-WinEvent"
+        evidence: "최근 업데이트와 반복 오류가 있는지만 살펴봐요."
       },
       {
         what: "사용자 폴더의 파일 이름·크기·수정 시각",
         why: "큰 파일과 중복 후보를 보여드리기 위해서요.",
-        evidence: "Get-ChildItem (Desktop / Documents / Downloads / Videos …)"
+        evidence: "바탕화면, 문서, 다운로드 같은 폴더의 이름과 크기만 확인해요."
       },
       {
         what: "Windows 보안 (Defender) 상태",
         why: "실시간 보호가 켜져 있는지, 마지막 검사 날짜가 언제인지 보여드리기 위해서요.",
-        evidence: "Get-MpComputerStatus / Get-MpThreatDetection"
+        evidence: "Windows 보안 화면에서 볼 수 있는 보호 상태만 확인해요."
       },
       {
         what: "공동인증서(NPKI) / 클라우드 / Wi-Fi 프로필 존재 여부",
         why: "포맷 전에 챙겨야 할 항목을 안내하기 위해서요.",
-        evidence: "Test-Path NPKI / netsh wlan show profiles (이름만)"
+        evidence: "폴더가 있는지와 저장된 Wi-Fi 이름만 확인해요. 비밀번호는 보지 않아요."
       },
       {
         what: "브라우저 설치 여부 / 북마크 파일 존재 여부",
         why: "포맷 전에 챙길 브라우저를 표시하기 위해서요.",
-        evidence: "Test-Path Chrome / Edge / Whale / Firefox 폴더"
+        evidence: "브라우저가 설치되어 있는지와 북마크 파일이 있는지만 확인해요."
       },
       {
         what: "1시간 이내 같은 점검 결과 (메모리 캐시)",
         why: "사용자가 '빠른 다시 점검'을 누르면 방금 확인한 결과를 그대로 보여주기 위해서요.",
-        evidence: "main/lastScan.ts (in-memory, 1시간 TTL, 앱 재시작 시 사라짐)"
+        evidence: "앱 안의 임시 기록이라 앱을 껐다 켜면 사라져요."
       }
     ]
   },
@@ -94,22 +94,22 @@ const CATEGORIES: PermissionCategory[] = [
       {
         what: "점검 기록 / 정리 후보 무시 목록 / 모니터 설정 (테마/알림/텔레메트리 옵션)",
         why: "이전 결과와 비교하고, 켜둔 알림·테마 선택을 다음 실행에 그대로 이어가기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-state.json + formatbuddy-monitor-prefs.json"
+        evidence: "포맷버디 앱 데이터 폴더 안에만 저장해요."
       },
       {
         what: "정리/제거 실행 기록 (감사 로그)",
         why: "내가 뭘 정리했는지 나중에 확인할 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-cleanup-log.json + formatbuddy-audit-log.json"
+        evidence: "앱 안의 활동 기록 화면에서 다시 확인할 수 있어요."
       },
       {
         what: "포맷버디 복구함 (30일 보관 후 자동 비움)",
         why: "안전 정리에서 보낸 파일을 30일 안에 한 번에 되돌릴 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash/items/<entryId>/files/… + trash-index.json (30일 뒤 자동으로 비워요)"
+        evidence: "포맷버디 복구함 안에 30일 동안 보관해요."
       },
       {
         what: "사용자가 선택한 위치에 진단 리포트(HTML/JSON) 또는 드라이버/Wi-Fi 백업 저장",
         why: "공유하거나 따로 보관하기 위해서요. 저장은 Ryan이 직접 위치를 골라야 진행해요.",
-        evidence: "dialog.showSaveDialog / showOpenDialog → fs.writeFile / pnputil / netsh"
+        evidence: "Ryan이 고른 저장 위치에만 파일을 만들어요."
       }
     ]
   },
@@ -123,22 +123,22 @@ const CATEGORIES: PermissionCategory[] = [
       {
         what: "선택한 파일을 포맷버디 복구함으로 이동",
         why: "안전 정리 후보 중 사용자가 직접 체크한 항목만 보내고, 30일 동안 앱 안에서 되돌릴 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash (30일 뒤 자동으로 비워요)"
+        evidence: "체크한 항목만 포맷버디 복구함으로 보내요."
       },
       {
         what: "Windows 기본 제거 마법사 실행",
         why: "사용자가 앱 매니저에서 '제거' 버튼을 눌렀을 때만요.",
-        evidence: "cmd.exe /c <UninstallString> (cached scan에서 main이 lookup)"
+        evidence: "Windows가 제공하는 기본 제거 화면으로 연결해요."
       },
       {
         what: "Windows Defender 빠른 검사 시작",
         why: "사용자가 보안 페이지에서 '검사 시작' 버튼을 눌렀을 때만요.",
-        evidence: "Start-MpScan -ScanType QuickScan (detached, Windows Security UI 사용)"
+        evidence: "Windows 보안의 빠른 검사 기능을 열어 실행해요."
       },
       {
         what: "Windows 설정 화면 열기",
         why: "Windows 업데이트·저장 공간·앱 목록 같은 기본 화면으로 안내하기 위해서요.",
-        evidence: "shell.openExternal(ms-settings:…, windowsdefender:…)"
+        evidence: "Windows 기본 설정 화면으로 연결해요."
       }
     ]
   },
@@ -152,27 +152,27 @@ const CATEGORIES: PermissionCategory[] = [
       {
         what: "비밀번호 / 인증서 개인키 / 브라우저 Login Data 읽기",
         why: "필요 없어요. 위치만 보고 폴더 존재 여부만 확인해요.",
-        evidence: "blocklist.ts — Login Data / Cookies / NPKI 절대 차단"
+        evidence: "민감한 경로는 정리 후보에서도 제외해요."
       },
       {
         what: "파일 몰래 정리",
         why: "정리는 항상 사용자 명시 선택 + 휴지통 이동이 기본이에요.",
-        evidence: "cleanup/executor.ts requires confirmationToken + selectedItemIds"
+        evidence: "직접 고른 항목만 확인 후 복구함으로 보내요."
       },
       {
         what: "결과·로그 외부 서버 전송",
         why: "현재 외부로 보내는 코드 자체가 없어요. 모든 처리가 로컬이고, 사용자가 직접 저장한 리포트만 공유돼요.",
-        evidence: "텔레메트리 옵션은 기본 OFF + 현재 transport 미구현 (켜도 보낼 곳 없음). 향후 도입 시에도 익명 합계만, 파일/경로/앱 이름 X."
+        evidence: "인터넷으로 보내는 기능은 현재 들어가 있지 않아요."
       },
       {
         what: "백신처럼 위협 직접 치료",
         why: "Windows Defender의 작업만 그대로 표시해요.",
-        evidence: "ui-tone-guard.test.ts blocks 치료/감염/제거 완료 카피"
+        evidence: "Windows 보안에서 확인한 결과만 쉽게 보여줘요."
       },
       {
         what: "관리자 권한 없이 시스템 폴더 변경",
         why: "System32 / Program Files / Windows 핵심 설정 영역은 모두 차단 경로에 있어요.",
-        evidence: "blocklist.ts SYSTEM_BLOCK_RULES"
+        evidence: "Windows 핵심 폴더는 정리 대상에서 막아둬요."
       }
     ]
   }
@@ -243,10 +243,10 @@ export function Permissions({ onBack }: PermissionsProps) {
                       fontSize: 11,
                       opacity: 0.55,
                       marginTop: 4,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+                      fontFamily: "inherit"
                     }}
                   >
-                    {item.evidence}
+                    확인 방식: {item.evidence}
                   </div>
                 )}
               </li>
