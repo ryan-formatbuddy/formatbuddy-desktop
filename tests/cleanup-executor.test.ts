@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultDeps, executeCleanup, type ExecutorDeps } from "../src/main/cleanup/executor";
+import {
+  defaultDeps,
+  executeCleanup,
+  __testing as executorTesting,
+  type ExecutorDeps
+} from "../src/main/cleanup/executor";
 import {
   consumePlan,
   planCleanup,
@@ -847,9 +852,9 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/still exists/i);
   });
 
-  it("routes the recycle-bin sentinel to emptyRecycleBin and counts as removed", async () => {
-    // The recycle-bin category lives at the top of every plan with one
-    // virtual item -- planning it doesn't require any disk fixture.
+  it("does not empty Windows recycle bin because it cannot enter the 30-day restore bin", async () => {
+    // The recycle-bin category is a virtual namespace. It remains visible
+    // in the plan as blocked guidance, not as an executable cleanup item.
     const plan = await planCleanup({
       env: {
         home: fx.home,
@@ -860,29 +865,26 @@ describe("executeCleanup", () => {
       }
     });
     const bin = plan.categories.find((c) => c.id === "recycle-bin")!;
-    const item = bin.items[0];
+    const item = bin.blockedItems[0];
 
     const { deps, recycleBinEmptyCount, trashed, permanently } = makeSpyDeps();
-    const result = await executeCleanup(
-      {
-        planId: plan.planId,
-        confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        // Mode is irrelevant for recycle-bin (it's always permanent) but
-        // the request still has to specify something valid.
-        mode: "trash"
-      },
-      { userDataDir: fx.userData, deps, home: fx.home }
-    );
-    expect(recycleBinEmptyCount.value).toBe(1);
+    const outcome = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
+    expect(recycleBinEmptyCount.value).toBe(0);
     expect(trashed).toEqual([]);
     expect(permanently).toEqual([]);
-    expect(result.removedItems).toHaveLength(1);
-    expect(result.removedItems[0].path).toBe("shell:recycle-bin");
-    expect(result.removedItems[0].mode).toBe("permanent");
+    expect(outcome.removed).toBeUndefined();
+    expect(outcome.skipped).toMatchObject({
+      itemId: item.id,
+      path: "shell:recycle-bin",
+      reason: "blocked-path",
+      detail: expect.stringMatching(/30일 복구함/)
+    });
   });
 
-  it("reports execute-failed if emptyRecycleBin throws (UAC denied, etc)", async () => {
+  it("does not call emptyRecycleBin even if the injected dependency would fail", async () => {
     const plan = await planCleanup({
       env: {
         home: fx.home,
@@ -893,27 +895,26 @@ describe("executeCleanup", () => {
       }
     });
     const bin = plan.categories.find((c) => c.id === "recycle-bin")!;
-    const item = bin.items[0];
+    const item = bin.blockedItems[0];
+    let called = false;
 
     const { deps } = makeSpyDeps({
       emptyRecycleBin: async () => {
+        called = true;
         throw new Error("UAC denied");
       }
     });
-    const result = await executeCleanup(
-      {
-        planId: plan.planId,
-        confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "trash"
-      },
-      { userDataDir: fx.userData, deps, home: fx.home }
-    );
-    expect(result.removedItems).toHaveLength(0);
-    const fail = result.skippedItems.find(
-      (s) => s.itemId === item.id && s.reason === "execute-failed"
-    );
-    expect(fail?.detail).toMatch(/UAC denied/);
+    const outcome = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
+    expect(called).toBe(false);
+    expect(outcome.removed).toBeUndefined();
+    expect(outcome.skipped).toMatchObject({
+      itemId: item.id,
+      reason: "blocked-path",
+      detail: expect.stringMatching(/30일 복구함/)
+    });
   });
 
   it("refuses unknown selected item ids before touching any selected file", async () => {

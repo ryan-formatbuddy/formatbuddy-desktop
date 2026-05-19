@@ -335,27 +335,24 @@ async function planDownloadsInstallersCategory(args: {
 }
 
 /**
- * v2.0 -- Recycle bin "empty" action surfaced as a planner category
- * so it flows through the same select-confirm-execute UX as everything
- * else, even though we can't measure or enumerate its contents from
- * JS-land. The single item carries a sentinel path ("shell:recycle-bin")
- * which the executor recognizes and routes to Clear-RecycleBin. We
- * skip pushCandidate() because the blocklist would correctly reject
- * the sentinel as "not under any allow-root" -- recycle bin is a
- * special namespace, not a real path.
+ * Windows Recycle Bin is a special namespace, not a real filesystem path
+ * that FormatBuddy can move into its own 30-day restore bin. We keep the
+ * category visible for transparency, but surface the sentinel as blocked so
+ * it can never be selected by the product cleanup flow.
  */
 export const RECYCLE_BIN_SENTINEL_PATH = "shell:recycle-bin";
 
 function planRecycleBinCategory(): CandidateAccumulator {
   const acc = emptyAccumulator();
-  acc.items.push({
+  acc.blocked.push({
     id: makeItemId(RECYCLE_BIN_SENTINEL_PATH),
     path: RECYCLE_BIN_SENTINEL_PATH,
     label: "Windows 휴지통 전체",
     sizeBytes: 0,
     categoryId: "recycle-bin",
-    riskLevel: "review",
-    reason: "휴지통 안의 모든 항목을 한 번에 비워요. Windows가 직접 처리해요."
+    riskLevel: "restricted",
+    reason: "Windows 휴지통은 포맷버디 30일 복구함으로 옮길 수 없어요.",
+    blockedBy: "Windows 휴지통은 직접 열어서 확인해주세요."
   });
   return acc;
 }
@@ -401,8 +398,8 @@ const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
   "recycle-bin": {
     id: "recycle-bin",
     label: "Windows 휴지통",
-    description: "휴지통에 모아둔 모든 항목을 한 번에 비워요.",
-    safetyNote: "비우면 휴지통에서 복원할 수 없어요. 미리 한 번 열어보세요.",
+    description: "Windows 휴지통은 포맷버디 복구함으로 옮기지 않고 직접 확인만 안내해요.",
+    safetyNote: "바로 비우지 않아요. Windows 휴지통을 열어 필요한 파일이 없는지 직접 확인해주세요.",
     riskLevel: "review"
   },
   "temp-user": {

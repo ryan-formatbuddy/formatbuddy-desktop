@@ -74,9 +74,11 @@ describe("planCleanup", () => {
       "large-files"
     ]);
     const recycleBin = plan.categories.find((c) => c.id === "recycle-bin");
-    expect(recycleBin?.items).toHaveLength(1);
-    expect(recycleBin?.items[0].path).toBe("shell:recycle-bin");
-    expect(recycleBin?.items[0].riskLevel).toBe("review");
+    expect(recycleBin?.items).toHaveLength(0);
+    expect(recycleBin?.blockedItems).toHaveLength(1);
+    expect(recycleBin?.blockedItems[0].path).toBe("shell:recycle-bin");
+    expect(recycleBin?.blockedItems[0].riskLevel).toBe("restricted");
+    expect(recycleBin?.safetyNote).toContain("바로 비우지 않아요");
     expect(plan.blocklistVersion).toBe(1);
   });
 

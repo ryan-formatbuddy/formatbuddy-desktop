@@ -14,8 +14,8 @@
  *   4. Real removal goes through injected `trashItem` / `permanentRemove`
  *      so tests don't touch the host filesystem.
  *
- * Default mode is "trash". Permanent removal is only used when the
- * caller explicitly opts in.
+ * Product IPC only allows "trash" mode. The internal permanent branch is
+ * kept for lower-level tests and future maintenance tools, not user flows.
  */
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
@@ -245,34 +245,19 @@ async function attemptItem(
   context: { userDataDir: string; home?: string; now?: () => Date }
 ): Promise<AttemptOutcome> {
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
-  // real filesystem path, so the blocklist whitelist check would
-  // correctly reject it. We route to emptyRecycleBin instead. The
-  // categoryId check is the second guard so a tampered plan can't
-  // smuggle a sentinel path into a different category.
+  // real filesystem path that FormatBuddy can move into its own 30-day
+  // restore bin. Older cached plans may still contain it as selectable,
+  // so refuse it here too and never route to Clear-RecycleBin.
   if (
     item.categoryId === "recycle-bin" &&
     item.path === RECYCLE_BIN_SENTINEL_PATH
   ) {
-    try {
-      await deps.emptyRecycleBin();
-    } catch (err) {
-      return {
-        skipped: {
-          itemId: item.id,
-          path: item.path,
-          reason: "execute-failed",
-          detail: (err as Error).message
-        }
-      };
-    }
     return {
-      removed: {
+      skipped: {
         itemId: item.id,
         path: item.path,
-        sizeBytes: 0,
-        categoryId: item.categoryId,
-        mode: "permanent",
-        succeeded: true
+        reason: "blocked-path",
+        detail: "Windows 휴지통은 포맷버디 30일 복구함으로 옮길 수 없어 직접 확인만 안내해요."
       }
     };
   }
