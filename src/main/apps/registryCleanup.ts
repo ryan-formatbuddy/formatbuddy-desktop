@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   InstalledApp,
   RegistryBackupEntry,
@@ -11,6 +11,7 @@ import type {
 } from "@shared/types";
 import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
+import { normalizePath } from "../cleanup/blocklist";
 
 export const REGISTRY_BACKUP_RETENTION_DAYS = 30;
 
@@ -70,6 +71,14 @@ function registryBackupItemsRoot(userDataDir: string): string {
 async function removeRegistryBackupStoreItem(root: string, name: string): Promise<void> {
   if (!isSafeRegistryBackupId(name)) return;
   await fs.rm(join(root, name), { recursive: true, force: true }).catch(() => {});
+}
+
+async function removeLinkedRegistryBackupRootIfManaged(
+  userDataDir: string,
+  linkedRoot: string
+): Promise<void> {
+  if (normalizePath(resolve(linkedRoot)) === normalizePath(resolve(userDataDir))) return;
+  await fs.rm(linkedRoot, { force: true }).catch(() => {});
 }
 
 function runRegCommand(args: string[]): Promise<void> {
@@ -333,7 +342,10 @@ async function readRegistryBackupEntryForRestore(
 async function pruneNonRestorableRegistryBackupItems(userDataDir: string): Promise<void> {
   const root = registryBackupItemsRoot(userDataDir);
   const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
-  if (linkedRoot) return;
+  if (linkedRoot) {
+    await removeLinkedRegistryBackupRootIfManaged(userDataDir, linkedRoot);
+    return;
+  }
 
   let dirs;
   try {

@@ -240,6 +240,26 @@ describe("registry leftover cleanup", () => {
     expect(await readFile(outside, "utf8")).toBe("outside stays put");
   });
 
+  it("removes a linked registry backup items folder without touching the target", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const outsideItems = join(fx.root, "outside-registry-items");
+    const outsideFile = join(outsideItems, "backup.reg");
+    await mkdir(join(root, ".."), { recursive: true });
+    await mkdir(outsideItems, { recursive: true });
+    await writeFile(outsideFile, "outside stays put", "utf8");
+    await symlink(outsideItems, root, "dir");
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(root)).toBe(false);
+    expect(await readFile(outsideFile, "utf8")).toBe("outside stays put");
+  });
+
   it("prunes registry backup folders that cannot be restored", async () => {
     const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
     await mkdir(brokenDir, { recursive: true });
