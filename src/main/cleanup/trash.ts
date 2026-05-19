@@ -138,15 +138,22 @@ async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrash
   const recovered: CleanupTrashEntry[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    const orphanDir = entryDir(userDataDir, entry.name);
     try {
-      const raw = await readFile(join(entryDir(userDataDir, entry.name), "manifest.json"), "utf8");
+      const raw = await readFile(join(orphanDir, "manifest.json"), "utf8");
       const coerced = coerceEntry(JSON.parse(raw));
-      if (!coerced) continue;
-      if (!isManifestEntrySelfContained(userDataDir, entry.name, coerced)) continue;
-      if (!(await exists(coerced.storedPath))) continue;
+      if (!coerced || !isManifestEntrySelfContained(userDataDir, entry.name, coerced)) {
+        await rm(orphanDir, { recursive: true, force: true }).catch(() => {});
+        continue;
+      }
+      if (!(await exists(coerced.storedPath))) {
+        await rm(orphanDir, { recursive: true, force: true }).catch(() => {});
+        continue;
+      }
       recovered.push(coerced);
     } catch {
       // A broken manifest should not hide the rest of the restore bin.
+      await rm(orphanDir, { recursive: true, force: true }).catch(() => {});
     }
   }
   return recovered;
@@ -252,8 +259,9 @@ export async function moveToFormatBuddyTrash(
     expiresAt: expiryFor(now)
   };
 
-  await movePath(options.item.path, storedPath);
+  await mkdir(targetDir, { recursive: true });
   await writeFile(join(targetDir, "manifest.json"), JSON.stringify(entry, null, 2), "utf8");
+  await movePath(options.item.path, storedPath);
 
   const index = await loadIndex(options.userDataDir);
   index.entries = [entry, ...index.entries.filter((e) => e.id !== entry.id)];

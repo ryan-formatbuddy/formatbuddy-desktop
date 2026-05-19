@@ -191,7 +191,8 @@ describe("FormatBuddy Trash", () => {
   });
 
   it("ignores recovered manifests that point outside their trash entry folder", async () => {
-    const folder = join(__testing.itemsRoot(fx.userData), "orphan", "files");
+    const orphanDir = __testing.entryDir(fx.userData, "orphan");
+    const folder = join(orphanDir, "files");
     await mkdir(folder, { recursive: true });
     const outside = join(fx.root, "outside.txt");
     await writeFile(outside, "do not move", "utf8");
@@ -222,5 +223,39 @@ describe("FormatBuddy Trash", () => {
 
     expect(snapshot.entries).toHaveLength(0);
     expect(await readFile(outside, "utf8")).toBe("do not move");
+    expect(existsSync(orphanDir)).toBe(false);
+  });
+
+  it("cleans a failed prewritten trash manifest when no stored file exists", async () => {
+    const orphanDir = __testing.entryDir(fx.userData, "failed-move");
+    const storedPath = join(orphanDir, "files", "old.tmp");
+    await mkdir(orphanDir, { recursive: true });
+    await writeFile(
+      join(orphanDir, "manifest.json"),
+      JSON.stringify(
+        {
+          id: "failed-move",
+          itemId: "item-1",
+          originalPath: join(fx.home, "old.tmp"),
+          storedPath,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 5,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(existsSync(orphanDir)).toBe(false);
   });
 });
