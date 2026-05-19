@@ -1151,10 +1151,10 @@ function registerIpc() {
       action: result.status,
       summary:
         result.status === "launched"
-          ? "Windows Defender 빠른 검사를 시작했어요. 결과는 Windows 보안에서 확인하세요."
+          ? "Windows 보안 빠른 검사를 시작했어요. 결과는 Windows 보안에서 확인하세요."
           : result.status === "blocked"
-            ? "Defender 빠른 검사를 시작하지 못했어요."
-            : `Defender 빠른 검사 결과: ${result.status}`,
+            ? "Windows 보안 빠른 검사를 시작하지 못했어요."
+            : `Windows 보안 빠른 검사 결과: ${result.status}`,
       detail: { status: result.status, detail: result.detail }
     }).catch((e) => log.warn("audit append (defender) failed:", (e as Error).message));
     return result;
