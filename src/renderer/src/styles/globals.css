@@ -26,6 +26,8 @@
   --color-fb-ink-3: rgba(55, 56, 60, 0.61);
   --color-fb-ink-4: rgba(55, 56, 60, 0.28);
   --color-fb-bg: #ffffff;
+  /* Elevated surface (cards, modals) -- same as bg in light, brighter in dark. */
+  --color-fb-bg-elev: #ffffff;
   --color-fb-line: #e1e2e4;
   --color-fb-line-t: rgba(112, 115, 124, 0.22);
   --color-fb-positive: #00bf40;
@@ -2440,11 +2442,13 @@ button { font-family: inherit; }
  * so the first dark-mode user gets it without an opt-in click. A
  * manual override toggle lives in the next round's plan.
  *
- * Honest limit: inline style={{ background: "#fff" }} in JSX (e.g.
- * ConfirmDialog modal sheet, some toggle pills) is NOT covered here.
- * Those render as white-on-dark and look wrong until D-30 sweeps them
- * to tokens. Tests/typecheck don't catch this -- a screenshot pass on
- * dark Windows is the verification.
+ * Round D-30 swept the JSX inline #fff background sites onto
+ * --color-fb-bg-elev. Inline rgba toggle pills and a handful of small
+ * one-shots remain; they fall back to transparent and read fine in
+ * both modes. Screenshot verification on a real dark-mode Windows is
+ * still the source of truth -- jsdom can't evaluate
+ * prefers-color-scheme so the test suite doesn't catch a visual
+ * regression here.
  */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -2453,6 +2457,7 @@ button { font-family: inherit; }
     --color-fb-ink-3: rgba(244, 245, 247, 0.61);
     --color-fb-ink-4: rgba(244, 245, 247, 0.28);
     --color-fb-bg: #0e1116;
+    --color-fb-bg-elev: #161a21;
     --color-fb-line: #2a2d33;
     --color-fb-line-t: rgba(244, 245, 247, 0.16);
     --color-fb-blue-tint: rgba(0, 102, 255, 0.22);
@@ -2486,7 +2491,7 @@ button { font-family: inherit; }
   .fb-report-cta,
   .fb-onboard,
   .fb-err-screen {
-    background: #161a21;
+    background: var(--color-fb-bg-elev);
     color: var(--color-fb-ink-1);
     border-color: var(--color-fb-line);
   }

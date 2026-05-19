@@ -235,11 +235,13 @@ function ConfirmDialog({
     >
       <div
         style={{
-          background: "#fff",
+          background: "var(--color-fb-bg-elev)",
+          color: "var(--color-fb-ink-1)",
           padding: 24,
           borderRadius: 12,
           width: 480,
-          maxWidth: "90%"
+          maxWidth: "90%",
+          boxShadow: "var(--fb-shadow-3)"
         }}
       >
         <h2 style={{ marginTop: 0 }}>{modeLabel}</h2>
