@@ -779,10 +779,6 @@ function groupForPath(snapshot: AppLeftoversSnapshot, pathId: string): AppLeftov
   return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId));
 }
 
-function appNameForPath(snapshot: AppLeftoversSnapshot, pathId: string): string {
-  return groupForPath(snapshot, pathId)?.appName ?? "앱 잔여 폴더";
-}
-
 function groupIdentityKey(group: Pick<AppLeftoverGroup, "appName" | "publisher">): string {
   return `${(group.appName ?? "").trim().toLowerCase()}|${(group.publisher ?? "").trim().toLowerCase()}`;
 }
@@ -802,15 +798,18 @@ function rememberCleanedFollowupGroup(
 }
 
 function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
+  const group = groupForPath(snapshot, path.id);
   return {
     id: path.id,
     path: path.path,
-    label: appNameForPath(snapshot, path.id),
+    label: group?.appName ?? "앱 잔여 폴더",
     sizeBytes: Math.max(0, Math.round(path.sizeBytes ?? 0)),
     modifiedAt: path.lastModifiedAt ?? undefined,
     categoryId: "app-leftovers",
     riskLevel: "review",
-    reason: "앱 제거 후 남은 AppData/ProgramData 후보"
+    reason: "앱 제거 후 남은 AppData/ProgramData 후보",
+    appName: group?.appName ?? null,
+    appPublisher: group?.publisher ?? null
   };
 }
 

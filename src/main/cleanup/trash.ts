@@ -115,6 +115,8 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
     storedPath: raw.storedPath,
     label: raw.label,
     categoryId: raw.categoryId,
+    appName: typeof raw.appName === "string" ? raw.appName : null,
+    appPublisher: typeof raw.appPublisher === "string" ? raw.appPublisher : null,
     sizeBytes: Math.max(0, Math.round(raw.sizeBytes)),
     createdAt: raw.createdAt,
     expiresAt: canonicalExpiry(raw.createdAt)
@@ -413,9 +415,14 @@ async function notifyAppLeftoverRestored(
   entry: CleanupTrashEntry
 ): Promise<void> {
   if (entry.categoryId !== "app-leftovers") return;
-  const name = entry.label.trim();
+  const name = (entry.appName ?? entry.label).trim();
   if (!name) return;
-  await Promise.resolve(options.onAppLeftoverRestored?.({ name, publisher: null })).catch(() => {});
+  await Promise.resolve(
+    options.onAppLeftoverRestored?.({
+      name,
+      publisher: entry.appPublisher ?? null
+    })
+  ).catch(() => {});
 }
 
 function expiryFor(now: Date): string {
@@ -463,6 +470,8 @@ export async function moveToFormatBuddyTrash(
     storedPath,
     label: options.item.label,
     categoryId: options.item.categoryId,
+    appName: options.item.appName ?? null,
+    appPublisher: options.item.appPublisher ?? null,
     sizeBytes: Math.max(0, Math.round(options.sizeBytes)),
     createdAt: now.toISOString(),
     expiresAt: expiryFor(now)

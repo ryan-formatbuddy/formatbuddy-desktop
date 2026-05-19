@@ -348,7 +348,9 @@ describe("FormatBuddy Trash", () => {
         label: "Slack",
         categoryId: "app-leftovers",
         riskLevel: "review",
-        reason: "앱 제거 후 남은 AppData 후보"
+        reason: "앱 제거 후 남은 AppData 후보",
+        appName: "Slack",
+        appPublisher: "Slack Technologies"
       },
       sizeBytes: 5,
       home: fx.home
@@ -364,7 +366,10 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("restored");
     expect(onAppLeftoverRestored).toHaveBeenCalledTimes(1);
-    expect(onAppLeftoverRestored).toHaveBeenCalledWith({ name: "Slack", publisher: null });
+    expect(onAppLeftoverRestored).toHaveBeenCalledWith({
+      name: "Slack",
+      publisher: "Slack Technologies"
+    });
   });
 
   it("refuses restore when a same-name item already exists at the original path", async () => {

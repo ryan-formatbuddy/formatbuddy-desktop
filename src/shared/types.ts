@@ -656,6 +656,9 @@ export interface CleanupItem {
   reason: string;
   /** When riskLevel === "restricted", the blocklist rule that matched. */
   blockedBy?: string;
+  /** App identity for app-leftover restore follow-up. */
+  appName?: string | null;
+  appPublisher?: string | null;
 }
 
 export interface CleanupCategoryPlan {
@@ -763,6 +766,8 @@ export interface CleanupTrashEntry {
   storedPath: string;
   label: string;
   categoryId: CleanupCategoryId;
+  appName?: string | null;
+  appPublisher?: string | null;
   sizeBytes: number;
   createdAt: string;
   expiresAt: string;
