@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   CleanupCategoryBreakdown,
+  CleanupCategoryId,
   CleanupExecuteMode,
   CleanupExecutedItem,
   CleanupHistorySnapshot,
@@ -36,12 +37,85 @@ function emptyLog(): PersistedLog {
   return { version: 1, entries: [] };
 }
 
+function validIso(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isCleanupMode(value: unknown): value is CleanupExecuteMode {
+  return value === "trash" || value === "permanent";
+}
+
+function isCleanupCategoryId(value: unknown): value is CleanupCategoryId {
+  return (
+    value === "recycle-bin" ||
+    value === "temp-user" ||
+    value === "temp-windows" ||
+    value === "browser-cache" ||
+    value === "windows-old" ||
+    value === "downloads-installers" ||
+    value === "large-files" ||
+    value === "app-leftovers"
+  );
+}
+
+function coerceNonNegativeInteger(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(0, Math.round(value));
+}
+
+function coerceCategoryBreakdown(value: unknown): CleanupCategoryBreakdown | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<CleanupCategoryBreakdown>;
+  if (!isCleanupCategoryId(raw.categoryId)) return null;
+  const bytesFreed = coerceNonNegativeInteger(raw.bytesFreed);
+  const itemCount = coerceNonNegativeInteger(raw.itemCount);
+  if (bytesFreed === null || itemCount === null) return null;
+  return {
+    categoryId: raw.categoryId,
+    bytesFreed,
+    itemCount
+  };
+}
+
+function coerceEntry(value: unknown): CleanupLogEntry | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Partial<CleanupLogEntry>;
+  if (typeof raw.id !== "string") return null;
+  if (!validIso(raw.executedAt)) return null;
+  if (!isCleanupMode(raw.mode)) return null;
+  const removedCount = coerceNonNegativeInteger(raw.removedCount);
+  const skippedCount = coerceNonNegativeInteger(raw.skippedCount);
+  if (removedCount === null || skippedCount === null) return null;
+  if (!Array.isArray(raw.categories)) return null;
+
+  const categories = raw.categories
+    .map(coerceCategoryBreakdown)
+    .filter((entry): entry is CleanupCategoryBreakdown => entry !== null);
+  const totalFreedBytes = categories.reduce((sum, category) => sum + category.bytesFreed, 0);
+
+  return {
+    id: raw.id,
+    executedAt: raw.executedAt,
+    mode: raw.mode,
+    totalFreedBytes,
+    removedCount,
+    skippedCount,
+    categories
+  };
+}
+
 function coerceLog(value: unknown): PersistedLog {
   if (!value || typeof value !== "object") return emptyLog();
   const raw = value as Partial<PersistedLog>;
+  const entries = Array.isArray(raw.entries)
+    ? raw.entries
+        .map(coerceEntry)
+        .filter((entry): entry is CleanupLogEntry => entry !== null)
+        .slice(0, MAX_ENTRIES)
+    : [];
   return {
     version: 1,
-    entries: Array.isArray(raw.entries) ? raw.entries.slice(0, MAX_ENTRIES) : []
+    entries
   };
 }
 
@@ -114,4 +188,4 @@ export async function getCleanupHistory(
   return { entries: log.entries };
 }
 
-export const __testing = { coerceLog, MAX_ENTRIES };
+export const __testing = { coerceLog, coerceEntry, coerceCategoryBreakdown, MAX_ENTRIES };
