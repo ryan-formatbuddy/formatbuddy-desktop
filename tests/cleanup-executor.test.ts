@@ -214,6 +214,23 @@ describe("executeCleanup", () => {
     }
   });
 
+  it("returns null when any child folder cannot be measured", async () => {
+    if (process.platform === "win32") return;
+    const folder = join(fx.tempDir, "mixed-cache");
+    const locked = join(folder, "locked");
+    await fs.mkdir(locked, { recursive: true });
+    await fs.writeFile(join(folder, "visible.tmp"), "12345", "utf8");
+    await fs.writeFile(join(locked, "hidden.tmp"), "1234567", "utf8");
+    await fs.chmod(locked, 0o000);
+
+    try {
+      const size = await defaultDeps(fx.userData).statSize(folder);
+      expect(size).toBeNull();
+    } finally {
+      await fs.chmod(locked, 0o700).catch(() => {});
+    }
+  });
+
   it("refuses to run when the confirmationToken is wrong", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];

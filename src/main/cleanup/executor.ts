@@ -91,7 +91,8 @@ async function measurePathSize(path: string, depth = 0): Promise<number | null> 
   for (const entry of entries) {
     if (entry.isSymbolicLink()) continue;
     const childSize = await measurePathSize(join(path, entry.name), depth + 1);
-    if (childSize !== null) total += childSize;
+    if (childSize === null) return null;
+    total += childSize;
   }
   return total;
 }
