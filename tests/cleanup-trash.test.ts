@@ -508,6 +508,33 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 
+  it("purges an expired trash entry without counting bytes when the stored item is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const outside = join(fx.root, "outside-expired.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(outside, "outside should not count", "utf8");
+    await rm(entry.storedPath, { force: true });
+    await symlink(outside, entry.storedPath);
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(purged.purgedCount).toBe(1);
+    expect(purged.purgedBytes).toBe(0);
+    expect(await readFile(outside, "utf8")).toBe("outside should not count");
+    expect(existsSync(entry.storedPath)).toBe(false);
+  });
+
   it("does not restore an expired entry when restore is called directly", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

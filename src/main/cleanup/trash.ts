@@ -579,7 +579,14 @@ export async function purgeExpiredTrash(
   let purgedBytes = 0;
   const purgedEntryIds: string[] = [];
   for (const entry of purge) {
-    purgedBytes += await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
+    const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+      options.userDataDir,
+      entry.id,
+      entry.storedPath
+    );
+    purgedBytes += linkedStoredPath
+      ? 0
+      : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
     await rm(entryDir(options.userDataDir, entry.id), { recursive: true, force: true });
     purgedEntryIds.push(entry.id);
   }
