@@ -641,8 +641,12 @@ function allPaths(snapshot: AppLeftoversSnapshot): AppLeftoverPath[] {
   return snapshot.groups.flatMap((group) => group.paths);
 }
 
+function groupForPath(snapshot: AppLeftoversSnapshot, pathId: string): AppLeftoverGroup | undefined {
+  return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId));
+}
+
 function appNameForPath(snapshot: AppLeftoversSnapshot, pathId: string): string {
-  return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId))?.appName ?? "앱 잔여 폴더";
+  return groupForPath(snapshot, pathId)?.appName ?? "앱 잔여 폴더";
 }
 
 function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
@@ -700,6 +704,16 @@ export async function cleanupAppLeftovers(
         path: path.path,
         reason: "blocked-path",
         detail: path.protectedBy
+      });
+      continue;
+    }
+    const group = groupForPath(cached.snapshot, path.id);
+    if (group?.source !== "uninstall-launched") {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: "앱이 아직 설치된 상태예요. Windows 제거 후 다시 확인해주세요."
       });
       continue;
     }

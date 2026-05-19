@@ -3,7 +3,7 @@ import { summarizeLeftoverSnapshot } from "../src/shared/app-leftovers";
 import type { AppLeftoversSnapshot } from "../src/shared/types";
 
 describe("AppManager leftover summary", () => {
-  it("counts selectable, protected, and missing leftover paths separately", () => {
+  it("counts selectable, protected, missing, and still-installed leftover paths separately", () => {
     const snapshot: AppLeftoversSnapshot = {
       planId: "plan-1",
       confirmationToken: "token-1",
@@ -11,6 +11,7 @@ describe("AppManager leftover summary", () => {
       groups: [
         {
           appName: "Acme Notes",
+          source: "uninstall-launched",
           paths: [
             { id: "selectable", path: "C:\\Users\\Ryan\\AppData\\Roaming\\Acme", exists: true },
             {
@@ -21,15 +22,27 @@ describe("AppManager leftover summary", () => {
             },
             { id: "missing", path: "C:\\ProgramData\\Acme", exists: false }
           ]
+        },
+        {
+          appName: "Still Installed",
+          source: "installed",
+          paths: [
+            {
+              id: "installed",
+              path: "C:\\Users\\Ryan\\AppData\\Roaming\\StillInstalled",
+              exists: true
+            }
+          ]
         }
       ]
     };
 
     expect(summarizeLeftoverSnapshot(snapshot)).toEqual({
-      total: 3,
+      total: 4,
       selectable: 1,
       protected: 1,
-      missing: 1
+      missing: 1,
+      installedLocked: 1
     });
   });
 });

@@ -223,8 +223,8 @@ function LeftoverPanel({
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
-        보호 경로 {leftoverSummary.protected}개, 지금 없는 폴더 {leftoverSummary.missing}개는
-        자동으로 빠져요.
+        아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
+        지금 없는 폴더 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
       <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
@@ -307,12 +307,18 @@ function LeftoverGroupCard({
   ]
     .filter(Boolean)
     .join(" · ");
+  const cleanupAllowed = group.source === "uninstall-launched";
 
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
       <header>
         <h3 style={{ margin: 0 }}>{group.appName}</h3>
         {groupMeta && <small style={{ opacity: 0.7 }}>{groupMeta}</small>}
+        {!cleanupAllowed && (
+          <small style={{ opacity: 0.7, display: "block" }}>
+            아직 설치된 앱 데이터라 미리보기만 해요. Windows 제거 후 다시 확인하면 선택할 수 있어요.
+          </small>
+        )}
       </header>
       <ul style={{ listStyle: "none", padding: 0, marginTop: 8 }}>
         {group.paths.map((path) => (
@@ -329,7 +335,7 @@ function LeftoverGroupCard({
             <input
               type="checkbox"
               checked={selected.has(path.id)}
-              disabled={!path.exists || Boolean(path.protectedBy)}
+              disabled={!cleanupAllowed || !path.exists || Boolean(path.protectedBy)}
               onChange={(e) => onToggle(path.id, e.target.checked)}
               aria-label={`${path.path} 선택`}
             />

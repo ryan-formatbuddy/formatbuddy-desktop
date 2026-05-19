@@ -254,7 +254,7 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
   });
 
-  it("moves selected app leftovers into the FormatBuddy 30-day trash", async () => {
+  it("refuses to clean leftovers while the app is still installed", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
@@ -266,6 +266,36 @@ describe("planAppLeftovers", () => {
         env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
       }
     );
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      reason: "blocked-path",
+      detail: "앱이 아직 설치된 상태예요. Windows 제거 후 다시 확인해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+  });
+
+  it("moves selected app leftovers into the FormatBuddy 30-day trash after uninstall follow-up", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
     const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
 
     const result = await cleanupAppLeftovers(
