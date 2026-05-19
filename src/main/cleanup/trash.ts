@@ -415,27 +415,16 @@ export async function restoreTrashEntry(
     };
   }
 
-  const linkedStoredPath = await findLinkedPathPart(
-    entry.storedPath,
-    entryDir(options.userDataDir, entry.id),
-    true
+  const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+    options.userDataDir,
+    entry.id,
+    entry.storedPath
   );
   if (linkedStoredPath) {
     return {
       entryId: entry.id,
       status: "blocked-path",
       message: `복구함 안의 저장물이 링크라 자동으로 되돌리지 않았어요: ${linkedStoredPath}`,
-      originalPath: entry.originalPath,
-      entry
-    };
-  }
-
-  const linkedStoredDescendant = await findLinkedDescendant(entry.storedPath);
-  if (linkedStoredDescendant) {
-    return {
-      entryId: entry.id,
-      status: "blocked-path",
-      message: `복구함 안의 저장물에 링크가 포함되어 자동으로 되돌리지 않았어요: ${linkedStoredDescendant}`,
       originalPath: entry.originalPath,
       entry
     };

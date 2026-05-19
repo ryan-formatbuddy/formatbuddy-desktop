@@ -307,6 +307,51 @@ describe("FormatBuddy Trash", () => {
     expect(storedStat.isSymbolicLink()).toBe(true);
   });
 
+  it("refuses restore when the managed trash parent folder is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const entryId = "linked-parent-entry";
+    const itemsLink = __testing.itemsRoot(fx.userData);
+    const outsideItems = join(fx.root, "outside-items");
+    const originalPath = join(fx.home, "AppData", "Local", "Temp", "restored.tmp");
+    const entryDir = __testing.entryDir(fx.userData, entryId);
+    const storedPath = join(entryDir, "files", "old.tmp");
+    await mkdir(outsideItems, { recursive: true });
+    await mkdir(join(itemsLink, ".."), { recursive: true });
+    await symlink(outsideItems, itemsLink, "dir");
+    await mkdir(join(storedPath, ".."), { recursive: true });
+    await writeFile(storedPath, "outside should stay in trash target", "utf8");
+    await writeFile(
+      join(entryDir, "manifest.json"),
+      JSON.stringify(
+        {
+          id: entryId,
+          itemId: "item-1",
+          originalPath,
+          storedPath,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 34,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/링크/);
+    expect(await readFile(storedPath, "utf8")).toBe("outside should stay in trash target");
+    expect(existsSync(originalPath)).toBe(false);
+  });
+
   it("removes a trash entry from the snapshot when its stored item becomes a symbolic link", async () => {
     if (process.platform === "win32") return;
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
