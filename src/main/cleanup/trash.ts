@@ -24,6 +24,8 @@ import { evaluatePath, normalizePath } from "./blocklist";
 import { findLinkedDescendant, findLinkedPathPart } from "./pathSafety";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
+const DAY_MS = 86_400_000;
+const TRASH_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 
 const TRASH_DIR = "formatbuddy-trash";
 const ITEMS_DIR = "items";
@@ -95,6 +97,20 @@ function validIso(value: unknown): value is string {
 
 function canonicalExpiry(createdAt: string): string {
   return expiryFor(new Date(createdAt));
+}
+
+function isWithinTrashRetentionWindow(expiresAt: string, now: Date): boolean {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) return false;
+  const earliestAllowed =
+    now.getTime() +
+    FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS -
+    TRASH_EXPIRY_CLOCK_SKEW_MS;
+  const latestAllowed =
+    now.getTime() +
+    FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS +
+    TRASH_EXPIRY_CLOCK_SKEW_MS;
+  return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
 }
 
 function coerceEntry(value: unknown): CleanupTrashEntry | null {
@@ -340,6 +356,7 @@ export async function assertManagedTrashEntryManifest(options: {
   originalPath: string;
   storedPath: string;
   expiresAt: string;
+  now?: () => Date;
 }): Promise<void> {
   if (!isSafeTrashEntryId(options.entryId)) {
     throw new Error("FormatBuddy restore manifest entry id is not safe");
@@ -389,6 +406,9 @@ export async function assertManagedTrashEntryManifest(options: {
   }
   if (entry.expiresAt !== options.expiresAt) {
     throw new Error("FormatBuddy restore manifest expiry does not match the restore entry");
+  }
+  if (!isWithinTrashRetentionWindow(options.expiresAt, options.now?.() ?? new Date())) {
+    throw new Error("FormatBuddy restore manifest expiry is outside the 30-day window");
   }
   if (!isManagedTrashEntryStoredPath(options.userDataDir, options.entryId, entry.storedPath)) {
     throw new Error("FormatBuddy restore manifest stored path is outside the restore entry folder");

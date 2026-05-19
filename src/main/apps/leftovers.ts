@@ -1090,7 +1090,8 @@ export async function cleanupAppLeftovers(
         sizeBytes: cleanupItem.sizeBytes,
         originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
-        expiresAt: trashEntry.expiresAt
+        expiresAt: trashEntry.expiresAt,
+        now: options.now
       });
       removedItems.push({
         itemId: cleanupItem.id,

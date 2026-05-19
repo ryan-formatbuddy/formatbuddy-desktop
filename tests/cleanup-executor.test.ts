@@ -610,14 +610,31 @@ describe("executeCleanup", () => {
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({
       trashItem: async (cleanupItem) => {
+        const entryId = "trash-too-long";
+        const expiresAt = "2026-07-19T00:00:00.000Z";
         await fs.mkdir(join(storedPath, ".."), { recursive: true });
         await fs.writeFile(storedPath, "stored", "utf8");
+        await fs.writeFile(
+          join(fx.userData, "formatbuddy-trash", "items", entryId, "manifest.json"),
+          JSON.stringify(
+            {
+              id: entryId,
+              itemId: cleanupItem.id,
+              originalPath: cleanupItem.path,
+              storedPath,
+              label: cleanupItem.label,
+              categoryId: cleanupItem.categoryId,
+              sizeBytes: cleanupItem.sizeBytes,
+              createdAt: "2026-06-19T00:00:00.000Z",
+              expiresAt
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
         await fs.rm(cleanupItem.path, { recursive: true, force: true });
-        return {
-          id: "trash-too-long",
-          expiresAt: "2026-07-19T00:00:00.000Z",
-          storedPath
-        };
+        return { id: entryId, expiresAt, storedPath };
       }
     });
 
@@ -649,14 +666,31 @@ describe("executeCleanup", () => {
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({
       trashItem: async (cleanupItem) => {
+        const entryId = "trash-too-short";
+        const expiresAt = "2026-05-20T00:00:00.000Z";
         await fs.mkdir(join(storedPath, ".."), { recursive: true });
         await fs.writeFile(storedPath, "stored", "utf8");
+        await fs.writeFile(
+          join(fx.userData, "formatbuddy-trash", "items", entryId, "manifest.json"),
+          JSON.stringify(
+            {
+              id: entryId,
+              itemId: cleanupItem.id,
+              originalPath: cleanupItem.path,
+              storedPath,
+              label: cleanupItem.label,
+              categoryId: cleanupItem.categoryId,
+              sizeBytes: cleanupItem.sizeBytes,
+              createdAt: "2026-04-20T00:00:00.000Z",
+              expiresAt
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
         await fs.rm(cleanupItem.path, { recursive: true, force: true });
-        return {
-          id: "trash-too-short",
-          expiresAt: "2026-05-20T00:00:00.000Z",
-          storedPath
-        };
+        return { id: entryId, expiresAt, storedPath };
       }
     });
 

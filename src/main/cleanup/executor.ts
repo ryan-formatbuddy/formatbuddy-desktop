@@ -37,7 +37,6 @@ import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import {
-  FORMATBUDDY_TRASH_RETENTION_DAYS,
   assertManagedTrashEntryManifest,
   findLinkedManagedTrashStoredPath,
   isManagedTrashEntryStoredPath,
@@ -47,8 +46,6 @@ import {
 } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
-const DAY_MS = 86_400_000;
-const TRASH_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 
 export interface ExecutorDeps {
   /** Move a path into FormatBuddy's app-managed 30-day restore bin. */
@@ -210,19 +207,6 @@ function isValidIsoDateString(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function isWithinTrashRetentionWindow(expiresAt: string, now: Date): boolean {
-  const expiresAtMs = Date.parse(expiresAt);
-  const earliestAllowed =
-    now.getTime() +
-    FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS -
-    TRASH_EXPIRY_CLOCK_SKEW_MS;
-  const latestAllowed =
-    now.getTime() +
-    FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS +
-    TRASH_EXPIRY_CLOCK_SKEW_MS;
-  return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
-}
-
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
@@ -320,10 +304,6 @@ async function attemptItem(
       if (!isValidIsoDateString(trashEntry.expiresAt)) {
         throw new Error("FormatBuddy restore expiry was not created");
       }
-      const retentionNow = context.now?.() ?? new Date();
-      if (!isWithinTrashRetentionWindow(trashEntry.expiresAt, retentionNow)) {
-        throw new Error("FormatBuddy restore expiry is outside the 30-day window");
-      }
     }
     if (mode === "permanent") await deps.permanentRemove(item.path);
     if (await pathExists(item.path)) {
@@ -355,7 +335,8 @@ async function attemptItem(
         sizeBytes: actualSize,
         originalPath: item.path,
         storedPath: trashEntry.storedPath,
-        expiresAt: trashEntry.expiresAt
+        expiresAt: trashEntry.expiresAt,
+        now: context.now
       });
     }
     return {
