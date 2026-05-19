@@ -93,16 +93,14 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
     setLoading(true);
     setError(null);
     try {
-      const [auto, disabled] = await Promise.all([
-        window.fb.listStartupAuto(),
-        window.fb.listDisabledStartupAuto
-          ? window.fb.listDisabledStartupAuto()
-          : Promise.resolve<StartupAutoDisabledSnapshot>({
-              capturedAt: new Date().toISOString(),
-              entries: [],
-              notes: []
-            })
-      ]);
+      const auto = await window.fb.listStartupAuto();
+      const disabled: StartupAutoDisabledSnapshot = window.fb.listDisabledStartupAuto
+        ? await window.fb.listDisabledStartupAuto()
+        : {
+            capturedAt: new Date().toISOString(),
+            entries: [],
+            notes: ["잠시 꺼둔 시작 항목 목록을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."]
+          };
       setSnapshot(auto);
       setDisabledSnapshot(disabled);
     } catch (e) {
@@ -133,6 +131,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
   }, [snapshot]);
 
   const disabledEntries = disabledSnapshot?.entries ?? [];
+  const disabledNotes = disabledSnapshot?.notes ?? [];
   const summary = shortStatus(snapshot);
 
   const handleDisable = useCallback(
@@ -299,6 +298,13 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                   {busyId === entry.id ? "처리 중..." : "되돌리기"}
                 </Button>
               </li>
+            ))}
+          </ul>
+        )}
+        {disabledNotes.length > 0 && (
+          <ul style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
+            {disabledNotes.map((note, i) => (
+              <li key={i}>{note}</li>
             ))}
           </ul>
         )}
