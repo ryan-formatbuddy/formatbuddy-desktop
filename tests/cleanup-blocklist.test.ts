@@ -114,6 +114,18 @@ describe("evaluatePath — user-scoped blocklist", () => {
     expect(result.blockedBy).toBeTruthy();
   });
 
+  it.each([
+    "C:\\Users\\Ryan\\Downloads\\NPKI_backup\\yessign\\cert.der",
+    "C:\\Users\\Ryan\\Desktop\\공동인증서\\signCert.der",
+    "D:\\NPKI\\SignKorea\\user\\cert.der",
+    "E:\\backup\\CrossCert\\user\\cert.der",
+    "C:\\Users\\Ryan\\Documents\\TradeSign\\user\\cert.der"
+  ])("blocks Korean certificate backup folder regardless of location %s", (path) => {
+    const result = evaluatePath(path, { allowRoots: ["C:\\Users\\Ryan", "D:\\", "E:\\"], home: HOME });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedBy).toMatch(/공동인증서|NPKI/);
+  });
+
   it("does not falsely block a sibling AppData path that is not a credential store", () => {
     const result = evaluatePath(
       "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cache\\data_0",
@@ -127,8 +139,8 @@ describe("evaluatePath — user-scoped blocklist", () => {
 });
 
 describe("BLOCKLIST_VERSION", () => {
-  it("starts at v1 and is a positive integer (planner stamps this into plans)", () => {
-    expect(BLOCKLIST_VERSION).toBe(1);
+  it("is bumped when cleanup safety rules change", () => {
+    expect(BLOCKLIST_VERSION).toBe(2);
   });
 });
 

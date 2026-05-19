@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 1;
+export const BLOCKLIST_VERSION = 2;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -83,8 +83,33 @@ function containsSegment(p: string, segment: string): boolean {
 function startsWithAny(p: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => {
     const pre = prefix.toLowerCase();
-    return p === pre || p.startsWith(pre + "\\");
+    const childPrefix = pre.endsWith("\\") ? pre : pre + "\\";
+    return p === pre || p.startsWith(childPrefix);
   });
+}
+
+const KOREAN_CERT_FOLDER_EXACT = new Set([
+  "crosscert",
+  "inipki",
+  "kica",
+  "ncasign",
+  "signkorea",
+  "tradesign",
+  "yessign"
+]);
+
+function includesKoreanCertificateFolder(p: string): boolean {
+  return p
+    .split("\\")
+    .filter(Boolean)
+    .some((segment) => {
+      const name = segment.toLowerCase();
+      return (
+        name.includes("npki") ||
+        name.includes("공동인증서") ||
+        KOREAN_CERT_FOLDER_EXACT.has(name)
+      );
+    });
 }
 
 /** Build the user-specific rules each time so tests can override $HOME. */
@@ -171,6 +196,11 @@ const SYSTEM_BLOCK_RULES: BlockRule[] = [
     id: "system:bitlocker",
     label: "BitLocker recovery and key files",
     match: (p) => p.includes("bitlocker") || p.endsWith(".bek") || p.endsWith(".tpm")
+  },
+  {
+    id: "system:korean-certificate-folders",
+    label: "공동인증서/NPKI 보관 폴더",
+    match: includesKoreanCertificateFolder
   },
   {
     id: "system:hibernation",

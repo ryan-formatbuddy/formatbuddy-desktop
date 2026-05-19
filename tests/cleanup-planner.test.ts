@@ -7,6 +7,7 @@ import {
   planCleanup,
   __resetPlanCacheForTests
 } from "../src/main/cleanup/planner";
+import { BLOCKLIST_VERSION } from "../src/main/cleanup/blocklist";
 
 const TEN_DAYS_MS = 10 * 86_400_000;
 const ONE_DAY_MS = 86_400_000;
@@ -79,7 +80,7 @@ describe("planCleanup", () => {
     expect(recycleBin?.blockedItems[0].path).toBe("shell:recycle-bin");
     expect(recycleBin?.blockedItems[0].riskLevel).toBe("restricted");
     expect(recycleBin?.safetyNote).toContain("바로 비우지 않아요");
-    expect(plan.blocklistVersion).toBe(1);
+    expect(plan.blocklistVersion).toBe(BLOCKLIST_VERSION);
   });
 
   it("includes temp files older than 7 days, excludes fresh temp files", async () => {
