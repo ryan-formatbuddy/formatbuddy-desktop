@@ -62,4 +62,36 @@ describe("retention purge scheduler", () => {
     expect(result.failed).toEqual([{ kind: "trash", message: "trash unavailable" }]);
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 실패: trash unavailable");
   });
+
+  it("records a warning when only some expired restore-bin items could not be emptied", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 1,
+      purgedBytes: 256,
+      purgedEntryIds: ["trash-ok"],
+      failedEntryIds: ["trash-busy", "trash-locked"],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+    const logInfo = vi.fn();
+    const logWarn = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      logInfo,
+      logWarn
+    });
+
+    expect(result.failed).toEqual([
+      { kind: "trash", message: "파일 복구함 2개를 아직 비우지 못했어요." }
+    ]);
+    expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 일부 실패: 2개");
+    expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 0개");
+  });
 });

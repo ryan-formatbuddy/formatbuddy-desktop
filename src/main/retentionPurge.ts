@@ -22,6 +22,17 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function recordPartialTrashFailure(
+  result: RetentionPurgeTickResult,
+  deps: RetentionPurgeTickDeps
+): void {
+  const failedCount = result.trash?.failedEntryIds?.length ?? 0;
+  if (failedCount === 0) return;
+  const message = `파일 복구함 ${failedCount}개를 아직 비우지 못했어요.`;
+  result.failed.push({ kind: "trash", message });
+  deps.logWarn?.(`30일 자동 비움 파일 복구함 일부 실패: ${failedCount}개`);
+}
+
 export async function runRetentionPurgeTick(
   deps: RetentionPurgeTickDeps
 ): Promise<RetentionPurgeTickResult> {
@@ -29,6 +40,7 @@ export async function runRetentionPurgeTick(
 
   try {
     result.trash = await deps.purgeTrash(deps.trigger);
+    recordPartialTrashFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
     result.failed.push({ kind: "trash", message });
