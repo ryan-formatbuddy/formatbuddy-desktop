@@ -545,7 +545,13 @@ export async function purgeExpiredRegistryBackups(options: {
           ? canonicalRegistryBackupExpiry(meta.createdAt)
           : meta.expiresAt;
       const expiresAt = Date.parse(effectiveExpiresAt);
-      if (!Number.isFinite(expiresAt) || expiresAt > now.getTime()) continue;
+      const createdAt =
+        typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
+          ? Date.parse(meta.createdAt)
+          : null;
+      const movedIntoFuture =
+        typeof createdAt === "number" && createdAt > now.getTime();
+      if (!Number.isFinite(expiresAt) || (!movedIntoFuture && expiresAt > now.getTime())) continue;
       purgedBytes += await measureRegistryBackupPurgeBytes(entryDir);
       await fs.rm(entryDir, { recursive: true, force: true });
       purgedIds.push(entry.name);

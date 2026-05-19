@@ -552,6 +552,53 @@ describe("registry leftover cleanup", () => {
     await expect(readFile(result.backupPath, "utf8")).resolves.toContain("Windows Registry");
   });
 
+  it("does not restore a registry backup when metadata moves the 30-day window into the future", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const metaPath = join(
+      __testing.registryBackupItemsRoot(fx.userDataDir),
+      result.id,
+      "meta.json"
+    );
+    await writeFile(
+      metaPath,
+      JSON.stringify(
+        {
+          ...result,
+          createdAt: "2027-05-19T00:00:00.000Z",
+          expiresAt: "2027-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      runner
+    });
+
+    expect(restored.status).toBe("not-found");
+    expect(runner.importFile).not.toHaveBeenCalled();
+    await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
+  });
+
   it("restores a registry backup and removes it from the 30-day bin", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const calls: string[] = [];
