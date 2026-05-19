@@ -1218,6 +1218,9 @@ export async function cleanupAppLeftovers(
         expiresAt: trashEntry.expiresAt,
         now: options.now
       });
+      if ((await measurePath(cleanupItem.path)).exists) {
+        throw new Error("Source path still exists after app leftover cleanup");
+      }
       removedItems.push({
         itemId: cleanupItem.id,
         path: cleanupItem.path,
