@@ -14,6 +14,9 @@ interface AppManagerProps {
   isWindows: boolean;
   onBack: () => void;
   onOpenCleanup: () => void;
+  onRescan: () => void;
+  onOpenTrashRestore: () => void;
+  onOpenAuditLog: () => void;
 }
 
 type LoadState =
@@ -149,7 +152,10 @@ function LeftoverPanel({
   busy,
   result,
   onToggle,
-  onCleanup
+  onCleanup,
+  onRescan,
+  onOpenTrashRestore,
+  onOpenAuditLog
 }: {
   state: LeftoverState;
   selected: Set<string>;
@@ -157,6 +163,9 @@ function LeftoverPanel({
   result?: CleanupExecuteResult;
   onToggle: (pathId: string, checked: boolean) => void;
   onCleanup: () => void;
+  onRescan: () => void;
+  onOpenTrashRestore: () => void;
+  onOpenAuditLog: () => void;
 }) {
   if (state.loading) {
     return (
@@ -205,9 +214,25 @@ function LeftoverPanel({
           </Button>
         </header>
         {result && (
-          <p style={{ fontSize: 13, opacity: 0.82, margin: "8px 0 0" }}>
-            {result.removedItems.length}개를 복구함으로 보냈어요. 실패/건너뜀 {result.skippedItems.filter((s) => s.reason !== "not-selected").length}개.
-          </p>
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
+              {result.removedItems.length}개를 복구함으로 보냈어요. 실패/건너뜀{" "}
+              {result.skippedItems.filter((s) => s.reason !== "not-selected").length}개.
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button variant="primary" size="sm" onClick={onRescan}>
+                다시 점검해서 효과 보기
+              </Button>
+              {result.mode === "trash" && result.removedItems.length > 0 && (
+                <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
+                  복구함 보기
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
+                활동 기록 보기
+              </Button>
+            </div>
+          </div>
         )}
       </article>
       {state.snapshot.groups.map((group) => (
@@ -275,7 +300,14 @@ function LeftoverGroupCard({
   );
 }
 
-export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps) {
+export function AppManager({
+  isWindows,
+  onBack,
+  onOpenCleanup,
+  onRescan,
+  onOpenTrashRestore,
+  onOpenAuditLog
+}: AppManagerProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [leftovers, setLeftovers] = useState<LeftoverState>({ loading: false });
   const [selectedLeftovers, setSelectedLeftovers] = useState<Set<string>>(new Set());
@@ -390,7 +422,7 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
   }, [load]);
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="앱 정리">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">
@@ -404,7 +436,7 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
         <h1 className="fb-h1-sm">앱 정리 센터</h1>
         <p className="fb-lede">
           설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 폴더는
-          보여만 드리고, 실제 정리는 안전 정리 센터에서 진행해주세요.
+          직접 고른 것만 30일 복구함으로 보내요.
         </p>
         {!isWindows && (
           <p style={{ color: "#a36400", fontSize: 13 }}>
@@ -499,6 +531,9 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
         result={cleanupResult}
         onToggle={toggleLeftover}
         onCleanup={cleanupSelectedLeftovers}
+        onRescan={onRescan}
+        onOpenTrashRestore={onOpenTrashRestore}
+        onOpenAuditLog={onOpenAuditLog}
       />
     </main>
   );

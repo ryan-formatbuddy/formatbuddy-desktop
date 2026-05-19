@@ -856,7 +856,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, [wifiIncludePasswords]);
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="진단 결과">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">

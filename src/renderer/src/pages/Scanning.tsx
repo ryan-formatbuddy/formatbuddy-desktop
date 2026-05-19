@@ -21,7 +21,7 @@ function formatElapsed(ms: number) {
 
 export function Scanning({ progress, errorMessage, onCancel, onRetry }: ScanningProps) {
   return (
-    <main className="fb-scanning">
+    <main className="fb-scanning" aria-label="진단 진행 중" aria-live="polite">
       <div className="fb-scanning-wrap">
         <ScanCard
           score={progress.score}

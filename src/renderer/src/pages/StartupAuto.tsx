@@ -101,7 +101,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
     : "조회 중...";
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="시작 시 자동 실행">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">

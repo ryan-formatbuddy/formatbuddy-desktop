@@ -48,7 +48,7 @@ export function Onboarding({
     : copy.onboardingNext;
 
   return (
-    <main className="fb-onboard">
+    <main className="fb-onboard" aria-label="처음 사용 안내">
       <div className="fb-onboard-left">
         <span className="fb-onboard-tag">{cur.tag}</span>
         <h1 className="fb-onboard-head">

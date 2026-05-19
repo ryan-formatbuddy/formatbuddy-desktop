@@ -133,7 +133,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   }, [snapshot, entries.length]);
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="복구함 (30일)">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">

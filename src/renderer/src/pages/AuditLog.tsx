@@ -69,7 +69,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
   }, [snapshot]);
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="활동 기록">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">
@@ -79,8 +79,8 @@ export function AuditLog({ onBack }: AuditLogProps) {
         </div>
       </header>
 
-      <section className="fb-report-hero">
-        <h1 className="fb-h1-sm">활동 기록</h1>
+      <section className="fb-report-hero" aria-labelledby="audit-page-title">
+        <h1 id="audit-page-title" className="fb-h1-sm">활동 기록</h1>
         <p className="fb-lede">
           포맷버디가 이 PC에서 실행한 일을 시간순으로 보여드려요. 정리·앱 제거·보안 검사·설정
           변경이 모두 한 자리에 모여요. {snapshot ? `최근 ${snapshot.retentionDays}일 보관 중.` : ""}

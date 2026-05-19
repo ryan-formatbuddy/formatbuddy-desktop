@@ -45,7 +45,7 @@ export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
   }, [error]);
 
   return (
-    <main className="fb-err-screen">
+    <main className="fb-err-screen" aria-label="오류 안내" role="alert">
       <CloudBuddy size={108} variant="primary" expression="calm" />
       <h2 className="fb-err-head">{copy.errorHead}</h2>
       <p className="fb-err-body">{friendly}</p>

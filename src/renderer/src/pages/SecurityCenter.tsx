@@ -322,7 +322,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
   }, [refreshStatus]);
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="보안 점검">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">

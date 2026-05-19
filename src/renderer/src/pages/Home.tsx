@@ -147,7 +147,7 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
-    <main className="fb-home">
+    <main className="fb-home" aria-label="포맷버디 홈">
       <header className="fb-home-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <span className="fb-home-pill">

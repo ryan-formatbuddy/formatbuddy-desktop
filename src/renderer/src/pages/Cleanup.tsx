@@ -20,6 +20,9 @@ interface CleanupProps {
   isWindows: boolean;
   onBack: () => void;
   onComplete: () => void;
+  onRescan: () => void;
+  onOpenTrashRestore: () => void;
+  onOpenAuditLog: () => void;
 }
 
 type Phase =
@@ -263,10 +266,16 @@ function ConfirmDialog({
 
 function ResultPanel({
   result,
-  onBack
+  onBack,
+  onRescan,
+  onOpenTrashRestore,
+  onOpenAuditLog
 }: {
   result: CleanupExecuteResult;
   onBack: () => void;
+  onRescan: () => void;
+  onOpenTrashRestore: () => void;
+  onOpenAuditLog: () => void;
 }) {
   const removedCount = result.removedItems.filter((i) => i.succeeded).length;
   const failedCount = result.skippedItems.filter((s) => s.reason !== "not-selected").length;
@@ -304,7 +313,18 @@ function ResultPanel({
         </pre>
       </details>
       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" onClick={onBack}>
+        <Button variant="primary" onClick={onRescan}>
+          다시 점검해서 효과 보기
+        </Button>
+        {result.mode === "trash" && removedCount > 0 && (
+          <Button variant="secondary" onClick={onOpenTrashRestore}>
+            복구함 보기
+          </Button>
+        )}
+        <Button variant="ghost" onClick={onOpenAuditLog}>
+          활동 기록 보기
+        </Button>
+        <Button variant="ghost" onClick={onBack}>
           처음으로
         </Button>
       </div>
@@ -390,7 +410,15 @@ function TrashPanel({
   );
 }
 
-export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps) {
+export function Cleanup({
+  report,
+  isWindows,
+  onBack,
+  onComplete,
+  onRescan,
+  onOpenTrashRestore,
+  onOpenAuditLog
+}: CleanupProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "planning" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [trashSnapshot, setTrashSnapshot] = useState<CleanupTrashSnapshot | undefined>();
@@ -511,7 +539,7 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
   );
 
   return (
-    <main className="fb-report">
+    <main className="fb-report" aria-label="안전 정리">
       <header className="fb-report-header">
         <Lockup markSize={36} kanjiSize={20} en={false} />
         <div className="fb-report-actions">
@@ -624,6 +652,9 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
           onBack={() => {
             onComplete();
           }}
+          onRescan={onRescan}
+          onOpenTrashRestore={onOpenTrashRestore}
+          onOpenAuditLog={onOpenAuditLog}
         />
       )}
     </main>
