@@ -59,6 +59,17 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;");
   });
 
+  it("shows friendly messages instead of silently returning when app manager bridges are missing", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("잔여 항목 확인을 연결하지 못했어요");
+    expect(source).toContain("잔여 항목 정리를 연결하지 못했어요");
+    expect(source).toContain("앱 제거 실행을 연결하지 못했어요");
+    expect(source).not.toContain("if (!window.fb?.listAppLeftovers) return;");
+    expect(source).not.toContain("if (!window.fb?.cleanupAppLeftovers) return;");
+    expect(source).not.toContain("if (!window.fb?.uninstallApp) return;");
+  });
+
   it("counts only successful app-leftover cleanup items as cleaned", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

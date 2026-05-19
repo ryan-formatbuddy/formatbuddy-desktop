@@ -501,7 +501,14 @@ export function AppManager({
   }, [refresh]);
 
   const loadLeftovers = useCallback(async () => {
-    if (!window.fb?.listAppLeftovers) return;
+    if (!window.fb?.listAppLeftovers) {
+      setLeftovers((prev) => ({
+        ...prev,
+        loading: false,
+        error: "잔여 항목 확인을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      }));
+      return;
+    }
     setLeftovers((prev) => ({ ...prev, loading: true, error: undefined }));
     try {
       const snapshot = await window.fb.listAppLeftovers();
@@ -528,7 +535,14 @@ export function AppManager({
   }, []);
 
   const cleanupSelectedLeftovers = useCallback(async () => {
-    if (!window.fb?.cleanupAppLeftovers) return;
+    if (!window.fb?.cleanupAppLeftovers) {
+      setLeftovers((prev) => ({
+        ...prev,
+        loading: false,
+        error: "잔여 항목 정리를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      }));
+      return;
+    }
     const snapshot = leftovers.snapshot;
     if (!snapshot || selectedLeftovers.size === 0) return;
     const selectableIds = selectableLeftoverPathIds(snapshot);
@@ -604,8 +618,18 @@ export function AppManager({
   );
 
   const onUninstall = useCallback(async (item: AppManagerItem) => {
-    if (!window.fb?.uninstallApp) return;
     if (item.uninstallAvailability !== "ready") return;
+    if (!window.fb?.uninstallApp) {
+      setUninstallStatuses((prev) => ({
+        ...prev,
+        [item.id]: {
+          status: "spawn-failed",
+          appName: item.name,
+          message: "앱 제거 실행을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+        }
+      }));
+      return;
+    }
     const confirmed = window.confirm(
       `${item.name}의 Windows 제거 마법사를 띄울게요. 진행 여부는 마법사 안에서 직접 확인해주세요.`
     );
