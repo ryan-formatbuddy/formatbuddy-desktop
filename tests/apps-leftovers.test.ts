@@ -672,6 +672,46 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("keeps multiple startup registry values under the same Run key as separate cleanup choices", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "registry|acme-notes",
+        kind: "registry",
+        name: "Acme Notes",
+        path: "C:\\Acme\\Acme.exe",
+        registryKeyPath: keyPath,
+        registryValueName: "Acme Notes",
+        publisher: "Acme Corp.",
+        origin: "HKCU Run"
+      },
+      {
+        id: "registry|acme-notes-helper",
+        kind: "registry",
+        name: "Acme Notes Helper",
+        path: "C:\\Acme\\Helper.exe",
+        registryKeyPath: keyPath,
+        registryValueName: "Acme Notes Helper",
+        publisher: "Acme Corp.",
+        origin: "HKCU Run"
+      }
+    ];
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+
+    const startupValues = snapshot.groups[0].paths.filter((p) => p.kind === "startup-registry");
+    expect(startupValues.map((p) => p.registryValueName).sort()).toEqual([
+      "Acme Notes",
+      "Acme Notes Helper"
+    ]);
+    expect(new Set(startupValues.map((p) => p.id)).size).toBe(2);
+  });
+
   it("does not delete a registry key when backup export fails", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";

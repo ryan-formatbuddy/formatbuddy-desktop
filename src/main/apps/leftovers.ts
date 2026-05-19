@@ -744,12 +744,21 @@ async function startupLeftoverPaths(
   return paths;
 }
 
+function leftoverUniqueKey(path: AppLeftoverPath): string {
+  const registryValueName = path.registryValueName?.trim().toLowerCase() ?? "";
+  return [
+    path.kind ?? "folder",
+    normalizePath(path.path),
+    registryValueName
+  ].join("|");
+}
+
 function uniqueLeftoverPaths(paths: AppLeftoverPath[]): AppLeftoverPath[] {
   const seen = new Set<string>();
   const unique: AppLeftoverPath[] = [];
 
   for (const path of paths) {
-    const key = normalizePath(path.path);
+    const key = leftoverUniqueKey(path);
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(path);
