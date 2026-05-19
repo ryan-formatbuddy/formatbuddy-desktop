@@ -651,6 +651,94 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/restore entry id/i);
   });
 
+  it("does not count trash mode as successful when the stored trash path is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const entryId = "trash-linked-stored-path";
+    const storedPath = join(
+      fx.userData,
+      "formatbuddy-trash",
+      "items",
+      entryId,
+      "files",
+      "old.tmp"
+    );
+    const outsideStoredPath = join(fx.root, "outside-stored.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(outsideStoredPath, "outside", "utf8");
+        await fs.symlink(outsideStoredPath, storedPath);
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: entryId,
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          storedPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect((await fs.lstat(storedPath)).isSymbolicLink()).toBe(true);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/stored trash path.*link/i);
+  });
+
+  it("does not count trash mode as successful when the managed restore bin parent is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const entryId = "trash-linked-parent";
+    const itemsLink = join(fx.userData, "formatbuddy-trash", "items");
+    const outsideItems = join(fx.root, "outside-items");
+    const storedPath = join(itemsLink, entryId, "files", "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(outsideItems, { recursive: true });
+        await fs.mkdir(join(itemsLink, ".."), { recursive: true });
+        await fs.symlink(outsideItems, itemsLink, "dir");
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(storedPath, "stored through linked parent", "utf8");
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: entryId,
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          storedPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect((await fs.lstat(itemsLink)).isSymbolicLink()).toBe(true);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/stored trash path.*link/i);
+  });
+
   it("does not count trash mode as successful when the original path still exists", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
     const storedPath = join(fx.userData, "formatbuddy-trash", "items", "trash-but-source-left", "files", "old.tmp");

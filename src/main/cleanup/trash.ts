@@ -209,6 +209,17 @@ export function isManagedTrashEntryStoredPath(
   return candidate === files || candidate.startsWith(`${files}\\`);
 }
 
+export async function findLinkedManagedTrashStoredPath(
+  userDataDir: string,
+  entryId: string,
+  candidatePath: string
+): Promise<string | undefined> {
+  if (!isManagedTrashEntryStoredPath(userDataDir, entryId, candidatePath)) {
+    return candidatePath;
+  }
+  return findLinkedPathPart(candidatePath, userDataDir, true);
+}
+
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);

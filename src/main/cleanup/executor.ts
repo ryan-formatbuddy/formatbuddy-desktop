@@ -37,6 +37,7 @@ import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import {
+  findLinkedManagedTrashStoredPath,
   isManagedTrashEntryStoredPath,
   isManagedTrashStoredPath,
   isSafeTrashEntryId,
@@ -317,6 +318,14 @@ async function attemptItem(
       }
       if (!isManagedTrashEntryStoredPath(context.userDataDir, trashEntry.id, trashEntry.storedPath)) {
         throw new Error("FormatBuddy stored trash path is outside the restore entry folder");
+      }
+      const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+        context.userDataDir,
+        trashEntry.id,
+        trashEntry.storedPath
+      );
+      if (linkedStoredPath) {
+        throw new Error(`FormatBuddy stored trash path contains a link: ${linkedStoredPath}`);
       }
     }
     return {
