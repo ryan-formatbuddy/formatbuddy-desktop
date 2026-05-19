@@ -141,7 +141,27 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
   await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
 }
 
+async function isUsableItemsRoot(userDataDir: string): Promise<boolean> {
+  const root = itemsRoot(userDataDir);
+  try {
+    const stat = await lstat(root);
+    if (stat.isSymbolicLink()) {
+      await rm(root, { force: true }).catch(() => {});
+      return false;
+    }
+    if (!stat.isDirectory()) {
+      await rm(root, { recursive: true, force: true }).catch(() => {});
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrashEntry[]> {
+  if (!(await isUsableItemsRoot(userDataDir))) return [];
+
   let entries;
   try {
     entries = await readdir(itemsRoot(userDataDir), { withFileTypes: true });
@@ -242,13 +262,9 @@ async function pruneMissingStoredEntries(
   for (const entry of index.entries) {
     const storedExists = await exists(entry.storedPath);
     const linkedStoredPath = storedExists
-      ? await findLinkedPathPart(entry.storedPath, entryDir(userDataDir, entry.id), true)
+      ? await findLinkedManagedTrashStoredPath(userDataDir, entry.id, entry.storedPath)
       : undefined;
-    const linkedStoredDescendant =
-      storedExists && !linkedStoredPath
-        ? await findLinkedDescendant(entry.storedPath)
-        : undefined;
-    if (storedExists && !linkedStoredPath && !linkedStoredDescendant) {
+    if (storedExists && !linkedStoredPath) {
       entries.push(entry);
       continue;
     }
@@ -392,6 +408,19 @@ export async function getTrashSnapshot(
 export async function restoreTrashEntry(
   options: TrashRuntimeOptions & { entryId: string }
 ): Promise<CleanupTrashRestoreResult> {
+  const linkedItemsRoot = await findLinkedPathPart(
+    itemsRoot(options.userDataDir),
+    options.userDataDir,
+    true
+  );
+  if (linkedItemsRoot) {
+    return {
+      entryId: options.entryId,
+      status: "blocked-path",
+      message: `복구함 폴더가 링크라 자동으로 되돌리지 않았어요: ${linkedItemsRoot}`
+    };
+  }
+
   await purgeExpiredTrash(options);
   const index = await loadReconciledIndex(options.userDataDir);
   const entry = index.entries.find((e) => e.id === options.entryId);

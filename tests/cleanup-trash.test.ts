@@ -717,6 +717,48 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(orphanDir)).toBe(false);
   });
 
+  it("ignores recovered manifests when the managed trash items folder is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const entryId = "linked-items-entry";
+    const itemsLink = __testing.itemsRoot(fx.userData);
+    const outsideItems = join(fx.root, "outside-items");
+    const outsideEntryDir = join(outsideItems, entryId);
+    const outsideStoredPath = join(outsideEntryDir, "files", "old.tmp");
+    const storedPathThroughLink = join(itemsLink, entryId, "files", "old.tmp");
+    await mkdir(join(itemsLink, ".."), { recursive: true });
+    await mkdir(join(outsideStoredPath, ".."), { recursive: true });
+    await writeFile(outsideStoredPath, "outside stays out", "utf8");
+    await writeFile(
+      join(outsideEntryDir, "manifest.json"),
+      JSON.stringify(
+        {
+          id: entryId,
+          itemId: "item-linked",
+          originalPath: join(fx.home, "restored.txt"),
+          storedPath: storedPathThroughLink,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 17,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await symlink(outsideItems, itemsLink, "dir");
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+    expect(await readFile(outsideStoredPath, "utf8")).toBe("outside stays out");
+  });
+
   it("cleans a failed prewritten trash manifest when no stored file exists", async () => {
     const orphanDir = __testing.entryDir(fx.userData, "failed-move");
     const storedPath = join(orphanDir, "files", "old.tmp");
