@@ -20,7 +20,7 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot
 } from "@shared/types";
-import { normalizePath } from "./blocklist";
+import { evaluatePath, normalizePath } from "./blocklist";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
 
@@ -318,6 +318,17 @@ export async function restoreTrashEntry(
       entryId: entry.id,
       status: "missing-stored-item",
       message: "복구할 파일이 이미 사라졌어요.",
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
+  const restoreDecision = evaluatePath(entry.originalPath, { allowRoots: [entry.originalPath] });
+  if (!restoreDecision.allowed) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: `원래 위치가 보호 경로라 자동으로 되돌리지 않았어요: ${restoreDecision.blockedBy ?? "보호 경로"}`,
       originalPath: entry.originalPath,
       entry
     };

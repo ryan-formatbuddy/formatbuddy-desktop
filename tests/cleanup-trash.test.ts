@@ -225,6 +225,33 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(hijackPath)).toBe(false);
   });
 
+  it("refuses restore when the manifest originalPath is a protected system path", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const blockedOriginalPath = "C:\\Windows\\System32\\drivers\\etc\\hosts";
+    await writeFile(
+      join(__testing.entryDir(fx.userData, entry.id), "manifest.json"),
+      JSON.stringify({ ...entry, originalPath: blockedOriginalPath }, null, 2),
+      "utf8"
+    );
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.originalPath).toBe(blockedOriginalPath);
+    expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
   it("ignores recovered manifests that point outside their trash entry folder", async () => {
     const orphanDir = __testing.entryDir(fx.userData, "orphan");
     const folder = join(orphanDir, "files");
