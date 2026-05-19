@@ -360,4 +360,50 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.totalBytes).toBe(0);
     expect(await readFile(outside, "utf8")).toBe("outside stays put");
   });
+
+  it("ignores index entries without a matching entry manifest", async () => {
+    const entryDir = __testing.entryDir(fx.userData, "index-only");
+    const storedPath = join(entryDir, "files", "old.tmp");
+    await mkdir(join(storedPath, ".."), { recursive: true });
+    await writeFile(storedPath, "hello", "utf8");
+    await mkdir(__testing.trashRoot(fx.userData), { recursive: true });
+    await writeFile(
+      __testing.indexPath(fx.userData),
+      JSON.stringify(
+        {
+          version: 1,
+          retentionDays: 30,
+          entries: [
+            {
+              id: "index-only",
+              itemId: "item-1",
+              originalPath: join(fx.home, "restored.tmp"),
+              storedPath,
+              label: "old.tmp",
+              categoryId: "temp-user",
+              sizeBytes: 5,
+              createdAt: "2026-05-19T00:00:00.000Z",
+              expiresAt: "2026-06-18T00:00:00.000Z"
+            }
+          ]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    const restored = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: "index-only"
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(restored.status).toBe("not-found");
+    expect(existsSync(entryDir)).toBe(false);
+  });
 });

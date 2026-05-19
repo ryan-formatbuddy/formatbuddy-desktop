@@ -174,28 +174,8 @@ async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashI
   const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);
 
-  const byId = new Map<string, CleanupTrashEntry>();
-  let changed = false;
-  for (const entry of index.entries) {
-    if (!isManifestEntrySelfContained(userDataDir, entry.id, entry)) {
-      changed = true;
-      continue;
-    }
-    if (byId.has(entry.id)) {
-      changed = true;
-      continue;
-    }
-    byId.set(entry.id, entry);
-  }
-
-  for (const entry of recovered) {
-    const current = byId.get(entry.id);
-    if (current && JSON.stringify(current) === JSON.stringify(entry)) continue;
-    byId.set(entry.id, entry);
-    changed = true;
-  }
-
-  const next = { ...index, entries: Array.from(byId.values()) };
+  const next = { ...index, entries: recovered };
+  const changed = JSON.stringify(index.entries) !== JSON.stringify(next.entries);
   if (changed) await saveIndex(userDataDir, next);
   return next;
 }
