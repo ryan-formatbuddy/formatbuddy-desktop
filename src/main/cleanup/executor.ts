@@ -183,6 +183,37 @@ interface AttemptOutcome {
   skipped?: CleanupSkippedItem;
 }
 
+async function validateLivePath(
+  item: CleanupItem,
+  home: string
+): Promise<CleanupSkippedItem | undefined> {
+  // Re-check the blocklist against just this path. We pass the path
+  // itself as its sole allow-root: combined with the system + user
+  // rule set, this catches both "the path looks safe" and "the path
+  // tries to escape its category" cases.
+  const decision = evaluatePath(item.path, { allowRoots: [item.path], home });
+  if (!decision.allowed) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: decision.blockedBy
+    };
+  }
+
+  const linkedSource = await findLinkedPathPart(item.path, home, true);
+  if (linkedSource) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: `링크 경로라 자동 정리하지 않아요: ${linkedSource}`
+    };
+  }
+
+  return undefined;
+}
+
 async function attemptItem(
   item: CleanupItem,
   mode: CleanupExecuteMode,
@@ -223,33 +254,8 @@ async function attemptItem(
     };
   }
 
-  // Re-check the blocklist against just this path. We pass the path
-  // itself as its sole allow-root: combined with the system + user
-  // rule set, this catches both "the path looks safe" and "the path
-  // tries to escape its category" cases.
-  const decision = evaluatePath(item.path, { allowRoots: [item.path], home });
-  if (!decision.allowed) {
-    return {
-      skipped: {
-        itemId: item.id,
-        path: item.path,
-        reason: "blocked-path",
-        detail: decision.blockedBy
-      }
-    };
-  }
-
-  const linkedSource = await findLinkedPathPart(item.path, home, true);
-  if (linkedSource) {
-    return {
-      skipped: {
-        itemId: item.id,
-        path: item.path,
-        reason: "blocked-path",
-        detail: `링크 경로라 자동 정리하지 않아요: ${linkedSource}`
-      }
-    };
-  }
+  const preMeasureSkip = await validateLivePath(item, home);
+  if (preMeasureSkip) return { skipped: preMeasureSkip };
 
   let actualSize = item.sizeBytes;
   const measured = await deps.statSize(item.path);
@@ -259,6 +265,9 @@ async function attemptItem(
     };
   }
   actualSize = Math.max(0, measured);
+
+  const preRemoveSkip = await validateLivePath(item, home);
+  if (preRemoveSkip) return { skipped: preRemoveSkip };
 
   try {
     const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;

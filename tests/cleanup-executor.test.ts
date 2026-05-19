@@ -199,6 +199,43 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(join(outside, "old1.tmp"), "utf8")).resolves.toBe("outside");
   });
 
+  it("permanent mode rechecks the path after measurement before deleting", async () => {
+    if (process.platform === "win32") return;
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    const outside = join(fx.root, "outside-after-measure");
+
+    const { deps } = makeSpyDeps({
+      statSize: async () => {
+        await fs.rm(fx.tempDir, { recursive: true, force: true });
+        await fs.mkdir(outside, { recursive: true });
+        await fs.symlink(outside, fx.tempDir, "dir");
+        await fs.writeFile(join(outside, "old1.tmp"), "outside", "utf8");
+        return 7;
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "permanent"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/링크/);
+    await expect(fs.readFile(join(outside, "old1.tmp"), "utf8")).resolves.toBe("outside");
+  });
+
   it("uses the latest zero-byte measurement instead of stale plan size", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
