@@ -434,13 +434,13 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
       </section>
 
       {phase.kind === "planning" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <p>정리 후보를 모으는 중이에요. 잠깐만 기다려주세요.</p>
         </article>
       )}
 
       {phase.kind === "error" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h2>잠시 멈췄어요</h2>
           <p>{phase.message}</p>
           <div style={{ display: "flex", gap: 8 }}>
@@ -456,7 +456,7 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
 
       {(phase.kind === "preview" || phase.kind === "confirm" || phase.kind === "executing") && (
         <>
-          <section className="fb-card" style={{ marginBottom: 16 }}>
+          <section className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
             <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <div>
                 <h2 style={{ margin: 0 }}>선택한 항목</h2>
@@ -519,7 +519,7 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
       )}
 
       {phase.kind === "executing" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <p>정리하는 중이에요. 큰 파일이 있으면 조금 걸릴 수 있어요.</p>
         </article>
       )}
