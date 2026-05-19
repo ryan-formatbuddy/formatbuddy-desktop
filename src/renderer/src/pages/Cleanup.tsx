@@ -405,10 +405,12 @@ function TrashEntryRow({
 
 function TrashPanel({
   snapshot,
-  onRestore
+  onRestore,
+  onOpenTrashRestore
 }: {
   snapshot?: CleanupTrashSnapshot;
   onRestore: (entryId: string) => void;
+  onOpenTrashRestore: () => void;
 }) {
   if (!snapshot || snapshot.entries.length === 0) return null;
   const sample = snapshot.entries.slice(0, 4);
@@ -432,9 +434,12 @@ function TrashPanel({
         ))}
       </ul>
       {hidden > 0 && (
-        <small style={{ opacity: 0.6 }}>
-          나머지 {hidden}개는 다음 업데이트에서 전체 복구함 화면으로 보여드릴게요.
-        </small>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <small style={{ opacity: 0.6 }}>나머지 {hidden}개도 전체 복구함에서 바로 볼 수 있어요.</small>
+          <Button variant="ghost" size="sm" onClick={onOpenTrashRestore}>
+            전체 복구함 열기
+          </Button>
+        </div>
       )}
     </article>
   );
@@ -623,7 +628,11 @@ export function Cleanup({
         </article>
       )}
 
-      <TrashPanel snapshot={trashSnapshot} onRestore={restoreFromTrash} />
+      <TrashPanel
+        snapshot={trashSnapshot}
+        onRestore={restoreFromTrash}
+        onOpenTrashRestore={onOpenTrashRestore}
+      />
 
       {phase.kind === "planning" && (
         <article className="fb-card fb-card-hover">
