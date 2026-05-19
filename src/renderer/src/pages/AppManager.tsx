@@ -6,6 +6,7 @@ import type {
   AppLeftoversSnapshot,
   AppManagerItem,
   AppManagerSnapshot,
+  CleanupExecuteResult,
   AppUninstallResult
 } from "@shared/types";
 
@@ -142,7 +143,21 @@ function AppRow({
   );
 }
 
-function LeftoverPanel({ state }: { state: LeftoverState }) {
+function LeftoverPanel({
+  state,
+  selected,
+  busy,
+  result,
+  onToggle,
+  onCleanup
+}: {
+  state: LeftoverState;
+  selected: Set<string>;
+  busy: boolean;
+  result?: CleanupExecuteResult;
+  onToggle: (pathId: string, checked: boolean) => void;
+  onCleanup: () => void;
+}) {
   if (state.loading) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
@@ -169,17 +184,53 @@ function LeftoverPanel({ state }: { state: LeftoverState }) {
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 폴더 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 폴더예요. 여기서는 보기만 하고, 실제 정리는 안전
-        정리 센터에서 진행해주세요.
+        Windows가 앱을 제거해도 남는 경우가 있는 폴더예요. 지울 항목을 직접 고르면 포맷버디
+        복구함에 30일 동안 보관한 뒤 자동 삭제해요.
       </p>
+      <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+        <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+          <div>
+            <strong>선택한 잔여 폴더</strong>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>
+              {selected.size}개 · 보호됨/없는 폴더는 선택할 수 없어요.
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onCleanup}
+            disabled={busy || selected.size === 0}
+          >
+            {busy ? "복구함으로 보내는 중…" : "30일 복구함으로 보내기"}
+          </Button>
+        </header>
+        {result && (
+          <p style={{ fontSize: 13, opacity: 0.82, margin: "8px 0 0" }}>
+            {result.removedItems.length}개를 복구함으로 보냈어요. 실패/건너뜀 {result.skippedItems.filter((s) => s.reason !== "not-selected").length}개.
+          </p>
+        )}
+      </article>
       {state.snapshot.groups.map((group) => (
-        <LeftoverGroupCard key={group.appName} group={group} />
+        <LeftoverGroupCard
+          key={group.appName}
+          group={group}
+          selected={selected}
+          onToggle={onToggle}
+        />
       ))}
     </section>
   );
 }
 
-function LeftoverGroupCard({ group }: { group: AppLeftoverGroup }) {
+function LeftoverGroupCard({
+  group,
+  selected,
+  onToggle
+}: {
+  group: AppLeftoverGroup;
+  selected: Set<string>;
+  onToggle: (pathId: string, checked: boolean) => void;
+}) {
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
       <header>
@@ -189,7 +240,7 @@ function LeftoverGroupCard({ group }: { group: AppLeftoverGroup }) {
       <ul style={{ listStyle: "none", padding: 0, marginTop: 8 }}>
         {group.paths.map((path) => (
           <li
-            key={path.path}
+            key={path.id}
             style={{
               display: "flex",
               gap: 8,
@@ -198,6 +249,13 @@ function LeftoverGroupCard({ group }: { group: AppLeftoverGroup }) {
               borderTop: "1px solid rgba(0,0,0,0.05)"
             }}
           >
+            <input
+              type="checkbox"
+              checked={selected.has(path.id)}
+              disabled={!path.exists || Boolean(path.protectedBy)}
+              onChange={(e) => onToggle(path.id, e.target.checked)}
+              aria-label={`${path.path} 선택`}
+            />
             <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>{path.path}</code>
             <span style={{ fontSize: 12, opacity: 0.7 }}>
               {path.exists ? formatBytes(path.sizeBytes) : "없음"}
@@ -220,6 +278,9 @@ function LeftoverGroupCard({ group }: { group: AppLeftoverGroup }) {
 export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [leftovers, setLeftovers] = useState<LeftoverState>({ loading: false });
+  const [selectedLeftovers, setSelectedLeftovers] = useState<Set<string>>(new Set());
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<CleanupExecuteResult | undefined>();
   const [activeUninstall, setActiveUninstall] = useState<string | null>(null);
   const [uninstallStatuses, setUninstallStatuses] = useState<Record<string, AppUninstallResult>>(
     {}
@@ -253,10 +314,45 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
     try {
       const snapshot = await window.fb.listAppLeftovers();
       setLeftovers({ loading: false, snapshot });
+      setSelectedLeftovers(new Set());
     } catch (err) {
       setLeftovers({ loading: false, error: (err as Error).message });
     }
   }, []);
+
+  const toggleLeftover = useCallback((pathId: string, checked: boolean) => {
+    setSelectedLeftovers((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(pathId);
+      else next.delete(pathId);
+      return next;
+    });
+  }, []);
+
+  const cleanupSelectedLeftovers = useCallback(async () => {
+    if (!window.fb?.cleanupAppLeftovers) return;
+    const snapshot = leftovers.snapshot;
+    if (!snapshot || selectedLeftovers.size === 0) return;
+    const confirmed = window.confirm(
+      `선택한 앱 잔여 폴더 ${selectedLeftovers.size}개를 포맷버디 복구함으로 보낼게요. 30일 안에는 되돌릴 수 있어요.`
+    );
+    if (!confirmed) return;
+    setCleanupBusy(true);
+    try {
+      const result = await window.fb.cleanupAppLeftovers({
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: Array.from(selectedLeftovers)
+      });
+      setCleanupResult(result);
+      setSelectedLeftovers(new Set());
+      await loadLeftovers();
+    } catch (err) {
+      setLeftovers((prev) => ({ ...prev, loading: false, error: (err as Error).message }));
+    } finally {
+      setCleanupBusy(false);
+    }
+  }, [leftovers.snapshot, loadLeftovers, selectedLeftovers]);
 
   const onUninstall = useCallback(async (item: AppManagerItem) => {
     if (!window.fb?.uninstallApp) return;
@@ -396,7 +492,14 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
           </article>
         ))}
 
-      <LeftoverPanel state={leftovers} />
+      <LeftoverPanel
+        state={leftovers}
+        selected={selectedLeftovers}
+        busy={cleanupBusy}
+        result={cleanupResult}
+        onToggle={toggleLeftover}
+        onCleanup={cleanupSelectedLeftovers}
+      />
     </main>
   );
 }

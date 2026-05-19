@@ -36,7 +36,8 @@ const CATEGORY_LABEL: Record<CleanupCategoryId, string> = {
   "browser-cache": "브라우저 캐시",
   "windows-old": "이전 Windows",
   "downloads-installers": "오래된 설치 파일",
-  "large-files": "큰 파일"
+  "large-files": "큰 파일",
+  "app-leftovers": "앱 잔여 폴더"
 };
 
 function formatBytes(value: number): string {

@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { planAppLeftovers } from "../src/main/apps/leftovers";
+import {
+  cleanupAppLeftovers,
+  planAppLeftovers,
+  __resetLeftoversPlanCacheForTests
+} from "../src/main/apps/leftovers";
+import { getTrashSnapshot } from "../src/main/cleanup/trash";
 import type { InstalledApp } from "../src/shared/types";
 
 interface Fixture {
@@ -30,10 +35,12 @@ describe("planAppLeftovers", () => {
   let fx: Fixture;
 
   beforeEach(() => {
+    __resetLeftoversPlanCacheForTests();
     fx = makeFixture();
   });
 
   afterEach(() => {
+    __resetLeftoversPlanCacheForTests();
     fx.cleanup();
   });
 
@@ -52,9 +59,31 @@ describe("planAppLeftovers", () => {
     });
 
     expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.planId).toBeTruthy();
+    expect(snapshot.confirmationToken).toMatch(/^[a-f0-9]{64}$/);
     expect(snapshot.groups[0].appName).toBe("KakaoTalk");
     const existing = snapshot.groups[0].paths.find((p) => p.path === kakaoRoaming);
     expect(existing?.exists).toBe(true);
+    expect(existing?.id).toBeTruthy();
+  });
+
+  it("measures leftover folders recursively", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(join(slack, "Cache"), { recursive: true });
+    await fs.writeFile(join(slack, "Cache", "a.bin"), "12345", "utf8");
+    await fs.writeFile(join(slack, "b.bin"), "1234567", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack);
+    expect(path?.exists).toBe(true);
+    expect(path?.sizeBytes).toBe(12);
   });
 
   it("marks blocklist-protected leftover paths with protectedBy", async () => {
@@ -110,6 +139,75 @@ describe("planAppLeftovers", () => {
     );
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].paths.every((p) => !p.exists)).toBe(true);
+  });
+
+  it("moves selected app leftovers into the FormatBuddy 30-day trash", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].categoryId).toBe("app-leftovers");
+    expect(result.removedItems[0].trashEntryId).toBeTruthy();
+    await expect(fs.stat(slack)).rejects.toThrow();
+
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toHaveLength(1);
+    expect(trash.entries[0].originalPath).toBe(slack);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("refuses protected leftover cleanup even with a valid plan", async () => {
+    const kakaoRoaming = join(fx.roaming, "KakaoTalk");
+    await fs.mkdir(kakaoRoaming, { recursive: true });
+    await fs.writeFile(join(kakaoRoaming, "talk.db"), "secret", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "KakaoTalk", publisher: "Kakao" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+    const path = snapshot.groups[0].paths.find((p) => p.path === kakaoRoaming)!;
+    expect(path.protectedBy).toBeTruthy();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0].reason).toBe("blocked-path");
+    await expect(fs.stat(kakaoRoaming)).resolves.toBeTruthy();
   });
 
   // ====================================================================

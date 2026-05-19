@@ -14,15 +14,24 @@
  * positives risk pointing the user at the wrong app's data.
  */
 import { promises as fs } from "node:fs";
+import type { Dirent, Stats } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   AppLeftoverGroup,
   AppLeftoverPath,
+  AppLeftoversCleanupRequest,
   AppLeftoversSnapshot,
+  CleanupExecuteResult,
+  CleanupExecutedItem,
+  CleanupItem,
+  CleanupSkippedItem,
   InstalledApp
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
+import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
+import { moveToFormatBuddyTrash } from "../cleanup/trash";
 
 interface LeftoverRule {
   match: RegExp;
@@ -36,6 +45,17 @@ interface LeftoverEnv {
   localAppData: string;
   programData: string;
 }
+
+interface CachedLeftoversPlan {
+  snapshot: AppLeftoversSnapshot;
+  env: LeftoverEnv;
+  expiresAt: number;
+}
+
+const PLAN_TTL_MS = 5 * 60 * 1000;
+const MAX_LEFTOVER_DEPTH = 8;
+const MAX_LEFTOVER_ITEMS = 50_000;
+const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 
 const RULES: LeftoverRule[] = [
   {
@@ -325,6 +345,90 @@ function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv 
   };
 }
 
+function nowMs(now?: () => Date): number {
+  return now?.().getTime() ?? Date.now();
+}
+
+function makePathId(path: string): string {
+  return createHash("sha1").update(normalizePath(path)).digest("hex").slice(0, 16);
+}
+
+function planToken(planId: string, groups: AppLeftoverGroup[]): string {
+  const tokenInput = groups
+    .map((group) =>
+      `${group.appName}:${group.paths.map((p) => `${p.id}:${p.exists ? 1 : 0}:${p.sizeBytes ?? 0}:${p.protectedBy ?? ""}`).join(",")}`
+    )
+    .join("|");
+  return createHash("sha256").update(`${planId}|${tokenInput}`).digest("hex");
+}
+
+async function* walkPath(
+  root: string,
+  depth = 0,
+  counter = { count: 0 }
+): AsyncGenerator<{ path: string; size: number; modified: Date }> {
+  if (depth > MAX_LEFTOVER_DEPTH || counter.count >= MAX_LEFTOVER_ITEMS) return;
+
+  let stat: Stats;
+  try {
+    stat = await fs.lstat(root);
+  } catch {
+    return;
+  }
+  if (stat.isSymbolicLink()) return;
+  if (stat.isFile()) {
+    counter.count += 1;
+    yield { path: root, size: stat.size, modified: stat.mtime };
+    return;
+  }
+  if (!stat.isDirectory()) return;
+
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (counter.count >= MAX_LEFTOVER_ITEMS) return;
+    if (entry.isSymbolicLink()) continue;
+    yield* walkPath(join(root, entry.name), depth + 1, counter);
+  }
+}
+
+async function measurePath(raw: string): Promise<{
+  exists: boolean;
+  sizeBytes?: number;
+  lastModifiedAt?: string;
+}> {
+  try {
+    const rootStat = await fs.lstat(raw);
+    if (rootStat.isSymbolicLink()) return { exists: false };
+    if (rootStat.isFile()) {
+      return {
+        exists: true,
+        sizeBytes: rootStat.size,
+        lastModifiedAt: rootStat.mtime.toISOString()
+      };
+    }
+    if (!rootStat.isDirectory()) return { exists: false };
+
+    let total = 0;
+    let latest = rootStat.mtime;
+    for await (const file of walkPath(raw)) {
+      total += file.size;
+      if (file.modified.getTime() > latest.getTime()) latest = file.modified;
+    }
+    return {
+      exists: true,
+      sizeBytes: total,
+      lastModifiedAt: latest.toISOString()
+    };
+  } catch {
+    return { exists: false };
+  }
+}
+
 async function pathInfo(
   raw: string,
   env: LeftoverEnv
@@ -337,23 +441,14 @@ async function pathInfo(
   // transparent.
   const decision = evaluatePath(raw, { allowRoots: [raw], home: env.home });
 
-  let exists = false;
-  let sizeBytes: number | undefined;
-  let lastModifiedAt: string | undefined;
-  try {
-    const stat = await fs.stat(raw);
-    exists = true;
-    sizeBytes = stat.size;
-    lastModifiedAt = stat.mtime.toISOString();
-  } catch {
-    exists = false;
-  }
+  const measured = await measurePath(raw);
 
   return {
+    id: makePathId(raw),
     path: raw,
-    exists,
-    sizeBytes,
-    lastModifiedAt,
+    exists: measured.exists,
+    sizeBytes: measured.sizeBytes,
+    lastModifiedAt: measured.lastModifiedAt,
     protectedBy: decision.allowed ? undefined : decision.blockedBy ?? normalized
   };
 }
@@ -388,10 +483,184 @@ export async function planAppLeftovers(
     });
   }
 
-  return {
+  const planId = randomUUID();
+  const snapshot: AppLeftoversSnapshot = {
+    planId,
+    confirmationToken: planToken(planId, groups),
     generatedAt: new Date().toISOString(),
     groups
   };
+
+  PLAN_CACHE.set(planId, {
+    snapshot,
+    env,
+    expiresAt: Date.now() + PLAN_TTL_MS
+  });
+  pruneExpiredPlans();
+  return snapshot;
 }
 
-export const __testing = { RULES, defaultEnv };
+function pruneExpiredPlans(now?: () => Date): void {
+  const t = nowMs(now);
+  for (const [id, cached] of PLAN_CACHE.entries()) {
+    if (cached.expiresAt <= t) PLAN_CACHE.delete(id);
+  }
+}
+
+function consumeLeftoversPlan(
+  planId: string,
+  confirmationToken: string,
+  now?: () => Date
+): CachedLeftoversPlan | undefined {
+  pruneExpiredPlans(now);
+  const cached = PLAN_CACHE.get(planId);
+  if (!cached) return undefined;
+  if (cached.snapshot.confirmationToken !== confirmationToken) return undefined;
+  PLAN_CACHE.delete(planId);
+  return cached;
+}
+
+function allPaths(snapshot: AppLeftoversSnapshot): AppLeftoverPath[] {
+  return snapshot.groups.flatMap((group) => group.paths);
+}
+
+function appNameForPath(snapshot: AppLeftoversSnapshot, pathId: string): string {
+  return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId))?.appName ?? "앱 잔여 폴더";
+}
+
+function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
+  return {
+    id: path.id,
+    path: path.path,
+    label: appNameForPath(snapshot, path.id),
+    sizeBytes: Math.max(0, Math.round(path.sizeBytes ?? 0)),
+    modifiedAt: path.lastModifiedAt ?? undefined,
+    categoryId: "app-leftovers",
+    riskLevel: "review",
+    reason: "앱 제거 후 남은 AppData/ProgramData 후보"
+  };
+}
+
+export async function cleanupAppLeftovers(
+  request: AppLeftoversCleanupRequest,
+  options: { userDataDir: string; now?: () => Date } 
+): Promise<CleanupExecuteResult> {
+  if (!request?.planId || !request?.confirmationToken) {
+    throw new Error("apps:leftovers-cleanup requires planId and confirmationToken");
+  }
+  if (!Array.isArray(request.selectedPathIds) || request.selectedPathIds.length === 0) {
+    throw new Error("apps:leftovers-cleanup requires at least one selected path");
+  }
+
+  const cached = consumeLeftoversPlan(request.planId, request.confirmationToken, options.now);
+  if (!cached) {
+    throw new Error("apps:leftovers-cleanup could not match a current plan (expired, wrong token, or already executed)");
+  }
+
+  const selectedIds = new Set(request.selectedPathIds);
+  const index = new Map(allPaths(cached.snapshot).map((path) => [path.id, path]));
+  const removedItems: CleanupExecutedItem[] = [];
+  const skippedItems: CleanupSkippedItem[] = [];
+
+  for (const selectedId of selectedIds) {
+    const path = index.get(selectedId);
+    if (!path) {
+      skippedItems.push({
+        itemId: selectedId,
+        path: "",
+        reason: "not-found",
+        detail: "selectedPathIds referenced a path not present in the leftover plan"
+      });
+      continue;
+    }
+    if (!path.exists) {
+      skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
+      continue;
+    }
+    if (path.protectedBy) {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: path.protectedBy
+      });
+      continue;
+    }
+
+    const decision = evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
+    if (!decision.allowed) {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: decision.blockedBy
+      });
+      continue;
+    }
+
+    const measured = await measurePath(path.path);
+    if (!measured.exists) {
+      skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
+      continue;
+    }
+
+    const cleanupItem = toCleanupItem(
+      {
+        ...path,
+        sizeBytes: measured.sizeBytes,
+        lastModifiedAt: measured.lastModifiedAt
+      },
+      cached.snapshot
+    );
+    try {
+      const trashEntry = await moveToFormatBuddyTrash({
+        userDataDir: options.userDataDir,
+        item: cleanupItem,
+        sizeBytes: cleanupItem.sizeBytes,
+        now: options.now
+      });
+      removedItems.push({
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
+        sizeBytes: cleanupItem.sizeBytes,
+        categoryId: cleanupItem.categoryId,
+        mode: "trash",
+        succeeded: true,
+        trashEntryId: trashEntry.id,
+        expiresAt: trashEntry.expiresAt
+      });
+    } catch (err) {
+      skippedItems.push({
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
+        reason: "execute-failed",
+        detail: (err as Error).message
+      });
+    }
+  }
+
+  const executedAt = options.now?.().toISOString() ?? new Date().toISOString();
+  const logEntry = buildLogEntry({
+    mode: "trash",
+    executedAt,
+    removedItems,
+    skippedItems
+  });
+  await recordCleanupExecution(options.userDataDir, logEntry);
+
+  return {
+    planId: cached.snapshot.planId,
+    executedAt,
+    mode: "trash",
+    totalFreedBytes: logEntry.totalFreedBytes,
+    removedItems,
+    skippedItems,
+    logEntry
+  };
+}
+
+export function __resetLeftoversPlanCacheForTests(): void {
+  PLAN_CACHE.clear();
+}
+
+export const __testing = { RULES, defaultEnv, measurePath, PLAN_TTL_MS };

@@ -446,6 +446,13 @@ const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
     description: "진단에서 찾은 큰 파일 후보예요. 항목을 직접 보고 선택해요.",
     safetyNote: "개인 파일이 섞일 수 있어요. 반드시 확인해주세요.",
     riskLevel: "review"
+  },
+  "app-leftovers": {
+    id: "app-leftovers",
+    label: "앱 잔여 폴더",
+    description: "앱 제거 뒤 AppData/ProgramData에 남은 폴더 후보예요.",
+    safetyNote: "앱 정리 센터에서 직접 선택한 항목만 포맷버디 복구함으로 보내요.",
+    riskLevel: "review"
   }
 };
 
