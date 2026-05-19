@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
-import type { CleanupExecuteResult, CleanupTrashRestoreResult } from "../src/shared/types";
+import {
+  daysUntilTrashExpiry,
+  restorableTrashEntryIds,
+  summarizeTrashRestoreResults,
+  trashExpirySummary
+} from "../src/shared/cleanup-result";
+import type {
+  CleanupExecuteResult,
+  CleanupTrashEntry,
+  CleanupTrashRestoreResult
+} from "../src/shared/types";
 
 function resultWithEntries(): CleanupExecuteResult {
   return {
@@ -64,5 +73,30 @@ describe("Cleanup result undo helper", () => {
     expect(summarizeTrashRestoreResults(results)).toBe(
       "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 1개는 이미 없거나 되돌리지 못했어요."
     );
+  });
+
+  it("calculates friendly 30-day trash expiry windows", () => {
+    const now = Date.parse("2026-05-19T00:00:00.000Z");
+    const entries = [
+      { expiresAt: "2026-05-19T00:00:00.000Z" },
+      { expiresAt: "2026-05-21T00:00:00.000Z" },
+      { expiresAt: "2026-05-29T00:00:00.000Z" }
+    ] as CleanupTrashEntry[];
+
+    expect(daysUntilTrashExpiry(entries[0].expiresAt, now)).toBe(0);
+    expect(daysUntilTrashExpiry(entries[1].expiresAt, now)).toBe(2);
+    expect(trashExpirySummary(entries, now)).toEqual({
+      nextExpiryDays: 0,
+      expiringSoonCount: 2,
+      todayCount: 1
+    });
+  });
+
+  it("returns an empty expiry summary for an empty trash bin", () => {
+    expect(trashExpirySummary([], Date.parse("2026-05-19T00:00:00.000Z"))).toEqual({
+      nextExpiryDays: null,
+      expiringSoonCount: 0,
+      todayCount: 0
+    });
   });
 });

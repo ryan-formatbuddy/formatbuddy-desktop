@@ -1,4 +1,42 @@
-import type { CleanupExecuteResult, CleanupTrashRestoreResult } from "./types";
+import type {
+  CleanupExecuteResult,
+  CleanupTrashEntry,
+  CleanupTrashRestoreResult
+} from "./types";
+
+const MS_PER_DAY = 86_400_000;
+
+export interface TrashExpirySummary {
+  nextExpiryDays: number | null;
+  expiringSoonCount: number;
+  todayCount: number;
+}
+
+function parseTrashExpiryDays(expiresAt: string, now: number): number | null {
+  const t = Date.parse(expiresAt);
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.ceil((t - now) / MS_PER_DAY));
+}
+
+export function daysUntilTrashExpiry(expiresAt: string, now = Date.now()): number {
+  return parseTrashExpiryDays(expiresAt, now) ?? 0;
+}
+
+export function trashExpirySummary(
+  entries: Pick<CleanupTrashEntry, "expiresAt">[],
+  now = Date.now(),
+  soonDays = 3
+): TrashExpirySummary {
+  const days = entries
+    .map((entry) => parseTrashExpiryDays(entry.expiresAt, now))
+    .filter((day): day is number => day !== null);
+
+  return {
+    nextExpiryDays: days.length > 0 ? Math.min(...days) : null,
+    expiringSoonCount: days.filter((day) => day <= soonDays).length,
+    todayCount: days.filter((day) => day === 0).length
+  };
+}
 
 export function restorableTrashEntryIds(result: CleanupExecuteResult): string[] {
   return result.removedItems

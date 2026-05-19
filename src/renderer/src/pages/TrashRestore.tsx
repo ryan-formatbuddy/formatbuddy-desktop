@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
-import { summarizeTrashRestoreResults } from "@shared/cleanup-result";
+import {
+  daysUntilTrashExpiry,
+  summarizeTrashRestoreResults,
+  trashExpirySummary
+} from "@shared/cleanup-result";
 import type {
   CleanupCategoryId,
   CleanupTrashEntry,
@@ -55,12 +59,6 @@ function formatLocal(at: string): string {
   const t = Date.parse(at);
   if (!Number.isFinite(t)) return at;
   return new Date(t).toLocaleString("ko-KR");
-}
-
-function daysUntil(expiresAt: string, now = Date.now()): number {
-  const t = Date.parse(expiresAt);
-  if (!Number.isFinite(t)) return 0;
-  return Math.max(0, Math.ceil((t - now) / 86_400_000));
 }
 
 export function TrashRestore({ onBack }: TrashRestoreProps) {
@@ -154,6 +152,19 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     return `${entries.length}개 항목 · 총 ${formatBytes(snapshot.totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
   }, [snapshot, entries.length]);
 
+  const expirySummary = useMemo(() => trashExpirySummary(entries), [entries]);
+
+  const expiryMessage = useMemo(() => {
+    if (!snapshot || entries.length === 0 || expirySummary.nextExpiryDays === null) return null;
+    if (expirySummary.todayCount > 0) {
+      return `${expirySummary.todayCount}개가 오늘 자동 삭제돼요. 필요한 게 있으면 먼저 되돌려주세요.`;
+    }
+    if (expirySummary.expiringSoonCount > 0) {
+      return `${expirySummary.expiringSoonCount}개가 3일 안에 자동 삭제돼요. 오래된 항목부터 확인해볼게요.`;
+    }
+    return `가장 먼저 자동 삭제될 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
+  }, [entries.length, expirySummary, snapshot]);
+
   return (
     <main className="fb-report" aria-label="복구함 (30일)">
       <header className="fb-report-header">
@@ -215,6 +226,21 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             {busy === "purge" ? "정리 중..." : "지금 비우기"}
           </Button>
         </div>
+        {expiryMessage && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              borderRadius: 14,
+              background: "rgba(37, 99, 235, 0.08)",
+              color: "#1d4ed8",
+              fontSize: 13,
+              fontWeight: 650
+            }}
+          >
+            {expiryMessage}
+          </div>
+        )}
         {toast && (
           <p style={{ fontSize: 13, marginTop: 8, opacity: 0.85 }}>{toast}</p>
         )}
@@ -231,7 +257,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       )}
 
       {entries.map((entry, idx) => {
-        const days = daysUntil(entry.expiresAt);
+        const days = daysUntilTrashExpiry(entry.expiresAt);
         const isUrgent = days <= 3;
         return (
           <article
@@ -268,7 +294,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 style={{
                   marginLeft: "auto",
                   fontSize: 12,
-                  color: isUrgent ? "#dc2626" : "rgba(0,0,0,0.55)",
+                  color: isUrgent ? "#1d4ed8" : "rgba(0,0,0,0.55)",
                   fontWeight: isUrgent ? 600 : 400
                 }}
               >
