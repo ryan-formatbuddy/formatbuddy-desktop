@@ -145,14 +145,14 @@ function AppRow({
 function LeftoverPanel({ state }: { state: LeftoverState }) {
   if (state.loading) {
     return (
-      <article className="fb-card" style={{ marginTop: 16 }}>
+      <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>잔여 폴더 후보를 살펴보는 중이에요…</p>
       </article>
     );
   }
   if (state.error) {
     return (
-      <article className="fb-card" style={{ marginTop: 16 }}>
+      <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>잔여 폴더 확인 중 문제가 생겼어요: {state.error}</p>
       </article>
     );
@@ -160,7 +160,7 @@ function LeftoverPanel({ state }: { state: LeftoverState }) {
   if (!state.snapshot) return null;
   if (state.snapshot.groups.length === 0) {
     return (
-      <article className="fb-card" style={{ marginTop: 16 }}>
+      <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>알려진 잔여 폴더 후보가 보이지 않아요.</p>
       </article>
     );
@@ -181,7 +181,7 @@ function LeftoverPanel({ state }: { state: LeftoverState }) {
 
 function LeftoverGroupCard({ group }: { group: AppLeftoverGroup }) {
   return (
-    <article className="fb-card" style={{ marginBottom: 12 }}>
+    <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
       <header>
         <h3 style={{ margin: 0 }}>{group.appName}</h3>
         {group.publisher && <small style={{ opacity: 0.7 }}>{group.publisher}</small>}
@@ -317,7 +317,7 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
         )}
       </section>
 
-      <section className="fb-card" style={{ marginBottom: 16 }}>
+      <section className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
         <header
           style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
         >
@@ -345,13 +345,13 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
       </section>
 
       {load.kind === "loading" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <p>앱 목록을 가져오는 중이에요…</p>
         </article>
       )}
 
       {load.kind === "empty" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <p>최근 진단 결과가 비어 있어요. 먼저 PC 점검을 한 번 돌려주세요.</p>
           <Button variant="primary" onClick={onBack}>
             처음으로
@@ -360,7 +360,7 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
       )}
 
       {load.kind === "error" && (
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h2>잠시 멈췄어요</h2>
           <p>{load.message}</p>
           <Button variant="primary" onClick={() => void refresh()}>
