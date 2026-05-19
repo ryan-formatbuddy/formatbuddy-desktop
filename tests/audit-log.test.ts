@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   rmSync,
   readFileSync,
@@ -138,6 +139,22 @@ describe("appendAuditEntry + getAuditSnapshot", () => {
     expect(lstatSync(auditLog).isSymbolicLink()).toBe(false);
     const snap = await getAuditSnapshot(dir);
     expect(snap.entries.map((entry) => entry.summary)).toEqual(["safe write"]);
+  });
+
+  it("replaces a non-file audit log path before appending an entry", async () => {
+    const auditLog = join(dir, "formatbuddy-audit-log.json");
+    mkdirSync(auditLog, { recursive: true });
+    writeFileSync(join(auditLog, "stale-child.txt"), "stale", "utf8");
+
+    await appendAuditEntry(
+      dir,
+      { category: "cleanup", action: "trash", summary: "safe folder recovery" },
+      new Date("2026-05-19T10:00:00.000Z")
+    );
+
+    expect(lstatSync(auditLog).isFile()).toBe(true);
+    const snap = await getAuditSnapshot(dir);
+    expect(snap.entries.map((entry) => entry.summary)).toEqual(["safe folder recovery"]);
   });
 });
 

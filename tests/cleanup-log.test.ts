@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -113,6 +114,34 @@ describe("cleanup execution log coercion", () => {
 
     expect(readFileSync(outsideLog, "utf8")).toBe("outside stays put");
     expect(lstatSync(cleanupLog).isSymbolicLink()).toBe(false);
+    const history = await getCleanupHistory(dir);
+    expect(history.entries.map((item) => item.id)).toEqual([entry.id]);
+  });
+
+  it("replaces a non-file cleanup execution log path before recording history", async () => {
+    const cleanupLog = join(dir, "formatbuddy-cleanup-log.json");
+    mkdirSync(cleanupLog, { recursive: true });
+    writeFileSync(join(cleanupLog, "stale-child.txt"), "stale", "utf8");
+
+    const entry = buildLogEntry({
+      mode: "trash",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "item-1",
+          path: join(dir, "old.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true
+        }
+      ],
+      skippedItems: []
+    });
+
+    await recordCleanupExecution(dir, entry);
+
+    expect(lstatSync(cleanupLog).isFile()).toBe(true);
     const history = await getCleanupHistory(dir);
     expect(history.entries.map((item) => item.id)).toEqual([entry.id]);
   });

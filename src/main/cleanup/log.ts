@@ -8,7 +8,7 @@
  * Cap is intentionally low (MAX_ENTRIES) — the log is for "did we already
  * clean this category recently?" UX hints, not forensics.
  */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
@@ -140,14 +140,24 @@ async function loadLog(userDataDir: string): Promise<PersistedLog> {
 
 async function saveLog(userDataDir: string, log: PersistedLog): Promise<void> {
   await mkdir(userDataDir, { recursive: true });
-  const linkedLog = await findLinkedPathPart(logPath(userDataDir), userDataDir, true);
+  const targetLogPath = logPath(userDataDir);
+  const linkedLog = await findLinkedPathPart(targetLogPath, userDataDir, true);
   if (linkedLog) {
-    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(logPath(userDataDir)))) {
+    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(targetLogPath))) {
       throw new Error(`FormatBuddy cleanup log path is behind a link: ${linkedLog}`);
     }
-    await rm(logPath(userDataDir), { force: true });
+    await rm(targetLogPath, { force: true });
   }
-  await writeFile(logPath(userDataDir), JSON.stringify(log, null, 2), "utf8");
+  try {
+    const logStat = await lstat(targetLogPath);
+    if (!logStat.isFile()) {
+      await rm(targetLogPath, { recursive: true, force: true });
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
+  }
+  await writeFile(targetLogPath, JSON.stringify(log, null, 2), "utf8");
 }
 
 export function buildLogEntry(args: {

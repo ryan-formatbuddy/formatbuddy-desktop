@@ -16,7 +16,7 @@
  *   stale-but-already-pruned read returns the right view without
  *   touching disk twice.
  */
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AuditCategory, AuditEntry, AuditSnapshot } from "@shared/types";
@@ -123,14 +123,24 @@ async function loadLog(userDataDir: string): Promise<PersistedAuditLog> {
 
 async function saveLog(userDataDir: string, log: PersistedAuditLog): Promise<void> {
   await mkdir(userDataDir, { recursive: true });
-  const linkedLog = await findLinkedPathPart(auditPath(userDataDir), userDataDir, true);
+  const targetLogPath = auditPath(userDataDir);
+  const linkedLog = await findLinkedPathPart(targetLogPath, userDataDir, true);
   if (linkedLog) {
-    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(auditPath(userDataDir)))) {
+    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(targetLogPath))) {
       throw new Error(`FormatBuddy audit log path is behind a link: ${linkedLog}`);
     }
-    await rm(auditPath(userDataDir), { force: true });
+    await rm(targetLogPath, { force: true });
   }
-  await writeFile(auditPath(userDataDir), JSON.stringify(log, null, 2), "utf8");
+  try {
+    const logStat = await lstat(targetLogPath);
+    if (!logStat.isFile()) {
+      await rm(targetLogPath, { recursive: true, force: true });
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
+  }
+  await writeFile(targetLogPath, JSON.stringify(log, null, 2), "utf8");
 }
 
 export interface AuditEmit {
