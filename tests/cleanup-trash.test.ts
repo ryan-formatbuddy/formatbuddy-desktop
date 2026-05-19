@@ -678,6 +678,19 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 
+  it("blocks unsafe restore entry ids before looking up the restore bin", async () => {
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: "../outside"
+    });
+
+    expect(result).toMatchObject({
+      entryId: "../outside",
+      status: "blocked-path"
+    });
+    expect(result.message).toMatch(/복구함|안전/);
+  });
+
   it("prunes broken entries when the stored item is already missing", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

@@ -520,6 +520,14 @@ export async function getTrashSnapshot(
 export async function restoreTrashEntry(
   options: TrashRuntimeOptions & { entryId: string }
 ): Promise<CleanupTrashRestoreResult> {
+  if (!isSafeTrashEntryId(options.entryId)) {
+    return {
+      entryId: options.entryId,
+      status: "blocked-path",
+      message: "복구함 항목 이름이 안전하지 않아 되돌리지 않았어요."
+    };
+  }
+
   const linkedItemsRoot = await findLinkedPathPart(
     itemsRoot(options.userDataDir),
     options.userDataDir,
