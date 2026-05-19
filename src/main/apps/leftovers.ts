@@ -3,11 +3,9 @@
  *
  * Windows uninstallers routinely leave AppData and ProgramData behind
  * "by design" (preserves user data on reinstall). We surface those
- * leftover paths so Ryan can see what's there — but we DO NOT delete
- * them from this surface. The Phase-1 cleanup engine is the only path
- * that ever removes files; if the user later wants to add a leftover
- * to their cleanup plan they can do it from there, where the blocklist
- * already applies.
+ * leftover paths so Ryan can see what's there, and only move selected
+ * paths through the same blocklist + 30-day FormatBuddy Trash flow
+ * used by the Phase-1 cleanup engine.
  *
  * Each entry is matched by case-insensitive substring against
  * `${app.name} ${app.publisher}`. Keep patterns narrow — false
@@ -322,6 +320,13 @@ const RULES: LeftoverRule[] = [
 export interface PlanLeftoversOptions {
   home?: string;
   env?: Partial<LeftoverEnv>;
+  /**
+   * Apps whose Windows uninstaller was launched recently. After a
+   * re-scan they may no longer appear in installedApps, but their
+   * AppData/ProgramData leftovers are exactly what the user wants to
+   * review next.
+   */
+  extraApps?: InstalledApp[];
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -463,7 +468,12 @@ export async function planAppLeftovers(
   const groups: AppLeftoverGroup[] = [];
   const seenLabels = new Set<string>();
 
-  for (const app of apps) {
+  const candidates = [
+    ...apps.map((app) => ({ app, source: "installed" as const })),
+    ...(options.extraApps ?? []).map((app) => ({ app, source: "recent-uninstall" as const }))
+  ];
+
+  for (const { app, source } of candidates) {
     if (!app.name) continue;
     const text = `${app.name} ${app.publisher ?? ""}`;
     const rule = RULES.find((r) => r.match.test(text));
@@ -479,6 +489,7 @@ export async function planAppLeftovers(
     groups.push({
       appName: rule.appLabel,
       publisher: app.publisher,
+      source,
       paths
     });
   }

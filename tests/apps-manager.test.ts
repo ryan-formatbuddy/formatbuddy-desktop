@@ -93,6 +93,23 @@ describe("buildAppManagerSnapshot", () => {
     ]);
     expect(snapshot.total).toBe(1);
   });
+
+  it("surfaces recently uninstalled apps with minimal identity only", () => {
+    const snapshot = buildAppManagerSnapshot([], {
+      recentlyUninstalled: [
+        app({
+          name: "Slack",
+          publisher: "Slack Technologies",
+          uninstallString: '"C:\\Program Files\\Slack\\unins000.exe"',
+          installLocation: "C:\\Program Files\\Slack"
+        })
+      ]
+    });
+
+    expect(snapshot.recentlyUninstalled).toEqual([
+      { name: "Slack", publisher: "Slack Technologies" }
+    ]);
+  });
 });
 
 describe("availability evaluator", () => {

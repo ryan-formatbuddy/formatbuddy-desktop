@@ -141,6 +141,23 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.every((p) => !p.exists)).toBe(true);
   });
 
+  it("plans leftovers for a recently uninstalled app even after it left the installed-app scan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].appName).toBe("Slack");
+    expect(snapshot.groups[0].source).toBe("recent-uninstall");
+    expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
+  });
+
   it("moves selected app leftovers into the FormatBuddy 30-day trash", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });

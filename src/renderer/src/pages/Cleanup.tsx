@@ -21,6 +21,7 @@ interface CleanupProps {
   onBack: () => void;
   onComplete: () => void;
   onRescan: () => void;
+  onQuickRescan?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }
@@ -270,12 +271,14 @@ function ResultPanel({
   result,
   onBack,
   onRescan,
+  onQuickRescan,
   onOpenTrashRestore,
   onOpenAuditLog
 }: {
   result: CleanupExecuteResult;
   onBack: () => void;
   onRescan: () => void;
+  onQuickRescan?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }) {
@@ -318,6 +321,11 @@ function ResultPanel({
         <Button variant="primary" onClick={onRescan}>
           다시 점검해서 효과 보기
         </Button>
+        {onQuickRescan && (
+          <Button variant="secondary" onClick={onQuickRescan}>
+            빠르게 다시 보기
+          </Button>
+        )}
         {result.mode === "trash" && removedCount > 0 && (
           <Button variant="secondary" onClick={onOpenTrashRestore}>
             복구함 보기
@@ -418,6 +426,7 @@ export function Cleanup({
   onBack,
   onComplete,
   onRescan,
+  onQuickRescan,
   onOpenTrashRestore,
   onOpenAuditLog
 }: CleanupProps) {
@@ -655,6 +664,7 @@ export function Cleanup({
             onComplete();
           }}
           onRescan={onRescan}
+          onQuickRescan={onQuickRescan}
           onOpenTrashRestore={onOpenTrashRestore}
           onOpenAuditLog={onOpenAuditLog}
         />
