@@ -54,8 +54,16 @@ const PLAN_TTL_MS = 5 * 60 * 1000;
 const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
+const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
+
+class LeftoverMeasurementProtection extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LeftoverMeasurementProtection";
+  }
+}
 
 const RULES: LeftoverRule[] = [
   {
@@ -382,7 +390,9 @@ async function* walkPath(
   } catch {
     return;
   }
-  if (stat.isSymbolicLink()) return;
+  if (stat.isSymbolicLink()) {
+    throw new LeftoverMeasurementProtection(LINKED_LEFTOVER_PROTECTION);
+  }
   if (stat.isFile()) {
     counter.count += 1;
     yield { path: root, size: stat.size, modified: stat.mtime };
@@ -398,7 +408,9 @@ async function* walkPath(
   }
   for (const entry of entries) {
     if (counter.count >= MAX_LEFTOVER_ITEMS) return;
-    if (entry.isSymbolicLink()) continue;
+    if (entry.isSymbolicLink()) {
+      throw new LeftoverMeasurementProtection(LINKED_LEFTOVER_PROTECTION);
+    }
     yield* walkPath(join(root, entry.name), depth + 1, counter);
   }
 }
@@ -407,10 +419,13 @@ async function measurePath(raw: string): Promise<{
   exists: boolean;
   sizeBytes?: number;
   lastModifiedAt?: string;
+  protectedBy?: string;
 }> {
   try {
     const rootStat = await fs.lstat(raw);
-    if (rootStat.isSymbolicLink()) return { exists: false };
+    if (rootStat.isSymbolicLink()) {
+      return { exists: true, protectedBy: LINKED_LEFTOVER_PROTECTION };
+    }
     if (rootStat.isFile()) {
       return {
         exists: true,
@@ -431,7 +446,10 @@ async function measurePath(raw: string): Promise<{
       sizeBytes: total,
       lastModifiedAt: latest.toISOString()
     };
-  } catch {
+  } catch (err) {
+    if (err instanceof LeftoverMeasurementProtection) {
+      return { exists: true, protectedBy: err.message };
+    }
     return { exists: false };
   }
 }
@@ -456,7 +474,7 @@ async function pathInfo(
     exists: measured.exists,
     sizeBytes: measured.sizeBytes,
     lastModifiedAt: measured.lastModifiedAt,
-    protectedBy: decision.allowed ? undefined : decision.blockedBy ?? normalized
+    protectedBy: decision.allowed ? measured.protectedBy : decision.blockedBy ?? normalized
   };
 }
 
@@ -735,6 +753,15 @@ export async function cleanupAppLeftovers(
     const measured = await measurePath(path.path);
     if (!measured.exists) {
       skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
+      continue;
+    }
+    if (measured.protectedBy) {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: measured.protectedBy
+      });
       continue;
     }
 

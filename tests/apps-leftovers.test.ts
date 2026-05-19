@@ -86,6 +86,26 @@ describe("planAppLeftovers", () => {
     expect(path?.sizeBytes).toBe(12);
   });
 
+  it("marks leftover folders containing symbolic links as protected", async () => {
+    if (process.platform === "win32") return;
+    const slack = join(fx.roaming, "Slack");
+    const target = join(fx.root, "outside-cache");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.mkdir(target, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+    await fs.symlink(target, join(slack, "linked-cache"));
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack);
+    expect(path?.exists).toBe(true);
+    expect(path?.protectedBy).toMatch(/링크/);
+  });
+
   it("marks blocklist-protected leftover paths with protectedBy", async () => {
     const kakaoRoaming = join(fx.roaming, "KakaoTalk");
     await fs.mkdir(kakaoRoaming, { recursive: true });
