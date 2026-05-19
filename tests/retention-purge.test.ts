@@ -94,4 +94,36 @@ describe("retention purge scheduler", () => {
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 일부 실패: 2개");
     expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 0개");
   });
+
+  it("records a warning when only some expired app deletion backups could not be emptied", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedEntryIds: [],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 1,
+      purgedBytes: 128,
+      purgedIds: ["reg-ok"],
+      failedIds: ["reg-busy"],
+      retentionDays: 30
+    }));
+    const logInfo = vi.fn();
+    const logWarn = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      logInfo,
+      logWarn
+    });
+
+    expect(result.failed).toEqual([
+      { kind: "registry-backups", message: "앱 삭제 흔적 백업 1개를 아직 비우지 못했어요." }
+    ]);
+    expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 앱 삭제 흔적 백업 일부 실패: 1개");
+    expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 1개");
+  });
 });

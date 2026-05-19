@@ -786,6 +786,7 @@ export async function purgeExpiredRegistryBackups(options: {
   userDataDir: string;
   now?: () => Date;
   pruneNonRestorable?: boolean;
+  removeEntryDir?: (dir: string, entryId: string) => Promise<void>;
 }): Promise<RegistryBackupPurgeResult> {
   const root = registryBackupItemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
@@ -817,7 +818,11 @@ export async function purgeExpiredRegistryBackups(options: {
 
   const now = options.now?.() ?? new Date();
   const purgedIds: string[] = [];
+  const failedIds: string[] = [];
   let purgedBytes = 0;
+  const removeEntryDir =
+    options.removeEntryDir ??
+    ((dir: string) => fs.rm(dir, { recursive: true, force: true }));
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const entryDir = join(root, entry.name);
@@ -847,10 +852,12 @@ export async function purgeExpiredRegistryBackups(options: {
       const movedIntoFuture =
         typeof createdAt === "number" && createdAt > now.getTime();
       if (!Number.isFinite(expiresAt) || (!movedIntoFuture && expiresAt > now.getTime())) continue;
-      purgedBytes += await measureRegistryBackupPurgeBytes(entryDir);
-      await fs.rm(entryDir, { recursive: true, force: true });
+      const entryBytes = await measureRegistryBackupPurgeBytes(entryDir);
+      await removeEntryDir(entryDir, entry.name);
+      purgedBytes += entryBytes;
       purgedIds.push(entry.name);
     } catch {
+      failedIds.push(entry.name);
       continue;
     }
   }
@@ -859,6 +866,7 @@ export async function purgeExpiredRegistryBackups(options: {
     purgedCount: purgedIds.length,
     purgedBytes,
     purgedIds,
+    ...(failedIds.length > 0 ? { failedIds } : {}),
     retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
   };
 }

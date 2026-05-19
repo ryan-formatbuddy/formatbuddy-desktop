@@ -33,6 +33,17 @@ function recordPartialTrashFailure(
   deps.logWarn?.(`30일 자동 비움 파일 복구함 일부 실패: ${failedCount}개`);
 }
 
+function recordPartialRegistryBackupFailure(
+  result: RetentionPurgeTickResult,
+  deps: RetentionPurgeTickDeps
+): void {
+  const failedCount = result.registryBackups?.failedIds?.length ?? 0;
+  if (failedCount === 0) return;
+  const message = `앱 삭제 흔적 백업 ${failedCount}개를 아직 비우지 못했어요.`;
+  result.failed.push({ kind: "registry-backups", message });
+  deps.logWarn?.(`30일 자동 비움 앱 삭제 흔적 백업 일부 실패: ${failedCount}개`);
+}
+
 export async function runRetentionPurgeTick(
   deps: RetentionPurgeTickDeps
 ): Promise<RetentionPurgeTickResult> {
@@ -49,6 +60,7 @@ export async function runRetentionPurgeTick(
 
   try {
     result.registryBackups = await deps.purgeRegistryBackups(deps.trigger);
+    recordPartialRegistryBackupFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
     result.failed.push({ kind: "registry-backups", message });

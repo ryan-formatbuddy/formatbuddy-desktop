@@ -395,6 +395,43 @@ describe("registry leftover cleanup", () => {
     await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
   });
 
+  it("keeps other expired registry backups purgeable when one backup folder cannot be removed", async () => {
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const blocked = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Blocked Notes",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const ok = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Ok Notes",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const purge = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:00.000Z"),
+      removeEntryDir: async (dir, entryId) => {
+        if (entryId === blocked.id) throw new Error("backup is busy");
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    expect(purge.purgedCount).toBe(1);
+    expect(purge.purgedIds).toEqual([ok.id]);
+    expect(purge.failedIds).toEqual([blocked.id]);
+    expect(existsSync(blocked.backupPath)).toBe(true);
+    await expect(readFile(ok.backupPath, "utf8")).rejects.toThrow();
+  });
+
   it("lists registry backups for the restore bin surface", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {
