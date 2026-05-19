@@ -68,6 +68,30 @@ describe("startup folder toggle", () => {
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
   });
 
+  it("does not report restore success when the holding entry folder still exists", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir)
+    });
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      removeEntryDir: async () => undefined
+    });
+
+    expect(restored.status).toBe("failed");
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(true);
+  });
+
   it("blocks entries whose source is outside the startup folder origin", async () => {
     const fx = makeFixture();
     roots.push(fx.root);

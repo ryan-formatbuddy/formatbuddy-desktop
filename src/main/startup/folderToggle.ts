@@ -33,6 +33,7 @@ export interface DisableStartupFolderEntryOptions extends StartupFolderToggleRun
 
 export interface RestoreStartupFolderEntryOptions extends StartupFolderToggleRuntime {
   disabledId: string;
+  removeEntryDir?: (dir: string, entry: StartupAutoDisabledEntry) => Promise<void>;
 }
 
 function disabledRoot(userDataDir: string): string {
@@ -356,7 +357,19 @@ export async function restoreStartupFolderEntry(
   try {
     await mkdir(dirname(entry.originalPath), { recursive: true });
     await safeMove(entry.storedPath, entry.originalPath);
-    await rm(dir, { recursive: true, force: true });
+    if (!(await pathExists(entry.originalPath))) {
+      throw new Error("Restored startup item was not created");
+    }
+    if (await pathExists(entry.storedPath)) {
+      throw new Error("Stored startup item still exists after restore");
+    }
+    const removeEntryDir =
+      options.removeEntryDir ??
+      ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
+    await removeEntryDir(dir, entry);
+    if (await pathExists(dir)) {
+      throw new Error("Startup holding entry still exists after restore");
+    }
     return {
       status: "restored",
       message: "다시 PC 켤 때 같이 뜨도록 되돌렸어요.",
