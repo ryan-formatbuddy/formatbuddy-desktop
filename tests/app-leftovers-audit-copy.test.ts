@@ -13,4 +13,14 @@ describe("app leftovers audit copy", () => {
     expect(source).not.toContain("폴더와 백업은 30일 뒤 자동으로 비워요");
     expect(source).toContain("잔여 폴더와 앱 삭제 흔적 백업은 30일 뒤 자동으로 비워요");
   });
+
+  it("uses the actual backup kind when recording restore history", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("registryBackupKindLabel");
+    expect(source).toContain("result.entry ?? {}");
+    expect(source).toContain("${registryBackupAuditLabel}을 복구함에서 되돌렸어요.");
+    expect(source).toContain("${registryBackupAuditLabel} 되돌리기 결과: ${result.message}");
+    expect(source).not.toContain("? \"앱 삭제 흔적 백업을 복구함에서 되돌렸어요.\"");
+  });
 });

@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
+import { registryBackupKindLabel } from "@shared/cleanup-result";
 import type {
   ActionRunResult,
   AppStateSnapshot,
@@ -960,13 +961,14 @@ function registerIpc() {
           });
         }
       });
+      const registryBackupAuditLabel = registryBackupKindLabel(result.entry ?? {});
       await appendAuditEntry(userDataDir, {
         category: "cleanup",
         action: `registry-backup-restore-${result.status}`,
         summary:
           result.status === "restored"
-            ? "앱 삭제 흔적 백업을 복구함에서 되돌렸어요."
-            : `앱 삭제 흔적 백업 되돌리기 결과: ${result.message}`,
+            ? `${registryBackupAuditLabel}을 복구함에서 되돌렸어요.`
+            : `${registryBackupAuditLabel} 되돌리기 결과: ${result.message}`,
         detail: {
           backupId: result.backupId,
           keyPath: result.keyPath,
