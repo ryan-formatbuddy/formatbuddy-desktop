@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 3;
+export const BLOCKLIST_VERSION = 4;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -88,6 +88,15 @@ function startsWithAny(p: string, prefixes: string[]): boolean {
   });
 }
 
+function exactPathRule(id: string, label: string, roots: string[]): BlockRule {
+  const normalizedRoots = roots.map(normalizePath).filter(Boolean);
+  return {
+    id,
+    label,
+    match: (p) => normalizedRoots.includes(p)
+  };
+}
+
 const KOREAN_CERT_FOLDER_EXACT = new Set([
   "crosscert",
   "inipki",
@@ -143,6 +152,16 @@ function userScopedRules(home: string): BlockRule[] {
   const userRules: BlockRule[] = [];
 
   if (userHome) {
+    userRules.push(
+      exactPathRule("user:broad-home-root", "사용자 폴더 전체처럼 너무 넓은 경로", [
+        userHome,
+        `${userHome}\\appdata`,
+        `${userHome}\\appdata\\local`,
+        `${userHome}\\appdata\\roaming`,
+        `${userHome}\\appdata\\locallow`
+      ])
+    );
+
     const protectedUserDirs = [
       // Credentials / keys
       `${userHome}\\.ssh`,

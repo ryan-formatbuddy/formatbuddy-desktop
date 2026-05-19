@@ -148,11 +148,23 @@ describe("evaluatePath — user-scoped blocklist", () => {
     expect(result.allowed).toBe(false);
     expect(result.blockedBy).toMatch(/브라우저|프로필|비밀번호|쿠키/);
   });
+
+  it.each([
+    "C:\\Users\\Ryan",
+    "C:\\Users\\Ryan\\AppData",
+    "C:\\Users\\Ryan\\AppData\\Local",
+    "C:\\Users\\Ryan\\AppData\\Roaming",
+    "C:\\Users\\Ryan\\AppData\\LocalLow"
+  ])("blocks broad user data roots %s", (path) => {
+    const result = evaluatePath(path, { allowRoots: [path], home: HOME });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedBy).toMatch(/사용자|AppData|넓은/);
+  });
 });
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(3);
+    expect(BLOCKLIST_VERSION).toBe(4);
   });
 });
 

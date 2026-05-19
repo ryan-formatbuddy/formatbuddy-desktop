@@ -344,6 +344,32 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it.each([
+    ["user home", (fx: Fixture) => fx.home],
+    ["AppData Local", (fx: Fixture) => fx.localAppData],
+    ["AppData Roaming", (fx: Fixture) => fx.roaming]
+  ] as const)("marks broad installLocation roots as protected: %s", async (_label, folderFor) => {
+    const installLocation = folderFor(fx);
+    await fs.mkdir(installLocation, { recursive: true });
+    await fs.writeFile(join(installLocation, "should-not-clean.txt"), "private", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installLocation);
+
+    expect(path?.exists).toBe(true);
+    expect(path?.protectedBy).toMatch(/사용자|AppData|넓은/);
+  });
+
   it("shows uninstall registry leftovers as selectable backup-first candidates", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
