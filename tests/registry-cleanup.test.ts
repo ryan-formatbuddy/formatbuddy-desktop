@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -216,6 +216,69 @@ describe("registry leftover cleanup", () => {
       }
     ]);
     expect(snapshot.nextExpiryAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("prunes unexpected files and links inside the registry backup bin", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const outside = join(fx.root, "outside-registry-backup.reg");
+    const looseFile = join(root, "loose.reg");
+    const linkedFile = join(root, "linked-outside");
+    await mkdir(root, { recursive: true });
+    await writeFile(outside, "outside stays put", "utf8");
+    await writeFile(looseFile, "loose", "utf8");
+    await symlink(outside, linkedFile);
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(looseFile)).toBe(false);
+    expect(existsSync(linkedFile)).toBe(false);
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+  });
+
+  it("prunes registry backup folders that cannot be restored", async () => {
+    const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
+    await mkdir(brokenDir, { recursive: true });
+    await writeFile(join(brokenDir, "meta.json"), "{not-json", "utf8");
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(brokenDir)).toBe(false);
+  });
+
+  it("prunes registry backup folders when the backup file is missing", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const backupDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), result.id);
+    await rm(result.backupPath);
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(backupDir)).toBe(false);
   });
 
   it("caps edited registry backup expiry to the 30-day window", async () => {

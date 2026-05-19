@@ -67,6 +67,11 @@ function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
 
+async function removeRegistryBackupStoreItem(root: string, name: string): Promise<void> {
+  if (!isSafeRegistryBackupId(name)) return;
+  await fs.rm(join(root, name), { recursive: true, force: true }).catch(() => {});
+}
+
 function runRegCommand(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn("reg.exe", args, {
@@ -325,11 +330,37 @@ async function readRegistryBackupEntryForRestore(
   }
 }
 
+async function pruneNonRestorableRegistryBackupItems(userDataDir: string): Promise<void> {
+  const root = registryBackupItemsRoot(userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) return;
+
+  let dirs;
+  try {
+    dirs = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const dir of dirs) {
+    if (!dir.isDirectory()) {
+      await removeRegistryBackupStoreItem(root, dir.name);
+      continue;
+    }
+
+    const result = await readRegistryBackupEntryForRestore(userDataDir, dir.name);
+    if (result.kind === "restore-result") {
+      await removeRegistryBackupStoreItem(root, dir.name);
+    }
+  }
+}
+
 export async function listRegistryBackups(options: {
   userDataDir: string;
   now?: () => Date;
 }): Promise<RegistryBackupSnapshot> {
   await purgeExpiredRegistryBackups(options);
+  await pruneNonRestorableRegistryBackupItems(options.userDataDir);
 
   const root = registryBackupItemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
