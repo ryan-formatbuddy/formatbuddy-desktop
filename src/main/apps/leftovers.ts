@@ -76,6 +76,8 @@ const UNSAFE_REGISTRY_PROTECTION =
   "지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.";
 const CHANGED_LEFTOVER_PROTECTION =
   "잔여 폴더가 점검 후 바뀌었어요. 다시 점검한 뒤 정리해주세요.";
+const PERSONAL_INSTALL_LOCATION_PROTECTION =
+  "바탕화면·문서·다운로드·사진·영상·음악 같은 개인 폴더 안이라 자동 정리하지 않아요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -624,7 +626,29 @@ async function installLocationLeftoverPaths(
   if (!installLocation) return [];
 
   const info = await pathInfo(installLocation, env);
-  return info.exists ? [{ ...info, kind: "folder" }] : [];
+  const protectedBy = info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
+  return info.exists ? [{ ...info, protectedBy, kind: "folder" }] : [];
+}
+
+function isAtOrInside(raw: string, root: string): boolean {
+  const path = normalizePath(raw);
+  const normalizedRoot = normalizePath(root);
+  return path === normalizedRoot || path.startsWith(`${normalizedRoot}\\`);
+}
+
+function personalInstallLocationProtection(raw: string, env: LeftoverEnv): string | undefined {
+  const personalRoots = [
+    join(env.home, "Desktop"),
+    join(env.home, "Documents"),
+    join(env.home, "Downloads"),
+    join(env.home, "Pictures"),
+    join(env.home, "Videos"),
+    join(env.home, "Music")
+  ];
+
+  return personalRoots.some((root) => isAtOrInside(raw, root))
+    ? PERSONAL_INSTALL_LOCATION_PROTECTION
+    : undefined;
 }
 
 function registryLeftoverPaths(app: InstalledApp): AppLeftoverPath[] {

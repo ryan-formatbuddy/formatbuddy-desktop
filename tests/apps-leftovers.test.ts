@@ -372,6 +372,35 @@ describe("planAppLeftovers", () => {
     expect(path?.protectedBy).toMatch(/사용자|AppData|시스템|루트|넓은/);
   });
 
+  it.each([
+    ["Desktop", (fx: Fixture) => join(fx.home, "Desktop", "Acme Notes")],
+    ["Documents", (fx: Fixture) => join(fx.home, "Documents", "Acme Notes")],
+    ["Downloads", (fx: Fixture) => join(fx.home, "Downloads", "Acme Notes")],
+    ["Pictures", (fx: Fixture) => join(fx.home, "Pictures", "Acme Notes")],
+    ["Videos", (fx: Fixture) => join(fx.home, "Videos", "Acme Notes")],
+    ["Music", (fx: Fixture) => join(fx.home, "Music", "Acme Notes")]
+  ] as const)("marks personal-folder installLocation leftovers as protected: %s", async (_label, folderFor) => {
+    const installLocation = folderFor(fx);
+    await fs.mkdir(installLocation, { recursive: true });
+    await fs.writeFile(join(installLocation, "user-note.txt"), "private", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installLocation);
+
+    expect(path?.exists).toBe(true);
+    expect(path?.protectedBy).toMatch(/개인 폴더|바탕화면|문서|다운로드|사진|영상|음악/);
+  });
+
   it("shows uninstall registry leftovers as selectable backup-first candidates", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
