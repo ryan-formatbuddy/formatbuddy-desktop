@@ -31,10 +31,10 @@ interface TrashRestoreProps {
  *     file already exists at the target (no overwrite, ever).
  *   - "모두 되돌리기" loops through the same restore IPC for every
  *     entry and summarizes restored/blocked/missing outcomes.
- *   - "만료된 항목 정리" calls cleanup-trash:purge-expired and reflects the
- *     freed bytes in a small toast row. We intentionally do NOT expose
- *     "permanently delete this single entry" — purge is by expiry only
- *     so users can't shoot themselves in the foot with one wrong click.
+ *   - Expired entries are cleaned by the main process on load/startup.
+ *     We intentionally do NOT expose "permanently delete this single
+ *     entry" — purge is by expiry only so users can't shoot themselves
+ *     in the foot with one wrong click.
  */
 const CATEGORY_LABEL: Record<CleanupCategoryId, string> = {
   "recycle-bin": "휴지통",
@@ -125,27 +125,6 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     }
   }, [entries, load]);
 
-  const onPurgeExpired = useCallback(async () => {
-    if (!window.fb?.purgeExpiredCleanupTrash) return;
-    setBusy("purge");
-    setToast(null);
-    try {
-      const result = await window.fb.purgeExpiredCleanupTrash();
-      if (result.purgedCount === 0) {
-        setToast("만료된 항목이 없어요. 30일이 지난 항목만 영구 삭제돼요.");
-      } else {
-        setToast(
-          `만료된 ${result.purgedCount}개 항목(약 ${formatBytes(result.purgedBytes)})을 영구 정리했어요.`
-        );
-      }
-      await load();
-    } catch (e) {
-      setToast(`정리 중 문제가 생겼어요: ${(e as Error).message}`);
-    } finally {
-      setBusy(null);
-    }
-  }, [load]);
-
   const headerSummary = useMemo(() => {
     if (!snapshot) return "복구함 불러오는 중...";
     if (entries.length === 0) return "복구함이 비어 있어요.";
@@ -206,7 +185,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           <div>
             <strong>복구함 관리</strong>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              모두 되돌리거나, 30일이 지난 항목만 영구 삭제할 수 있어요.
+              모두 되돌릴 수 있어요. 30일이 지난 항목은 앱이 알아서 정리해요.
             </div>
           </div>
           <Button
@@ -216,14 +195,6 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             disabled={Boolean(busy) || entries.length === 0}
           >
             {busy === "restore-all" ? "되돌리는 중..." : "모두 원래 자리로"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void onPurgeExpired()}
-            disabled={Boolean(busy)}
-          >
-            {busy === "purge" ? "정리 중..." : "만료된 항목 정리"}
           </Button>
         </div>
         {expiryMessage && (

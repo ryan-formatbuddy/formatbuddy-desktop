@@ -13,10 +13,11 @@ const TRASH_RESTORE_PAGE = join(
 );
 
 describe("TrashRestore copy", () => {
-  it("makes the purge action clearly expired-only", () => {
+  it("does not expose a manual empty-bin action", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 
     expect(source).not.toContain("지금 비우기");
-    expect(source).toContain("만료된 항목 정리");
+    expect(source).not.toContain("만료된 항목 정리");
+    expect(source).toContain("30일이 지난 항목은 앱이 알아서 정리해요");
   });
 });
