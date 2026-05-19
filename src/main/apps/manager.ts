@@ -52,6 +52,14 @@ function isWindowsUpdateNoise(app: InstalledApp): boolean {
   return /security update|hotfix|kb\d{6,}|language pack/i.test(text);
 }
 
+function norm(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function appIdentityKey(app: Pick<InstalledApp, "name" | "publisher">): string {
+  return `${norm(app.name)}|${norm(app.publisher)}`;
+}
+
 function evaluateAvailability(app: InstalledApp): {
   availability: AppUninstallAvailability;
   note: string;
@@ -165,7 +173,8 @@ export function buildAppManagerSnapshot(
       .filter((app) => Boolean(app.name?.trim()))
       .map((app) => ({
         name: app.name,
-        publisher: app.publisher ?? null
+        publisher: app.publisher ?? null,
+        stillInstalled: seen.has(appIdentityKey(app))
       }))
   };
 }

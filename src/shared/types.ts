@@ -1001,6 +1001,13 @@ export interface AppManagerGroup {
   items: AppManagerItem[];
 }
 
+export interface AppUninstallFollowUpItem {
+  name: string;
+  publisher?: string | null;
+  /** True when the app still appears in the latest installed-app scan. */
+  stillInstalled: boolean;
+}
+
 export interface AppManagerSnapshot {
   generatedAt: string;
   total: number;
@@ -1014,7 +1021,7 @@ export interface AppManagerSnapshot {
    * surface them; no command strings or install paths are persisted.
    * This does NOT prove the app was removed — the wizard may be canceled.
    */
-  recentlyUninstallLaunched: InstalledApp[];
+  recentlyUninstallLaunched: AppUninstallFollowUpItem[];
 }
 
 export interface AppLeftoverPath {

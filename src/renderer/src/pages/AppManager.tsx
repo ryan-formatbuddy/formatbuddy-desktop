@@ -618,6 +618,10 @@ export function AppManager({
               <li key={`${app.name}|${app.publisher ?? ""}`} style={{ padding: "4px 0" }}>
                 <strong>{app.name}</strong>
                 {app.publisher && <small style={{ opacity: 0.68 }}> · {app.publisher}</small>}
+                <small style={{ opacity: 0.68 }}>
+                  {" "}
+                  · {app.stillInstalled ? "아직 앱 목록에 있어요" : "현재 앱 목록에서는 안 보여요"}
+                </small>
               </li>
             ))}
           </ul>

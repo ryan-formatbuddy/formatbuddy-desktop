@@ -107,7 +107,24 @@ describe("buildAppManagerSnapshot", () => {
     });
 
     expect(snapshot.recentlyUninstallLaunched).toEqual([
-      { name: "Slack", publisher: "Slack Technologies" }
+      { name: "Slack", publisher: "Slack Technologies", stillInstalled: false }
+    ]);
+  });
+
+  it("marks a recently opened uninstall wizard as still installed when it remains in the app list", () => {
+    const snapshot = buildAppManagerSnapshot(
+      [app({ name: "Slack", publisher: "Slack Technologies", uninstallString: "uninstall.exe" })],
+      {
+        recentlyUninstallLaunched: [
+          app({ name: "Slack", publisher: "Slack Technologies" }),
+          app({ name: "Ghost App", publisher: "Ghost Co." })
+        ]
+      }
+    );
+
+    expect(snapshot.recentlyUninstallLaunched).toEqual([
+      { name: "Slack", publisher: "Slack Technologies", stillInstalled: true },
+      { name: "Ghost App", publisher: "Ghost Co.", stillInstalled: false }
     ]);
   });
 });
