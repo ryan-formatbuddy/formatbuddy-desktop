@@ -350,6 +350,8 @@ async function attemptItem(
       await assertManagedTrashEntryManifest({
         userDataDir: context.userDataDir,
         entryId: trashEntry.id,
+        itemId: item.id,
+        categoryId: item.categoryId,
         originalPath: item.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt

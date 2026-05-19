@@ -1085,6 +1085,8 @@ export async function cleanupAppLeftovers(
       await assertManagedTrashEntryManifest({
         userDataDir: options.userDataDir,
         entryId: trashEntry.id,
+        itemId: cleanupItem.id,
+        categoryId: cleanupItem.categoryId,
         originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt

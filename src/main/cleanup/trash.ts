@@ -334,6 +334,8 @@ export async function findLinkedManagedTrashStoredPath(
 export async function assertManagedTrashEntryManifest(options: {
   userDataDir: string;
   entryId: string;
+  itemId: string;
+  categoryId: string;
   originalPath: string;
   storedPath: string;
   expiresAt: string;
@@ -362,6 +364,12 @@ export async function assertManagedTrashEntryManifest(options: {
   }
   if (entry.id !== options.entryId) {
     throw new Error("FormatBuddy restore manifest id does not match the restore entry");
+  }
+  if (entry.itemId !== options.itemId) {
+    throw new Error("FormatBuddy restore manifest item does not match the cleanup item");
+  }
+  if (entry.categoryId !== options.categoryId) {
+    throw new Error("FormatBuddy restore manifest category does not match the cleanup item");
   }
   if (
     normalizePath(resolve(entry.originalPath)) !==

@@ -748,6 +748,61 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/manifest|복구함 정보/);
   });
 
+  it("does not count trash mode as successful when the restore manifest points to another cleanup item", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const entryId = "trash-wrong-item";
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", entryId, "files", "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(storedPath, "stored with wrong item id", "utf8");
+        await fs.writeFile(
+          join(fx.userData, "formatbuddy-trash", "items", entryId, "manifest.json"),
+          JSON.stringify(
+            {
+              id: entryId,
+              itemId: "another-cleanup-item",
+              originalPath: cleanupItem.path,
+              storedPath,
+              label: cleanupItem.label,
+              categoryId: cleanupItem.categoryId,
+              sizeBytes: cleanupItem.sizeBytes,
+              createdAt: "2026-05-19T00:00:00.000Z",
+              expiresAt: "2026-06-18T00:00:00.000Z"
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return { id: entryId, expiresAt: "2026-06-18T00:00:00.000Z", storedPath };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/manifest.*item|cleanup item/i);
+  });
+
   it("does not count trash mode as successful when the stored path is outside the managed restore bin", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
     const outsideStoredPath = join(fx.root, "outside-trash", "old.tmp");
