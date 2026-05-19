@@ -38,6 +38,23 @@ export interface UninstallerDeps {
   platform?: NodeJS.Platform;
 }
 
+function hasUnsafeShellControl(command: string): boolean {
+  let inQuote = false;
+
+  for (const char of command) {
+    if (char === "\n" || char === "\r" || char === "\0") return true;
+    if (char === "\"") {
+      inQuote = !inQuote;
+      continue;
+    }
+    if (!inQuote && (char === "&" || char === "|" || char === "<" || char === ">")) {
+      return true;
+    }
+  }
+
+  return inQuote;
+}
+
 export function canLaunchUninstall(
   request: AppUninstallRequest,
   app: InstalledApp | undefined,
@@ -51,7 +68,7 @@ export function canLaunchUninstall(
     mode === "quiet"
       ? app.quietUninstallString || ""
       : app.uninstallString || "";
-  return chosen.trim().length > 0;
+  return chosen.trim().length > 0 && !hasUnsafeShellControl(chosen);
 }
 
 async function defaultSpawn(command: string): Promise<{ pid?: number }> {
@@ -122,6 +139,15 @@ export async function runUninstall(
     };
   }
 
+  if (hasUnsafeShellControl(chosen)) {
+    return {
+      status: "blocked",
+      appName: request.appName,
+      message: "Windows 제거 명령이 안전하지 않아 자동으로 실행하지 않았어요. Windows 설정에서 직접 제거해주세요.",
+      detail: "unsafe-uninstall-command"
+    };
+  }
+
   try {
     const result = await (deps.spawnCmd ?? defaultSpawn)(chosen);
     return {
@@ -143,4 +169,4 @@ export async function runUninstall(
   }
 }
 
-export const __testing = { defaultSpawn };
+export const __testing = { defaultSpawn, hasUnsafeShellControl };

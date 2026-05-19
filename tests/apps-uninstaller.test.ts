@@ -24,6 +24,13 @@ describe("runUninstall", () => {
     ).toBe(false);
     expect(canLaunchUninstall({ appName: "Slack" }, undefined, "win32")).toBe(false);
     expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "darwin")).toBe(false);
+    expect(
+      canLaunchUninstall(
+        { appName: "Sketchy" },
+        { ...baseApp, uninstallString: '"C:\\Program Files\\Sketchy\\unins000.exe" & calc.exe' },
+        "win32"
+      )
+    ).toBe(false);
   });
 
   it("launches Windows uninstaller via cmd.exe in interactive mode", async () => {
@@ -102,5 +109,45 @@ describe("runUninstall", () => {
     );
     expect(result.status).toBe("spawn-failed");
     expect(result.detail).toMatch(/ENOENT/);
+  });
+
+  it("blocks uninstall strings with unquoted shell control operators", async () => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "Sketchy" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Sketchy",
+          uninstallString: '"C:\\Program Files\\Sketchy\\unins000.exe" & calc.exe'
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("allows shell control characters inside a quoted uninstaller path", async () => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const quoted = '"C:\\Program Files\\A&B Tool\\unins000.exe" /remove';
+    const result = await runUninstall(
+      { appName: "A&B Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "A&B Tool",
+          uninstallString: quoted
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("launched");
+    expect(spawnCmd).toHaveBeenCalledWith(quoted);
   });
 });
