@@ -194,7 +194,15 @@ async function pruneMissingStoredEntries(
   let changed = false;
 
   for (const entry of index.entries) {
-    if (await exists(entry.storedPath)) {
+    const storedExists = await exists(entry.storedPath);
+    const linkedStoredPath = storedExists
+      ? await findLinkedPathPart(entry.storedPath, entryDir(userDataDir, entry.id), true)
+      : undefined;
+    const linkedStoredDescendant =
+      storedExists && !linkedStoredPath
+        ? await findLinkedDescendant(entry.storedPath)
+        : undefined;
+    if (storedExists && !linkedStoredPath && !linkedStoredDescendant) {
       entries.push(entry);
       continue;
     }

@@ -307,6 +307,34 @@ describe("FormatBuddy Trash", () => {
     expect(storedStat.isSymbolicLink()).toBe(true);
   });
 
+  it("removes a trash entry from the snapshot when its stored item becomes a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    const outside = join(fx.root, "outside-stored.tmp");
+    await writeFile(outside, "outside", "utf8");
+    await rm(entry.storedPath, { force: true });
+    await symlink(outside, entry.storedPath);
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+    expect(existsSync(entry.storedPath)).toBe(false);
+    expect(await readFile(outside, "utf8")).toBe("outside");
+  });
+
   it("refuses restore when a stored trash folder contains a symbolic link", async () => {
     if (process.platform === "win32") return;
     const source = join(fx.home, "AppData", "Local", "Temp", "old-cache");
