@@ -468,8 +468,17 @@ function isUsefulGenericName(value: string): boolean {
   return /[a-z가-힣0-9]/i.test(trimmed);
 }
 
+function cleanGenericName(value: string): string {
+  return value
+    .replace(/[™®©]/g, "")
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/[,.]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function genericFolderNames(app: InstalledApp): string[] {
-  const raw = (app.name ?? "").replace(/[™®©]/g, "").trim();
+  const raw = cleanGenericName(app.name ?? "");
   const withoutArchitecture = raw
     .replace(/\s*\((?:x64|x86|64-bit|32-bit|user|machine)\)\s*$/i, "")
     .trim();
@@ -484,23 +493,57 @@ function genericFolderNames(app: InstalledApp): string[] {
   return Array.from(new Set(candidates));
 }
 
+function stripPublisherSuffix(value: string): string {
+  return value
+    .replace(
+      /\s*(?:,?\s*)?(?:incorporated|inc|llc|ltd|limited|corp|corporation|co|company|gmbh|pte\.?\s*ltd|labs)\.?$/i,
+      ""
+    )
+    .trim();
+}
+
+function genericPublisherFolderNames(app: InstalledApp): string[] {
+  const raw = cleanGenericName(app.publisher ?? "");
+  const withoutLegalSuffix = stripPublisherSuffix(raw);
+  const candidates = [
+    raw,
+    withoutLegalSuffix,
+    raw.replace(/\s+/g, ""),
+    withoutLegalSuffix.replace(/\s+/g, "")
+  ]
+    .map((value) => value.trim())
+    .filter(isUsefulGenericName);
+
+  return Array.from(new Set(candidates));
+}
+
 async function genericLeftoverPaths(
   app: InstalledApp,
   env: LeftoverEnv
 ): Promise<AppLeftoverPath[]> {
   const names = genericFolderNames(app);
+  const publisherNames = genericPublisherFolderNames(app);
   const roots = [env.roaming, env.localAppData, env.programData];
   const paths: AppLeftoverPath[] = [];
   const seen = new Set<string>();
 
+  async function addExistingPath(candidate: string): Promise<void> {
+    const key = normalizePath(candidate);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const info = await pathInfo(candidate, env);
+    if (info.exists) paths.push(info);
+  }
+
   for (const root of roots) {
     for (const name of names) {
-      const candidate = join(root, name);
-      const key = normalizePath(candidate);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const info = await pathInfo(candidate, env);
-      if (info.exists) paths.push(info);
+      await addExistingPath(join(root, name));
+    }
+
+    for (const publisherName of publisherNames) {
+      for (const name of names) {
+        await addExistingPath(join(root, publisherName, name));
+      }
     }
   }
 
