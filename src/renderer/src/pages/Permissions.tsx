@@ -107,7 +107,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "포맷버디 복구함 안에 30일 동안 보관해요."
       },
       {
-        what: "사용자가 선택한 위치에 진단 리포트(HTML/JSON) 또는 드라이버/Wi-Fi 백업 저장",
+        what: "사용자가 선택한 위치에 리포트 또는 드라이버/Wi-Fi 백업 저장",
         why: "공유하거나 따로 보관하기 위해서요. 저장은 Ryan이 직접 위치를 골라야 진행해요.",
         evidence: "Ryan이 고른 저장 위치에만 파일을 만들어요."
       }
@@ -258,7 +258,7 @@ export function Permissions({ onBack }: PermissionsProps) {
       <section className="fb-card fb-card-hover">
         <h3 style={{ marginTop: 0 }}>이 화면을 보고도 의심스러우면</h3>
         <p style={{ fontSize: 14 }}>
-          이 앱의 소스 코드는 모두 공개돼 있어요. 진단 결과 파일(JSON)을 메모장으로 열어
+          이 앱의 소스 코드는 모두 공개돼 있어요. 자세한 진단 파일을 메모장으로 열어
           포맷버디가 어떤 정보를 기록했는지 직접 확인할 수도 있어요.
         </p>
         <p style={{ fontSize: 13, opacity: 0.7 }}>

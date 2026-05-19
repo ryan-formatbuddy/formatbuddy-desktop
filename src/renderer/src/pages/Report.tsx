@@ -1053,10 +1053,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             <p style={{ fontSize: 13 }}>{copy.nextStepsReportHint}</p>
             <div style={{ display: "flex", gap: 6 }}>
               <Button variant="primary" size="sm" onClick={onExportHtml}>
-                HTML 저장
+                공유용 저장
               </Button>
               <Button variant="ghost" size="sm" onClick={onExport}>
-                JSON 저장
+                자세한 파일 저장
               </Button>
             </div>
           </article>
@@ -1294,8 +1294,8 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           포맷 전에 같이 챙길 백업
         </h2>
         <p className="fb-lede">
-          드라이버는 pnputil, Wi-Fi 프로필은 netsh로 사용자가 고른 폴더에만 저장해요. Windows 외에는
-          준비만 보여드려요.
+          드라이버와 Wi-Fi 정보는 Windows가 지원하는 방식으로 사용자가 고른 폴더에만 저장해요.
+          Windows 외에는 준비만 보여드려요.
         </p>
         <div
           style={{

@@ -11,6 +11,7 @@ const USER_FACING_FILES = [
   "pages/AppManager.tsx",
   "pages/Cleanup.tsx",
   "pages/Permissions.tsx",
+  "pages/Report.tsx",
   "pages/SecurityCenter.tsx",
   "pages/StartupAuto.tsx",
   "pages/TrashRestore.tsx"
@@ -30,6 +31,12 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("Get-CimInstance");
     expect(source).not.toContain("Start-MpScan");
     expect(source).not.toContain("cmd.exe /c");
+    expect(source).not.toContain("pnputil");
+    expect(source).not.toContain("netsh");
+    expect(source).not.toContain("HTML 저장");
+    expect(source).not.toContain("JSON 저장");
+    expect(source).not.toContain("진단 리포트(HTML/JSON)");
+    expect(source).not.toContain("진단 결과 파일(JSON)");
     expect(source).not.toContain("HKLM/HKCU");
     expect(source).not.toContain("formatbuddy-trash/items");
     expect(source).toContain("Windows가 제공하는 기본 제거 화면으로 연결해요");
