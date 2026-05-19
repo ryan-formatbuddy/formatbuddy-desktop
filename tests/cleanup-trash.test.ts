@@ -181,6 +181,30 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
   });
 
+  it("refuses to move a cleanup item when the managed trash items folder is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const itemsLink = __testing.itemsRoot(fx.userData);
+    const outsideItems = join(fx.root, "outside-items");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await mkdir(join(itemsLink, ".."), { recursive: true });
+    await mkdir(outsideItems, { recursive: true });
+    await symlink(outsideItems, itemsLink, "dir");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 5,
+        home: fx.home
+      })
+    ).rejects.toThrow(/복구함|restore bin|link/i);
+
+    await expect(readFile(source, "utf8")).resolves.toBe("hello");
+    await expect(readdir(outsideItems)).resolves.toEqual([]);
+  });
+
   it("removes a prewritten trash entry folder when the source disappears before move", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
     await mkdir(join(source, ".."), { recursive: true });

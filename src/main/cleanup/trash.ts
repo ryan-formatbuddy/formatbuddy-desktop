@@ -159,6 +159,25 @@ async function isUsableItemsRoot(userDataDir: string): Promise<boolean> {
   }
 }
 
+async function ensureUsableItemsRootForWrite(userDataDir: string): Promise<void> {
+  const root = itemsRoot(userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) {
+    throw new Error(`FormatBuddy restore bin folder is a link: ${linkedRoot}`);
+  }
+
+  try {
+    const stat = await lstat(root);
+    if (stat.isDirectory()) return;
+    throw new Error(`FormatBuddy restore bin folder is not a folder: ${root}`);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
+  }
+
+  await mkdir(root, { recursive: true });
+}
+
 async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrashEntry[]> {
   if (!(await isUsableItemsRoot(userDataDir))) return [];
 
@@ -357,6 +376,7 @@ export async function moveToFormatBuddyTrash(
 
   const now = options.now?.() ?? new Date();
   const entryId = randomUUID();
+  await ensureUsableItemsRootForWrite(options.userDataDir);
   const targetDir = entryDir(options.userDataDir, entryId);
   const storedPath = storedPathFor(options.userDataDir, entryId, options.item.path);
   const entry: CleanupTrashEntry = {
