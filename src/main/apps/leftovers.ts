@@ -30,6 +30,12 @@ import type {
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { moveToFormatBuddyTrash } from "../cleanup/trash";
+import {
+  backupAndDeleteRegistryKey,
+  defaultRegistryCleanupRunner,
+  isSafeUninstallRegistryKeyPath,
+  type RegistryCleanupRunner
+} from "./registryCleanup";
 
 interface LeftoverRule {
   match: RegExp;
@@ -57,8 +63,8 @@ const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
 const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지 않아요.";
 const UNREADABLE_LEFTOVER_PROTECTION = "권한이 없어 잔여 폴더를 정확히 확인하지 못했어요.";
-const REGISTRY_PREVIEW_ONLY_PROTECTION =
-  "레지스트리 항목은 지금 미리보기만 해요. 삭제 전 백업 기능이 준비되면 선택할 수 있어요.";
+const UNSAFE_REGISTRY_PROTECTION =
+  "지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -591,6 +597,9 @@ async function installLocationLeftoverPaths(
 function registryLeftoverPaths(app: InstalledApp): AppLeftoverPath[] {
   const registryKeyPath = app.registryKeyPath?.trim();
   if (!registryKeyPath) return [];
+  const protectedBy = isSafeUninstallRegistryKeyPath(registryKeyPath)
+    ? undefined
+    : UNSAFE_REGISTRY_PROTECTION;
 
   return [
     {
@@ -600,7 +609,7 @@ function registryLeftoverPaths(app: InstalledApp): AppLeftoverPath[] {
       exists: true,
       sizeBytes: null,
       lastModifiedAt: null,
-      protectedBy: REGISTRY_PREVIEW_ONLY_PROTECTION
+      protectedBy
     }
   ];
 }
@@ -746,7 +755,7 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
 
 export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
-  options: { userDataDir: string; now?: () => Date } 
+  options: { userDataDir: string; now?: () => Date; registryRunner?: RegistryCleanupRunner }
 ): Promise<CleanupExecuteResult> {
   if (!request?.planId || !request?.confirmationToken) {
     throw new Error("apps:leftovers-cleanup requires planId and confirmationToken");
@@ -797,6 +806,38 @@ export async function cleanupAppLeftovers(
         reason: "blocked-path",
         detail: "앱이 아직 설치된 상태예요. Windows 제거 후 다시 확인해주세요."
       });
+      continue;
+    }
+
+    if (path.kind === "registry") {
+      try {
+        const backup = await backupAndDeleteRegistryKey({
+          userDataDir: options.userDataDir,
+          keyPath: path.path,
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner()
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: path.path,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+      } catch (err) {
+        const message = (err as Error).message;
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /지원하는 앱 제거 레지스트리 위치|registry location/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: message
+        });
+      }
       continue;
     }
 

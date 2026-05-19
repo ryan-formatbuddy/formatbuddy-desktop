@@ -48,6 +48,7 @@ import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
 import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
+import { purgeExpiredRegistryBackups } from "./apps/registryCleanup";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
   clearLastScan,
@@ -791,20 +792,39 @@ function registerIpc() {
       const userDataDir = app.getPath("userData");
       try {
         await maybeCreateRestorePoint("앱 잔여 폴더 정리");
+        await purgeExpiredRegistryBackups({ userDataDir }).catch((err) => {
+          log.warn("registry-backup:purge-before-app-leftovers failed:", (err as Error).message);
+        });
         const result = await cleanupAppLeftovers(request, { userDataDir });
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
+        const trashEntryIds = result.removedItems
+          .map((item) => item.trashEntryId)
+          .filter((id): id is string => typeof id === "string");
+        const registryBackupIds = result.removedItems
+          .map((item) => item.registryBackupId)
+          .filter((id): id is string => typeof id === "string");
+        const summaryParts = [
+          trashEntryIds.length > 0
+            ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`
+            : "",
+          registryBackupIds.length > 0
+            ? `레지스트리 ${registryBackupIds.length}개를 백업 후 정리했어요`
+            : ""
+        ].filter(Boolean);
         await appendAuditEntry(userDataDir, {
           category: "cleanup",
           action: "app-leftovers-trash",
-          summary: `앱 잔여 폴더 ${result.removedItems.length}개(약 ${freedMb} MB)를 포맷버디 복구함으로 보냈어요. 30일 뒤 자동 삭제돼요.`,
+          summary:
+            summaryParts.length > 0
+              ? `${summaryParts.join(", ")}. 폴더와 백업은 30일 뒤 자동 삭제돼요.`
+              : "앱 잔여 정리를 실행했지만 정리된 항목은 없어요.",
           detail: {
             planId: result.planId,
             removedCount: result.removedItems.length,
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
-            trashEntryIds: result.removedItems
-              .map((item) => item.trashEntryId)
-              .filter((id): id is string => typeof id === "string")
+            trashEntryIds,
+            registryBackupIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
         return result;
@@ -984,6 +1004,13 @@ app.whenReady().then(() => {
       }).then((result) => {
         if (result.purgedCount > 0) {
           log.info(`cleanup-trash:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
+        }
+      });
+      await purgeExpiredRegistryBackups({
+        userDataDir: app.getPath("userData")
+      }).then((result) => {
+        if (result.purgedCount > 0) {
+          log.info(`registry-backup:startup purged=${result.purgedCount}`);
         }
       });
       // Push the persisted update channel onto electron-updater. Initial

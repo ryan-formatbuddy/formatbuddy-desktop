@@ -126,7 +126,7 @@ function AppRow({
         {lastStatus?.status === "launched" && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             <Button variant="secondary" size="sm" onClick={onCheckLeftovers}>
-              잔여 폴더 확인
+              잔여 항목 확인
             </Button>
             <Button variant="ghost" size="sm" onClick={onRescan}>
               다시 점검
@@ -193,14 +193,14 @@ function LeftoverPanel({
   if (state.loading) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>잔여 폴더 후보를 살펴보는 중이에요…</p>
+        <p>잔여 항목 후보를 살펴보는 중이에요…</p>
       </article>
     );
   }
   if (state.error) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>잔여 폴더 확인 중 문제가 생겼어요: {state.error}</p>
+        <p>잔여 항목 확인 중 문제가 생겼어요: {state.error}</p>
       </article>
     );
   }
@@ -209,7 +209,7 @@ function LeftoverPanel({
   if (state.snapshot.groups.length === 0) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>알려진 잔여 폴더 후보가 보이지 않아요.</p>
+        <p>알려진 잔여 항목 후보가 보이지 않아요.</p>
       </article>
     );
   }
@@ -220,20 +220,20 @@ function LeftoverPanel({
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 레지스트리 후보예요. 지울 수 있는
-        폴더를 직접 고르면 포맷버디 복구함에 30일 동안 보관한 뒤 자동 삭제해요.
+        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 레지스트리 후보예요. 직접 고른
+        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 레지스트리는 먼저 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
         아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
-        지금 없는 폴더 {leftoverSummary.missing}개는 자동으로 빠져요.
+        지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
       <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <strong>선택한 잔여 폴더</strong>
+            <strong>선택한 잔여 항목</strong>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              {selectedValidCount}개 · 보호됨/없는 폴더는 선택할 수 없어요.
+              {selectedValidCount}개 · 보호됨/없는 항목은 선택할 수 없어요.
             </div>
           </div>
           <Button
@@ -242,13 +242,13 @@ function LeftoverPanel({
             onClick={onCleanup}
             disabled={busy || selectedValidCount === 0}
           >
-            {busy ? "복구함으로 보내는 중…" : "30일 복구함으로 보내기"}
+            {busy ? "정리하는 중…" : "선택 항목 정리하기"}
           </Button>
         </header>
         {result && (
           <div style={{ marginTop: 10 }}>
             <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
-              {result.removedItems.length}개를 복구함으로 보냈어요. 실패/건너뜀{" "}
+              {result.removedItems.length}개를 정리했어요. 실패/건너뜀{" "}
               {result.skippedItems.filter((s) => s.reason !== "not-selected").length}개.
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -437,7 +437,7 @@ export function AppManager({
     const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
     if (selectedPathIds.length === 0) return;
     const confirmed = window.confirm(
-      `선택한 앱 잔여 폴더 ${selectedPathIds.length}개를 포맷버디 복구함으로 보낼게요. 30일 안에는 되돌릴 수 있어요.`
+      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더는 30일 안에 되돌릴 수 있고, 레지스트리는 먼저 백업해요.`
     );
     if (!confirmed) return;
     setCleanupBusy(true);
@@ -537,8 +537,8 @@ export function AppManager({
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">앱 정리 센터</h1>
         <p className="fb-lede">
-          설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 폴더는
-          직접 고른 것만 30일 복구함으로 보내요.
+          설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 항목은
+          직접 고른 것만 정리하고, 레지스트리는 백업 후 처리해요.
         </p>
         {!isWindows && (
           <p style={{ color: "#a36400", fontSize: 13 }}>
@@ -565,7 +565,7 @@ export function AppManager({
               새로고침
             </Button>
             <Button variant="secondary" size="sm" onClick={() => void loadLeftovers()}>
-              잔여 폴더 보기
+              잔여 항목 보기
             </Button>
             <Button variant="ghost" size="sm" onClick={onOpenCleanup}>
               안전 정리 센터로
@@ -606,11 +606,11 @@ export function AppManager({
           </header>
           <p style={{ fontSize: 13, opacity: 0.78 }}>
             Windows 제거 마법사를 끝냈다면 남은 폴더가 있는지 확인해보세요. 앱 목록에서
-            사라진 뒤에도 오늘 제거를 연 앱 기준으로 잔여 폴더 후보를 한 번 더 찾아볼 수 있어요.
+            사라진 뒤에도 오늘 제거를 연 앱 기준으로 잔여 항목 후보를 한 번 더 찾아볼 수 있어요.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
-              잔여 폴더 확인
+              잔여 항목 확인
             </Button>
             <Button variant="secondary" size="sm" onClick={onRescan}>
               다시 점검
@@ -649,7 +649,7 @@ export function AppManager({
           </ul>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
-              잔여 폴더 확인
+              잔여 항목 확인
             </Button>
             <Button variant="secondary" size="sm" onClick={onRescan}>
               다시 점검

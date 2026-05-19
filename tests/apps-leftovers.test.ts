@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -312,7 +312,7 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
-  it("shows uninstall registry leftovers as preview-only candidates", async () => {
+  it("shows uninstall registry leftovers as selectable backup-first candidates", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const snapshot = await planAppLeftovers([], {
@@ -333,7 +333,96 @@ describe("planAppLeftovers", () => {
       kind: "registry",
       exists: true
     });
-    expect(registryCandidate?.protectedBy).toMatch(/미리보기/);
+    expect(registryCandidate?.protectedBy).toBeUndefined();
+  });
+
+  it("backs up and deletes selected uninstall registry leftovers after uninstall follow-up", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          registryKeyPath
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      registryKeyPath,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(registryKeyPath);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: registryKeyPath,
+      sizeBytes: 0,
+      categoryId: "app-leftovers",
+      mode: "trash",
+      succeeded: true,
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    expect(result.removedItems[0].registryBackupId).toBeTruthy();
+  });
+
+  it("does not delete a registry key when backup export fails", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp.", registryKeyPath }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    const registryRunner = {
+      exportKey: vi.fn(async () => {
+        throw new Error("export failed");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.deleteKey).not.toHaveBeenCalled();
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: registryKeyPath,
+      reason: "execute-failed"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/export failed/);
   });
 
   it("does not create generic leftover groups when the app folders do not exist", async () => {
