@@ -590,7 +590,7 @@ export function AppManager({
         <h1 className="fb-h1-sm">앱 정리 센터</h1>
         <p className="fb-lede">
           설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 항목은
-          직접 고른 것만 정리하고, 앱 삭제 흔적은 백업 후 처리해요.
+          직접 고른 것만 정리하고, 앱 삭제 흔적도 30일 안에 되돌릴 수 있게 챙겨요.
         </p>
         {!isWindows && (
           <p style={{ color: "#a36400", fontSize: 13 }}>

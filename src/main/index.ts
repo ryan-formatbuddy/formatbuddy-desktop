@@ -1008,7 +1008,7 @@ function registerIpc() {
           action: "app-leftovers-trash",
           summary:
             summaryParts.length > 0
-              ? `${summaryParts.join(", ")}. 폴더와 백업은 30일 뒤 자동으로 비워요.`
+              ? `${summaryParts.join(", ")}. 잔여 폴더와 앱 삭제 흔적 백업은 30일 뒤 자동으로 비워요.`
               : "앱 잔여 정리를 실행했지만 정리된 항목은 없어요.",
           detail: {
             planId: result.planId,
