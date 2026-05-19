@@ -1,8 +1,11 @@
 # FormatBuddy Desktop
 
-Windows-only PC 포맷 동행 데스크탑 앱. Electron + React + TypeScript.
+Windows-only PC 케어 + 포맷 동행 데스크탑 앱. Electron + React + TypeScript.
 
-기존 `local-agent/Invoke-FormatBuddyScan.ps1` PowerShell 진단을 GUI로 감싸고, `design_handoff_format_buddy/`의 디자인을 그대로 적용했습니다.
+진단 PowerShell + 안전 정리 엔진 + 앱 매니저 + Windows Defender 브리지를
+한 화면 안에서 묶고, 사용자 명시 동의 없는 파일 / 시스템 변경은 절대 하지
+않는 안전 가드를 빌드 시점 테스트로 잠가둡니다. 디자인은
+`design_handoff_format_buddy/`를 기준으로 적용했습니다.
 
 ## v2 작업 중인 기능 (Round D, 2026-05-19)
 
