@@ -1,7 +1,8 @@
 import type {
   CleanupExecuteResult,
   CleanupTrashEntry,
-  CleanupTrashRestoreResult
+  CleanupTrashRestoreResult,
+  RegistryBackupRestoreResult
 } from "./types";
 
 const MS_PER_DAY = 86_400_000;
@@ -45,6 +46,13 @@ export function restorableTrashEntryIds(result: CleanupExecuteResult): string[] 
     .filter((id): id is string => typeof id === "string");
 }
 
+export function restorableRegistryBackupIds(result: CleanupExecuteResult): string[] {
+  return result.removedItems
+    .filter((item) => item.succeeded && item.mode === "trash" && Boolean(item.registryBackupId))
+    .map((item) => item.registryBackupId)
+    .filter((id): id is string => typeof id === "string");
+}
+
 export function summarizeTrashRestoreResults(
   results: CleanupTrashRestoreResult[]
 ): string {
@@ -58,4 +66,17 @@ export function summarizeTrashRestoreResults(
   if (failed > 0) parts.push(`${failed}개는 이미 없거나 되돌리지 못했어요.`);
 
   return parts.length > 0 ? parts.join(" ") : "되돌린 항목이 없어요.";
+}
+
+export function summarizeRegistryBackupRestoreResults(
+  results: RegistryBackupRestoreResult[]
+): string {
+  const restored = results.filter((item) => item.status === "restored").length;
+  const failed = results.length - restored;
+  const parts: string[] = [];
+
+  if (restored > 0) parts.push(`레지스트리 백업 ${restored}개를 되돌렸어요.`);
+  if (failed > 0) parts.push(`${failed}개는 이미 없거나 확인이 필요해요.`);
+
+  return parts.length > 0 ? parts.join(" ") : "";
 }

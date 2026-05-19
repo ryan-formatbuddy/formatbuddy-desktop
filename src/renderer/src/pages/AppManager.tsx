@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { selectableLeftoverPathIds, summarizeLeftoverSnapshot } from "@shared/app-leftovers";
-import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
+import {
+  restorableRegistryBackupIds,
+  restorableTrashEntryIds,
+  summarizeRegistryBackupRestoreResults,
+  summarizeTrashRestoreResults
+} from "@shared/cleanup-result";
 import type {
   AppLeftoverGroup,
   AppLeftoversSnapshot,
@@ -205,7 +210,9 @@ function LeftoverPanel({
     );
   }
   if (!state.snapshot) return null;
-  const restorableCount = result ? restorableTrashEntryIds(result).length : 0;
+  const restorableCount = result
+    ? restorableTrashEntryIds(result).length + restorableRegistryBackupIds(result).length
+    : 0;
   if (state.snapshot.groups.length === 0) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
@@ -460,12 +467,14 @@ export function AppManager({
 
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
-      if (!window.fb?.restoreCleanupTrash) return;
       const entryIds = restorableTrashEntryIds(result);
-      if (entryIds.length === 0) {
+      const registryBackupIds = restorableRegistryBackupIds(result);
+      if (entryIds.length === 0 && registryBackupIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
+      if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;
+      if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;
 
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);
@@ -474,7 +483,18 @@ export function AppManager({
         for (const entryId of entryIds) {
           results.push(await window.fb.restoreCleanupTrash({ entryId }));
         }
-        setRecentRestoreMessage(summarizeTrashRestoreResults(results));
+        const registryResults = [];
+        for (const backupId of registryBackupIds) {
+          registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
+        }
+        setRecentRestoreMessage(
+          [
+            results.length > 0 ? summarizeTrashRestoreResults(results) : "",
+            summarizeRegistryBackupRestoreResults(registryResults)
+          ]
+            .filter(Boolean)
+            .join(" ")
+        );
         await loadLeftovers();
       } catch (err) {
         setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);

@@ -21,4 +21,12 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("방금 제거를 연 앱");
     expect(source).toContain("방금 제거를 연 앱 기준");
   });
+
+  it("includes registry backup undo in the recent cleanup flow", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("restoreRegistryBackup");
+    expect(source).toContain("restorableRegistryBackupIds");
+    expect(source).toContain("방금 정리 되돌리기");
+  });
 });
