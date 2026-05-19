@@ -23,6 +23,11 @@ interface PersistedUninstallFollowups {
   entries: PersistedUninstallFollowup[];
 }
 
+interface LoadedUninstallFollowups {
+  store: PersistedUninstallFollowups;
+  changed: boolean;
+}
+
 function followupsPath(userDataDir: string): string {
   return join(userDataDir, UNINSTALL_FOLLOWUPS_FILE);
 }
@@ -104,21 +109,32 @@ async function loadStore(
   userDataDir: string,
   now: () => number = Date.now
 ): Promise<PersistedUninstallFollowups> {
+  return (await loadStoreWithMeta(userDataDir, now)).store;
+}
+
+async function loadStoreWithMeta(
+  userDataDir: string,
+  now: () => number = Date.now
+): Promise<LoadedUninstallFollowups> {
   const file = followupsPath(userDataDir);
   const linkedFile = await findLinkedPathPart(file, userDataDir, true);
   if (linkedFile) {
     if (normalizePath(resolve(linkedFile)) === normalizePath(resolve(file))) {
       await rm(file, { force: true }).catch(() => {});
     }
-    return { version: 1, entries: [] };
+    return { store: { version: 1, entries: [] }, changed: true };
   }
 
   try {
     const raw = await readFile(file, "utf8");
     const store = coerceStore(JSON.parse(raw));
-    return { version: 1, entries: pruneAndDedupe(store.entries, now()) };
+    const entries = pruneAndDedupe(store.entries, now());
+    return {
+      store: { version: 1, entries },
+      changed: entries.length !== store.entries.length
+    };
   } catch {
-    return { version: 1, entries: [] };
+    return { store: { version: 1, entries: [] }, changed: false };
   }
 }
 
@@ -167,7 +183,11 @@ export async function listUninstallFollowups(
   userDataDir: string,
   now: () => number = Date.now
 ): Promise<InstalledApp[]> {
-  const store = await loadStore(userDataDir, now);
+  const loaded = await loadStoreWithMeta(userDataDir, now);
+  if (loaded.changed) {
+    await saveStore(userDataDir, loaded.store);
+  }
+  const store = loaded.store;
   return store.entries.map((entry) => ({
     name: entry.name,
     publisher: entry.publisher ?? null,

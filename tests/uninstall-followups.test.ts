@@ -79,6 +79,25 @@ describe("persisted uninstall follow-ups", () => {
     ).toEqual([]);
   });
 
+  it("compacts expired follow-ups out of the local file on read", async () => {
+    const now = Date.parse("2026-05-20T10:00:00.000Z");
+    await rememberUninstallFollowup(
+      userDataDir,
+      { name: "Slack", publisher: "Slack Technologies" },
+      () => now
+    );
+
+    expect(readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8")).toContain("Slack");
+
+    expect(
+      await listUninstallFollowups(userDataDir, () => now + RECENT_UNINSTALL_TTL_MS + 1)
+    ).toEqual([]);
+
+    expect(readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8")).not.toContain(
+      "Slack"
+    );
+  });
+
   it("does not write the follow-up file through a symbolic link", async () => {
     const outsideFile = join(userDataDir, "outside-followups.json");
     const followupFile = join(userDataDir, UNINSTALL_FOLLOWUPS_FILE);
