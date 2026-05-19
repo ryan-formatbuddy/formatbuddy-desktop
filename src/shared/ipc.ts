@@ -37,7 +37,8 @@ export const IpcChannels = {
   monitorGetPrefs: "monitor:get-prefs",
   monitorUpdatePrefs: "monitor:update-prefs",
   monitorReminderShown: "monitor:reminder-shown",
-  monitorTriggerScan: "monitor:trigger-scan"
+  monitorTriggerScan: "monitor:trigger-scan",
+  auditList: "audit:list"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

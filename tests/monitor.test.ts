@@ -22,6 +22,10 @@ describe("defaultPrefs", () => {
     expect(prefs.reminderDays).toBe(14);
     expect(prefs.lastReminderAt).toBeUndefined();
   });
+
+  it("defaults updateChannel to 'stable'", () => {
+    expect(defaultPrefs().updateChannel).toBe("stable");
+  });
 });
 
 describe("coerce + clampReminderDays", () => {
@@ -74,29 +78,72 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
   });
 
   it("round-trips through save + load", async () => {
-    await savePrefs(dir, { trayEnabled: true, reminderEnabled: true, reminderDays: 21 });
+    await savePrefs(dir, {
+      trayEnabled: true,
+      reminderEnabled: true,
+      reminderDays: 21,
+      updateChannel: "beta"
+    });
     const reloaded = await loadPrefs(dir);
     expect(reloaded.trayEnabled).toBe(true);
     expect(reloaded.reminderEnabled).toBe(true);
     expect(reloaded.reminderDays).toBe(21);
+    expect(reloaded.updateChannel).toBe("beta");
     expect(reloaded.updatedAt).toBeTruthy();
   });
 
   it("updatePrefs patches only specified fields", async () => {
-    await savePrefs(dir, { trayEnabled: true, reminderEnabled: false, reminderDays: 14 });
+    await savePrefs(dir, {
+      trayEnabled: true,
+      reminderEnabled: false,
+      reminderDays: 14,
+      updateChannel: "stable"
+    });
     const next = await updatePrefs(dir, { reminderEnabled: true, reminderDays: 30 });
     expect(next.trayEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.reminderDays).toBe(30);
+    expect(next.updateChannel).toBe("stable");
+  });
+
+  it("updatePrefs flips updateChannel to beta and back", async () => {
+    await savePrefs(dir, {
+      trayEnabled: false,
+      reminderEnabled: false,
+      reminderDays: 14,
+      updateChannel: "stable"
+    });
+    let next = await updatePrefs(dir, { updateChannel: "beta" });
+    expect(next.updateChannel).toBe("beta");
+    next = await updatePrefs(dir, { updateChannel: "stable" });
+    expect(next.updateChannel).toBe("stable");
+  });
+
+  it("coerces a garbage updateChannel back to 'stable'", async () => {
+    await savePrefs(dir, {
+      trayEnabled: false,
+      reminderEnabled: false,
+      reminderDays: 14,
+      // @ts-expect-error - simulating a tampered/legacy file
+      updateChannel: "experimental"
+    });
+    const next = await loadPrefs(dir);
+    expect(next.updateChannel).toBe("stable");
   });
 
   it("markReminderShown stamps lastReminderAt without flipping other fields", async () => {
-    await savePrefs(dir, { trayEnabled: true, reminderEnabled: true, reminderDays: 14 });
+    await savePrefs(dir, {
+      trayEnabled: true,
+      reminderEnabled: true,
+      reminderDays: 14,
+      updateChannel: "stable"
+    });
     const fixedNow = new Date("2026-05-19T00:00:00.000Z");
     const next = await markReminderShown(dir, fixedNow);
     expect(next.lastReminderAt).toBe(fixedNow.toISOString());
     expect(next.trayEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
+    expect(next.updateChannel).toBe("stable");
   });
 });
 

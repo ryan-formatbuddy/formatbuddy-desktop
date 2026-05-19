@@ -2,6 +2,7 @@ import { app, type BrowserWindow } from "electron";
 import { autoUpdater } from "electron-updater";
 import { IpcChannels } from "@shared/ipc";
 import type {
+  UpdateChannel,
   UpdateDownloadProgress,
   UpdateErrorPayload,
   UpdateInfo
@@ -13,7 +14,25 @@ let checkTimer: NodeJS.Timeout | null = null;
 let bound = false;
 let currentWindow: BrowserWindow | null = null;
 
-export function initAutoUpdater(window: BrowserWindow): void {
+export interface AutoUpdaterOptions {
+  channel?: UpdateChannel;
+}
+
+/**
+ * v2.0 — Switch the autoUpdater feed without rebinding listeners.
+ * Safe to call any time after init. We use electron-updater's
+ * `allowPrerelease` toggle because our GitHub releases distinguish
+ * stable vs. beta by the prerelease flag; no second feed needed.
+ */
+export function setUpdaterChannel(channel: UpdateChannel): void {
+  if (!app.isPackaged) return;
+  autoUpdater.allowPrerelease = channel === "beta";
+  // Re-check now so a freshly-enabled beta user gets the upgrade
+  // immediately instead of waiting for the next hourly tick.
+  void autoUpdater.checkForUpdates().catch(() => {});
+}
+
+export function initAutoUpdater(window: BrowserWindow, opts: AutoUpdaterOptions = {}): void {
   // electron-updater requires a packaged app + a published feed.
   // In dev (npm run dev) skip silently so the developer doesn't see
   // spurious "no published versions" errors.
@@ -34,7 +53,7 @@ export function initAutoUpdater(window: BrowserWindow): void {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowDowngrade = false;
-  autoUpdater.allowPrerelease = false;
+  autoUpdater.allowPrerelease = opts.channel === "beta";
 
   const send = (channel: string, payload?: unknown) => {
     const w = currentWindow;

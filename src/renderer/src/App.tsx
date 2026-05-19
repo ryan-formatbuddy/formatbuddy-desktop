@@ -5,6 +5,8 @@ import { Report } from "./pages/Report";
 import { Cleanup } from "./pages/Cleanup";
 import { AppManager } from "./pages/AppManager";
 import { SecurityCenter } from "./pages/SecurityCenter";
+import { Permissions } from "./pages/Permissions";
+import { AuditLog } from "./pages/AuditLog";
 import { Onboarding } from "./pages/Onboarding";
 import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -29,6 +31,8 @@ type Phase =
   | { kind: "cleanup"; report?: ScanReport }
   | { kind: "apps" }
   | { kind: "security" }
+  | { kind: "permissions" }
+  | { kind: "audit" }
   | { kind: "error"; error: ScanError };
 
 function readOnboardingSeen(): boolean {
@@ -210,6 +214,24 @@ export function App() {
           onBack={goHome}
         />
       );
+    if (phase.kind === "permissions")
+      return (
+        <TopBar
+          here="권한 안내"
+          meta="이 앱이 PC에서 하는 일"
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
+    if (phase.kind === "audit")
+      return (
+        <TopBar
+          here="활동 기록"
+          meta="이 PC에서 한 일"
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
@@ -226,6 +248,8 @@ export function App() {
             onOpenWebReport={() => void window.fb?.openWebReport()}
             isMacPreview={isMacPreview}
             monitor={appState?.monitor}
+            onOpenPermissions={() => setPhase({ kind: "permissions" })}
+            onOpenAuditLog={() => setPhase({ kind: "audit" })}
           />
         );
       case "scanning":
@@ -262,6 +286,10 @@ export function App() {
         );
       case "security":
         return <SecurityCenter isWindows={appPlatform === "win32"} onBack={goHome} />;
+      case "permissions":
+        return <Permissions onBack={goHome} />;
+      case "audit":
+        return <AuditLog onBack={goHome} />;
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }

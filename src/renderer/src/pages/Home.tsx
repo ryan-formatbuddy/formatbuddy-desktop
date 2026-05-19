@@ -10,6 +10,8 @@ interface HomeProps {
   onOpenWebReport?: () => void;
   isMacPreview?: boolean;
   monitor?: StatusMonitorSnapshot;
+  onOpenPermissions?: () => void;
+  onOpenAuditLog?: () => void;
 }
 
 function MonitorPrefsCard() {
@@ -78,8 +80,23 @@ function MonitorPrefsCard() {
         />
         <span>일</span>
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <span>업데이트 채널:</span>
+        <select
+          value={prefs.updateChannel}
+          disabled={busy}
+          onChange={(e) =>
+            void update({ updateChannel: e.target.value === "beta" ? "beta" : "stable" })
+          }
+          style={{ padding: "4px 6px" }}
+        >
+          <option value="stable">안정 (stable) — 검증된 업데이트만</option>
+          <option value="beta">베타 (beta) — 새 기능 먼저 받기</option>
+        </select>
+      </label>
       <small style={{ opacity: 0.6 }}>
         포맷버디는 자동 점검을 하지 않아요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
+        베타 채널은 가끔 불안정할 수 있어요.
       </small>
     </section>
   );
@@ -115,7 +132,7 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
-export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor }: HomeProps) {
+export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog }: HomeProps) {
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
@@ -164,6 +181,40 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
             <li key={b}>{b}</li>
           ))}
         </ul>
+        <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {onOpenPermissions && (
+            <button
+              type="button"
+              onClick={onOpenPermissions}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: 13
+              }}
+            >
+              이 앱이 내 PC에서 정확히 뭘 하는지 보기 →
+            </button>
+          )}
+          {onOpenAuditLog && (
+            <button
+              type="button"
+              onClick={onOpenAuditLog}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: 13
+              }}
+            >
+              지금까지 한 일 보기 (활동 기록) →
+            </button>
+          )}
+        </div>
       </section>
     </main>
   );

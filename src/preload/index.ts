@@ -7,6 +7,7 @@ import type {
   AppStateSnapshot,
   AppUninstallRequest,
   AppUninstallResult,
+  AuditSnapshot,
   CleanupExecuteRequest,
   CleanupExecuteResult,
   CleanupHistorySnapshot,
@@ -165,7 +166,10 @@ const fb = {
     const wrapped = () => cb();
     ipcRenderer.on(IpcChannels.monitorTriggerScan, wrapped);
     return () => ipcRenderer.removeListener(IpcChannels.monitorTriggerScan, wrapped);
-  }
+  },
+
+  getAuditSnapshot: (): Promise<AuditSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.auditList)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

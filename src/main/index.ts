@@ -9,6 +9,7 @@ import type {
   ActionRunResult,
   AppStateSnapshot,
   AppPlatform,
+  AuditSnapshot,
   CleanupExecuteRequest,
   CleanupExecuteResult,
   CleanupHistorySnapshot,
@@ -25,6 +26,7 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { getCleanupHistory } from "./cleanup/log";
+import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
@@ -96,7 +98,12 @@ async function runActionCommand(rawCommand: string): Promise<ActionRunResult> {
 }
 import { runBackupManifest, runScan } from "./scanner";
 import { getDefaultExportPath, getScanOutputDir, getScanScriptPath, getWebReportImportUrl } from "./paths";
-import { initAutoUpdater, installAndRestart, shutdownAutoUpdater } from "./updater";
+import {
+  initAutoUpdater,
+  installAndRestart,
+  setUpdaterChannel,
+  shutdownAutoUpdater
+} from "./updater";
 import { buildHtmlReport, buildHtmlReportFilename } from "./htmlReport";
 import { getAppStateSnapshot, recordScanResult, updateIgnoreList } from "./localState";
 import type { Recommendation, ScanReport } from "@shared/types";
@@ -464,6 +471,21 @@ function registerIpc() {
         log.info(
           `cleanup:execute mode=${result.mode} removed=${result.removedItems.length} freedBytes=${result.totalFreedBytes}`
         );
+        const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
+        await appendAuditEntry(app.getPath("userData"), {
+          category: "cleanup",
+          action: result.mode === "trash" ? "trash" : "permanent-delete",
+          summary:
+            result.mode === "trash"
+              ? `휴지통으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요.`
+              : `${result.removedItems.length}개 항목(약 ${freedMb} MB)을 영구 삭제했어요.`,
+          detail: {
+            mode: result.mode,
+            removedCount: result.removedItems.length,
+            skippedCount: result.skippedItems.length,
+            totalFreedBytes: result.totalFreedBytes
+          }
+        }).catch((e) => log.warn("audit append (cleanup) failed:", (e as Error).message));
         return result;
       } catch (err) {
         log.error("cleanup:execute failed:", (err as Error).message);
@@ -502,6 +524,21 @@ function registerIpc() {
       log.info(
         `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`
       );
+      await appendAuditEntry(app.getPath("userData"), {
+        category: "uninstall",
+        action: result.status,
+        summary:
+          result.status === "launched"
+            ? `Windows 제거 마법사로 "${request.appName}"을 열었어요.`
+            : result.status === "app-not-found"
+              ? `"${request.appName}"의 제거 정보를 찾지 못했어요.`
+              : result.status === "blocked"
+                ? `"${request.appName}" 제거가 차단됐어요 (시스템 보호).`
+                : result.status === "no-scan-cache"
+                  ? "최근 진단 결과가 없어서 안내만 했어요."
+                  : `"${request.appName}" 제거 시도 결과: ${result.status}`,
+        detail: { appName: request.appName, status: result.status, detail: result.detail }
+      }).catch((e) => log.warn("audit append (uninstall) failed:", (e as Error).message));
       return result;
     }
   );
@@ -513,6 +550,17 @@ function registerIpc() {
   ipcMain.handle(IpcChannels.securityQuickScan, async (): Promise<DefenderQuickScanResult> => {
     const result = await runQuickScan({ shell: defaultPowerShellRunner() });
     log.info(`security:quick-scan status=${result.status} detail=${result.detail ?? ""}`);
+    await appendAuditEntry(app.getPath("userData"), {
+      category: "defender",
+      action: result.status,
+      summary:
+        result.status === "launched"
+          ? "Windows Defender 빠른 검사를 시작했어요. 결과는 Windows 보안에서 확인하세요."
+          : result.status === "blocked"
+            ? "Defender 빠른 검사를 시작하지 못했어요."
+            : `Defender 빠른 검사 결과: ${result.status}`,
+      detail: { status: result.status, detail: result.detail }
+    }).catch((e) => log.warn("audit append (defender) failed:", (e as Error).message));
     return result;
   });
 
@@ -529,15 +577,31 @@ function registerIpc() {
     async (_e, patch: UpdateMonitorPreferencesRequest): Promise<MonitorPreferences> => {
       const next = await updateMonitorPrefs(app.getPath("userData"), patch);
       log.info(
-        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays}`
+        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel}`
       );
       await reconcileTray(next);
+      setUpdaterChannel(next.updateChannel);
+      await appendAuditEntry(app.getPath("userData"), {
+        category: "monitor",
+        action: "prefs-changed",
+        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}.`,
+        detail: {
+          trayEnabled: next.trayEnabled,
+          reminderEnabled: next.reminderEnabled,
+          reminderDays: next.reminderDays,
+          updateChannel: next.updateChannel
+        }
+      }).catch((e) => log.warn("audit append (monitor) failed:", (e as Error).message));
       return next;
     }
   );
 
   ipcMain.handle(IpcChannels.monitorReminderShown, async (): Promise<MonitorPreferences> => {
     return markReminderShown(app.getPath("userData"));
+  });
+
+  ipcMain.handle(IpcChannels.auditList, async (): Promise<AuditSnapshot> => {
+    return getAuditSnapshot(app.getPath("userData"));
   });
 
   ipcMain.handle(
@@ -589,6 +653,10 @@ app.whenReady().then(() => {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
       await reconcileReminderTimer();
+      // Push the persisted update channel onto electron-updater. Initial
+      // init() above used the default (stable) so this catches the case
+      // where the user previously opted into beta.
+      setUpdaterChannel(prefs.updateChannel);
     } catch (err) {
       log.warn("monitor:init failed:", (err as Error).message);
     }

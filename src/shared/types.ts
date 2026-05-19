@@ -697,6 +697,39 @@ export interface CleanupHistorySnapshot {
 }
 
 /**
+ * v2.0 — Unified audit log. Cleanup, uninstall, Defender quick scan,
+ * monitor toggles all funnel into the same append-only timeline so a
+ * user can see "everything FormatBuddy did on this PC" in one screen.
+ *
+ * Entries are stored under userData/formatbuddy-audit-log.json. The
+ * reader prunes anything older than retentionDays (default 90) on load.
+ *
+ * The structured `detail` object is intentionally untyped at the shared
+ * boundary — each emitter decides its own shape. Renderer only renders
+ * `summary`; detail is shown verbatim in a collapsible debug block.
+ */
+export type AuditCategory =
+  | "cleanup"
+  | "uninstall"
+  | "defender"
+  | "monitor"
+  | "system";
+
+export interface AuditEntry {
+  id: string;
+  at: string;
+  category: AuditCategory;
+  action: string;
+  summary: string;
+  detail?: Record<string, unknown>;
+}
+
+export interface AuditSnapshot {
+  entries: AuditEntry[];
+  retentionDays: number;
+}
+
+/**
  * v1.3.x — App manager. Phase 2 of the professional-grade rollout.
  *
  * Two surfaces:
@@ -892,6 +925,8 @@ export interface DefenderThreatSnapshot {
  * notification only opens the FormatBuddy main window so the user
  * decides when to scan.
  */
+export type UpdateChannel = "stable" | "beta";
+
 export interface MonitorPreferences {
   trayEnabled: boolean;
   reminderEnabled: boolean;
@@ -899,6 +934,12 @@ export interface MonitorPreferences {
   reminderDays: number;
   /** ISO of the last reminder we surfaced (so we don't spam). */
   lastReminderAt?: string;
+  /**
+   * v2.0 — which release feed electron-updater listens to. "stable" keeps
+   * only GitHub releases without the prerelease flag; "beta" also accepts
+   * prerelease tags so early adopters can opt into nightlies.
+   */
+  updateChannel: UpdateChannel;
   updatedAt?: string;
 }
 
@@ -906,4 +947,5 @@ export interface UpdateMonitorPreferencesRequest {
   trayEnabled?: boolean;
   reminderEnabled?: boolean;
   reminderDays?: number;
+  updateChannel?: UpdateChannel;
 }

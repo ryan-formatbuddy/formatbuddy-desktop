@@ -13,6 +13,19 @@ param(
 )
 
 $ErrorActionPreference = "SilentlyContinue"
+
+# v2.0 -- Force UTF-8 (no BOM) on the console streams BEFORE we touch any
+# registry/CIM data. Without this, PS 5.1 on Korean Windows returns
+# DisplayName fields from the uninstall registry encoded in the system
+# code page (cp949), which then mojibakes through ConvertTo-Json. The
+# try/catch keeps non-Windows / PS 7 hosts (where the assignment is a
+# no-op or unsupported) from hard-failing.
+try {
+  [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+  [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+  $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+} catch { }
+
 $diagnostics = New-Object System.Collections.Generic.List[object]
 
 function Add-Diagnostic {

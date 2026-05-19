@@ -21,6 +21,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   MonitorPreferences,
+  UpdateChannel,
   UpdateMonitorPreferencesRequest
 } from "@shared/types";
 
@@ -28,6 +29,11 @@ const PREFS_FILE = "formatbuddy-monitor-prefs.json";
 const DEFAULT_REMINDER_DAYS = 14;
 const MIN_REMINDER_DAYS = 1;
 const MAX_REMINDER_DAYS = 90;
+const DEFAULT_UPDATE_CHANNEL: UpdateChannel = "stable";
+
+function coerceChannel(value: unknown): UpdateChannel {
+  return value === "beta" ? "beta" : DEFAULT_UPDATE_CHANNEL;
+}
 
 interface PersistedMonitorPrefs {
   version: 1;
@@ -42,7 +48,8 @@ export function defaultPrefs(): MonitorPreferences {
   return {
     trayEnabled: false,
     reminderEnabled: false,
-    reminderDays: DEFAULT_REMINDER_DAYS
+    reminderDays: DEFAULT_REMINDER_DAYS,
+    updateChannel: DEFAULT_UPDATE_CHANNEL
   };
 }
 
@@ -61,6 +68,7 @@ function coerce(value: unknown): MonitorPreferences {
     trayEnabled: Boolean(prefs?.trayEnabled),
     reminderEnabled: Boolean(prefs?.reminderEnabled),
     reminderDays: clampReminderDays(prefs?.reminderDays),
+    updateChannel: coerceChannel(prefs?.updateChannel),
     lastReminderAt:
       typeof prefs?.lastReminderAt === "string" ? prefs.lastReminderAt : undefined,
     updatedAt: typeof prefs?.updatedAt === "string" ? prefs.updatedAt : undefined
@@ -100,6 +108,9 @@ export async function updatePrefs(
       : {}),
     ...(patch.reminderDays !== undefined
       ? { reminderDays: clampReminderDays(patch.reminderDays) }
+      : {}),
+    ...(patch.updateChannel !== undefined
+      ? { updateChannel: coerceChannel(patch.updateChannel) }
       : {})
   };
   return savePrefs(userDataDir, next);
