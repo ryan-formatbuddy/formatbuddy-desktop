@@ -36,7 +36,12 @@ import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
-import { isManagedTrashEntryStoredPath, isManagedTrashStoredPath, moveToFormatBuddyTrash } from "./trash";
+import {
+  isManagedTrashEntryStoredPath,
+  isManagedTrashStoredPath,
+  isSafeTrashEntryId,
+  moveToFormatBuddyTrash
+} from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
 
@@ -291,6 +296,9 @@ async function attemptItem(
     if (mode === "trash") {
       if (!trashEntry?.id) {
         throw new Error("FormatBuddy restore entry was not created");
+      }
+      if (!isSafeTrashEntryId(trashEntry.id)) {
+        throw new Error("FormatBuddy restore entry id is not safe");
       }
       if (!isValidIsoDateString(trashEntry.expiresAt)) {
         throw new Error("FormatBuddy restore expiry was not created");

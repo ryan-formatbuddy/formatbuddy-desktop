@@ -70,6 +70,17 @@ function storedPathFor(userDataDir: string, entryId: string, originalPath: strin
   return join(entryDir(userDataDir, entryId), "files", base);
 }
 
+export function isSafeTrashEntryId(entryId: string): boolean {
+  return (
+    entryId.length > 0 &&
+    entryId !== "." &&
+    entryId !== ".." &&
+    !entryId.includes("/") &&
+    !entryId.includes("\\") &&
+    !entryId.includes("\0")
+  );
+}
+
 function emptyIndex(): PersistedTrashIndex {
   return { version: 1, retentionDays: FORMATBUDDY_TRASH_RETENTION_DAYS, entries: [] };
 }
@@ -170,6 +181,7 @@ function isManifestEntrySelfContained(
   entryFolderName: string,
   entry: CleanupTrashEntry
 ): boolean {
+  if (!isSafeTrashEntryId(entry.id) || !isSafeTrashEntryId(entryFolderName)) return false;
   if (entry.id !== entryFolderName) return false;
   const filesRoot = normalizePath(resolve(entryDir(userDataDir, entryFolderName), "files"));
   const stored = normalizePath(resolve(entry.storedPath));
@@ -187,6 +199,7 @@ export function isManagedTrashEntryStoredPath(
   entryId: string,
   candidatePath: string
 ): boolean {
+  if (!isSafeTrashEntryId(entryId)) return false;
   const items = normalizePath(resolve(itemsRoot(userDataDir)));
   const entry = normalizePath(resolve(entryDir(userDataDir, entryId)));
   if (!(entry === items || entry.startsWith(`${items}\\`))) return false;
