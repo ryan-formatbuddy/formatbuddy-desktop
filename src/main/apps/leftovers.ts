@@ -55,6 +55,7 @@ const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
+const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지 않아요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -382,7 +383,10 @@ async function* walkPath(
   depth = 0,
   counter = { count: 0 }
 ): AsyncGenerator<{ path: string; size: number; modified: Date }> {
-  if (depth > MAX_LEFTOVER_DEPTH || counter.count >= MAX_LEFTOVER_ITEMS) return;
+  if (depth > MAX_LEFTOVER_DEPTH) {
+    throw new LeftoverMeasurementProtection(DEEP_LEFTOVER_PROTECTION);
+  }
+  if (counter.count >= MAX_LEFTOVER_ITEMS) return;
 
   let stat: Stats;
   try {

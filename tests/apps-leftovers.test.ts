@@ -106,6 +106,25 @@ describe("planAppLeftovers", () => {
     expect(path?.protectedBy).toMatch(/링크/);
   });
 
+  it("marks overly deep leftover folders as protected", async () => {
+    let current = join(fx.roaming, "Slack");
+    for (let index = 0; index < 10; index += 1) {
+      current = join(current, `level-${index}`);
+    }
+    await fs.mkdir(current, { recursive: true });
+    await fs.writeFile(join(current, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === join(fx.roaming, "Slack"));
+    expect(path?.exists).toBe(true);
+    expect(path?.protectedBy).toMatch(/깊/);
+  });
+
   it("marks blocklist-protected leftover paths with protectedBy", async () => {
     const kakaoRoaming = join(fx.roaming, "KakaoTalk");
     await fs.mkdir(kakaoRoaming, { recursive: true });
