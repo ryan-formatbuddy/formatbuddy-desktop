@@ -889,6 +889,57 @@ describe("registry leftover cleanup", () => {
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 
+  it("does not import a startup value backup when another value was added to the reg file", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            "Windows Registry Editor Version 5.00",
+            "",
+            "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+            "\"Acme Notes\"=\"C:\\\\Acme\\\\Acme.exe\""
+          ].join("\n"),
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      runner
+    });
+    await writeFile(
+      result.backupPath,
+      [
+        "Windows Registry Editor Version 5.00",
+        "",
+        "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+        "\"Acme Notes\"=\"C:\\\\Acme\\\\Acme.exe\"",
+        "\"Other Startup\"=\"C:\\\\Other\\\\Other.exe\""
+      ].join("\n"),
+      "utf8"
+    );
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/시작 항목|값|레지스트리/);
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
   it("refuses unsafe backup ids when restoring registry backups", async () => {
     const runner = {
       exportKey: vi.fn(async () => undefined),

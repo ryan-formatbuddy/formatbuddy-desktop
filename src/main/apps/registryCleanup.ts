@@ -272,8 +272,8 @@ async function assertRestorableRegistryBackupFile(
   if (expectedKeyPath && !registryBackupSectionsMatchExpectedKey(content, expectedKeyPath)) {
     throw new Error("앱 삭제 흔적 백업 파일의 레지스트리 위치가 달라 되돌리지 않았어요.");
   }
-  if (expectedValueName && !registryBackupContainsValue(content, expectedValueName)) {
-    throw new Error("앱 삭제 흔적 백업 파일의 시작 항목 이름이 달라 되돌리지 않았어요.");
+  if (expectedValueName && !registryBackupContainsOnlyValue(content, expectedValueName)) {
+    throw new Error("앱 삭제 흔적 백업 파일의 시작 항목 값이 달라 되돌리지 않았어요.");
   }
 
   return Math.max(0, stat.size);
@@ -294,9 +294,23 @@ function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath
   return true;
 }
 
-function registryBackupContainsValue(content: string, expectedValueName: string): boolean {
+function registryBackupContainsOnlyValue(content: string, expectedValueName: string): boolean {
   const escaped = expectedValueName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^"${escaped}"=`, "im").test(content);
+  let found = false;
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || /^Windows Registry Editor Version/i.test(line) || /^REGEDIT4\b/i.test(line)) {
+      continue;
+    }
+    if (line.startsWith("[") && line.endsWith("]")) continue;
+    const match = /^"((?:\\"|[^"])*)"=/.exec(line);
+    if (!match) return false;
+    if (!new RegExp(`^${escaped}$`, "i").test(match[1].replace(/\\"/g, '"'))) {
+      return false;
+    }
+    found = true;
+  }
+  return found;
 }
 
 async function writeRegistryBackupMetaFile(
