@@ -136,21 +136,25 @@ describe("recently opened uninstall wizard memory", () => {
     clearRecentlyUninstallLaunchedApps();
   });
 
-  it("keeps only minimal app identity for post-uninstall-wizard leftover scans", () => {
+  it("keeps safe local cleanup metadata for post-uninstall-wizard leftover scans", () => {
     const t0 = 1_000_000;
     rememberRecentlyUninstallLaunchedApp(
       {
         name: "Slack",
         publisher: "Slack Technologies",
         uninstallString: '"C:\\Program Files\\Slack\\unins000.exe"',
-        quietUninstallString: "secret-ish command",
+        quietUninstallString: "quiet uninstall command",
         installLocation: "C:\\Program Files\\Slack"
       },
       () => t0
     );
 
     expect(getRecentlyUninstallLaunchedApps(() => t0 + 1_000)).toEqual([
-      { name: "Slack", publisher: "Slack Technologies" }
+      {
+        name: "Slack",
+        publisher: "Slack Technologies",
+        installLocation: "C:\\Program Files\\Slack"
+      }
     ]);
   });
 

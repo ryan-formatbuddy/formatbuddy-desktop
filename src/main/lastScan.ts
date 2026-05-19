@@ -79,7 +79,11 @@ function pruneRecentlyUninstallLaunched(now: number): void {
  * completed or canceled that wizard, so UI must not claim "removed".
  *
  * We intentionally do NOT store uninstall command strings, install
- * locations, versions, or registry details here.
+ * We intentionally do NOT store uninstall command strings or versions
+ * here. We do keep installLocation in memory because the follow-up
+ * leftover scan needs it to find app folders that Windows uninstallers
+ * often leave behind. This map is process-local only and is cleared on
+ * app restart.
  */
 export function rememberRecentlyUninstallLaunchedApp(
   app: InstalledApp,
@@ -90,7 +94,8 @@ export function rememberRecentlyUninstallLaunchedApp(
   pruneRecentlyUninstallLaunched(t);
   const minimal: InstalledApp = {
     name: app.name,
-    publisher: app.publisher ?? null
+    publisher: app.publisher ?? null,
+    installLocation: app.installLocation?.trim() || undefined
   };
   recentlyUninstallLaunched.set(appMemoryKey(minimal), { app: minimal, rememberedAt: t });
 }
