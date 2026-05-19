@@ -230,7 +230,7 @@ function LeftoverPanel({
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }) {
-  if (state.loading && !result) {
+  if (state.loading && !state.snapshot && !result) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>잔여 항목 후보를 살펴보는 중이에요…</p>
@@ -273,6 +273,13 @@ function LeftoverPanel({
         아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
         제거 확인 전 {leftoverSummary.notChecked}개, 지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
+      {state.loading && !result && (
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>
+            잔여 항목을 다시 확인하는 중이에요. 기존 후보는 그대로 남겨둘게요.
+          </p>
+        </article>
+      )}
       {state.error && !result && (
         <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
           <p style={{ margin: 0 }}>

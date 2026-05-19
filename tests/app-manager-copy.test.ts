@@ -95,6 +95,14 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (state.error && !result)");
   });
 
+  it("keeps existing leftover candidates visible while refresh is loading before cleanup", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("if (state.loading && !state.snapshot && !result)");
+    expect(source).toContain("잔여 항목을 다시 확인하는 중이에요. 기존 후보는 그대로 남겨둘게요.");
+    expect(source).not.toContain("if (state.loading && !result)");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
