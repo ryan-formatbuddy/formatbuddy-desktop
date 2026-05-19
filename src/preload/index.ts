@@ -19,6 +19,10 @@ import type {
   CleanupTrashSnapshot,
   DefenderLiveStatus,
   DriverBackupResult,
+  StartupAutoDisabledSnapshot,
+  StartupFolderDisableRequest,
+  StartupFolderRestoreRequest,
+  StartupFolderToggleResult,
   StartupAutoSnapshot,
   WifiExportRequest,
   WifiExportResult,
@@ -217,7 +221,20 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.wifiExport, request),
 
   listStartupAuto: (): Promise<StartupAutoSnapshot> =>
-    ipcRenderer.invoke(IpcChannels.startupList)
+    ipcRenderer.invoke(IpcChannels.startupList),
+
+  listDisabledStartupAuto: (): Promise<StartupAutoDisabledSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.startupDisabledList),
+
+  disableStartupAuto: (
+    request: StartupFolderDisableRequest
+  ): Promise<StartupFolderToggleResult> =>
+    ipcRenderer.invoke(IpcChannels.startupDisable, request),
+
+  restoreStartupAuto: (
+    request: StartupFolderRestoreRequest
+  ): Promise<StartupFolderToggleResult> =>
+    ipcRenderer.invoke(IpcChannels.startupRestore, request)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

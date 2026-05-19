@@ -20,7 +20,11 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   DriverBackupResult,
+  StartupAutoDisabledSnapshot,
   StartupAutoSnapshot,
+  StartupFolderDisableRequest,
+  StartupFolderRestoreRequest,
+  StartupFolderToggleResult,
   WifiExportRequest,
   WifiExportResult,
   ExportOptions,
@@ -50,6 +54,11 @@ import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
 import { defaultDriverBackupRunner, exportDrivers } from "./driver/backup";
 import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
 import { defaultStartupRunner, listStartupAuto } from "./startup/list";
+import {
+  disableStartupFolderEntry,
+  listDisabledStartupFolderEntries,
+  restoreStartupFolderEntry
+} from "./startup/folderToggle";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import {
@@ -666,6 +675,89 @@ function registerIpc() {
     );
     return snapshot;
   });
+
+  ipcMain.handle(
+    IpcChannels.startupDisabledList,
+    async (): Promise<StartupAutoDisabledSnapshot> => {
+      return listDisabledStartupFolderEntries({ userDataDir: app.getPath("userData") });
+    }
+  );
+
+  ipcMain.handle(
+    IpcChannels.startupDisable,
+    async (_e, request: StartupFolderDisableRequest): Promise<StartupFolderToggleResult> => {
+      if (process.platform !== "win32") {
+        return {
+          status: "windows-only",
+          message: "시작 항목 끄기는 Windows 앱에서만 동작해요."
+        };
+      }
+      const userDataDir = app.getPath("userData");
+      const snapshot = await listStartupAuto({ runner: defaultStartupRunner() });
+      const entry = snapshot.entries.find((item) => item.id === request?.entryId);
+      if (!entry) {
+        return {
+          status: "not-found",
+          message: "지금 목록에서 해당 시작 항목을 찾지 못했어요. 다시 조회한 뒤 시도해주세요."
+        };
+      }
+      if (entry.kind === "startup-folder") {
+        await maybeCreateRestorePoint(`시작 항목 끄기 (${entry.name})`);
+      }
+      const result = await disableStartupFolderEntry({ userDataDir, entry });
+      log.info(`startup:disable status=${result.status} entry=${entry.name}`);
+      await appendAuditEntry(userDataDir, {
+        category: "system",
+        action: `startup-disable-${result.status}`,
+        summary:
+          result.status === "disabled"
+            ? `"${entry.name}"이 PC 켤 때 같이 뜨지 않게 보관했어요.`
+            : `시작 항목 끄기 결과: ${result.message}`,
+        detail: {
+          entryId: entry.id,
+          disabledId: result.entry?.id,
+          status: result.status,
+          name: entry.name,
+          originalPath: result.entry?.originalPath
+        }
+      }).catch((e) => log.warn("audit append (startup-disable) failed:", (e as Error).message));
+      return result;
+    }
+  );
+
+  ipcMain.handle(
+    IpcChannels.startupRestore,
+    async (_e, request: StartupFolderRestoreRequest): Promise<StartupFolderToggleResult> => {
+      if (process.platform !== "win32") {
+        return {
+          status: "windows-only",
+          message: "시작 항목 되돌리기는 Windows 앱에서만 동작해요."
+        };
+      }
+      const userDataDir = app.getPath("userData");
+      await maybeCreateRestorePoint("시작 항목 되돌리기");
+      const result = await restoreStartupFolderEntry({
+        userDataDir,
+        disabledId: request?.disabledId ?? ""
+      });
+      log.info(`startup:restore status=${result.status} id=${request?.disabledId ?? ""}`);
+      await appendAuditEntry(userDataDir, {
+        category: "system",
+        action: `startup-restore-${result.status}`,
+        summary:
+          result.status === "restored"
+            ? `"${result.entry?.name ?? "시작 항목"}"을 다시 PC 켤 때 같이 뜨도록 되돌렸어요.`
+            : `시작 항목 되돌리기 결과: ${result.message}`,
+        detail: {
+          disabledId: request?.disabledId,
+          status: result.status,
+          name: result.entry?.name,
+          originalPath: result.entry?.originalPath
+        }
+      }).catch((e) => log.warn("audit append (startup-restore) failed:", (e as Error).message));
+      return result;
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.cleanupPlan,

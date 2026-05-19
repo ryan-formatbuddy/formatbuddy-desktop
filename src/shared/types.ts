@@ -931,8 +931,10 @@ export interface WifiExportRequest {
  *                          AND triggered at logon / boot
  *   - service            : Get-Service where StartType -in @('Automatic','AutomaticDelayedStart')
  *
- * Disable/Enable lands in a follow-up round (B3 toggle). Today's
- * scope is "show me everything that auto-starts" with provenance.
+ * Startup-folder toggle is intentionally narrower than this inventory:
+ * app UI may move only startup-folder files into a local FormatBuddy
+ * holding area. Registry, scheduled-task, and service toggles require
+ * separate safety rules and are still read-only.
  */
 export type StartupAutoKind =
   | "registry"
@@ -965,6 +967,53 @@ export interface StartupAutoSnapshot {
   entries: StartupAutoEntry[];
   /** Per-kind diagnostic note (e.g. timeouts, permission errors). */
   notes: string[];
+}
+
+export interface StartupAutoDisabledEntry {
+  /** Local restore id under userData/formatbuddy-startup-disabled/items/<id>. */
+  id: string;
+  /** StartupAutoEntry.id from the last inventory snapshot. */
+  entryId: string;
+  name: string;
+  /** Original Startup folder path. */
+  originalPath: string;
+  /** Managed local copy path inside FormatBuddy userData. */
+  storedPath: string;
+  /** Original Startup folder label/path. */
+  origin: string;
+  disabledAt: string;
+}
+
+export interface StartupAutoDisabledSnapshot {
+  capturedAt: string;
+  entries: StartupAutoDisabledEntry[];
+  notes: string[];
+}
+
+export interface StartupFolderDisableRequest {
+  entryId: string;
+}
+
+export interface StartupFolderRestoreRequest {
+  disabledId: string;
+}
+
+export type StartupFolderToggleStatus =
+  | "disabled"
+  | "restored"
+  | "unsupported-kind"
+  | "not-found"
+  | "blocked-path"
+  | "target-exists"
+  | "missing-stored-item"
+  | "failed"
+  | "windows-only";
+
+export interface StartupFolderToggleResult {
+  status: StartupFolderToggleStatus;
+  message: string;
+  entry?: StartupAutoDisabledEntry;
+  detail?: string;
 }
 
 export interface WifiExportResult {

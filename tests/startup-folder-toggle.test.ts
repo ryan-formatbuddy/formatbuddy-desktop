@@ -1,0 +1,177 @@
+import { existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import type { StartupAutoEntry } from "../src/shared/types";
+import {
+  disableStartupFolderEntry,
+  listDisabledStartupFolderEntries,
+  restoreStartupFolderEntry
+} from "../src/main/startup/folderToggle";
+
+function makeFixture() {
+  const root = mkdtempSync(join(tmpdir(), "fb-startup-toggle-"));
+  const userDataDir = join(root, "user-data");
+  const startupDir = join(root, "Startup");
+  return { root, userDataDir, startupDir };
+}
+
+function startupEntry(path: string, origin: string, name = "KakaoTalk.lnk"): StartupAutoEntry {
+  return {
+    id: `startup-folder|${name.toLowerCase()}|${path.toLowerCase()}`,
+    kind: "startup-folder",
+    name,
+    path,
+    origin
+  };
+}
+
+describe("startup folder toggle", () => {
+  const roots: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  it("moves a startup-folder item into managed storage and restores it", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+
+    expect(disabled.status).toBe("disabled");
+    expect(existsSync(source)).toBe(false);
+    expect(disabled.entry?.originalPath).toBe(source);
+    expect(disabled.entry?.storedPath).toContain("formatbuddy-startup-disabled");
+    expect(disabled.entry?.disabledAt).toBe("2026-05-20T10:00:00.000Z");
+    expect(readFileSync(disabled.entry!.storedPath, "utf8")).toBe("shortcut");
+
+    const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([disabled.entry!.id]);
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(readFileSync(source, "utf8")).toBe("shortcut");
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("blocks entries whose source is outside the startup folder origin", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const outside = join(fx.root, "Downloads", "Sneaky.lnk");
+    await mkdir(join(fx.root, "Downloads"), { recursive: true });
+    writeFileSync(outside, "not startup");
+
+    const result = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(outside, fx.startupDir, "Sneaky.lnk")
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(existsSync(outside)).toBe(true);
+    expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("only supports startup-folder entries", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+
+    const result = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: {
+        id: "registry|test|c:\\app.exe",
+        kind: "registry",
+        name: "Registry App",
+        path: "C:\\app.exe",
+        origin: "HKCU Run"
+      }
+    });
+
+    expect(result.status).toBe("unsupported-kind");
+  });
+
+  it("refuses to move a startup item when the source is a symbolic link", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const real = join(fx.root, "real.lnk");
+    const link = join(fx.startupDir, "Linked.lnk");
+    writeFileSync(real, "shortcut");
+    symlinkSync(real, link);
+
+    const result = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(link, fx.startupDir, "Linked.lnk")
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(existsSync(link)).toBe(true);
+  });
+
+  it("does not restore over an existing startup item", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Steam.lnk");
+    writeFileSync(source, "old shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Steam.lnk")
+    });
+    writeFileSync(source, "new shortcut");
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id
+    });
+
+    expect(restored.status).toBe("target-exists");
+    expect(readFileSync(source, "utf8")).toBe("new shortcut");
+    expect(existsSync(disabled.entry!.storedPath)).toBe(true);
+  });
+
+  it("does not trust a tampered restore record outside the managed holding area", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Whale.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Whale.lnk")
+    });
+    const outside = join(fx.root, "outside.lnk");
+    writeFileSync(outside, "outside");
+    const entryDir = join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id);
+    writeFileSync(
+      join(entryDir, "meta.json"),
+      JSON.stringify({ ...disabled.entry, storedPath: outside }, null, 2),
+      "utf8"
+    );
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(existsSync(source)).toBe(false);
+    expect(readFileSync(outside, "utf8")).toBe("outside");
+  });
+});

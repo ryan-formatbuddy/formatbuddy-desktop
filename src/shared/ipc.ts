@@ -48,7 +48,10 @@ export const IpcChannels = {
   systemOpenRecycleBin: "system:open-recycle-bin",
   driverBackup: "driver:backup",
   wifiExport: "wifi:export",
-  startupList: "startup:list"
+  startupList: "startup:list",
+  startupDisabledList: "startup:disabled-list",
+  startupDisable: "startup:disable",
+  startupRestore: "startup:restore"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

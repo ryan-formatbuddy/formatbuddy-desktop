@@ -38,6 +38,13 @@ describe("IpcChannels", () => {
     expect(IpcChannels.registryBackupRestore).toBe("registry-backups:restore");
   });
 
+  it("contains startup auto-toggle channels", () => {
+    expect(IpcChannels.startupList).toBe("startup:list");
+    expect(IpcChannels.startupDisabledList).toBe("startup:disabled-list");
+    expect(IpcChannels.startupDisable).toBe("startup:disable");
+    expect(IpcChannels.startupRestore).toBe("startup:restore");
+  });
+
   it("channel values are unique", () => {
     const values = Object.values(IpcChannels);
     expect(new Set(values).size).toBe(values.length);
