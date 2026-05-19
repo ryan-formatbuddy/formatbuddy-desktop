@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CleanupItem } from "../src/shared/types";
@@ -201,6 +201,36 @@ describe("FormatBuddy Trash", () => {
     expect(result.status).toBe("blocked-path");
     expect(existsSync(join(outside, "old.tmp"))).toBe(false);
     expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
+  it("refuses restore when the stored trash item was replaced with a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    const outside = join(fx.root, "outside-stored.tmp");
+    await writeFile(outside, "outside", "utf8");
+    await rm(entry.storedPath, { force: true });
+    await symlink(outside, entry.storedPath);
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    await expect(lstat(source)).rejects.toThrow();
+    await expect(readFile(outside, "utf8")).resolves.toBe("outside");
+    const storedStat = await lstat(entry.storedPath);
+    expect(storedStat.isSymbolicLink()).toBe(true);
   });
 
   it("permanently purges entries after 30 days", async () => {

@@ -326,6 +326,21 @@ export async function restoreTrashEntry(
     };
   }
 
+  const linkedStoredPath = await findLinkedPathPart(
+    entry.storedPath,
+    entryDir(options.userDataDir, entry.id),
+    true
+  );
+  if (linkedStoredPath) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: `복구함 안의 저장물이 링크라 자동으로 되돌리지 않았어요: ${linkedStoredPath}`,
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
   const restoreDecision = evaluatePath(entry.originalPath, {
     allowRoots: [entry.originalPath],
     home: options.home
