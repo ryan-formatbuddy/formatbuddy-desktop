@@ -726,6 +726,21 @@ function consumeLeftoversPlan(
   return cached;
 }
 
+function peekLeftoversPlan(
+  planId: string,
+  confirmationToken: string,
+  now?: () => Date
+): CachedLeftoversPlan | undefined {
+  pruneExpiredPlans(now);
+  const cached = PLAN_CACHE.get(planId);
+  if (!cached) return undefined;
+  if (cached.snapshot.confirmationToken !== confirmationToken) {
+    PLAN_CACHE.delete(planId);
+    return undefined;
+  }
+  return cached;
+}
+
 function allPaths(snapshot: AppLeftoversSnapshot): AppLeftoverPath[] {
   return snapshot.groups.flatMap((group) => group.paths);
 }
@@ -771,12 +786,25 @@ export async function cleanupAppLeftovers(
     throw new Error("apps:leftovers-cleanup requires selectedPathIds to contain only strings");
   }
 
+  const currentPlan = peekLeftoversPlan(request.planId, request.confirmationToken, options.now);
+  if (!currentPlan) {
+    throw new Error("apps:leftovers-cleanup could not match a current plan (expired, wrong token, or already executed)");
+  }
+
+  const selectedIds = new Set(request.selectedPathIds);
+  const currentIndex = new Map(allPaths(currentPlan.snapshot).map((path) => [path.id, path]));
+  const unknownSelectionIds = Array.from(selectedIds).filter((id) => !currentIndex.has(id));
+  if (unknownSelectionIds.length > 0) {
+    throw new Error(
+      `apps:leftovers-cleanup selectedPathIds not present in the leftover plan: ${unknownSelectionIds.join(", ")}`
+    );
+  }
+
   const cached = consumeLeftoversPlan(request.planId, request.confirmationToken, options.now);
   if (!cached) {
     throw new Error("apps:leftovers-cleanup could not match a current plan (expired, wrong token, or already executed)");
   }
 
-  const selectedIds = new Set(request.selectedPathIds);
   const index = new Map(allPaths(cached.snapshot).map((path) => [path.id, path]));
   const removedItems: CleanupExecutedItem[] = [];
   const skippedItems: CleanupSkippedItem[] = [];

@@ -760,6 +760,32 @@ describe("planAppLeftovers", () => {
     await expect(fs.stat(slack)).resolves.toBeTruthy();
   });
 
+  it("rejects unknown selectedPathIds before touching any leftover path", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id, "ghost-id-that-does-not-exist"]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/not present in the leftover plan/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+  });
+
   it("refuses protected leftover cleanup even with a valid plan", async () => {
     const kakaoRoaming = join(fx.roaming, "KakaoTalk");
     await fs.mkdir(kakaoRoaming, { recursive: true });
