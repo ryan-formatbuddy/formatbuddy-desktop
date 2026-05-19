@@ -133,7 +133,7 @@ export function blockedUninstallMessage(command: string): string {
 
   switch (kind) {
     case "shell-host":
-      return "PowerShell이나 명령 프롬프트를 거쳐 실행되는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+      return "별도 실행 도구를 거쳐 실행되는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "script-file":
       return "스크립트 파일을 실행하는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "unquoted-spaced-path":

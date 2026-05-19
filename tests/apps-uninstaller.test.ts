@@ -249,7 +249,7 @@ describe("runUninstall", () => {
     [
       "shell host",
       "powershell.exe -NoProfile -File uninstall.ps1",
-      /PowerShell|명령 프롬프트/
+      /별도 실행 도구/
     ],
     [
       "script target",
@@ -279,6 +279,7 @@ describe("runUninstall", () => {
     expect(result.status).toBe("blocked");
     expect(result.message).toMatch(expected);
     expect(result.message).toMatch(/Windows 설정/);
+    expect(result.message).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 

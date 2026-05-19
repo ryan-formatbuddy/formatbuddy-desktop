@@ -75,7 +75,8 @@ describe("buildAppManagerSnapshot", () => {
     expect(item.uninstallAvailability).toBe("ready");
     expect(item.availabilityNote).toMatch(/Windows 제거 마법사/);
     expect(item.availabilityNote).toMatch(/자동 제거 명령/);
-    expect(item.availabilityNote).toMatch(/PowerShell|명령 프롬프트/);
+    expect(item.availabilityNote).toMatch(/별도 실행 도구/);
+    expect(item.availabilityNote).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
     expect(item.availabilityNote).not.toMatch(/선택할 수/);
   });
 
@@ -110,7 +111,7 @@ describe("buildAppManagerSnapshot", () => {
     [
       "shell host",
       "powershell.exe -NoProfile -File uninstall.ps1",
-      /PowerShell|명령 프롬프트/
+      /별도 실행 도구/
     ],
     [
       "script target",
@@ -134,6 +135,7 @@ describe("buildAppManagerSnapshot", () => {
     expect(item.uninstallAvailability).toBe("blocked");
     expect(item.availabilityNote).toMatch(expected);
     expect(item.availabilityNote).toMatch(/Windows 설정/);
+    expect(item.availabilityNote).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
   });
 
   it("filters out KB/hotfix noise but still counts in hiddenSystemCount=0", () => {
