@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
+import { restorableTrashEntryIds } from "@shared/cleanup-result";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteMode,
@@ -272,6 +273,9 @@ function ResultPanel({
   onBack,
   onRescan,
   onQuickRescan,
+  onRestoreRecent,
+  restoreRecentBusy,
+  restoreRecentMessage,
   onOpenTrashRestore,
   onOpenAuditLog
 }: {
@@ -279,10 +283,14 @@ function ResultPanel({
   onBack: () => void;
   onRescan: () => void;
   onQuickRescan?: () => void;
+  onRestoreRecent: (result: CleanupExecuteResult) => void;
+  restoreRecentBusy: boolean;
+  restoreRecentMessage?: string;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }) {
   const removedCount = result.removedItems.filter((i) => i.succeeded).length;
+  const restorableCount = restorableTrashEntryIds(result).length;
   const failedCount = result.skippedItems.filter((s) => s.reason !== "not-selected").length;
   return (
     <article className="fb-card fb-anim-pop">
@@ -331,6 +339,15 @@ function ResultPanel({
             복구함 보기
           </Button>
         )}
+        {restorableCount > 0 && (
+          <Button
+            variant="secondary"
+            onClick={() => onRestoreRecent(result)}
+            disabled={restoreRecentBusy}
+          >
+            {restoreRecentBusy ? "되돌리는 중…" : "방금 정리 되돌리기"}
+          </Button>
+        )}
         <Button variant="ghost" onClick={onOpenAuditLog}>
           활동 기록 보기
         </Button>
@@ -342,6 +359,9 @@ function ResultPanel({
         <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
           정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요. 마음이 바뀌면 이 화면에서 되돌릴 수 있어요.
         </p>
+      )}
+      {restoreRecentMessage && (
+        <p style={{ fontSize: 13, opacity: 0.78, marginTop: 8 }}>{restoreRecentMessage}</p>
       )}
     </article>
   );
@@ -434,6 +454,8 @@ export function Cleanup({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [trashSnapshot, setTrashSnapshot] = useState<CleanupTrashSnapshot | undefined>();
   const [trashMessage, setTrashMessage] = useState<string | undefined>();
+  const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
+  const [recentRestoreMessage, setRecentRestoreMessage] = useState<string | undefined>();
 
   const largeFiles = useMemo<LargeFileCandidate[]>(() => report?.largeFiles ?? [], [report]);
 
@@ -525,6 +547,7 @@ export function Cleanup({
     const plan = phase.plan;
     const mode = phase.mode;
     setPhase({ kind: "executing", plan });
+    setRecentRestoreMessage(undefined);
     try {
       const result = await window.fb.executeCleanup({
         planId: plan.planId,
@@ -538,6 +561,39 @@ export function Cleanup({
       setPhase({ kind: "error", message: (err as Error).message });
     }
   }, [loadTrash, phase, selected]);
+
+  const restoreRecentCleanup = useCallback(
+    async (result: CleanupExecuteResult) => {
+      if (!window.fb?.restoreCleanupTrash) return;
+      const entryIds = restorableTrashEntryIds(result);
+      if (entryIds.length === 0) {
+        setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
+        return;
+      }
+
+      setRecentRestoreBusy(true);
+      setRecentRestoreMessage(undefined);
+      try {
+        const results = [];
+        for (const entryId of entryIds) {
+          results.push(await window.fb.restoreCleanupTrash({ entryId }));
+        }
+        const restored = results.filter((item) => item.status === "restored").length;
+        const blocked = results.filter((item) => item.status === "target-exists").length;
+        const failed = results.length - restored - blocked;
+        const parts = [`${restored}개를 원래 위치로 되돌렸어요.`];
+        if (blocked > 0) parts.push(`${blocked}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
+        if (failed > 0) parts.push(`${failed}개는 이미 없거나 되돌리지 못했어요.`);
+        setRecentRestoreMessage(parts.join(" "));
+        await loadTrash();
+      } catch (err) {
+        setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);
+      } finally {
+        setRecentRestoreBusy(false);
+      }
+    },
+    [loadTrash]
+  );
 
   const restoreFromTrash = useCallback(
     async (entryId: string) => {
@@ -665,6 +721,9 @@ export function Cleanup({
           }}
           onRescan={onRescan}
           onQuickRescan={onQuickRescan}
+          onRestoreRecent={(result) => void restoreRecentCleanup(result)}
+          restoreRecentBusy={recentRestoreBusy}
+          restoreRecentMessage={recentRestoreMessage}
           onOpenTrashRestore={onOpenTrashRestore}
           onOpenAuditLog={onOpenAuditLog}
         />
