@@ -35,7 +35,7 @@
   후보 무시 목록. 진단 데이터는 사용자가 직접 export하지 않는 한 외부로
   나가지 않아요.
 - `formatbuddy-monitor-prefs.json` — 트레이 / 주기 알림 / 업데이트 채널 /
-  복원 지점 자동 생성 같은 사용자 설정.
+  복원 지점 자동 생성 / 화면 모드 / 익명 사용 통계 허용 여부 같은 사용자 설정.
 - `formatbuddy-cleanup-log.json` — 정리 실행 내역 (어떤 카테고리에서 몇 개
   항목을 포맷버디 복구함으로 보냈는지). 파일 경로는 저장하지 않아요.
 - `formatbuddy-trash/` — 사용자가 직접 고른 정리 항목을 30일 동안 보관하는
@@ -95,6 +95,10 @@
 
 1. **자동 업데이트**: 새 버전 확인을 위해 GitHub Releases API(https://api.github.com)에 anonymous 요청을 보냅니다. 사용자 식별 정보는 포함되지 않으며, GitHub의 개인정보 처리방침 (https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement)이 적용됩니다.
 2. **사용자 명시 동의**: 사용자가 `웹 리포트 뷰어 열기` 버튼을 누르면 기본 브라우저로 https://formatbuddy.vercel.app/report/import 페이지가 열립니다. 그 페이지에 진단 JSON을 업로드할지는 사용자가 직접 선택합니다.
+
+익명 사용 통계는 현재 전송 기능이 연결되어 있지 않습니다. 설정값은 향후 opt-in
+기능을 위한 로컬 동의 상태일 뿐이며, 전송 기능을 실제로 추가할 때는 전송 항목과
+목적을 이 문서에 다시 명시해야 합니다.
 
 ## 6. 사용자의 권리
 

@@ -41,7 +41,7 @@
 | B4 | a11y (aria-label, role, screen reader) | P2 | ✅ | 부분 |
 | B5 | Windows에서 Wanted Sans 렌더링 정확도 | **P0** | ❌ | 미검증 |
 | B6 | 진단 cancel 시 부분 결과 표시 | P2 | ✅ | 기본만 |
-| B7 | 다크모드 (정책상 X — 의도적 결정 명시 유지) | — | — | 의도적 X |
+| B7 | 다크모드 (PC 설정 따라가기 + 수동 전환) | P2 | ✅ | 기본 토큰 + 수동 설정 ✅ (D-29~D-31) / Windows 실기 시각 검증 필요 |
 | B8 | 윈도우 리사이즈에 대한 반응형 | P1 | ✅ | min size만 |
 
 ## C. 보안 / 프라이버시
@@ -122,7 +122,7 @@
 |---|------|---|------|------|
 | I1 | 피드백 채널 (GitHub Issues + email) | **P0** | ✅ | `.github/ISSUE_TEMPLATE/` |
 | I2 | 크래시 리포팅 (Sentry, **opt-in 필수**) | P2 | ✅ | 없음 |
-| I3 | 익명 사용 통계 (PostHog, opt-in) | P3 | ✅ | 없음 |
+| I3 | 익명 사용 통계 (opt-in) | P3 | ✅ | 로컬 동의값 저장 ✅ (D-32) / 전송 구현 없음 |
 | I4 | 다운로드/설치 수 추적 (GitHub Releases API) | P2 | ✅ | 미연결 |
 | I5 | 자동 업데이트 성공률 추적 | P2 | ✅ | 미수집 |
 | I6 | CVE 모니터링 / 보안 패치 cadence | P2 | ✅ | 없음 |
