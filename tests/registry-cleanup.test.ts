@@ -276,6 +276,7 @@ describe("registry leftover cleanup", () => {
 
     expect(purge).toEqual({
       purgedCount: 1,
+      purgedBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
       purgedIds: [result.id],
       retentionDays: 30
     });
@@ -376,6 +377,7 @@ describe("registry leftover cleanup", () => {
 
     expect(result).toEqual({
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       retentionDays: 30
     });
@@ -416,6 +418,7 @@ describe("registry leftover cleanup", () => {
 
     expect(result).toEqual({
       purgedCount: 1,
+      purgedBytes: 0,
       purgedIds: [entryId],
       retentionDays: 30
     });
@@ -500,7 +503,11 @@ describe("registry leftover cleanup", () => {
       userDataDir: fx.userDataDir,
       now: () => new Date("2026-06-18T00:00:01.000Z")
     });
-    expect(purge).toMatchObject({ purgedCount: 1, purgedIds: [result.id] });
+    expect(purge).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
+      purgedIds: [result.id]
+    });
     await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
   });
 
@@ -535,6 +542,7 @@ describe("registry leftover cleanup", () => {
       now: () => new Date("2026-05-21T00:00:00.000Z")
     });
     expect(earlyPurge.purgedCount).toBe(0);
+    expect(earlyPurge.purgedBytes).toBe(0);
 
     const snapshot = await listRegistryBackups({
       userDataDir: fx.userDataDir,

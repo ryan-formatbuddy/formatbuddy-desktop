@@ -1216,7 +1216,7 @@ app.whenReady().then(() => {
         trigger: "startup"
       }).then((result) => {
         if (result.purgedCount > 0) {
-          log.info(`registry-backup:startup purged=${result.purgedCount}`);
+          log.info(`registry-backup:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
         }
       });
       // Push the persisted update channel onto electron-updater. Initial

@@ -56,6 +56,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(1);
+    expect(result.purgedBytes).toBe(Buffer.byteLength("Windows Registry Editor Version 5.00", "utf8"));
     expect(existsSync(backup.backupPath)).toBe(false);
     const audit = await getAuditSnapshot(fx.userData, new Date("2026-06-18T00:00:02.000Z"));
     expect(audit.entries).toHaveLength(1);
@@ -67,6 +68,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     expect(audit.entries[0].summary).not.toContain("영구");
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
+      purgedBytes: Buffer.byteLength("Windows Registry Editor Version 5.00", "utf8"),
       purgedIds: [backup.id],
       trigger: "startup"
     });
@@ -80,6 +82,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(0);
+    expect(result.purgedBytes).toBe(0);
     const audit = await getAuditSnapshot(fx.userData, new Date("2026-05-19T00:00:01.000Z"));
     expect(audit.entries).toEqual([]);
   });
@@ -102,6 +105,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(0);
+    expect(result.purgedBytes).toBe(0);
     expect(existsSync(looseFile)).toBe(false);
     expect(existsSync(linkedFile)).toBe(false);
     expect(await readFile(outside, "utf8")).toBe("outside stays put");

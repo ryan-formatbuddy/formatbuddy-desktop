@@ -845,6 +845,7 @@ export interface RegistryBackupRestoreResult {
 
 export interface RegistryBackupPurgeResult {
   purgedCount: number;
+  purgedBytes: number;
   purgedIds: string[];
   retentionDays: number;
 }

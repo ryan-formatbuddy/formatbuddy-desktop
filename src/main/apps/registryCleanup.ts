@@ -437,6 +437,20 @@ async function pruneNonRestorableRegistryBackupItems(userDataDir: string): Promi
   }
 }
 
+async function measureRegistryBackupPurgeBytes(entryDir: string): Promise<number> {
+  const backupPath = join(entryDir, "backup.reg");
+  const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
+  if (linkedBackup) return 0;
+
+  try {
+    const stat = await fs.lstat(backupPath);
+    if (stat.isSymbolicLink() || !stat.isFile()) return 0;
+    return Math.max(0, stat.size);
+  } catch {
+    return 0;
+  }
+}
+
 export async function listRegistryBackups(options: {
   userDataDir: string;
   now?: () => Date;
@@ -482,7 +496,12 @@ export async function purgeExpiredRegistryBackups(options: {
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
   if (linkedRoot) {
     await removeLinkedRegistryBackupRootIfManaged(options.userDataDir, linkedRoot);
-    return { purgedCount: 0, purgedIds: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
+    return {
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
+    };
   }
 
   if (options.pruneNonRestorable) {
@@ -493,11 +512,17 @@ export async function purgeExpiredRegistryBackups(options: {
   try {
     entries = await fs.readdir(root, { withFileTypes: true });
   } catch {
-    return { purgedCount: 0, purgedIds: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
+    return {
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
+    };
   }
 
   const now = options.now?.() ?? new Date();
   const purgedIds: string[] = [];
+  let purgedBytes = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const entryDir = join(root, entry.name);
@@ -521,6 +546,7 @@ export async function purgeExpiredRegistryBackups(options: {
           : meta.expiresAt;
       const expiresAt = Date.parse(effectiveExpiresAt);
       if (!Number.isFinite(expiresAt) || expiresAt > now.getTime()) continue;
+      purgedBytes += await measureRegistryBackupPurgeBytes(entryDir);
       await fs.rm(entryDir, { recursive: true, force: true });
       purgedIds.push(entry.name);
     } catch {
@@ -530,6 +556,7 @@ export async function purgeExpiredRegistryBackups(options: {
 
   return {
     purgedCount: purgedIds.length,
+    purgedBytes,
     purgedIds,
     retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
   };
