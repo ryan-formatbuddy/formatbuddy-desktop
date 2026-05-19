@@ -721,9 +721,22 @@ export async function restoreTrashEntry(
   }
 
   try {
+    const restoreEntryDir = entryDir(options.userDataDir, entry.id);
+    const removeEntryDir =
+      options.removeEntryDir ??
+      ((dir: string) => rm(dir, { recursive: true, force: true }));
     await mkdir(dirname(entry.originalPath), { recursive: true });
     await movePath(entry.storedPath, entry.originalPath);
-    await rm(entryDir(options.userDataDir, entry.id), { recursive: true, force: true });
+    if (!(await exists(entry.originalPath))) {
+      throw new Error("Restored path was not created");
+    }
+    if (await exists(entry.storedPath)) {
+      throw new Error("Stored trash path still exists after restore");
+    }
+    await removeEntryDir(restoreEntryDir, entry);
+    if (await exists(restoreEntryDir)) {
+      throw new Error("Restore entry still exists after restore");
+    }
     index.entries = index.entries.filter((e) => e.id !== entry.id);
     await saveIndex(options.userDataDir, index);
     await notifyAppLeftoverRestored(options, entry);

@@ -403,6 +403,28 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("does not report restore success when the restore-bin entry folder still exists", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      removeEntryDir: async () => undefined
+    });
+
+    expect(result.status).toBe("restore-failed");
+    expect(result.message).toContain("되돌리지 못했어요");
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(true);
+  });
+
   it("keeps restore failure messages friendly when the original folder cannot be recreated", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(dirname(source), { recursive: true });
