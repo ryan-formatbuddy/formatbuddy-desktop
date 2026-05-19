@@ -545,6 +545,28 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(orphanDir)).toBe(false);
   });
 
+  it("prunes unexpected files and links inside the managed trash items folder", async () => {
+    if (process.platform === "win32") return;
+    const itemsRoot = __testing.itemsRoot(fx.userData);
+    const outside = join(fx.root, "outside-unmanaged.txt");
+    const unmanagedFile = join(itemsRoot, "loose.tmp");
+    const unmanagedLink = join(itemsRoot, "linked-outside");
+    await mkdir(itemsRoot, { recursive: true });
+    await writeFile(outside, "outside stays put", "utf8");
+    await writeFile(unmanagedFile, "loose", "utf8");
+    await symlink(outside, unmanagedLink);
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(existsSync(unmanagedFile)).toBe(false);
+    expect(existsSync(unmanagedLink)).toBe(false);
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+  });
+
   it("ignores index entries that point outside the managed trash folder", async () => {
     const outside = join(fx.root, "outside-index.txt");
     await writeFile(outside, "outside stays put", "utf8");

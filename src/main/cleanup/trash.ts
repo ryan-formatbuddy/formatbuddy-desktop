@@ -140,8 +140,11 @@ async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrash
 
   const recovered: CleanupTrashEntry[] = [];
   for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
     const orphanDir = entryDir(userDataDir, entry.name);
+    if (!entry.isDirectory()) {
+      await rm(orphanDir, { recursive: true, force: true }).catch(() => {});
+      continue;
+    }
     try {
       const raw = await readFile(join(orphanDir, "manifest.json"), "utf8");
       const coerced = coerceEntry(JSON.parse(raw));
