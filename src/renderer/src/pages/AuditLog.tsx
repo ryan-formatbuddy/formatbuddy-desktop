@@ -88,7 +88,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
       </section>
 
       {error && (
-        <section className="fb-card">
+        <section className="fb-card fb-card-hover">
           <p>{error}</p>
           <Button variant="primary" size="sm" onClick={() => void load()}>
             다시 시도
@@ -98,7 +98,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
 
       {snapshot && (
         <section
-          className="fb-card"
+          className="fb-card fb-card-hover"
           style={{ marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}
         >
           {(["all", "cleanup", "uninstall", "defender", "monitor", "system"] as FilterMode[]).map(
