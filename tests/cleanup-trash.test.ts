@@ -78,6 +78,28 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.totalBytes).toBe(5);
   });
 
+  it("refreshes restore-bin snapshot sizes from the stored item on disk", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(entry.storedPath, "hello and more bytes", "utf8");
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    const actualBytes = Buffer.byteLength("hello and more bytes");
+    expect(snapshot.entries[0].sizeBytes).toBe(actualBytes);
+    expect(snapshot.totalBytes).toBe(actualBytes);
+  });
+
   it("refuses to move protected system paths into the restore bin", async () => {
     const blockedPath = "C:\\Windows\\System32\\drivers\\etc\\hosts";
 

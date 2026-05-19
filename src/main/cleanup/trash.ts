@@ -209,6 +209,27 @@ async function pruneMissingStoredEntries(
   return next;
 }
 
+async function refreshStoredEntrySizes(
+  userDataDir: string,
+  index: PersistedTrashIndex
+): Promise<PersistedTrashIndex> {
+  const entries = await Promise.all(
+    index.entries.map(async (entry) => {
+      const sizeBytes = await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
+      return { ...entry, sizeBytes };
+    })
+  );
+
+  const changed = entries.some((entry, indexPosition) => {
+    return entry.sizeBytes !== index.entries[indexPosition]?.sizeBytes;
+  });
+  if (!changed) return index;
+
+  const next = { ...index, entries };
+  await saveIndex(userDataDir, next);
+  return next;
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
@@ -299,10 +320,11 @@ export async function getTrashSnapshot(
   options: TrashRuntimeOptions
 ): Promise<CleanupTrashSnapshot> {
   await purgeExpiredTrash(options);
-  const index = await pruneMissingStoredEntries(
+  const pruned = await pruneMissingStoredEntries(
     options.userDataDir,
     await loadReconciledIndex(options.userDataDir)
   );
+  const index = await refreshStoredEntrySizes(options.userDataDir, pruned);
   const entries = index.entries.slice().sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
   const totalBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
   return {
