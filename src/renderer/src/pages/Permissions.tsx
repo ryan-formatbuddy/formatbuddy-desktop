@@ -245,7 +245,7 @@ export function Permissions({ onBack }: PermissionsProps) {
         </section>
       ))}
 
-      <section className="fb-card">
+      <section className="fb-card fb-card-hover">
         <h3 style={{ marginTop: 0 }}>이 화면을 보고도 의심스러우면</h3>
         <p style={{ fontSize: 14 }}>
           이 앱의 소스 코드는 모두 공개돼 있어요. 진단 결과 파일(JSON)을 메모장으로 열어

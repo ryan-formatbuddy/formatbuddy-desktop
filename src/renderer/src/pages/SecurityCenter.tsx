@@ -200,7 +200,7 @@ function ThreatsPanel({
   busy: boolean;
 }) {
   return (
-    <article className="fb-card">
+    <article className="fb-card fb-card-hover">
       <header
         style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
       >
