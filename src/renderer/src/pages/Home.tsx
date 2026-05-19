@@ -22,32 +22,46 @@ interface HomeProps {
 
 function MonitorPrefsCard() {
   const [prefs, setPrefs] = useState<MonitorPreferences | null>(null);
+  const [prefsMessage, setPrefsMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!window.fb?.getMonitorPrefs) return;
+    if (!window.fb?.getMonitorPrefs) {
+      setPrefsMessage("알림 설정을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     void window.fb
       .getMonitorPrefs()
       .then((next) => {
         setPrefs(next);
+        setPrefsMessage(null);
         applyThemeMode(next.themeMode);
       })
-      .catch(() => setPrefs(null));
+      .catch(() => {
+        setPrefs(null);
+        setPrefsMessage("알림 설정을 불러오지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      });
   }, []);
 
   const update = useCallback(async (patch: Parameters<NonNullable<typeof window.fb.updateMonitorPrefs>>[0]) => {
-    if (!window.fb?.updateMonitorPrefs) return;
+    if (!window.fb?.updateMonitorPrefs) {
+      setPrefsMessage("알림 설정 저장을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setBusy(true);
     try {
       const next = await window.fb.updateMonitorPrefs(patch);
       setPrefs(next);
+      setPrefsMessage(null);
       applyThemeMode(next.themeMode);
+    } catch {
+      setPrefsMessage("알림 설정 저장을 마치지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
     } finally {
       setBusy(false);
     }
   }, []);
 
-  if (!prefs) return null;
+  if (!prefs && !prefsMessage) return null;
 
   return (
     <section
@@ -60,86 +74,91 @@ function MonitorPrefsCard() {
           기본은 모두 꺼짐이에요. 켜야만 트레이/알림이 동작해요.
         </small>
       </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={prefs.trayEnabled}
-          disabled={busy}
-          onChange={(e) => void update({ trayEnabled: e.target.checked })}
-        />
-        <span>시스템 트레이 아이콘 표시 (PC 점검 시작 / 종료 메뉴)</span>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={prefs.reminderEnabled}
-          disabled={busy}
-          onChange={(e) => void update({ reminderEnabled: e.target.checked })}
-        />
-        <span>주기 알림 (마지막 점검 후 며칠이 지나면 알려줘요)</span>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <span>알림 주기:</span>
-        <input
-          type="number"
-          min={1}
-          max={90}
-          value={prefs.reminderDays}
-          disabled={busy || !prefs.reminderEnabled}
-          onChange={(e) =>
-            void update({ reminderDays: Math.max(1, Math.min(90, Number(e.target.value) || 14)) })
-          }
-          style={{ width: 70, padding: "4px 6px" }}
-        />
-        <span>일</span>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={prefs.restorePointEnabled}
-          disabled={busy}
-          onChange={(e) => void update({ restorePointEnabled: e.target.checked })}
-        />
-        <span>정리·앱 제거 전에 시스템 복원 지점 자동 생성 (권장 ON)</span>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <span>업데이트 채널:</span>
-        <select
-          value={prefs.updateChannel}
-          disabled={busy}
-          onChange={(e) =>
-            void update({ updateChannel: e.target.value === "beta" ? "beta" : "stable" })
-          }
-          style={{ padding: "4px 6px" }}
-        >
-          <option value="stable">안정 (stable) — 검증된 업데이트만</option>
-          <option value="beta">베타 (beta) — 새 기능 먼저 받기</option>
-        </select>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <input
-          type="checkbox"
-          checked={prefs.telemetryOptIn}
-          disabled={busy}
-          onChange={(e) => void update({ telemetryOptIn: e.target.checked })}
-        />
-        <span>
-          향후 익명 사용 통계 허용 (기본 꺼짐 — 아직 전송 기능은 없어요)
-        </span>
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
-        <span>화면 모드:</span>
-        <select
-          value={prefs.themeMode}
-          disabled={busy}
-          onChange={(e) => void update({ themeMode: e.target.value as ThemeMode })}
-          style={{ padding: "4px 6px" }}
-        >
-          <option value="system">PC 설정 따라가기</option>
-          <option value="light">밝게 보기</option>
-          <option value="dark">어둡게 보기</option>
-        </select>
-      </label>
+      {prefsMessage && <p style={{ fontSize: 13, margin: 0 }}>{prefsMessage}</p>}
+      {prefs && (
+        <>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={prefs.trayEnabled}
+              disabled={busy}
+              onChange={(e) => void update({ trayEnabled: e.target.checked })}
+            />
+            <span>시스템 트레이 아이콘 표시 (PC 점검 시작 / 종료 메뉴)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={prefs.reminderEnabled}
+              disabled={busy}
+              onChange={(e) => void update({ reminderEnabled: e.target.checked })}
+            />
+            <span>주기 알림 (마지막 점검 후 며칠이 지나면 알려줘요)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <span>알림 주기:</span>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={prefs.reminderDays}
+              disabled={busy || !prefs.reminderEnabled}
+              onChange={(e) =>
+                void update({ reminderDays: Math.max(1, Math.min(90, Number(e.target.value) || 14)) })
+              }
+              style={{ width: 70, padding: "4px 6px" }}
+            />
+            <span>일</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={prefs.restorePointEnabled}
+              disabled={busy}
+              onChange={(e) => void update({ restorePointEnabled: e.target.checked })}
+            />
+            <span>정리·앱 제거 전에 시스템 복원 지점 자동 생성 (권장 ON)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <span>업데이트 채널:</span>
+            <select
+              value={prefs.updateChannel}
+              disabled={busy}
+              onChange={(e) =>
+                void update({ updateChannel: e.target.value === "beta" ? "beta" : "stable" })
+              }
+              style={{ padding: "4px 6px" }}
+            >
+              <option value="stable">안정 (stable) — 검증된 업데이트만</option>
+              <option value="beta">베타 (beta) — 새 기능 먼저 받기</option>
+            </select>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
+              checked={prefs.telemetryOptIn}
+              disabled={busy}
+              onChange={(e) => void update({ telemetryOptIn: e.target.checked })}
+            />
+            <span>
+              향후 익명 사용 통계 허용 (기본 꺼짐 — 아직 전송 기능은 없어요)
+            </span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <span>화면 모드:</span>
+            <select
+              value={prefs.themeMode}
+              disabled={busy}
+              onChange={(e) => void update({ themeMode: e.target.value as ThemeMode })}
+              style={{ padding: "4px 6px" }}
+            >
+              <option value="system">PC 설정 따라가기</option>
+              <option value="light">밝게 보기</option>
+              <option value="dark">어둡게 보기</option>
+            </select>
+          </label>
+        </>
+      )}
       <small style={{ opacity: 0.6 }}>
         포맷버디는 자동 점검을 하지 않아요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
         베타 채널은 가끔 불안정할 수 있고, 화면 모드는 이 PC에만 저장돼요.
