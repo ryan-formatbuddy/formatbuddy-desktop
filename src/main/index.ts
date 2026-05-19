@@ -743,8 +743,8 @@ function registerIpc() {
     if (result.purgedCount > 0) {
       await appendAuditEntry(app.getPath("userData"), {
         category: "cleanup",
-        action: "trash-auto-purge",
-        summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 자동 삭제했어요.`,
+        action: "trash-expired-purge",
+        summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 영구 정리했어요.`,
         detail: { ...result }
       }).catch((e) => log.warn("audit append (cleanup-trash-purge) failed:", (e as Error).message));
     }

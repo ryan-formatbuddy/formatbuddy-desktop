@@ -31,7 +31,7 @@ interface TrashRestoreProps {
  *     file already exists at the target (no overwrite, ever).
  *   - "모두 되돌리기" loops through the same restore IPC for every
  *     entry and summarizes restored/blocked/missing outcomes.
- *   - "지금 비우기" calls cleanup-trash:purge-expired and reflects the
+ *   - "만료된 항목 정리" calls cleanup-trash:purge-expired and reflects the
  *     freed bytes in a small toast row. We intentionally do NOT expose
  *     "permanently delete this single entry" — purge is by expiry only
  *     so users can't shoot themselves in the foot with one wrong click.
@@ -223,7 +223,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             onClick={() => void onPurgeExpired()}
             disabled={Boolean(busy)}
           >
-            {busy === "purge" ? "정리 중..." : "지금 비우기"}
+            {busy === "purge" ? "정리 중..." : "만료된 항목 정리"}
           </Button>
         </div>
         {expiryMessage && (
