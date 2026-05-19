@@ -244,7 +244,7 @@ async function attemptItem(
       skipped: { itemId: item.id, path: item.path, reason: "not-found" }
     };
   }
-  if (measured > 0) actualSize = measured;
+  actualSize = Math.max(0, measured);
 
   try {
     const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;

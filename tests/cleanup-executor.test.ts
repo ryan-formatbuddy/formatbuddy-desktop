@@ -167,6 +167,28 @@ describe("executeCleanup", () => {
     expect(permanently).toEqual([targetFile]);
   });
 
+  it("uses the latest zero-byte measurement instead of stale plan size", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    await fs.writeFile(targetFile, "", "utf8");
+
+    const { deps } = makeSpyDeps();
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems[0].sizeBytes).toBe(0);
+    expect(result.totalFreedBytes).toBe(0);
+  });
+
   it("measures selected folders by their file contents, not directory metadata", async () => {
     const folder = join(fx.tempDir, "old-cache");
     await fs.mkdir(join(folder, "nested"), { recursive: true });
