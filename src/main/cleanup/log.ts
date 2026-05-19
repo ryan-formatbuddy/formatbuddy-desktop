@@ -8,8 +8,8 @@
  * Cap is intentionally low (MAX_ENTRIES) — the log is for "did we already
  * clean this category recently?" UX hints, not forensics.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
   CleanupCategoryBreakdown,
@@ -20,6 +20,8 @@ import type {
   CleanupLogEntry,
   CleanupSkippedItem
 } from "@shared/types";
+import { normalizePath } from "./blocklist";
+import { findLinkedPathPart } from "./pathSafety";
 
 const LOG_FILE = "formatbuddy-cleanup-log.json";
 const MAX_ENTRIES = 100;
@@ -120,6 +122,14 @@ function coerceLog(value: unknown): PersistedLog {
 }
 
 async function loadLog(userDataDir: string): Promise<PersistedLog> {
+  const linkedLog = await findLinkedPathPart(logPath(userDataDir), userDataDir, true);
+  if (linkedLog) {
+    if (normalizePath(resolve(linkedLog)) === normalizePath(resolve(logPath(userDataDir)))) {
+      await rm(logPath(userDataDir), { force: true }).catch(() => {});
+    }
+    return emptyLog();
+  }
+
   try {
     const raw = await readFile(logPath(userDataDir), "utf8");
     return coerceLog(JSON.parse(raw));
@@ -130,6 +140,13 @@ async function loadLog(userDataDir: string): Promise<PersistedLog> {
 
 async function saveLog(userDataDir: string, log: PersistedLog): Promise<void> {
   await mkdir(userDataDir, { recursive: true });
+  const linkedLog = await findLinkedPathPart(logPath(userDataDir), userDataDir, true);
+  if (linkedLog) {
+    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(logPath(userDataDir)))) {
+      throw new Error(`FormatBuddy cleanup log path is behind a link: ${linkedLog}`);
+    }
+    await rm(logPath(userDataDir), { force: true });
+  }
   await writeFile(logPath(userDataDir), JSON.stringify(log, null, 2), "utf8");
 }
 
