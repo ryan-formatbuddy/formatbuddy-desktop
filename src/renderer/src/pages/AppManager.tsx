@@ -230,14 +230,14 @@ function LeftoverPanel({
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }) {
-  if (state.loading) {
+  if (state.loading && !result) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>잔여 항목 후보를 살펴보는 중이에요…</p>
       </article>
     );
   }
-  if (state.error) {
+  if (state.error && !result) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
         <p>잔여 항목 확인 중 문제가 생겼어요: {state.error}</p>
@@ -273,6 +273,18 @@ function LeftoverPanel({
         아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
         제거 확인 전 {leftoverSummary.notChecked}개, 지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
+      {state.loading && result && (
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>잔여 항목을 다시 확인하는 중이에요. 방금 정리 결과는 그대로 남겨둘게요.</p>
+        </article>
+      )}
+      {state.error && result && (
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+          <p style={{ margin: 0 }}>
+            잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요. {state.error}
+          </p>
+        </article>
+      )}
       <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
@@ -476,13 +488,13 @@ export function AppManager({
 
   const loadLeftovers = useCallback(async () => {
     if (!window.fb?.listAppLeftovers) return;
-    setLeftovers({ loading: true });
+    setLeftovers((prev) => ({ ...prev, loading: true, error: undefined }));
     try {
       const snapshot = await window.fb.listAppLeftovers();
       setLeftovers({ loading: false, snapshot });
       setSelectedLeftovers(new Set());
     } catch (err) {
-      setLeftovers({ loading: false, error: friendlyErrorMessage(err) });
+      setLeftovers((prev) => ({ ...prev, loading: false, error: friendlyErrorMessage(err) }));
     }
   }, []);
 
