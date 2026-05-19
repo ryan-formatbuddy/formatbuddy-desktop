@@ -104,4 +104,29 @@ describe("FormatBuddy Trash entry folder safety", () => {
     await expect(readFile(outsideManifest, "utf8")).resolves.toBe("outside-original");
     expect(existsSync(entryDir)).toBe(false);
   });
+
+  it("refuses to move a cleanup item when the target files folder is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const entryDir = __testing.entryDir(fx.userData, "fixed-entry-id");
+    const outsideFiles = join(fx.root, "outside-files");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await mkdir(entryDir, { recursive: true });
+    await mkdir(outsideFiles, { recursive: true });
+    await symlink(outsideFiles, join(entryDir, "files"), "dir");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 5,
+        home: fx.home
+      })
+    ).rejects.toThrow(/files|stored|restore bin|복구함|link/i);
+
+    await expect(readFile(source, "utf8")).resolves.toBe("hello");
+    await expect(readdir(outsideFiles)).resolves.toEqual([]);
+    expect(existsSync(entryDir)).toBe(false);
+  });
 });

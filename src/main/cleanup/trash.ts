@@ -220,6 +220,18 @@ async function ensureSafeEntryManifestForWrite(userDataDir: string, entryId: str
   }
 }
 
+async function ensureSafeStoredPathForWrite(
+  userDataDir: string,
+  entryId: string,
+  storedPath: string
+): Promise<void> {
+  const dir = entryDir(userDataDir, entryId);
+  const linkedStoredPath = await findLinkedPathPart(storedPath, dir, true);
+  if (linkedStoredPath) {
+    throw new Error(`FormatBuddy restore bin stored files path is a link: ${linkedStoredPath}`);
+  }
+}
+
 async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrashEntry[]> {
   if (!(await isUsableItemsRoot(userDataDir))) return [];
 
@@ -447,6 +459,7 @@ export async function moveToFormatBuddyTrash(
     await writeFile(join(targetDir, "manifest.json"), JSON.stringify(entry, null, 2), "utf8");
     await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
     await ensureSafeEntryDirForWrite(options.userDataDir, entryId);
+    await ensureSafeStoredPathForWrite(options.userDataDir, entryId, storedPath);
     await movePath(options.item.path, storedPath);
   } catch (err) {
     await rm(targetDir, { recursive: true, force: true }).catch(() => {});
