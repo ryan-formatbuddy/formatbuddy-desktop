@@ -94,9 +94,9 @@ describe("buildAppManagerSnapshot", () => {
     expect(snapshot.total).toBe(1);
   });
 
-  it("surfaces recently uninstalled apps with minimal identity only", () => {
+  it("surfaces recently opened uninstall wizards with minimal identity only", () => {
     const snapshot = buildAppManagerSnapshot([], {
-      recentlyUninstalled: [
+      recentlyUninstallLaunched: [
         app({
           name: "Slack",
           publisher: "Slack Technologies",
@@ -106,7 +106,7 @@ describe("buildAppManagerSnapshot", () => {
       ]
     });
 
-    expect(snapshot.recentlyUninstalled).toEqual([
+    expect(snapshot.recentlyUninstallLaunched).toEqual([
       { name: "Slack", publisher: "Slack Technologies" }
     ]);
   });

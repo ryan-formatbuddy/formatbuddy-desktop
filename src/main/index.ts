@@ -53,8 +53,8 @@ import {
   findInstalledApp,
   getLastScan,
   getLastScanIfFresh,
-  getRecentlyUninstalledApps,
-  rememberRecentlyUninstalledApp,
+  getRecentlyUninstallLaunchedApps,
+  rememberRecentlyUninstallLaunchedApp,
   setLastScan
 } from "./lastScan";
 import {
@@ -754,14 +754,14 @@ function registerIpc() {
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
     const cached = getLastScan();
     return buildAppManagerSnapshot(cached?.report.installedApps ?? [], {
-      recentlyUninstalled: getRecentlyUninstalledApps()
+      recentlyUninstallLaunched: getRecentlyUninstallLaunchedApps()
     });
   });
 
   ipcMain.handle(IpcChannels.appsLeftovers, async (): Promise<AppLeftoversSnapshot> => {
     const cached = getLastScan();
     return planAppLeftovers(cached?.report.installedApps ?? [], {
-      extraApps: getRecentlyUninstalledApps()
+      extraApps: getRecentlyUninstallLaunchedApps()
     });
   });
 
@@ -813,7 +813,7 @@ function registerIpc() {
         findApp: () => matchedApp
       });
       if (result.status === "launched" && matchedApp) {
-        rememberRecentlyUninstalledApp(matchedApp);
+        rememberRecentlyUninstallLaunchedApp(matchedApp);
       }
       log.info(
         `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`

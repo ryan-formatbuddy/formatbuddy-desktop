@@ -111,13 +111,13 @@ function toItem(app: InstalledApp): AppManagerItem {
 
 export interface BuildAppManagerSnapshotOptions {
   /**
-   * v2.0 (D-38) — apps the user just uninstalled. Renderer surfaces
-   * these in a 24h "방금 제거한 앱" section so the user can verify
-   * the uninstall worked before they forget. Not deduplicated against
-   * the live `apps` list because a still-installed app reappearing in
-   * a recently-uninstalled list is itself useful signal.
+   * Apps whose Windows uninstall wizard was opened recently. Renderer
+   * surfaces these for 24h so the user can check leftovers after the
+   * wizard finishes. Not deduplicated against the live `apps` list
+   * because a still-installed app reappearing here may mean the user
+   * canceled the wizard.
    */
-  recentlyUninstalled?: InstalledApp[];
+  recentlyUninstallLaunched?: InstalledApp[];
 }
 
 export function buildAppManagerSnapshot(
@@ -161,7 +161,7 @@ export function buildAppManagerSnapshot(
     classified: items.filter((item) => item.category !== "unknown").length,
     groups,
     hiddenSystemCount,
-    recentlyUninstalled: (opts.recentlyUninstalled ?? [])
+    recentlyUninstallLaunched: (opts.recentlyUninstallLaunched ?? [])
       .filter((app) => Boolean(app.name?.trim()))
       .map((app) => ({
         name: app.name,

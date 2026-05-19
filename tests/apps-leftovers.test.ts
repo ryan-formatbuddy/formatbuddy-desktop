@@ -141,7 +141,7 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.every((p) => !p.exists)).toBe(true);
   });
 
-  it("plans leftovers for a recently uninstalled app even after it left the installed-app scan", async () => {
+  it("plans leftovers for a recently opened uninstall wizard even after the app left the scan", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
@@ -154,7 +154,7 @@ describe("planAppLeftovers", () => {
 
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].appName).toBe("Slack");
-    expect(snapshot.groups[0].source).toBe("recent-uninstall");
+    expect(snapshot.groups[0].source).toBe("uninstall-launched");
     expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
   });
 

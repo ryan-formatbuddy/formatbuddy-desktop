@@ -1009,12 +1009,12 @@ export interface AppManagerSnapshot {
   /** Items the user agent chose to hide (system components, mostly). */
   hiddenSystemCount: number;
   /**
-   * v2.0 (D-38) — apps the user uninstalled in the last 24h via the
-   * Windows uninstall wizard. We keep just (name, publisher) so the
-   * follow-up leftover scan + the "방금 제거한 앱" UI section can
+   * Apps whose Windows uninstall wizard was opened in the last 24h.
+   * We keep just (name, publisher) so the follow-up leftover scan can
    * surface them; no command strings or install paths are persisted.
+   * This does NOT prove the app was removed — the wizard may be canceled.
    */
-  recentlyUninstalled: InstalledApp[];
+  recentlyUninstallLaunched: InstalledApp[];
 }
 
 export interface AppLeftoverPath {
@@ -1031,7 +1031,7 @@ export interface AppLeftoverGroup {
   appName: string;
   publisher?: string | null;
   /** Installed now, or remembered from a Windows uninstaller launched recently. */
-  source?: "installed" | "recent-uninstall";
+  source?: "installed" | "uninstall-launched";
   paths: AppLeftoverPath[];
 }
 

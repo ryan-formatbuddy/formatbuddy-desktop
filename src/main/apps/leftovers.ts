@@ -470,7 +470,7 @@ export async function planAppLeftovers(
 
   const candidates = [
     ...apps.map((app) => ({ app, source: "installed" as const })),
-    ...(options.extraApps ?? []).map((app) => ({ app, source: "recent-uninstall" as const }))
+    ...(options.extraApps ?? []).map((app) => ({ app, source: "uninstall-launched" as const }))
   ];
 
   for (const { app, source } of candidates) {

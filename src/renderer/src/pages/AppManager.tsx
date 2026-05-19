@@ -296,7 +296,7 @@ function LeftoverGroupCard({
 }) {
   const groupMeta = [
     group.publisher,
-    group.source === "recent-uninstall" ? "방금 제거한 앱 기준" : ""
+    group.source === "uninstall-launched" ? "방금 제거를 연 앱 기준" : ""
   ]
     .filter(Boolean)
     .join(" · ");
@@ -584,7 +584,7 @@ export function AppManager({
           </header>
           <p style={{ fontSize: 13, opacity: 0.78 }}>
             Windows 제거 마법사를 끝냈다면 남은 폴더가 있는지 확인해보세요. 앱 목록에서
-            사라진 뒤에도 오늘 제거한 앱 기준으로 잔여 폴더 후보를 한 번 더 찾아볼 수 있어요.
+            사라진 뒤에도 오늘 제거를 연 앱 기준으로 잔여 폴더 후보를 한 번 더 찾아볼 수 있어요.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
@@ -605,16 +605,16 @@ export function AppManager({
         </article>
       )}
 
-      {load.kind === "ready" && load.snapshot.recentlyUninstalled.length > 0 && (
+      {load.kind === "ready" && load.snapshot.recentlyUninstallLaunched.length > 0 && (
         <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
           <header>
-            <h2 style={{ margin: 0 }}>방금 제거한 앱</h2>
+            <h2 style={{ margin: 0 }}>방금 제거를 연 앱</h2>
             <small style={{ opacity: 0.7 }}>
-              최근 24시간 안에 Windows 제거 마법사를 띄운 앱이에요.
+              최근 24시간 안에 Windows 제거 마법사를 띄운 앱이에요. 실제 제거 완료 여부는 다시 점검으로 확인해요.
             </small>
           </header>
           <ul style={{ listStyle: "none", padding: 0, margin: "10px 0" }}>
-            {load.snapshot.recentlyUninstalled.map((app) => (
+            {load.snapshot.recentlyUninstallLaunched.map((app) => (
               <li key={`${app.name}|${app.publisher ?? ""}`} style={{ padding: "4px 0" }}>
                 <strong>{app.name}</strong>
                 {app.publisher && <small style={{ opacity: 0.68 }}> · {app.publisher}</small>}

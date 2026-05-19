@@ -1,0 +1,24 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const APP_MANAGER_PAGE = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "AppManager.tsx"
+);
+
+describe("AppManager uninstall copy", () => {
+  it("does not claim an app was removed just because the Windows wizard opened", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).not.toContain("방금 제거한 앱");
+    expect(source).not.toContain("방금 제거한 앱 기준");
+    expect(source).toContain("방금 제거를 연 앱");
+    expect(source).toContain("방금 제거를 연 앱 기준");
+  });
+});

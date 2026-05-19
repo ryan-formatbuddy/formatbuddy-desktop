@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  clearRecentlyUninstalledApps,
+  clearRecentlyUninstallLaunchedApps,
   clearLastScan,
   DEFAULT_LAST_SCAN_TTL_MS,
   getLastScan,
   getLastScanAge,
   getLastScanIfFresh,
-  getRecentlyUninstalledApps,
+  getRecentlyUninstallLaunchedApps,
   RECENT_UNINSTALL_TTL_MS,
-  rememberRecentlyUninstalledApp,
+  rememberRecentlyUninstallLaunchedApp,
   setLastScan
 } from "../src/main/lastScan";
 import type { ScanResult } from "../src/shared/types";
@@ -76,7 +76,7 @@ function dummyResult(): ScanResult {
 describe("lastScan TTL", () => {
   afterEach(() => {
     clearLastScan();
-    clearRecentlyUninstalledApps();
+    clearRecentlyUninstallLaunchedApps();
   });
 
   it("returns null when no scan has been cached", () => {
@@ -130,15 +130,15 @@ describe("lastScan TTL", () => {
   });
 });
 
-describe("recently uninstalled app memory", () => {
+describe("recently opened uninstall wizard memory", () => {
   afterEach(() => {
     clearLastScan();
-    clearRecentlyUninstalledApps();
+    clearRecentlyUninstallLaunchedApps();
   });
 
-  it("keeps only minimal app identity for post-uninstall leftover scans", () => {
+  it("keeps only minimal app identity for post-uninstall-wizard leftover scans", () => {
     const t0 = 1_000_000;
-    rememberRecentlyUninstalledApp(
+    rememberRecentlyUninstallLaunchedApp(
       {
         name: "Slack",
         publisher: "Slack Technologies",
@@ -149,7 +149,7 @@ describe("recently uninstalled app memory", () => {
       () => t0
     );
 
-    expect(getRecentlyUninstalledApps(() => t0 + 1_000)).toEqual([
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + 1_000)).toEqual([
       { name: "Slack", publisher: "Slack Technologies" }
     ]);
   });
@@ -157,21 +157,21 @@ describe("recently uninstalled app memory", () => {
   it("survives scan-cache clearing so uninstall follow-up can still find leftovers", () => {
     const t0 = 1_000_000;
     setLastScan(dummyResult(), () => t0);
-    rememberRecentlyUninstalledApp({ name: "Slack", publisher: "Slack Technologies" }, () => t0);
+    rememberRecentlyUninstallLaunchedApp({ name: "Slack", publisher: "Slack Technologies" }, () => t0);
 
     clearLastScan();
 
     expect(getLastScan()).toBeNull();
-    expect(getRecentlyUninstalledApps(() => t0 + 1_000)).toEqual([
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + 1_000)).toEqual([
       { name: "Slack", publisher: "Slack Technologies" }
     ]);
   });
 
   it("drops remembered apps after the 24 hour follow-up window", () => {
     const t0 = 1_000_000;
-    rememberRecentlyUninstalledApp({ name: "Slack", publisher: "Slack Technologies" }, () => t0);
+    rememberRecentlyUninstallLaunchedApp({ name: "Slack", publisher: "Slack Technologies" }, () => t0);
 
-    expect(getRecentlyUninstalledApps(() => t0 + RECENT_UNINSTALL_TTL_MS - 1)).toHaveLength(1);
-    expect(getRecentlyUninstalledApps(() => t0 + RECENT_UNINSTALL_TTL_MS + 1)).toEqual([]);
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + RECENT_UNINSTALL_TTL_MS - 1)).toHaveLength(1);
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + RECENT_UNINSTALL_TTL_MS + 1)).toEqual([]);
   });
 });

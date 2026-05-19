@@ -16,7 +16,7 @@ import type { InstalledApp, ScanResult } from "@shared/types";
 
 let cached: ScanResult | null = null;
 let cachedAt = 0;
-const recentlyUninstalled = new Map<string, { app: InstalledApp; rememberedAt: number }>();
+const recentlyUninstallLaunched = new Map<string, { app: InstalledApp; rememberedAt: number }>();
 
 export function setLastScan(result: ScanResult, now: () => number = Date.now): void {
   cached = result;
@@ -65,41 +65,44 @@ function appMemoryKey(app: InstalledApp): string {
   return `${norm(app.name)}|${norm(app.publisher)}`;
 }
 
-function pruneRecentlyUninstalled(now: number): void {
-  for (const [key, entry] of recentlyUninstalled.entries()) {
+function pruneRecentlyUninstallLaunched(now: number): void {
+  for (const [key, entry] of recentlyUninstallLaunched.entries()) {
     if (now - entry.rememberedAt > RECENT_UNINSTALL_TTL_MS) {
-      recentlyUninstalled.delete(key);
+      recentlyUninstallLaunched.delete(key);
     }
   }
 }
 
 /**
- * Keep only the minimum app identity needed for a post-uninstall
- * leftover scan. We intentionally do NOT store uninstall command
- * strings, install locations, versions, or registry details here.
+ * Keep only the minimum app identity needed after the Windows
+ * uninstaller wizard was opened. We do not know whether the user
+ * completed or canceled that wizard, so UI must not claim "removed".
+ *
+ * We intentionally do NOT store uninstall command strings, install
+ * locations, versions, or registry details here.
  */
-export function rememberRecentlyUninstalledApp(
+export function rememberRecentlyUninstallLaunchedApp(
   app: InstalledApp,
   now: () => number = Date.now
 ): void {
   if (!app.name?.trim()) return;
   const t = now();
-  pruneRecentlyUninstalled(t);
+  pruneRecentlyUninstallLaunched(t);
   const minimal: InstalledApp = {
     name: app.name,
     publisher: app.publisher ?? null
   };
-  recentlyUninstalled.set(appMemoryKey(minimal), { app: minimal, rememberedAt: t });
+  recentlyUninstallLaunched.set(appMemoryKey(minimal), { app: minimal, rememberedAt: t });
 }
 
-export function getRecentlyUninstalledApps(now: () => number = Date.now): InstalledApp[] {
+export function getRecentlyUninstallLaunchedApps(now: () => number = Date.now): InstalledApp[] {
   const t = now();
-  pruneRecentlyUninstalled(t);
-  return Array.from(recentlyUninstalled.values()).map((entry) => ({ ...entry.app }));
+  pruneRecentlyUninstallLaunched(t);
+  return Array.from(recentlyUninstallLaunched.values()).map((entry) => ({ ...entry.app }));
 }
 
-export function clearRecentlyUninstalledApps(): void {
-  recentlyUninstalled.clear();
+export function clearRecentlyUninstallLaunchedApps(): void {
+  recentlyUninstallLaunched.clear();
 }
 
 function norm(value: string | null | undefined): string {
