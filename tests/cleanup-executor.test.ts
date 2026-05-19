@@ -244,6 +244,19 @@ describe("executeCleanup", () => {
     expect(size).toBeNull();
   });
 
+  it("returns null for a selected symbolic link instead of counting it as zero-byte cleanup", async () => {
+    if (process.platform === "win32") return;
+    const target = join(fx.tempDir, "target.tmp");
+    const link = join(fx.tempDir, "target-link.tmp");
+    await fs.mkdir(fx.tempDir, { recursive: true });
+    await fs.writeFile(target, "12345", "utf8");
+    await fs.symlink(target, link);
+
+    const size = await defaultDeps(fx.userData).statSize(link);
+
+    expect(size).toBeNull();
+  });
+
   it("refuses to run when the confirmationToken is wrong", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];

@@ -76,7 +76,7 @@ async function measurePathSize(path: string, depth = 0): Promise<number | null> 
     return null;
   }
 
-  if (stat.isSymbolicLink()) return 0;
+  if (stat.isSymbolicLink()) return null;
   if (stat.isFile()) return stat.size;
   if (!stat.isDirectory()) return 0;
 
