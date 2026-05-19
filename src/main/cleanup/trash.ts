@@ -346,6 +346,17 @@ export async function restoreTrashEntry(
     };
   }
 
+  const linkedStoredDescendant = await findLinkedDescendant(entry.storedPath);
+  if (linkedStoredDescendant) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: `복구함 안의 저장물에 링크가 포함되어 자동으로 되돌리지 않았어요: ${linkedStoredDescendant}`,
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
   const restoreDecision = evaluatePath(entry.originalPath, {
     allowRoots: [entry.originalPath],
     home: options.home
