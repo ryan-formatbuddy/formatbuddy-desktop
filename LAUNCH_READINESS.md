@@ -26,7 +26,7 @@
 | A1 | Windows 10/11 실기 quick scan → Report 전체 흐름 | **P0** | ❌ | 미검증 |
 | A2 | 백업 manifest 실 Windows 동작 (대용량 Downloads 포함) | **P0** | ❌ | 미검증 |
 | A3 | UAC 권한 흐름 (BitLocker, Driver 정보) | **P0** | ❌ | 미검증 |
-| A4 | 에러 시나리오 — winget 없음, PS 5.1만, 한글 폴더 경로 | P1 | 부분 | 정적 테스트만 |
+| A4 | 에러 시나리오 — winget 없음, PS 5.1만, 한글 폴더 경로 | P1 | 부분 | 한글 경로 가드 ✅ (D-1) / winget · PS 5.1 정적 테스트만 |
 | A5 | 진단 도중 sleep/wake 처리 | P2 | ✅ | 미처리 |
 | A6 | 멀티 모니터, 4K, 고DPI 렌더링 | P1 | ❌ | 미검증 |
 | A7 | 다중 사용자 계정 (한 PC 여러 Windows 사용자) | P2 | ✅ | userData 별도화 OK |
@@ -35,9 +35,9 @@
 
 | # | 항목 | P | 자율 | 상태 |
 |---|------|---|------|------|
-| B1 | 첫 실행 onboarding (3-step 인트로) | P1 | ✅ | 없음 |
-| B2 | 도움말 / FAQ in-app | P1 | ✅ | 없음 |
-| B3 | 키보드 단축키 + Tab navigation | P1 | ✅ | 부분 |
+| B1 | 첫 실행 onboarding (3-step 인트로) | P1 | ✅ | ✅ 기본 3-step 있음 (인터랙티브 강화는 C6/D-9+) |
+| B2 | 도움말 / FAQ in-app | P1 | ✅ | docs/FAQ.md 갱신됨 (D-17). 앱 내 노출 미구현 |
+| B3 | 키보드 단축키 + Tab navigation | P1 | ✅ | Ctrl+R / Esc ✅ (D-7 C8). Tab 순서 + "?" sheet 미구현 |
 | B4 | a11y (aria-label, role, screen reader) | P2 | ✅ | 부분 |
 | B5 | Windows에서 Wanted Sans 렌더링 정확도 | **P0** | ❌ | 미검증 |
 | B6 | 진단 cancel 시 부분 결과 표시 | P2 | ✅ | 기본만 |
