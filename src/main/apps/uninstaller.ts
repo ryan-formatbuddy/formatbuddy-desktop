@@ -62,10 +62,21 @@ function commandHost(command: string): string {
   return base.toLowerCase().replace(/\.exe$/i, "");
 }
 
+function startsWithUnquotedSpacedExecutablePath(command: string): boolean {
+  const trimmed = command.trim();
+  if (!/^[a-z]:\\/i.test(trimmed)) return false;
+  if (/^"[^"]+"/.test(trimmed)) return false;
+  const exeIndex = trimmed.toLowerCase().indexOf(".exe");
+  if (exeIndex === -1) return false;
+  const executablePath = trimmed.slice(0, exeIndex + 4);
+  return /\s/.test(executablePath);
+}
+
 export function isUnsafeUninstallCommand(command: string): boolean {
   let inQuote = false;
 
   if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return true;
+  if (startsWithUnquotedSpacedExecutablePath(command)) return true;
 
   for (const char of command) {
     if (char === "\n" || char === "\r" || char === "\0") return true;
