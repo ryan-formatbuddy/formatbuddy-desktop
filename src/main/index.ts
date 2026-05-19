@@ -68,6 +68,11 @@ import {
 import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
+  listUninstallFollowups,
+  mergeUninstallFollowupApps,
+  rememberUninstallFollowup
+} from "./apps/uninstallFollowups";
+import {
   clearLastScan,
   findInstalledApp,
   getLastScan,
@@ -914,15 +919,28 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
     const cached = getLastScan();
+    const userDataDir = app.getPath("userData");
+    const persistedFollowups = await listUninstallFollowups(userDataDir).catch((err) => {
+      log.warn("apps:list uninstall followups unavailable:", (err as Error).message);
+      return [];
+    });
     return buildAppManagerSnapshot(cached?.report.installedApps ?? [], {
-      recentlyUninstallLaunched: getRecentlyUninstallLaunchedApps()
+      recentlyUninstallLaunched: mergeUninstallFollowupApps(
+        getRecentlyUninstallLaunchedApps(),
+        persistedFollowups
+      )
     });
   });
 
   ipcMain.handle(IpcChannels.appsLeftovers, async (): Promise<AppLeftoversSnapshot> => {
     const cached = getLastScan();
+    const userDataDir = app.getPath("userData");
+    const persistedFollowups = await listUninstallFollowups(userDataDir).catch((err) => {
+      log.warn("apps:leftovers uninstall followups unavailable:", (err as Error).message);
+      return [];
+    });
     return planAppLeftovers(cached?.report.installedApps ?? [], {
-      extraApps: getRecentlyUninstallLaunchedApps(),
+      extraApps: mergeUninstallFollowupApps(getRecentlyUninstallLaunchedApps(), persistedFollowups),
       installedAppsKnown: Boolean(cached)
     });
   });
@@ -982,6 +1000,7 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.appsUninstall,
     async (_e, request: AppUninstallRequest): Promise<AppUninstallResult> => {
+      const userDataDir = app.getPath("userData");
       if (!getLastScan()) {
         return {
           status: "no-scan-cache",
@@ -998,11 +1017,14 @@ function registerIpc() {
       });
       if (result.status === "launched" && matchedApp) {
         rememberRecentlyUninstallLaunchedApp(matchedApp);
+        await rememberUninstallFollowup(userDataDir, matchedApp).catch((err) => {
+          log.warn("apps:uninstall followup persist failed:", (err as Error).message);
+        });
       }
       log.info(
         `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`
       );
-      await appendAuditEntry(app.getPath("userData"), {
+      await appendAuditEntry(userDataDir, {
         category: "uninstall",
         action: result.status,
         summary:
