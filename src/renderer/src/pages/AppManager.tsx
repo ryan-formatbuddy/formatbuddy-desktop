@@ -236,7 +236,8 @@ function LeftoverPanel({
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         Windows가 앱을 제거해도 남는 경우가 있는 폴더와 앱 삭제 흔적 후보예요. 직접 고른
-        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 앱 삭제 흔적은 먼저 백업해요.
+        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 앱 삭제 흔적도 30일 동안
+        되돌릴 수 있게 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
@@ -475,7 +476,7 @@ export function AppManager({
     const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
     if (selectedPathIds.length === 0) return;
     const confirmed = window.confirm(
-      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더는 30일 안에 되돌릴 수 있고, 앱 삭제 흔적은 먼저 백업해요.`
+      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더와 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요.`
     );
     if (!confirmed) return;
     setCleanupBusy(true);

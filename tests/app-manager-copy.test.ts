@@ -32,7 +32,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).not.toContain("레지스트리는");
     expect(source).not.toContain("? \"레지스트리\"");
-    expect(source).toContain("앱 삭제 흔적은 먼저 백업해요");
+    expect(source).toContain("앱 삭제 흔적도 30일 동안");
+    expect(source).toContain("폴더와 앱 삭제 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("? \"앱 삭제 흔적\"");
   });
 });
