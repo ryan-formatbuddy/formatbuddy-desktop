@@ -5,7 +5,6 @@ import { Lockup } from "../components/Lockup";
 import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   CleanupCategoryPlan,
-  CleanupExecuteMode,
   CleanupExecuteResult,
   CleanupItem,
   CleanupPlan,
@@ -30,7 +29,7 @@ interface CleanupProps {
 type Phase =
   | { kind: "planning" }
   | { kind: "preview"; plan: CleanupPlan }
-  | { kind: "confirm"; plan: CleanupPlan; mode: CleanupExecuteMode }
+  | { kind: "confirm"; plan: CleanupPlan }
   | { kind: "executing"; plan: CleanupPlan }
   | { kind: "result"; plan: CleanupPlan; result: CleanupExecuteResult }
   | { kind: "error"; message: string };
@@ -203,22 +202,14 @@ function ItemRow({
 function ConfirmDialog({
   selectedCount,
   selectedBytes,
-  mode,
   onCancel,
   onConfirm
 }: {
   selectedCount: number;
   selectedBytes: number;
-  mode: CleanupExecuteMode;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const modeLabel = mode === "trash" ? "포맷버디 복구함으로 보내기" : "영구 삭제";
-  const modeDescription =
-    mode === "trash"
-      ? "30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동 삭제돼요."
-      : "영구 삭제는 되돌릴 수 없어요. 정말 확신할 때만 사용해주세요.";
-
   return (
     <div
       role="dialog"
@@ -244,11 +235,13 @@ function ConfirmDialog({
           boxShadow: "var(--fb-shadow-3)"
         }}
       >
-        <h2 style={{ marginTop: 0 }}>{modeLabel}</h2>
+        <h2 style={{ marginTop: 0 }}>포맷버디 복구함으로 보내기</h2>
         <p>
           선택한 <strong>{selectedCount}개</strong> 항목, 총 <strong>{formatBytes(selectedBytes)}</strong>을 정리해요.
         </p>
-        <p style={{ fontSize: 13, opacity: 0.8 }}>{modeDescription}</p>
+        <p style={{ fontSize: 13, opacity: 0.8 }}>
+          30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동 삭제돼요.
+        </p>
         <p style={{ fontSize: 12, opacity: 0.7 }}>
           보호 경로를 한 번 더 확인하고 진행해요. 같은 이름 파일이나 잠긴 파일은 건드리지 않아요.
         </p>
@@ -257,7 +250,7 @@ function ConfirmDialog({
             취소
           </Button>
           <Button variant="primary" onClick={onConfirm}>
-            {modeLabel} 진행
+            포맷버디 복구함으로 보내기
           </Button>
         </div>
       </div>
@@ -535,10 +528,10 @@ export function Cleanup({
   }, [phase, selected]);
 
   const requestConfirm = useCallback(
-    (mode: CleanupExecuteMode) => {
+    () => {
       if (phase.kind !== "preview") return;
       if (selected.size === 0) return;
-      setPhase({ kind: "confirm", plan: phase.plan, mode });
+      setPhase({ kind: "confirm", plan: phase.plan });
     },
     [phase, selected]
   );
@@ -547,7 +540,6 @@ export function Cleanup({
     if (phase.kind !== "confirm") return;
     if (!window.fb?.executeCleanup) return;
     const plan = phase.plan;
-    const mode = phase.mode;
     setPhase({ kind: "executing", plan });
     setRecentRestoreMessage(undefined);
     try {
@@ -555,7 +547,7 @@ export function Cleanup({
         planId: plan.planId,
         confirmationToken: plan.confirmationToken,
         selectedItemIds: Array.from(selected),
-        mode
+        mode: "trash"
       });
       setPhase({ kind: "result", plan, result });
       await loadTrash();
@@ -666,7 +658,7 @@ export function Cleanup({
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <Button
                 variant="primary"
-                onClick={() => requestConfirm("trash")}
+                onClick={() => requestConfirm()}
                 disabled={phase.kind !== "preview" || selected.size === 0}
               >
                 포맷버디 복구함으로 보내기
@@ -700,7 +692,6 @@ export function Cleanup({
         <ConfirmDialog
           selectedCount={selected.size}
           selectedBytes={selectedBytes}
-          mode={phase.mode}
           onCancel={() => setPhase({ kind: "preview", plan: phase.plan })}
           onConfirm={() => void runExecute()}
         />
