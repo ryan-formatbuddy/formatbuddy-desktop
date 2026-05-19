@@ -175,6 +175,28 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("does not restore an expired entry when restore is called directly", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result.status).toBe("not-found");
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(false);
+  });
+
   it("prunes broken entries when the stored item is already missing", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

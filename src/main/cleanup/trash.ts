@@ -293,6 +293,7 @@ export async function getTrashSnapshot(
 export async function restoreTrashEntry(
   options: TrashRuntimeOptions & { entryId: string }
 ): Promise<CleanupTrashRestoreResult> {
+  await purgeExpiredTrash(options);
   const index = await loadReconciledIndex(options.userDataDir);
   const entry = index.entries.find((e) => e.id === options.entryId);
   if (!entry) {
