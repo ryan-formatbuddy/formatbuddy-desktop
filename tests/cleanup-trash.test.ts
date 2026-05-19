@@ -140,6 +140,44 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(true);
   });
 
+  it("does not restore a trash entry when metadata moves the 30-day window into the future", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    await writeFile(
+      join(__testing.entryDir(fx.userData, entry.id), "manifest.json"),
+      JSON.stringify(
+        {
+          ...entry,
+          createdAt: "2027-05-19T00:00:00.000Z",
+          expiresAt: "2027-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result.status).toBe("not-found");
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(false);
+  });
+
   it("refreshes restore-bin snapshot sizes from the stored item on disk", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

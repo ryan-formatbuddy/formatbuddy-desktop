@@ -652,8 +652,10 @@ export async function purgeExpiredTrash(
   const purge: CleanupTrashEntry[] = [];
 
   for (const entry of index.entries) {
+    const createdAt = Date.parse(entry.createdAt);
+    const movedIntoFuture = Number.isFinite(createdAt) && createdAt > now.getTime();
     const expired = Date.parse(entry.expiresAt) <= now.getTime();
-    if (expired) purge.push(entry);
+    if (movedIntoFuture || expired) purge.push(entry);
     else keep.push(entry);
   }
 
