@@ -83,12 +83,18 @@ export function summarizeTrashRestoreResults(
 ): string {
   const restored = results.filter((item) => item.status === "restored").length;
   const blocked = results.filter((item) => item.status === "target-exists").length;
-  const failed = results.length - restored - blocked;
+  const notFound = results.filter((item) => item.status === "not-found").length;
+  const unsafePath = results.filter((item) => item.status === "blocked-path").length;
+  const missingStoredItem = results.filter((item) => item.status === "missing-stored-item").length;
+  const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
   const parts: string[] = [];
 
   if (restored > 0) parts.push(`${restored}개를 원래 위치로 되돌렸어요.`);
   if (blocked > 0) parts.push(`${blocked}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
-  if (failed > 0) parts.push(`${failed}개는 이미 없거나 되돌리지 못했어요.`);
+  if (notFound > 0) parts.push(`${notFound}개는 복구함에서 찾지 못했어요.`);
+  if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
+  if (missingStoredItem > 0) parts.push(`${missingStoredItem}개는 보관된 파일을 찾지 못했어요.`);
+  if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);
 
   return parts.length > 0 ? parts.join(" ") : "되돌린 항목이 없어요.";
 }
@@ -113,7 +119,10 @@ export function summarizeRegistryBackupRestoreResults(
   const restored = results.filter((item) => item.status === "restored");
   const restoredAppBackups = restored.filter((item) => !isStartupRegistryBackup(item.entry)).length;
   const restoredStartupBackups = restored.filter((item) => isStartupRegistryBackup(item.entry)).length;
-  const failed = results.length - restored.length;
+  const notFound = results.filter((item) => item.status === "not-found").length;
+  const unsafePath = results.filter((item) => item.status === "blocked-path").length;
+  const missingBackup = results.filter((item) => item.status === "missing-backup").length;
+  const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
   const parts: string[] = [];
 
   if (restoredAppBackups > 0) {
@@ -122,7 +131,10 @@ export function summarizeRegistryBackupRestoreResults(
   if (restoredStartupBackups > 0) {
     parts.push(`시작 항목 백업 ${restoredStartupBackups}개를 되돌렸어요.`);
   }
-  if (failed > 0) parts.push(`${failed}개는 이미 없거나 확인이 필요해요.`);
+  if (notFound > 0) parts.push(`${notFound}개는 백업 목록에서 찾지 못했어요.`);
+  if (missingBackup > 0) parts.push(`${missingBackup}개는 백업 파일을 찾지 못했어요.`);
+  if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
+  if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);
 
   return parts.length > 0 ? parts.join(" ") : "";
 }

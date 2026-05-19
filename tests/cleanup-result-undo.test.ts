@@ -114,7 +114,19 @@ describe("Cleanup result undo helper", () => {
     ];
 
     expect(summarizeTrashRestoreResults(results)).toBe(
-      "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 1개는 이미 없거나 되돌리지 못했어요."
+      "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 1개는 복구함에서 찾지 못했어요."
+    );
+  });
+
+  it("summarizes restore failures by reason instead of grouping them together", () => {
+    const results: CleanupTrashRestoreResult[] = [
+      { entryId: "a", status: "blocked-path", message: "blocked" },
+      { entryId: "b", status: "missing-stored-item", message: "missing stored" },
+      { entryId: "c", status: "restore-failed", message: "failed" }
+    ];
+
+    expect(summarizeTrashRestoreResults(results)).toBe(
+      "1개는 안전 확인이 필요해 멈췄어요. 1개는 보관된 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
     );
   });
 
@@ -132,7 +144,19 @@ describe("Cleanup result undo helper", () => {
     ];
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
-      "앱 삭제 흔적 백업 1개를 되돌렸어요. 시작 항목 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
+      "앱 삭제 흔적 백업 1개를 되돌렸어요. 시작 항목 백업 1개를 되돌렸어요. 1개는 백업 파일을 찾지 못했어요. 1개는 안전 확인이 필요해 멈췄어요."
+    );
+  });
+
+  it("summarizes registry restore failures by reason without exposing registry jargon", () => {
+    const results: RegistryBackupRestoreResult[] = [
+      { backupId: "a", status: "not-found", message: "missing" },
+      { backupId: "b", status: "missing-backup", message: "missing file" },
+      { backupId: "c", status: "restore-failed", message: "failed" }
+    ];
+
+    expect(summarizeRegistryBackupRestoreResults(results)).toBe(
+      "1개는 백업 목록에서 찾지 못했어요. 1개는 백업 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
     );
   });
 
