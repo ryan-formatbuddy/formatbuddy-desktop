@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type {
   AppStateSnapshot,
   FormatSeverity,
@@ -11,6 +11,8 @@ import type {
   ScanReport,
   StatusMonitorSnapshot
 } from "@shared/types";
+import { normalizePath } from "./cleanup/blocklist";
+import { findLinkedPathPart } from "./cleanup/pathSafety";
 
 interface PersistedState {
   version: 1;
@@ -53,6 +55,14 @@ function coerceState(value: unknown): PersistedState {
 }
 
 async function loadState(userDataDir: string): Promise<PersistedState> {
+  const linkedState = await findLinkedPathPart(statePath(userDataDir), userDataDir, true);
+  if (linkedState) {
+    if (normalizePath(resolve(linkedState)) === normalizePath(resolve(statePath(userDataDir)))) {
+      await rm(statePath(userDataDir), { force: true }).catch(() => {});
+    }
+    return emptyState();
+  }
+
   try {
     const raw = await readFile(statePath(userDataDir), "utf8");
     return coerceState(JSON.parse(raw));
@@ -63,6 +73,13 @@ async function loadState(userDataDir: string): Promise<PersistedState> {
 
 async function saveState(userDataDir: string, state: PersistedState): Promise<void> {
   await mkdir(userDataDir, { recursive: true });
+  const linkedState = await findLinkedPathPart(statePath(userDataDir), userDataDir, true);
+  if (linkedState) {
+    if (normalizePath(resolve(linkedState)) !== normalizePath(resolve(statePath(userDataDir)))) {
+      throw new Error(`FormatBuddy local state path is behind a link: ${linkedState}`);
+    }
+    await rm(statePath(userDataDir), { force: true });
+  }
   await writeFile(statePath(userDataDir), JSON.stringify(state, null, 2), "utf8");
 }
 

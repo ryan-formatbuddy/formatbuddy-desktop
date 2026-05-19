@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -113,6 +113,31 @@ describe("localState", () => {
 
       const snapshot = await getAppStateSnapshot(dir);
       expect(snapshot.ignoreList.cleanupItemIds).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not write the local state file through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const dir = mkdtempSync(join(tmpdir(), "fb-state-link-test-"));
+    try {
+      const outsideState = join(dir, "outside-state.json");
+      const stateFile = join(dir, "formatbuddy-state.json");
+      writeFileSync(outsideState, "outside stays put", "utf8");
+      symlinkSync(outsideState, stateFile);
+
+      const ignore = await updateIgnoreList(dir, {
+        kind: "cleanup",
+        id: "temporary-files",
+        ignored: true
+      });
+
+      expect(ignore.cleanupItemIds).toContain("temporary-files");
+      expect(readFileSync(outsideState, "utf8")).toBe("outside stays put");
+      expect(lstatSync(stateFile).isSymbolicLink()).toBe(false);
+      const snapshot = await getAppStateSnapshot(dir);
+      expect(snapshot.ignoreList.cleanupItemIds).toEqual(["temporary-files"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
