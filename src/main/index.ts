@@ -48,7 +48,7 @@ import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
-import { findInstalledApp, getLastScan, getLastScanIfFresh, setLastScan } from "./lastScan";
+import { clearLastScan, findInstalledApp, getLastScan, getLastScanIfFresh, setLastScan } from "./lastScan";
 import {
   defaultPowerShellRunner,
   getDefenderStatus,
@@ -681,6 +681,11 @@ function registerIpc() {
               .filter((id): id is string => typeof id === "string")
           }
         }).catch((e) => log.warn("audit append (cleanup) failed:", (e as Error).message));
+        // v2.0 (D-34) — invalidate the scan cache so a follow-up
+        // fast:true rescan never returns a stale view of installedApps
+        // / userFolders / largeFiles that we just changed under the
+        // user. apps-list / leftovers will rebuild from a fresh scan.
+        clearLastScan();
         return result;
       } catch (err) {
         log.error("cleanup:execute failed:", (err as Error).message);
@@ -806,6 +811,12 @@ function registerIpc() {
                   : `"${request.appName}" 제거 시도 결과: ${result.status}`,
         detail: { appName: request.appName, status: result.status, detail: result.detail }
       }).catch((e) => log.warn("audit append (uninstall) failed:", (e as Error).message));
+      // v2.0 (D-34) — only invalidate the scan cache when the uninstaller
+      // actually launched. For app-not-found / blocked / no-scan-cache
+      // nothing changed on disk so the cache is still accurate.
+      if (result.status === "launched") {
+        clearLastScan();
+      }
       return result;
     }
   );
