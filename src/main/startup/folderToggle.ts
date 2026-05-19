@@ -165,6 +165,19 @@ async function readDisabledEntry(userDataDir: string, disabledId: string): Promi
   }
 }
 
+async function isListableDisabledEntry(
+  userDataDir: string,
+  disabledId: string,
+  entry: StartupAutoDisabledEntry
+): Promise<boolean> {
+  const dir = entryDir(userDataDir, disabledId);
+  if (entry.id !== disabledId) return false;
+  if (!isUnderRoot(entry.storedPath, dir)) return false;
+  if (!isUnderRoot(entry.originalPath, entry.origin)) return false;
+  if (await findLinkedPathPart(entry.storedPath, dir, true)) return false;
+  return pathExists(entry.storedPath);
+}
+
 export async function listDisabledStartupFolderEntries(
   options: StartupFolderToggleRuntime
 ): Promise<StartupAutoDisabledSnapshot> {
@@ -190,7 +203,9 @@ export async function listDisabledStartupFolderEntries(
   for (const dir of dirs) {
     if (!dir.isDirectory()) continue;
     const entry = await readDisabledEntry(options.userDataDir, dir.name);
-    if (entry) entries.push(entry);
+    if (entry && (await isListableDisabledEntry(options.userDataDir, dir.name, entry))) {
+      entries.push(entry);
+    }
   }
   entries.sort((a, b) => Date.parse(b.disabledAt) - Date.parse(a.disabledAt));
   return { capturedAt: now.toISOString(), entries, notes: [] };

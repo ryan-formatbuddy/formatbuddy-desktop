@@ -234,4 +234,30 @@ describe("startup folder toggle", () => {
     expect(existsSync(source)).toBe(false);
     expect(readFileSync(outside, "utf8")).toBe("outside");
   });
+
+  it("does not list a tampered startup holding record outside the managed holding area", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Whale.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Whale.lnk")
+    });
+    const outside = join(fx.root, "outside.lnk");
+    writeFileSync(outside, "outside");
+    const entryDir = join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id);
+    writeFileSync(
+      join(entryDir, "meta.json"),
+      JSON.stringify({ ...disabled.entry, storedPath: outside }, null, 2),
+      "utf8"
+    );
+
+    const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(readFileSync(outside, "utf8")).toBe("outside");
+  });
 });
