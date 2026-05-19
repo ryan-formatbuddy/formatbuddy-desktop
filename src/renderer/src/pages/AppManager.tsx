@@ -351,7 +351,7 @@ function LeftoverGroupCard({
             <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>{path.path}</code>
             <span style={{ fontSize: 12, opacity: 0.7 }}>
               {path.kind === "registry"
-                ? "레지스트리"
+                ? "앱 삭제 흔적"
                 : path.exists
                   ? formatBytes(path.sizeBytes)
                   : "없음"}

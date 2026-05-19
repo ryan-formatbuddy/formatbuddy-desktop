@@ -860,7 +860,7 @@ function registerIpc() {
             ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`
             : "",
           registryBackupIds.length > 0
-            ? `레지스트리 ${registryBackupIds.length}개를 백업 후 정리했어요`
+            ? `앱 삭제 흔적 ${registryBackupIds.length}개를 백업 후 정리했어요`
             : ""
         ].filter(Boolean);
         await appendAuditEntry(userDataDir, {
