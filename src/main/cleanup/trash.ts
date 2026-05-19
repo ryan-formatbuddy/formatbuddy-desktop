@@ -10,7 +10,7 @@
  *   - all bytes stay local under Electron userData
  */
 import { constants } from "node:fs";
-import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import type {
@@ -439,8 +439,8 @@ export async function purgeExpiredTrash(
   let purgedBytes = 0;
   const purgedEntryIds: string[] = [];
   for (const entry of purge) {
+    purgedBytes += await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
     await rm(entryDir(options.userDataDir, entry.id), { recursive: true, force: true });
-    purgedBytes += entry.sizeBytes;
     purgedEntryIds.push(entry.id);
   }
 
@@ -460,8 +460,15 @@ export async function purgeExpiredTrash(
 }
 
 export async function measureStoredPath(path: string): Promise<number> {
-  const s = await stat(path);
-  return s.size;
+  const s = await lstat(path);
+  if (!s.isDirectory()) return s.size;
+
+  const entries = await readdir(path, { withFileTypes: true });
+  let total = 0;
+  for (const entry of entries) {
+    total += await measureStoredPath(join(path, entry.name)).catch(() => 0);
+  }
+  return total;
 }
 
 export const __testing = {

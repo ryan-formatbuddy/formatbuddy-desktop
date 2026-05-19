@@ -317,6 +317,53 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("reports the actual stored bytes purged after 30 days", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(entry.storedPath, "hello and more bytes", "utf8");
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(purged.purgedBytes).toBe(Buffer.byteLength("hello and more bytes"));
+    expect(existsSync(entry.storedPath)).toBe(false);
+  });
+
+  it("reports nested folder bytes when an expired trash folder is purged", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old-cache");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "visible.tmp"), "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: {
+        ...makeItem(source),
+        label: "old-cache",
+        sizeBytes: 5
+      },
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await mkdir(join(entry.storedPath, "nested"), { recursive: true });
+    await writeFile(join(entry.storedPath, "nested", "extra.tmp"), "more", "utf8");
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(purged.purgedBytes).toBe(Buffer.byteLength("hello") + Buffer.byteLength("more"));
+    expect(existsSync(entry.storedPath)).toBe(false);
+  });
+
   it("does not restore an expired entry when restore is called directly", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });
