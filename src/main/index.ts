@@ -28,6 +28,9 @@ import type {
   IgnoreListUpdate,
   LargeFileCandidate,
   ManifestExportResult,
+  RegistryBackupRestoreRequest,
+  RegistryBackupRestoreResult,
+  RegistryBackupSnapshot,
   ScanError,
   ScanProgress,
   ScanStartRequest,
@@ -48,7 +51,11 @@ import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
 import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
-import { purgeExpiredRegistryBackups } from "./apps/registryCleanup";
+import {
+  listRegistryBackups,
+  purgeExpiredRegistryBackups,
+  restoreRegistryBackup
+} from "./apps/registryCleanup";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
   clearLastScan,
@@ -771,6 +778,35 @@ function registerIpc() {
       trigger: "manual"
     });
   });
+
+  ipcMain.handle(IpcChannels.registryBackupsList, async (): Promise<RegistryBackupSnapshot> => {
+    return listRegistryBackups({ userDataDir: app.getPath("userData") });
+  });
+
+  ipcMain.handle(
+    IpcChannels.registryBackupRestore,
+    async (_e, request: RegistryBackupRestoreRequest): Promise<RegistryBackupRestoreResult> => {
+      const userDataDir = app.getPath("userData");
+      const result = await restoreRegistryBackup({
+        userDataDir,
+        backupId: request.backupId
+      });
+      await appendAuditEntry(userDataDir, {
+        category: "cleanup",
+        action: `registry-backup-restore-${result.status}`,
+        summary:
+          result.status === "restored"
+            ? "레지스트리 백업을 복구함에서 되돌렸어요."
+            : `레지스트리 백업 되돌리기 결과: ${result.message}`,
+        detail: {
+          backupId: result.backupId,
+          keyPath: result.keyPath,
+          status: result.status
+        }
+      }).catch((e) => log.warn("audit append (registry-backup-restore) failed:", (e as Error).message));
+      return result;
+    }
+  );
 
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
     const cached = getLastScan();

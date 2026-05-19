@@ -32,6 +32,9 @@ import type {
   ManifestExportResult,
   MonitorPreferences,
   Recommendation,
+  RegistryBackupRestoreRequest,
+  RegistryBackupRestoreResult,
+  RegistryBackupSnapshot,
   ScanError,
   ScanProgress,
   ScanReport,
@@ -158,6 +161,14 @@ const fb = {
 
   purgeExpiredCleanupTrash: (): Promise<CleanupTrashPurgeResult> =>
     ipcRenderer.invoke(IpcChannels.cleanupTrashPurgeExpired),
+
+  getRegistryBackups: (): Promise<RegistryBackupSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.registryBackupsList),
+
+  restoreRegistryBackup: (
+    request: RegistryBackupRestoreRequest
+  ): Promise<RegistryBackupRestoreResult> =>
+    ipcRenderer.invoke(IpcChannels.registryBackupRestore, request),
 
   listApps: (): Promise<AppManagerSnapshot> => ipcRenderer.invoke(IpcChannels.appsList),
 

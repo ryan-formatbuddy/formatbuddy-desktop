@@ -802,6 +802,45 @@ export interface CleanupTrashPurgeResult {
   retentionDays: number;
 }
 
+export interface RegistryBackupEntry {
+  id: string;
+  keyPath: string;
+  backupPath: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface RegistryBackupSnapshot {
+  entries: RegistryBackupEntry[];
+  retentionDays: number;
+  nextExpiryAt?: string;
+}
+
+export interface RegistryBackupRestoreRequest {
+  backupId: string;
+}
+
+export type RegistryBackupRestoreStatus =
+  | "restored"
+  | "not-found"
+  | "blocked-path"
+  | "missing-backup"
+  | "restore-failed";
+
+export interface RegistryBackupRestoreResult {
+  backupId: string;
+  status: RegistryBackupRestoreStatus;
+  message: string;
+  keyPath?: string;
+  entry?: RegistryBackupEntry;
+}
+
+export interface RegistryBackupPurgeResult {
+  purgedCount: number;
+  purgedIds: string[];
+  retentionDays: number;
+}
+
 /**
  * v2.0 — Unified audit log. Cleanup, uninstall, Defender quick scan,
  * monitor toggles all funnel into the same append-only timeline so a

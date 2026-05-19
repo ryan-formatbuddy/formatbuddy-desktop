@@ -31,6 +31,8 @@ export const IpcChannels = {
   cleanupTrashList: "cleanup-trash:list",
   cleanupTrashRestore: "cleanup-trash:restore",
   cleanupTrashPurgeExpired: "cleanup-trash:purge-expired",
+  registryBackupsList: "registry-backups:list",
+  registryBackupRestore: "registry-backups:restore",
   appsList: "apps:list",
   appsUninstall: "apps:uninstall",
   appsLeftovers: "apps:leftovers",

@@ -33,6 +33,11 @@ describe("IpcChannels", () => {
     expect(IpcChannels.ignoreListUpdate).toBe("ignore-list:update");
   });
 
+  it("contains registry backup restore-bin channels", () => {
+    expect(IpcChannels.registryBackupsList).toBe("registry-backups:list");
+    expect(IpcChannels.registryBackupRestore).toBe("registry-backups:restore");
+  });
+
   it("channel values are unique", () => {
     const values = Object.values(IpcChannels);
     expect(new Set(values).size).toBe(values.length);

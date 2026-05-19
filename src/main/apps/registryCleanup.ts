@@ -2,6 +2,12 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
+import type {
+  RegistryBackupEntry,
+  RegistryBackupPurgeResult,
+  RegistryBackupRestoreResult,
+  RegistryBackupSnapshot
+} from "@shared/types";
 import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 
@@ -10,19 +16,7 @@ export const REGISTRY_BACKUP_RETENTION_DAYS = 30;
 export interface RegistryCleanupRunner {
   exportKey: (keyPath: string, backupPath: string) => Promise<void>;
   deleteKey: (keyPath: string) => Promise<void>;
-}
-
-export interface RegistryCleanupResult {
-  id: string;
-  keyPath: string;
-  backupPath: string;
-  createdAt: string;
-  expiresAt: string;
-}
-
-export interface RegistryBackupPurgeResult {
-  purgedCount: number;
-  purgedIds: string[];
+  importFile?: (backupPath: string) => Promise<void>;
 }
 
 const SAFE_UNINSTALL_KEY_PATTERN =
@@ -38,6 +32,17 @@ export function isSafeUninstallRegistryKeyPath(keyPath: string): boolean {
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
   if (/[*?]/.test(normalized)) return false;
   return SAFE_UNINSTALL_KEY_PATTERN.test(normalized);
+}
+
+export function isSafeRegistryBackupId(backupId: string): boolean {
+  return (
+    backupId.length > 0 &&
+    backupId !== "." &&
+    backupId !== ".." &&
+    !backupId.includes("/") &&
+    !backupId.includes("\\") &&
+    !backupId.includes("\0")
+  );
 }
 
 function registryBackupExpiry(now: Date): string {
@@ -74,7 +79,8 @@ function runRegCommand(args: string[]): Promise<void> {
 export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
   return {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
-    deleteKey: (keyPath) => runRegCommand(["delete", keyPath, "/f"])
+    deleteKey: (keyPath) => runRegCommand(["delete", keyPath, "/f"]),
+    importFile: (backupPath) => runRegCommand(["import", backupPath])
   };
 }
 
@@ -83,7 +89,7 @@ export async function backupAndDeleteRegistryKey(options: {
   keyPath: string;
   now?: () => Date;
   runner?: RegistryCleanupRunner;
-}): Promise<RegistryCleanupResult> {
+}): Promise<RegistryBackupEntry> {
   const keyPath = normalizeRegistryKeyPath(options.keyPath);
   if (!isSafeUninstallRegistryKeyPath(keyPath)) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
@@ -127,19 +133,101 @@ export async function backupAndDeleteRegistryKey(options: {
   };
 }
 
+function isValidIso(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+async function readRegistryBackupEntry(
+  userDataDir: string,
+  backupId: string
+): Promise<RegistryBackupEntry | null> {
+  if (!isSafeRegistryBackupId(backupId)) return null;
+
+  const root = registryBackupItemsRoot(userDataDir);
+  const entryDir = join(root, backupId);
+  const backupPath = join(entryDir, "backup.reg");
+  const metaPath = join(entryDir, "meta.json");
+
+  const linkedEntry = await findLinkedPathPart(entryDir, userDataDir, true);
+  if (linkedEntry) return null;
+  const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
+  if (linkedMeta) return null;
+  const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
+  if (linkedBackup) return null;
+
+  try {
+    const raw = JSON.parse(await fs.readFile(metaPath, "utf8")) as Partial<RegistryBackupEntry>;
+    if (raw.id !== backupId) return null;
+    if (typeof raw.keyPath !== "string" || !isSafeUninstallRegistryKeyPath(raw.keyPath)) {
+      return null;
+    }
+    if (!isValidIso(raw.createdAt) || !isValidIso(raw.expiresAt)) return null;
+
+    const backupStat = await fs.lstat(backupPath);
+    if (!backupStat.isFile() || backupStat.isSymbolicLink()) return null;
+
+    return {
+      id: backupId,
+      keyPath: normalizeRegistryKeyPath(raw.keyPath),
+      backupPath,
+      createdAt: raw.createdAt,
+      expiresAt: raw.expiresAt
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function listRegistryBackups(options: {
+  userDataDir: string;
+  now?: () => Date;
+}): Promise<RegistryBackupSnapshot> {
+  await purgeExpiredRegistryBackups(options);
+
+  const root = registryBackupItemsRoot(options.userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
+  if (linkedRoot) {
+    return { entries: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
+  }
+
+  let dirs;
+  try {
+    dirs = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return { entries: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
+  }
+
+  const entries: RegistryBackupEntry[] = [];
+  for (const dir of dirs) {
+    if (!dir.isDirectory()) continue;
+    const entry = await readRegistryBackupEntry(options.userDataDir, dir.name);
+    if (entry) entries.push(entry);
+  }
+
+  entries.sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
+
+  return {
+    entries,
+    retentionDays: REGISTRY_BACKUP_RETENTION_DAYS,
+    nextExpiryAt: entries[0]?.expiresAt
+  };
+}
+
 export async function purgeExpiredRegistryBackups(options: {
   userDataDir: string;
   now?: () => Date;
 }): Promise<RegistryBackupPurgeResult> {
   const root = registryBackupItemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
-  if (linkedRoot) return { purgedCount: 0, purgedIds: [] };
+  if (linkedRoot) {
+    return { purgedCount: 0, purgedIds: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
+  }
 
   let entries;
   try {
     entries = await fs.readdir(root, { withFileTypes: true });
   } catch {
-    return { purgedCount: 0, purgedIds: [] };
+    return { purgedCount: 0, purgedIds: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
   }
 
   const now = options.now?.() ?? new Date();
@@ -148,7 +236,10 @@ export async function purgeExpiredRegistryBackups(options: {
     if (!entry.isDirectory()) continue;
     const entryDir = join(root, entry.name);
     try {
-      const meta = JSON.parse(await fs.readFile(join(entryDir, "meta.json"), "utf8")) as {
+      const metaPath = join(entryDir, "meta.json");
+      const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
+      if (linkedMeta) continue;
+      const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as {
         expiresAt?: unknown;
       };
       if (typeof meta.expiresAt !== "string") continue;
@@ -163,8 +254,76 @@ export async function purgeExpiredRegistryBackups(options: {
 
   return {
     purgedCount: purgedIds.length,
-    purgedIds
+    purgedIds,
+    retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
   };
 }
 
-export const __testing = { normalizeRegistryKeyPath, registryBackupExpiry };
+export async function restoreRegistryBackup(options: {
+  userDataDir: string;
+  backupId: string;
+  now?: () => Date;
+  runner?: RegistryCleanupRunner;
+}): Promise<RegistryBackupRestoreResult> {
+  if (!isSafeRegistryBackupId(options.backupId)) {
+    return {
+      backupId: options.backupId,
+      status: "blocked-path",
+      message: "복구함 항목 이름이 안전하지 않아 되돌리지 않았어요."
+    };
+  }
+
+  await purgeExpiredRegistryBackups({
+    userDataDir: options.userDataDir,
+    now: options.now
+  });
+
+  const entry = await readRegistryBackupEntry(options.userDataDir, options.backupId);
+  if (!entry) {
+    return {
+      backupId: options.backupId,
+      status: "not-found",
+      message: "레지스트리 백업을 찾지 못했어요."
+    };
+  }
+
+  const importFile = options.runner?.importFile ?? defaultRegistryCleanupRunner().importFile;
+  if (!importFile) {
+    return {
+      backupId: options.backupId,
+      status: "restore-failed",
+      message: "레지스트리 백업을 되돌릴 준비가 되지 않았어요.",
+      keyPath: entry.keyPath,
+      entry
+    };
+  }
+
+  try {
+    await importFile(entry.backupPath);
+    await fs.rm(join(registryBackupItemsRoot(options.userDataDir), entry.id), {
+      recursive: true,
+      force: true
+    });
+    return {
+      backupId: entry.id,
+      status: "restored",
+      message: "레지스트리 백업을 되돌렸어요.",
+      keyPath: entry.keyPath,
+      entry
+    };
+  } catch (err) {
+    return {
+      backupId: entry.id,
+      status: "restore-failed",
+      message: `레지스트리 백업 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
+      keyPath: entry.keyPath,
+      entry
+    };
+  }
+}
+
+export const __testing = {
+  normalizeRegistryKeyPath,
+  registryBackupExpiry,
+  registryBackupItemsRoot
+};

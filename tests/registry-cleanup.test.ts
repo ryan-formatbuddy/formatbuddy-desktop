@@ -6,7 +6,9 @@ import { dirname, join } from "node:path";
 import {
   backupAndDeleteRegistryKey,
   isSafeUninstallRegistryKeyPath,
-  purgeExpiredRegistryBackups
+  listRegistryBackups,
+  purgeExpiredRegistryBackups,
+  restoreRegistryBackup
 } from "../src/main/apps/registryCleanup";
 
 interface Fixture {
@@ -145,8 +147,98 @@ describe("registry leftover cleanup", () => {
 
     expect(purge).toEqual({
       purgedCount: 1,
-      purgedIds: [result.id]
+      purgedIds: [result.id],
+      retentionDays: 30
     });
     await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
+  });
+
+  it("lists registry backups for the restore bin surface", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.retentionDays).toBe(30);
+    expect(snapshot.entries).toEqual([
+      {
+        id: result.id,
+        keyPath,
+        backupPath: result.backupPath,
+        createdAt: "2026-05-19T00:00:00.000Z",
+        expiresAt: "2026-06-18T00:00:00.000Z"
+      }
+    ]);
+    expect(snapshot.nextExpiryAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("restores a registry backup and removes it from the 30-day bin", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+      })
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(calls).toEqual(["import"]);
+    expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
+    expect(restored).toMatchObject({
+      backupId: result.id,
+      status: "restored",
+      keyPath,
+      message: "레지스트리 백업을 되돌렸어요."
+    });
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toEqual([]);
+  });
+
+  it("refuses unsafe backup ids when restoring registry backups", async () => {
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+
+    const result = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: "../outside",
+      runner
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(runner.importFile).not.toHaveBeenCalled();
   });
 });
