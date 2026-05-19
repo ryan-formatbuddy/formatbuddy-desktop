@@ -60,6 +60,16 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("{result.removedItems.length}개를 정리했어요");
   });
 
+  it("includes failed app-leftover removed items in the failed or skipped count", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("const failedRemovedCount = result");
+    expect(source).toContain(".filter((item) => !item.succeeded).length");
+    expect(source).toContain("const skippedCount = result");
+    expect(source).toContain("failedRemovedCount + skippedCount");
+    expect(source).not.toContain("{result.skippedItems.filter((s) => s.reason !== \"not-selected\").length}개");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
