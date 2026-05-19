@@ -28,7 +28,7 @@ export async function purgeExpiredRegistryBackupsWithAudit(options: {
     {
       category: "cleanup",
       action: `registry-backup-expired-purge-${options.trigger}`,
-      summary: `30일이 지난 앱 삭제 흔적 백업 ${result.purgedCount}개를 영구 정리했어요.`,
+      summary: `30일이 지난 앱 삭제 흔적 백업 ${result.purgedCount}개를 자동으로 비웠어요.`,
       detail: {
         ...result,
         trigger: options.trigger

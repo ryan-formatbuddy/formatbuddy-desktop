@@ -25,7 +25,7 @@ export async function purgeExpiredTrashWithAudit(
     {
       category: "cleanup",
       action: `trash-expired-purge-${options.trigger}`,
-      summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 영구 정리했어요.`,
+      summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 자동으로 비웠어요.`,
       detail: {
         ...result,
         trigger: options.trigger

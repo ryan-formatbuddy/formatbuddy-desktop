@@ -72,8 +72,9 @@ describe("purgeExpiredTrashWithAudit", () => {
     expect(audit.entries[0]).toMatchObject({
       category: "cleanup",
       action: "trash-expired-purge-startup",
-      summary: "30일이 지난 복구함 항목 1개를 영구 정리했어요."
+      summary: "30일이 지난 복구함 항목 1개를 자동으로 비웠어요."
     });
+    expect(audit.entries[0].summary).not.toContain("영구");
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
       purgedBytes: 5,
