@@ -43,6 +43,10 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { enforceProductCleanupPolicy } from "./cleanup/policy";
+import {
+  normalizeCleanupTrashRestoreRequest,
+  normalizeRegistryBackupRestoreRequest
+} from "./cleanup/restoreRequestPolicy";
 import { getCleanupHistory } from "./cleanup/log";
 import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
 import { purgeExpiredTrashWithAudit } from "./cleanup/trashAudit";
@@ -842,6 +846,7 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.cleanupTrashRestore,
     async (_e, request: CleanupTrashRestoreRequest): Promise<CleanupTrashRestoreResult> => {
+      const safeRequest = normalizeCleanupTrashRestoreRequest(request);
       await purgeExpiredTrashWithAudit({
         userDataDir: app.getPath("userData"),
         trigger: "restore"
@@ -850,7 +855,7 @@ function registerIpc() {
       });
       const result = await restoreTrashEntry({
         userDataDir: app.getPath("userData"),
-        entryId: request.entryId,
+        entryId: safeRequest.entryId,
         home: app.getPath("home"),
         onAppLeftoverRestored: async (restoredApp) => {
           rememberRecentlyUninstallLaunchedApp(restoredApp);
@@ -867,7 +872,7 @@ function registerIpc() {
             ? `"${result.entry?.label ?? result.entryId}"을 원래 위치로 되돌렸어요.`
             : `복구함 되돌리기 결과: ${result.message}`,
         detail: {
-          entryId: request.entryId,
+          entryId: safeRequest.entryId,
           status: result.status,
           originalPath: result.originalPath
         }
@@ -897,6 +902,7 @@ function registerIpc() {
     IpcChannels.registryBackupRestore,
     async (_e, request: RegistryBackupRestoreRequest): Promise<RegistryBackupRestoreResult> => {
       const userDataDir = app.getPath("userData");
+      const safeRequest = normalizeRegistryBackupRestoreRequest(request);
       await purgeExpiredRegistryBackupsWithAudit({
         userDataDir,
         trigger: "registry-restore"
@@ -905,7 +911,7 @@ function registerIpc() {
       });
       const result = await restoreRegistryBackup({
         userDataDir,
-        backupId: request.backupId,
+        backupId: safeRequest.backupId,
         beforeImport: () => maybeCreateRestorePoint("앱 삭제 흔적 백업 되돌리기"),
         onAppRegistryBackupRestored: async (restoredApp) => {
           rememberRecentlyUninstallLaunchedApp({

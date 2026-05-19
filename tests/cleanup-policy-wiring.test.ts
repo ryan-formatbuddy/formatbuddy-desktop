@@ -22,4 +22,13 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("포맷버디 복구함으로");
     expect(source).toContain("30일 뒤 자동으로 비워요");
   });
+
+  it("normalizes restore IPC requests before reading ids", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("normalizeCleanupTrashRestoreRequest(request)");
+    expect(source).toContain("normalizeRegistryBackupRestoreRequest(request)");
+    expect(source).toContain("entryId: safeRequest.entryId");
+    expect(source).toContain("backupId: safeRequest.backupId");
+  });
 });
