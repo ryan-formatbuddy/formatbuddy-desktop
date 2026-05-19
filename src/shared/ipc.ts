@@ -34,6 +34,7 @@ export const IpcChannels = {
   appsList: "apps:list",
   appsUninstall: "apps:uninstall",
   appsLeftovers: "apps:leftovers",
+  appsLeftoversCleanup: "apps:leftovers-cleanup",
   securityStatus: "security:status",
   securityQuickScan: "security:quick-scan",
   securityThreats: "security:threats",
@@ -44,7 +45,8 @@ export const IpcChannels = {
   auditList: "audit:list",
   systemOpenRecycleBin: "system:open-recycle-bin",
   driverBackup: "driver:backup",
-  wifiExport: "wifi:export"
+  wifiExport: "wifi:export",
+  startupList: "startup:list"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

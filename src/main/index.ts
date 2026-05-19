@@ -20,6 +20,7 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   DriverBackupResult,
+  StartupAutoSnapshot,
   WifiExportRequest,
   WifiExportResult,
   ExportOptions,
@@ -42,8 +43,9 @@ import {
 import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
 import { defaultDriverBackupRunner, exportDrivers } from "./driver/backup";
 import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
+import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
-import { planAppLeftovers } from "./apps/leftovers";
+import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
 import { findInstalledApp, getLastScan, setLastScan } from "./lastScan";
 import {
@@ -61,6 +63,7 @@ import {
 import { createTray, destroyTray } from "./tray";
 import type {
   AppLeftoversSnapshot,
+  AppLeftoversCleanupRequest,
   AppManagerSnapshot,
   AppUninstallRequest,
   AppUninstallResult,
@@ -605,6 +608,14 @@ function registerIpc() {
     }
   );
 
+  ipcMain.handle(IpcChannels.startupList, async (): Promise<StartupAutoSnapshot> => {
+    const snapshot = await listStartupAuto({ runner: defaultStartupRunner() });
+    log.info(
+      `startup:list status=${snapshot.status} count=${snapshot.entries.length}`
+    );
+    return snapshot;
+  });
+
   ipcMain.handle(
     IpcChannels.cleanupPlan,
     async (_e, payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> => {
@@ -712,6 +723,36 @@ function registerIpc() {
     const cached = getLastScan();
     return planAppLeftovers(cached?.report.installedApps ?? []);
   });
+
+  ipcMain.handle(
+    IpcChannels.appsLeftoversCleanup,
+    async (_e, request: AppLeftoversCleanupRequest): Promise<CleanupExecuteResult> => {
+      const userDataDir = app.getPath("userData");
+      try {
+        await maybeCreateRestorePoint("앱 잔여 폴더 정리");
+        const result = await cleanupAppLeftovers(request, { userDataDir });
+        const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
+        await appendAuditEntry(userDataDir, {
+          category: "cleanup",
+          action: "app-leftovers-trash",
+          summary: `앱 잔여 폴더 ${result.removedItems.length}개(약 ${freedMb} MB)를 포맷버디 복구함으로 보냈어요. 30일 뒤 자동 삭제돼요.`,
+          detail: {
+            planId: result.planId,
+            removedCount: result.removedItems.length,
+            skippedCount: result.skippedItems.length,
+            totalFreedBytes: result.totalFreedBytes,
+            trashEntryIds: result.removedItems
+              .map((item) => item.trashEntryId)
+              .filter((id): id is string => typeof id === "string")
+          }
+        }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
+        return result;
+      } catch (err) {
+        log.error("apps:leftovers-cleanup failed:", (err as Error).message);
+        throw err;
+      }
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.appsUninstall,

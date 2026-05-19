@@ -8,6 +8,7 @@ import { SecurityCenter } from "./pages/SecurityCenter";
 import { Permissions } from "./pages/Permissions";
 import { AuditLog } from "./pages/AuditLog";
 import { TrashRestore } from "./pages/TrashRestore";
+import { StartupAuto } from "./pages/StartupAuto";
 import { Onboarding } from "./pages/Onboarding";
 import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -35,6 +36,7 @@ type Phase =
   | { kind: "permissions" }
   | { kind: "audit" }
   | { kind: "trash" }
+  | { kind: "startup" }
   | { kind: "error"; error: ScanError };
 
 function readOnboardingSeen(): boolean {
@@ -280,6 +282,15 @@ export function App() {
           onBack={goHome}
         />
       );
+    if (phase.kind === "startup")
+      return (
+        <TopBar
+          here="시작 시 자동 실행"
+          meta="PC 켤 때 같이 뜨는 것 전체"
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
@@ -312,6 +323,7 @@ export function App() {
             onOpenPermissions={() => setPhase({ kind: "permissions" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
+            onOpenStartupAuto={() => setPhase({ kind: "startup" })}
           />
         );
       case "scanning":
@@ -354,6 +366,8 @@ export function App() {
         return <AuditLog onBack={goHome} />;
       case "trash":
         return <TrashRestore onBack={goHome} />;
+      case "startup":
+        return <StartupAuto onBack={goHome} />;
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }

@@ -598,7 +598,8 @@ export type CleanupCategoryId =
   | "browser-cache"
   | "windows-old"
   | "downloads-installers"
-  | "large-files";
+  | "large-files"
+  | "app-leftovers";
 
 export type CleanupRiskLevel = "safe" | "review" | "restricted";
 
@@ -846,6 +847,57 @@ export interface WifiExportRequest {
   includePasswords?: boolean;
 }
 
+/**
+ * v2.0 (Round D-27 / B3) — Deeper "PC 켤 때 같이 뜨는 것" inventory.
+ *
+ * The original ScanReport.startupPrograms only covered the four
+ * Win32_StartupCommand sources. Windows actually launches things at
+ * boot from several more places, and a real PC-care tool has to show
+ * them all in one place so the user can see *why* the boot is slow.
+ *
+ * Four sources we read (read-only, this round):
+ *   - registry           : HKLM/HKCU Run + RunOnce (Win32_StartupCommand)
+ *   - startup-folder     : %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup
+ *   - scheduled-task     : Get-ScheduledTask filtered to ones marked Ready/Running
+ *                          AND triggered at logon / boot
+ *   - service            : Get-Service where StartType -in @('Automatic','AutomaticDelayedStart')
+ *
+ * Disable/Enable lands in a follow-up round (B3 toggle). Today's
+ * scope is "show me everything that auto-starts" with provenance.
+ */
+export type StartupAutoKind =
+  | "registry"
+  | "startup-folder"
+  | "scheduled-task"
+  | "service";
+
+export type StartupAutoStatus = "ok" | "windows-only" | "powershell-failed";
+
+export interface StartupAutoEntry {
+  /** Stable id derived from `${kind}|${name}|${path}`. */
+  id: string;
+  kind: StartupAutoKind;
+  /** Display name. ScheduledTask: TaskName, Service: DisplayName, etc. */
+  name: string;
+  /** Best-effort path / command line. May be empty for services. */
+  path?: string;
+  /** Vendor / publisher when we can read it. */
+  publisher?: string;
+  /** Free-form Korean note: 어디서 켜지는지 한 줄 (e.g. "HKCU Run", "TaskScheduler"). */
+  origin: string;
+  /** When kind === 'scheduled-task' or 'service', whether it is enabled now. */
+  enabled?: boolean;
+}
+
+export interface StartupAutoSnapshot {
+  status: StartupAutoStatus;
+  /** Wall-clock when the snapshot was taken. */
+  capturedAt: string;
+  entries: StartupAutoEntry[];
+  /** Per-kind diagnostic note (e.g. timeouts, permission errors). */
+  notes: string[];
+}
+
 export interface WifiExportResult {
   status: WifiExportStatus;
   targetDir?: string;
@@ -934,6 +986,7 @@ export interface AppManagerSnapshot {
 }
 
 export interface AppLeftoverPath {
+  id: string;
   path: string;
   exists: boolean;
   sizeBytes?: number | null;
@@ -949,8 +1002,16 @@ export interface AppLeftoverGroup {
 }
 
 export interface AppLeftoversSnapshot {
+  planId: string;
+  confirmationToken: string;
   generatedAt: string;
   groups: AppLeftoverGroup[];
+}
+
+export interface AppLeftoversCleanupRequest {
+  planId: string;
+  confirmationToken: string;
+  selectedPathIds: string[];
 }
 
 export type AppUninstallMode = "interactive" | "quiet";

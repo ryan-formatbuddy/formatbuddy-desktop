@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import { IpcChannels } from "@shared/ipc";
 import type {
   ActionRunResult,
+  AppLeftoversCleanupRequest,
   AppLeftoversSnapshot,
   AppManagerSnapshot,
   AppStateSnapshot,
@@ -18,6 +19,7 @@ import type {
   CleanupTrashSnapshot,
   DefenderLiveStatus,
   DriverBackupResult,
+  StartupAutoSnapshot,
   WifiExportRequest,
   WifiExportResult,
   DefenderQuickScanResult,
@@ -160,6 +162,9 @@ const fb = {
   listAppLeftovers: (): Promise<AppLeftoversSnapshot> =>
     ipcRenderer.invoke(IpcChannels.appsLeftovers),
 
+  cleanupAppLeftovers: (request: AppLeftoversCleanupRequest): Promise<CleanupExecuteResult> =>
+    ipcRenderer.invoke(IpcChannels.appsLeftoversCleanup, request),
+
   uninstallApp: (request: AppUninstallRequest): Promise<AppUninstallResult> =>
     ipcRenderer.invoke(IpcChannels.appsUninstall, request),
 
@@ -196,7 +201,10 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.driverBackup),
 
   exportWifiProfiles: (request: WifiExportRequest = {}): Promise<WifiExportResult> =>
-    ipcRenderer.invoke(IpcChannels.wifiExport, request)
+    ipcRenderer.invoke(IpcChannels.wifiExport, request),
+
+  listStartupAuto: (): Promise<StartupAutoSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.startupList)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

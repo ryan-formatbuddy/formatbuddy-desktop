@@ -13,6 +13,7 @@ interface HomeProps {
   onOpenPermissions?: () => void;
   onOpenAuditLog?: () => void;
   onOpenTrashRestore?: () => void;
+  onOpenStartupAuto?: () => void;
 }
 
 function MonitorPrefsCard() {
@@ -142,7 +143,7 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
-export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog, onOpenTrashRestore }: HomeProps) {
+export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog, onOpenTrashRestore, onOpenStartupAuto }: HomeProps) {
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
@@ -238,6 +239,22 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
               }}
             >
               복구함 열기 (30일 보관) →
+            </button>
+          )}
+          {onOpenStartupAuto && (
+            <button
+              type="button"
+              onClick={onOpenStartupAuto}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: 13
+              }}
+            >
+              PC 켤 때 같이 뜨는 것 보기 →
             </button>
           )}
         </div>
