@@ -109,10 +109,20 @@ function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function removeRegistryBackupStoreItem(root: string, name: string): Promise<boolean> {
   if (!isSafeRegistryBackupId(name)) return false;
-  await fs.rm(join(root, name), { recursive: true, force: true }).catch(() => {});
-  return true;
+  const target = join(root, name);
+  await fs.rm(target, { recursive: true, force: true }).catch(() => {});
+  return !(await pathExists(target));
 }
 
 async function removeLinkedRegistryBackupRootIfManaged(
@@ -891,6 +901,9 @@ export async function purgeExpiredRegistryBackups(options: {
       if (!Number.isFinite(expiresAt) || (!movedIntoFuture && expiresAt > now.getTime())) continue;
       const entryBytes = await measureRegistryBackupPurgeBytes(entryDir);
       await removeEntryDir(entryDir, entry.name);
+      if (await pathExists(entryDir)) {
+        throw new Error("Expired registry backup still exists after purge");
+      }
       purgedBytes += entryBytes;
       purgedIds.push(entry.name);
     } catch {

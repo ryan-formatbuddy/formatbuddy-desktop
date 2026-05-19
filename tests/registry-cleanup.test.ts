@@ -629,6 +629,38 @@ describe("registry leftover cleanup", () => {
     expect(await readFile(outsideMeta, "utf8")).toContain(entryId);
   });
 
+  it("does not count an expired registry backup as purged when its folder still exists", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const result = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async () => undefined
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      failedIds: [backup.id],
+      retentionDays: 30
+    });
+    expect(existsSync(join(__testing.registryBackupItemsRoot(fx.userDataDir), backup.id))).toBe(true);
+  });
+
   it("prunes registry backup folders that cannot be restored", async () => {
     const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
     await mkdir(brokenDir, { recursive: true });
