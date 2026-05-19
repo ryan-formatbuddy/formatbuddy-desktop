@@ -890,9 +890,9 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
               marginTop: 8
             }}
             role="note"
-            aria-label="캐시된 점검 결과"
+            aria-label="최근 점검 결과"
           >
-            ⚡ 캐시된 결과 — 1시간 안에 본 점검을 다시 보여드렸어요.
+            방금 본 점검 결과를 다시 보여드렸어요.
           </p>
         )}
         {!isWindows && <p className="fb-report-preview-note">{copy.macReportPreviewNote}</p>}
@@ -1069,8 +1069,13 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
                   다시 점검
                 </Button>
                 {onQuickRescan && (
-                  <Button variant="ghost" size="sm" onClick={onQuickRescan}>
-                    ⚡ 빠르게 (캐시)
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onQuickRescan}
+                    title={copy.nextStepsQuickRescanHint}
+                  >
+                    {copy.nextStepsQuickRescan}
                   </Button>
                 )}
               </div>

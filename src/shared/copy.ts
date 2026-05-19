@@ -173,6 +173,10 @@ export const copy = {
   nextStepsReportHint: "공유용 HTML 또는 자세한 진단 파일을 저장해요.",
   nextStepsRescan: "다시 점검",
   nextStepsRescanHint: "정리/제거가 끝났으면 다시 한 번 점수 비교해보세요.",
+  /** D-37/D-39 — 빠른 다시 점검. User-facing copy avoids cache jargon. */
+  nextStepsQuickRescan: "빠르게 다시 보기",
+  nextStepsQuickRescanHint:
+    "1시간 안에 본 결과라면 바로 보여드려요. 정리/제거 직후라면 자동으로 새 점검으로 돌려요.",
   compareTitle: "지난 점검과 비교",
   compareFirstRun: "이번이 첫 기록이에요. 다음 점검부터 점수와 정리 후보 변화를 비교해드릴게요.",
   safetyPreviewTitle: "안전 정리 미리보기",
