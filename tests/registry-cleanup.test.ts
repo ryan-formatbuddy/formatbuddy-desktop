@@ -126,6 +126,51 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not delete when the registry backup export reports success without a backup file", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/백업 파일|backup file/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("does not delete when the registry backup export writes through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const outside = join(fx.root, "outside-backup.reg");
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(outside, "outside stays put", "utf8");
+        await symlink(outside, backupPath);
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/링크|link/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("removes the temporary backup when registry deletion fails after export", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     let exportedBackupPath = "";

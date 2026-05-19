@@ -102,6 +102,30 @@ function runRegCommand(args: string[]): Promise<void> {
   });
 }
 
+async function assertRestorableRegistryBackupFile(entryDir: string, backupPath: string): Promise<void> {
+  const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
+  if (linkedBackup) {
+    throw new Error(`앱 삭제 흔적 백업 파일이 링크라 정리하지 않았어요: ${linkedBackup}`);
+  }
+
+  let stat;
+  try {
+    stat = await fs.lstat(backupPath);
+  } catch {
+    throw new Error("앱 삭제 흔적 백업 파일을 만들지 못해 정리하지 않았어요.");
+  }
+
+  if (stat.isSymbolicLink()) {
+    throw new Error("앱 삭제 흔적 백업 파일이 링크라 정리하지 않았어요.");
+  }
+  if (!stat.isFile()) {
+    throw new Error("앱 삭제 흔적 백업 파일이 파일이 아니라 정리하지 않았어요.");
+  }
+  if (stat.size <= 0) {
+    throw new Error("앱 삭제 흔적 백업 파일이 비어 있어 정리하지 않았어요.");
+  }
+}
+
 export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
   return {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
@@ -137,6 +161,7 @@ export async function backupAndDeleteRegistryKey(options: {
 
   try {
     await runner.exportKey(keyPath, backupPath);
+    await assertRestorableRegistryBackupFile(entryDir, backupPath);
     await fs.writeFile(
       metaPath,
       JSON.stringify(
