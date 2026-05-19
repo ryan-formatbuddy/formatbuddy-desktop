@@ -229,7 +229,13 @@ async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrash
       continue;
     }
     try {
-      const raw = await readFile(join(orphanDir, "manifest.json"), "utf8");
+      const manifestPath = join(orphanDir, "manifest.json");
+      const linkedManifest = await findLinkedPathPart(manifestPath, orphanDir, true);
+      if (linkedManifest) {
+        await rm(orphanDir, { recursive: true, force: true }).catch(() => {});
+        continue;
+      }
+      const raw = await readFile(manifestPath, "utf8");
       const coerced = coerceEntry(JSON.parse(raw));
       if (!coerced || !isManifestEntrySelfContained(userDataDir, entry.name, coerced)) {
         await rm(orphanDir, { recursive: true, force: true }).catch(() => {});

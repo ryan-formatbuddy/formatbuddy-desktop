@@ -792,6 +792,45 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(orphanDir)).toBe(false);
   });
 
+  it("ignores recovered manifests when the entry manifest file is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const entryId = "manifest-link";
+    const orphanDir = __testing.entryDir(fx.userData, entryId);
+    const storedPath = join(orphanDir, "files", "old.tmp");
+    const outsideManifest = join(fx.root, "outside-manifest.json");
+    await mkdir(join(storedPath, ".."), { recursive: true });
+    await writeFile(storedPath, "stored bytes", "utf8");
+    await writeFile(
+      outsideManifest,
+      JSON.stringify(
+        {
+          id: entryId,
+          itemId: "item-linked-manifest",
+          originalPath: join(fx.home, "restored.txt"),
+          storedPath,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 12,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await symlink(outsideManifest, join(orphanDir, "manifest.json"));
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(await readFile(outsideManifest, "utf8")).toContain("item-linked-manifest");
+    expect(existsSync(orphanDir)).toBe(false);
+  });
+
   it("ignores recovered manifests when the managed trash items folder is a symbolic link", async () => {
     if (process.platform === "win32") return;
     const entryId = "linked-items-entry";
