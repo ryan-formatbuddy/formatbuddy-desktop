@@ -191,6 +191,14 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isTrimmedString(value: string): boolean {
+  return value.trim() === value;
+}
+
+function hasDuplicates(values: string[]): boolean {
+  return new Set(values).size !== values.length;
+}
+
 function isValidIsoDateString(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
@@ -365,11 +373,20 @@ export async function executeCleanup(
   if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("cleanup:execute requires planId and confirmationToken");
   }
+  if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
+    throw new Error("cleanup:execute requires planId and confirmationToken without whitespace padding");
+  }
   if (!Array.isArray(request.selectedItemIds) || request.selectedItemIds.length === 0) {
     throw new Error("cleanup:execute requires at least one selected item");
   }
   if (!request.selectedItemIds.every(isNonEmptyString)) {
     throw new Error("cleanup:execute requires selectedItemIds to contain only strings");
+  }
+  if (!request.selectedItemIds.every(isTrimmedString)) {
+    throw new Error("cleanup:execute requires selectedItemIds without whitespace padding");
+  }
+  if (hasDuplicates(request.selectedItemIds)) {
+    throw new Error("cleanup:execute requires selectedItemIds to be unique without duplicates");
   }
   if (request.mode !== "trash" && request.mode !== "permanent") {
     throw new Error(`cleanup:execute received invalid mode ${request.mode}`);

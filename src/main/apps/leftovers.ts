@@ -395,6 +395,14 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isTrimmedString(value: string): boolean {
+  return value.trim() === value;
+}
+
+function hasDuplicates(values: string[]): boolean {
+  return new Set(values).size !== values.length;
+}
+
 function appIdentityKey(app: Pick<InstalledApp, "name" | "publisher">): string {
   return `${(app.name ?? "").trim().toLowerCase()}|${(app.publisher ?? "").trim().toLowerCase()}`;
 }
@@ -865,11 +873,20 @@ export async function cleanupAppLeftovers(
   if (!request?.planId || !request?.confirmationToken) {
     throw new Error("apps:leftovers-cleanup requires planId and confirmationToken");
   }
+  if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
+    throw new Error("apps:leftovers-cleanup requires planId and confirmationToken without whitespace padding");
+  }
   if (!Array.isArray(request.selectedPathIds) || request.selectedPathIds.length === 0) {
     throw new Error("apps:leftovers-cleanup requires at least one selected path");
   }
   if (!request.selectedPathIds.every(isNonEmptyString)) {
     throw new Error("apps:leftovers-cleanup requires selectedPathIds to contain only strings");
+  }
+  if (!request.selectedPathIds.every(isTrimmedString)) {
+    throw new Error("apps:leftovers-cleanup requires selectedPathIds without whitespace padding");
+  }
+  if (hasDuplicates(request.selectedPathIds)) {
+    throw new Error("apps:leftovers-cleanup requires selectedPathIds to be unique without duplicates");
   }
 
   const currentPlan = peekLeftoversPlan(request.planId, request.confirmationToken, options.now);

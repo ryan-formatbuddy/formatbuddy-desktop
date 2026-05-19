@@ -911,6 +911,78 @@ describe("planAppLeftovers", () => {
     await expect(fs.stat(slack)).resolves.toBeTruthy();
   });
 
+  it("rejects duplicate selectedPathIds before touching any leftover path or consuming the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id, path.id]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/duplicate|selectedPathIds/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
+  it("rejects whitespace-padded selectedPathIds before touching any leftover path or consuming the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [` ${path.id}`]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/whitespace|selectedPathIds/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
   it("rejects unknown selectedPathIds before touching any leftover path", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
