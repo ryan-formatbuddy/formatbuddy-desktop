@@ -7,6 +7,7 @@ import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared
 import { EXPECTED_PS_SCRIPT_HASH } from "@shared/ps-script-hash";
 import { generateRecommendation } from "./recommend";
 import { findLinkedPathPart } from "./cleanup/pathSafety";
+import { ensureSafeOutputFilePath } from "./safeOutputPath";
 
 const STDERR_MAX_BYTES = 64 * 1024;
 
@@ -128,50 +129,8 @@ async function ensureScanOutputDir(outputDir: string): Promise<string> {
   return outputDir;
 }
 
-async function findNearestExistingPath(targetPath: string): Promise<string> {
-  let current = targetPath;
-
-  while (current) {
-    try {
-      await fs.lstat(current);
-      return current;
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-    }
-
-    const next = dirname(current);
-    if (next === current) return current;
-    current = next;
-  }
-
-  return targetPath;
-}
-
 async function ensureManifestOutputPath(outputPath: string): Promise<string> {
-  const parent = dirname(outputPath);
-  const existingBoundary = await findNearestExistingPath(parent);
-  const linkedBefore = await findLinkedPathPart(outputPath, existingBoundary, true);
-  if (linkedBefore) {
-    throw new Error(`Backup checklist output path is behind a link: ${linkedBefore}`);
-  }
-
-  await fs.mkdir(parent, { recursive: true });
-
-  const linkedAfter = await findLinkedPathPart(outputPath, existingBoundary, true);
-  if (linkedAfter) {
-    throw new Error(`Backup checklist output path is behind a link: ${linkedAfter}`);
-  }
-
-  try {
-    const stat = await fs.lstat(outputPath);
-    if (stat.isDirectory()) {
-      throw new Error(`Backup checklist output path is a folder: ${outputPath}`);
-    }
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-  }
-
-  return outputPath;
+  return ensureSafeOutputFilePath(outputPath, { label: "Backup checklist" });
 }
 
 export interface RunScanOptions {

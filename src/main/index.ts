@@ -134,6 +134,7 @@ import {
 } from "./updater";
 import { buildHtmlReport, buildHtmlReportFilename } from "./htmlReport";
 import { getAppStateSnapshot, recordScanResult, updateIgnoreList } from "./localState";
+import { ensureSafeOutputFilePath } from "./safeOutputPath";
 import type { Recommendation, ScanReport } from "@shared/types";
 
 /**
@@ -465,8 +466,16 @@ function registerIpc() {
       if (dialogResult.canceled || !dialogResult.filePath) {
         return { saved: false };
       }
-      await fs.writeFile(dialogResult.filePath, JSON.stringify(payload.report, null, 2), "utf8");
-      return { saved: true, path: dialogResult.filePath };
+      try {
+        const outputPath = await ensureSafeOutputFilePath(dialogResult.filePath, {
+          label: "Report export"
+        });
+        await fs.writeFile(outputPath, JSON.stringify(payload.report, null, 2), "utf8");
+        return { saved: true, path: outputPath };
+      } catch (err) {
+        log.error("report:export failed:", err);
+        return { saved: false };
+      }
     }
   );
 
@@ -629,7 +638,7 @@ function registerIpc() {
         runner: defaultWifiExportRunner()
       });
       log.info(
-        `wifi:export status=${result.status} count=${result.profileCount ?? "?"} passwords=${result.includedPasswords}`
+        `wifi:export status=${result.status} count=${result.profileCount ?? "?"} includeSensitive=${result.includedPasswords}`
       );
       await appendAuditEntry(app.getPath("userData"), {
         category: "system",
@@ -938,10 +947,13 @@ function registerIpc() {
         return { saved: false };
       }
       try {
+        const outputPath = await ensureSafeOutputFilePath(dialogResult.filePath, {
+          label: "Report export"
+        });
         const fontBase64 = await readWantedSansBase64();
         const html = buildHtmlReport(payload.report, payload.recommendation, { fontBase64 });
-        await fs.writeFile(dialogResult.filePath, html, "utf8");
-        return { saved: true, path: dialogResult.filePath };
+        await fs.writeFile(outputPath, html, "utf8");
+        return { saved: true, path: outputPath };
       } catch (err) {
         log.error("report:export-html failed:", err);
         return { saved: false };
