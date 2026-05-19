@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CleanupItem } from "../src/shared/types";
@@ -157,6 +157,31 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(source)).toBe(true);
     expect(existsSync(join(source, "linked-cache"))).toBe(true);
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
+  it("removes a prewritten trash entry folder when the source disappears before move", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 5,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow();
+
+    const itemDirs = await readdir(__testing.itemsRoot(fx.userData)).catch(() => []);
+    expect(itemDirs).toEqual([]);
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
   });
 
   it("restores an entry to the original path and removes it from the index", async () => {

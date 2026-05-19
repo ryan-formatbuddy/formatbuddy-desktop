@@ -281,8 +281,13 @@ export async function moveToFormatBuddyTrash(
   };
 
   await mkdir(targetDir, { recursive: true });
-  await writeFile(join(targetDir, "manifest.json"), JSON.stringify(entry, null, 2), "utf8");
-  await movePath(options.item.path, storedPath);
+  try {
+    await writeFile(join(targetDir, "manifest.json"), JSON.stringify(entry, null, 2), "utf8");
+    await movePath(options.item.path, storedPath);
+  } catch (err) {
+    await rm(targetDir, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
 
   const index = await loadIndex(options.userDataDir);
   index.entries = [entry, ...index.entries.filter((e) => e.id !== entry.id)];
