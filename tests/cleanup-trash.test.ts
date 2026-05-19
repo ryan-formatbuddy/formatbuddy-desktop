@@ -205,6 +205,30 @@ describe("FormatBuddy Trash", () => {
     await expect(readdir(outsideItems)).resolves.toEqual([]);
   });
 
+  it("does not write the restore-bin index through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const outsideIndex = join(fx.root, "outside-index.json");
+    const indexLink = __testing.indexPath(fx.userData);
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await mkdir(__testing.trashRoot(fx.userData), { recursive: true });
+    await writeFile(outsideIndex, "outside index stays put", "utf8");
+    await symlink(outsideIndex, indexLink);
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    expect(await readFile(outsideIndex, "utf8")).toBe("outside index stays put");
+    expect((await lstat(indexLink)).isSymbolicLink()).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries.map((item) => item.id)).toEqual([entry.id]);
+  });
+
   it("removes a prewritten trash entry folder when the source disappears before move", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
     await mkdir(join(source, ".."), { recursive: true });

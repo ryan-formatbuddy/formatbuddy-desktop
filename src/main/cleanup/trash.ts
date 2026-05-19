@@ -128,6 +128,14 @@ function coerceIndex(value: unknown): PersistedTrashIndex {
 }
 
 async function loadIndex(userDataDir: string): Promise<PersistedTrashIndex> {
+  const linkedIndex = await findLinkedPathPart(indexPath(userDataDir), userDataDir, true);
+  if (linkedIndex) {
+    if (normalizePath(resolve(linkedIndex)) === normalizePath(resolve(indexPath(userDataDir)))) {
+      await rm(indexPath(userDataDir), { force: true }).catch(() => {});
+    }
+    return emptyIndex();
+  }
+
   try {
     const raw = await readFile(indexPath(userDataDir), "utf8");
     return coerceIndex(JSON.parse(raw));
@@ -142,6 +150,13 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
     throw new Error(`FormatBuddy restore bin folder is a link: ${linkedRoot}`);
   }
   await mkdir(trashRoot(userDataDir), { recursive: true });
+  const linkedIndex = await findLinkedPathPart(indexPath(userDataDir), userDataDir, true);
+  if (linkedIndex) {
+    if (normalizePath(resolve(linkedIndex)) !== normalizePath(resolve(indexPath(userDataDir)))) {
+      throw new Error(`FormatBuddy restore bin index path is behind a link: ${linkedIndex}`);
+    }
+    await rm(indexPath(userDataDir), { force: true });
+  }
   await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
 }
 
