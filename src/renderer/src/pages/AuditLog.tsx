@@ -33,6 +33,19 @@ function formatLocal(at: string): string {
   return new Date(t).toLocaleString("ko-KR");
 }
 
+function isAuditWarning(entry: AuditEntry): boolean {
+  return entry.action.includes("-failed-") || entry.summary.includes("못했어요");
+}
+
+function auditActionLabel(entry: AuditEntry): string {
+  if (entry.action.includes("expired-purge-failed")) return "30일 자동 비움 확인";
+  if (entry.action.includes("expired-purge")) return "30일 자동 비움";
+  if (entry.action === "trash") return "복구함으로 이동";
+  if (entry.action.includes("restore")) return "되돌리기";
+  if (entry.action.includes("defender")) return "Windows 보안 확인";
+  return "활동 기록";
+}
+
 export function AuditLog({ onBack }: AuditLogProps) {
   const [snapshot, setSnapshot] = useState<AuditSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,66 +151,95 @@ export function AuditLog({ onBack }: AuditLogProps) {
         </section>
       )}
 
-      {entries.map((entry, idx) => (
-        <article
-          key={entry.id}
-          className="fb-card fb-anim-slide fb-card-hover"
-          style={{ marginBottom: 12, animationDelay: `${Math.min(idx, 8) * 30}ms` }}
-        >
-          <header
+      {entries.map((entry, idx) => {
+        const warning = isAuditWarning(entry);
+        return (
+          <article
+            key={entry.id}
+            className="fb-card fb-anim-slide fb-card-hover"
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              flexWrap: "wrap",
-              marginBottom: 4
+              marginBottom: 12,
+              animationDelay: `${Math.min(idx, 8) * 30}ms`,
+              borderColor: warning ? "rgba(217, 119, 6, 0.35)" : undefined,
+              background: warning
+                ? "linear-gradient(180deg, rgba(255, 251, 235, 0.96), rgba(255, 255, 255, 0.98))"
+                : undefined
             }}
           >
-            <span
+            <header
               style={{
-                background: CATEGORY_COLOR[entry.category],
-                color: "#fff",
-                padding: "2px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 600
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+                marginBottom: 4
               }}
             >
-              {CATEGORY_LABEL[entry.category]}
-            </span>
-            <strong style={{ fontSize: 14 }}>{entry.action}</strong>
-            <small style={{ opacity: 0.6, marginLeft: "auto" }}>
-              {formatLocal(entry.at)}
-            </small>
-          </header>
-          <p style={{ fontSize: 14, margin: "4px 0" }}>{entry.summary}</p>
-          {entry.category === "cleanup" && entry.action === "trash" && (
-            <small style={{ display: "block", opacity: 0.65, marginTop: 4 }}>
-              되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.
-            </small>
-          )}
-          {entry.detail && (
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ fontSize: 12, opacity: 0.65, cursor: "pointer" }}>
-                상세 보기
-              </summary>
-              <pre
+              <span
                 style={{
+                  background: CATEGORY_COLOR[entry.category],
+                  color: "#fff",
+                  padding: "2px 8px",
+                  borderRadius: 999,
                   fontSize: 11,
-                  background: "rgba(0,0,0,0.04)",
-                  padding: 8,
-                  borderRadius: 4,
-                  marginTop: 6,
-                  maxHeight: 200,
-                  overflow: "auto"
+                  fontWeight: 600
                 }}
               >
-                {JSON.stringify(entry.detail, null, 2)}
-              </pre>
-            </details>
-          )}
-        </article>
-      ))}
+                {CATEGORY_LABEL[entry.category]}
+              </span>
+              {warning && (
+                <span
+                  style={{
+                    background: "#f59e0b",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700
+                  }}
+                >
+                  확인 필요
+                </span>
+              )}
+              <strong style={{ fontSize: 14 }}>{auditActionLabel(entry)}</strong>
+              <small style={{ opacity: 0.6, marginLeft: "auto" }}>
+                {formatLocal(entry.at)}
+              </small>
+            </header>
+            <p style={{ fontSize: 14, margin: "4px 0" }}>{entry.summary}</p>
+            {warning && (
+              <small style={{ display: "block", opacity: 0.72, marginTop: 4 }}>
+                아직 비우지 못한 항목은 복구함에 남겨뒀어요. 다음 자동 비움 때 한 번 더 확인해요.
+              </small>
+            )}
+            {entry.category === "cleanup" && entry.action === "trash" && (
+              <small style={{ display: "block", opacity: 0.65, marginTop: 4 }}>
+                되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.
+              </small>
+            )}
+            {entry.detail && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 12, opacity: 0.65, cursor: "pointer" }}>
+                  상세 보기
+                </summary>
+                <pre
+                  style={{
+                    fontSize: 11,
+                    background: "rgba(0,0,0,0.04)",
+                    padding: 8,
+                    borderRadius: 4,
+                    marginTop: 6,
+                    maxHeight: 200,
+                    overflow: "auto"
+                  }}
+                >
+                  {JSON.stringify(entry.detail, null, 2)}
+                </pre>
+              </details>
+            )}
+          </article>
+        );
+      })}
     </main>
   );
 }
