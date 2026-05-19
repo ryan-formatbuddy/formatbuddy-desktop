@@ -493,24 +493,26 @@ function genericFolderNames(app: InstalledApp): string[] {
   return Array.from(new Set(candidates));
 }
 
-function stripPublisherSuffix(value: string): string {
-  return value
-    .replace(
-      /\s*(?:,?\s*)?(?:incorporated|inc|llc|ltd|limited|corp|corporation|co|company|gmbh|pte\.?\s*ltd|labs)\.?$/i,
-      ""
-    )
-    .trim();
+const PUBLISHER_LEGAL_SUFFIX_PATTERN =
+  /\s*(?:,?\s*)?(?:incorporated|inc|llc|ltd|limited|corp|corporation|co|company|gmbh|pte\.?\s*ltd|labs)\.?$/i;
+
+function publisherNameVariants(value: string): string[] {
+  const variants: string[] = [];
+  let current = cleanGenericName(value);
+
+  for (let attempts = 0; attempts < 4 && current; attempts += 1) {
+    variants.push(current);
+    const next = cleanGenericName(current.replace(PUBLISHER_LEGAL_SUFFIX_PATTERN, ""));
+    if (!next || next === current) break;
+    current = next;
+  }
+
+  return variants;
 }
 
 function genericPublisherFolderNames(app: InstalledApp): string[] {
-  const raw = cleanGenericName(app.publisher ?? "");
-  const withoutLegalSuffix = stripPublisherSuffix(raw);
-  const candidates = [
-    raw,
-    withoutLegalSuffix,
-    raw.replace(/\s+/g, ""),
-    withoutLegalSuffix.replace(/\s+/g, "")
-  ]
+  const candidates = publisherNameVariants(app.publisher ?? "")
+    .flatMap((name) => [name, name.replace(/\s+/g, "")])
     .map((value) => value.trim())
     .filter(isUsefulGenericName);
 

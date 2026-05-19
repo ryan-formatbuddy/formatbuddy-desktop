@@ -161,6 +161,28 @@ describe("planAppLeftovers", () => {
     );
   });
 
+  it("finds nested publisher folders with multi-part legal suffixes", async () => {
+    const nestedRoaming = join(fx.roaming, "Acme Co", "Acme Notes");
+    const nestedLocal = join(fx.localAppData, "Acme", "AcmeNotes");
+    await fs.mkdir(nestedRoaming, { recursive: true });
+    await fs.mkdir(nestedLocal, { recursive: true });
+    await fs.writeFile(join(nestedRoaming, "settings.json"), "{}", "utf8");
+    await fs.writeFile(join(nestedLocal, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Acme Notes", publisher: "Acme Co., Ltd." }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].paths.map((p) => p.path).sort()).toEqual(
+      [nestedLocal, nestedRoaming].sort()
+    );
+  });
+
   it("does not create generic leftover groups when the app folders do not exist", async () => {
     const snapshot = await planAppLeftovers(
       [{ name: "Obscure Notes", publisher: "Tiny Vendor" }],
