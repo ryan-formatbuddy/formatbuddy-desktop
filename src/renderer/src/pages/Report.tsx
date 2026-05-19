@@ -768,7 +768,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, [report.wingetExport]);
 
   const onExport = useCallback(async () => {
-    if (!window.fb) return;
+    if (!window.fb) {
+      setExportStatus("자세한 파일 저장을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setExportStatus(null);
     const res = await window.fb.exportReport(report, { defaultFileName: "포맷버디_문제해결용_자세한파일.json" });
     if (res.saved && res.path) setExportStatus(`${copy.reportSavedPrefix}${res.path}`);
@@ -776,7 +779,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, [report]);
 
   const onExportHtml = useCallback(async () => {
-    if (!window.fb?.exportHtmlReport) return;
+    if (!window.fb?.exportHtmlReport) {
+      setExportStatus("공유용 리포트 저장을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setExportStatus(null);
     const res = await window.fb.exportHtmlReport(report, recommendation);
     if (res.saved && res.path)
@@ -785,13 +791,23 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, [report, recommendation]);
 
   const onOpenWeb = useCallback(async () => {
-    if (!window.fb) return;
+    if (!window.fb) {
+      setExportStatus("웹 리포트 열기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     await window.fb.openWebReport();
   }, []);
 
   const [runStatus, setRunStatus] = useState<string | null>(null);
   const runAction = useCallback(async (action: ActionItem) => {
-    if (!action.command || !window.fb?.runActionCommand) return;
+    if (!action.command) {
+      setRunStatus("지금 바로 열 수 있는 Windows 화면이 없어요. 아래 안내대로 직접 확인해주세요.");
+      return;
+    }
+    if (!window.fb?.runActionCommand) {
+      setRunStatus("Windows 화면 열기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setRunStatus(null);
     const res = await window.fb.runActionCommand(action.command);
     if (res.mode === "opened-url") setRunStatus(copy.recommendRunOpenedToast);
@@ -813,7 +829,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, []);
 
   const onExportManifest = useCallback(async () => {
-    if (!window.fb) return;
+    if (!window.fb) {
+      setManifestStatus("복원 준비 파일 만들기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setManifestStatus(null);
     setManifestRunning(true);
     try {
@@ -833,7 +852,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, []);
 
   const onBackupDrivers = useCallback(async () => {
-    if (!window.fb?.backupDrivers) return;
+    if (!window.fb?.backupDrivers) {
+      setDriverStatus("드라이버 백업을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setDriverStatus(null);
     setDriverRunning(true);
     try {
@@ -847,7 +869,10 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   }, []);
 
   const onExportWifi = useCallback(async () => {
-    if (!window.fb?.exportWifiProfiles) return;
+    if (!window.fb?.exportWifiProfiles) {
+      setWifiStatus("Wi-Fi 목록 저장을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      return;
+    }
     setWifiStatus(null);
     setWifiRunning(true);
     try {
