@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -223,6 +223,97 @@ describe("registry leftover cleanup", () => {
     });
     const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
     expect(snapshot.entries).toEqual([]);
+  });
+
+  it("runs the safety hook before importing a registry backup", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+      })
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+
+    await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      beforeImport: async () => {
+        calls.push("safety-hook");
+      }
+    });
+
+    expect(calls).toEqual(["safety-hook", "import"]);
+  });
+
+  it("keeps importing when the best-effort safety hook fails", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      beforeImport: async () => {
+        throw new Error("restore point unavailable");
+      }
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
+  });
+
+  it("reports missing-backup when the metadata exists but the reg file is gone", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+    await rm(result.backupPath);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(restored).toMatchObject({
+      backupId: result.id,
+      status: "missing-backup",
+      keyPath
+    });
+    expect(runner.importFile).not.toHaveBeenCalled();
   });
 
   it("refuses unsafe backup ids when restoring registry backups", async () => {

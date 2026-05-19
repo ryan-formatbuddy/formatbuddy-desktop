@@ -789,7 +789,8 @@ function registerIpc() {
       const userDataDir = app.getPath("userData");
       const result = await restoreRegistryBackup({
         userDataDir,
-        backupId: request.backupId
+        backupId: request.backupId,
+        beforeImport: () => maybeCreateRestorePoint("레지스트리 백업 되돌리기")
       });
       await appendAuditEntry(userDataDir, {
         category: "cleanup",

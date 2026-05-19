@@ -141,7 +141,28 @@ async function readRegistryBackupEntry(
   userDataDir: string,
   backupId: string
 ): Promise<RegistryBackupEntry | null> {
-  if (!isSafeRegistryBackupId(backupId)) return null;
+  const result = await readRegistryBackupEntryForRestore(userDataDir, backupId);
+  return result.kind === "entry" ? result.entry : null;
+}
+
+type RegistryBackupReadResult =
+  | { kind: "entry"; entry: RegistryBackupEntry }
+  | { kind: "restore-result"; result: RegistryBackupRestoreResult };
+
+async function readRegistryBackupEntryForRestore(
+  userDataDir: string,
+  backupId: string
+): Promise<RegistryBackupReadResult> {
+  if (!isSafeRegistryBackupId(backupId)) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "blocked-path",
+        message: "복구함 항목 이름이 안전하지 않아 되돌리지 않았어요."
+      }
+    };
+  }
 
   const root = registryBackupItemsRoot(userDataDir);
   const entryDir = join(root, backupId);
@@ -149,32 +170,130 @@ async function readRegistryBackupEntry(
   const metaPath = join(entryDir, "meta.json");
 
   const linkedEntry = await findLinkedPathPart(entryDir, userDataDir, true);
-  if (linkedEntry) return null;
+  if (linkedEntry) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "blocked-path",
+        message: "레지스트리 백업 폴더가 링크라 되돌리지 않았어요."
+      }
+    };
+  }
   const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
-  if (linkedMeta) return null;
+  if (linkedMeta) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "blocked-path",
+        message: "레지스트리 백업 정보 파일이 링크라 되돌리지 않았어요."
+      }
+    };
+  }
   const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
-  if (linkedBackup) return null;
+  if (linkedBackup) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "blocked-path",
+        message: "레지스트리 백업 파일이 링크라 되돌리지 않았어요."
+      }
+    };
+  }
+
+  let raw: Partial<RegistryBackupEntry>;
+  try {
+    raw = JSON.parse(await fs.readFile(metaPath, "utf8")) as Partial<RegistryBackupEntry>;
+  } catch {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "not-found",
+        message: "레지스트리 백업을 찾지 못했어요."
+      }
+    };
+  }
+
+  if (raw.id !== backupId) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "not-found",
+        message: "레지스트리 백업 정보를 확인하지 못했어요."
+      }
+    };
+  }
+  if (typeof raw.keyPath !== "string" || !isSafeUninstallRegistryKeyPath(raw.keyPath)) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "blocked-path",
+        message: "지원하는 앱 제거 레지스트리 위치가 아니라 되돌리지 않았어요."
+      }
+    };
+  }
+  if (!isValidIso(raw.createdAt) || !isValidIso(raw.expiresAt)) {
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "not-found",
+        message: "레지스트리 백업 정보를 확인하지 못했어요."
+      }
+    };
+  }
+
+  const entry: RegistryBackupEntry = {
+    id: backupId,
+    keyPath: normalizeRegistryKeyPath(raw.keyPath),
+    backupPath,
+    createdAt: raw.createdAt,
+    expiresAt: raw.expiresAt
+  };
 
   try {
-    const raw = JSON.parse(await fs.readFile(metaPath, "utf8")) as Partial<RegistryBackupEntry>;
-    if (raw.id !== backupId) return null;
-    if (typeof raw.keyPath !== "string" || !isSafeUninstallRegistryKeyPath(raw.keyPath)) {
-      return null;
-    }
-    if (!isValidIso(raw.createdAt) || !isValidIso(raw.expiresAt)) return null;
-
     const backupStat = await fs.lstat(backupPath);
-    if (!backupStat.isFile() || backupStat.isSymbolicLink()) return null;
-
-    return {
-      id: backupId,
-      keyPath: normalizeRegistryKeyPath(raw.keyPath),
-      backupPath,
-      createdAt: raw.createdAt,
-      expiresAt: raw.expiresAt
-    };
+    if (backupStat.isSymbolicLink()) {
+      return {
+        kind: "restore-result",
+        result: {
+          backupId,
+          status: "blocked-path",
+          message: "레지스트리 백업 파일이 링크라 되돌리지 않았어요.",
+          keyPath: entry.keyPath,
+          entry
+        }
+      };
+    }
+    if (!backupStat.isFile()) {
+      return {
+        kind: "restore-result",
+        result: {
+          backupId,
+          status: "missing-backup",
+          message: "레지스트리 백업 파일이 보이지 않아요.",
+          keyPath: entry.keyPath,
+          entry
+        }
+      };
+    }
+    return { kind: "entry", entry };
   } catch {
-    return null;
+    return {
+      kind: "restore-result",
+      result: {
+        backupId,
+        status: "missing-backup",
+        message: "레지스트리 백업 파일이 보이지 않아요.",
+        keyPath: entry.keyPath,
+        entry
+      }
+    };
   }
 }
 
@@ -264,6 +383,7 @@ export async function restoreRegistryBackup(options: {
   backupId: string;
   now?: () => Date;
   runner?: RegistryCleanupRunner;
+  beforeImport?: () => Promise<void>;
 }): Promise<RegistryBackupRestoreResult> {
   if (!isSafeRegistryBackupId(options.backupId)) {
     return {
@@ -278,14 +398,9 @@ export async function restoreRegistryBackup(options: {
     now: options.now
   });
 
-  const entry = await readRegistryBackupEntry(options.userDataDir, options.backupId);
-  if (!entry) {
-    return {
-      backupId: options.backupId,
-      status: "not-found",
-      message: "레지스트리 백업을 찾지 못했어요."
-    };
-  }
+  const readResult = await readRegistryBackupEntryForRestore(options.userDataDir, options.backupId);
+  if (readResult.kind === "restore-result") return readResult.result;
+  const { entry } = readResult;
 
   const importFile = options.runner?.importFile ?? defaultRegistryCleanupRunner().importFile;
   if (!importFile) {
@@ -299,6 +414,7 @@ export async function restoreRegistryBackup(options: {
   }
 
   try {
+    await options.beforeImport?.().catch(() => {});
     await importFile(entry.backupPath);
     await fs.rm(join(registryBackupItemsRoot(options.userDataDir), entry.id), {
       recursive: true,
