@@ -145,6 +145,28 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not delete when the registry backup export does not look like a reg file", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "not a registry backup", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/레지스트리 백업|registry backup/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("does not delete when the registry backup export writes through a symbolic link", async () => {
     if (process.platform === "win32") return;
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";

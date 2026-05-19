@@ -124,6 +124,11 @@ async function assertRestorableRegistryBackupFile(entryDir: string, backupPath: 
   if (stat.size <= 0) {
     throw new Error("앱 삭제 흔적 백업 파일이 비어 있어 정리하지 않았어요.");
   }
+
+  const head = (await fs.readFile(backupPath, "utf8")).slice(0, 256).trimStart();
+  if (!/^Windows Registry Editor Version\s+\d+(?:\.\d+)?/i.test(head) && !/^REGEDIT4\b/i.test(head)) {
+    throw new Error("앱 삭제 흔적 백업 파일이 레지스트리 백업 형식이 아니라 정리하지 않았어요.");
+  }
 }
 
 async function writeRegistryBackupMetaFile(
