@@ -73,8 +73,9 @@ function storedPathFor(userDataDir: string, entryId: string, originalPath: strin
   return join(entryDir(userDataDir, entryId), "files", base);
 }
 
-export function isSafeTrashEntryId(entryId: string): boolean {
+export function isSafeTrashEntryId(entryId: unknown): entryId is string {
   return (
+    typeof entryId === "string" &&
     entryId.length > 0 &&
     entryId !== "." &&
     entryId !== ".." &&
@@ -522,7 +523,7 @@ export async function restoreTrashEntry(
 ): Promise<CleanupTrashRestoreResult> {
   if (!isSafeTrashEntryId(options.entryId)) {
     return {
-      entryId: options.entryId,
+      entryId: typeof options.entryId === "string" ? options.entryId : "",
       status: "blocked-path",
       message: "복구함 항목 이름이 안전하지 않아 되돌리지 않았어요."
     };

@@ -36,8 +36,9 @@ export function isSafeUninstallRegistryKeyPath(keyPath: string): boolean {
   return SAFE_UNINSTALL_KEY_PATTERN.test(normalized);
 }
 
-export function isSafeRegistryBackupId(backupId: string): boolean {
+export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
   return (
+    typeof backupId === "string" &&
     backupId.length > 0 &&
     backupId !== "." &&
     backupId !== ".." &&
@@ -536,7 +537,7 @@ export async function restoreRegistryBackup(options: {
 }): Promise<RegistryBackupRestoreResult> {
   if (!isSafeRegistryBackupId(options.backupId)) {
     return {
-      backupId: options.backupId,
+      backupId: typeof options.backupId === "string" ? options.backupId : "",
       status: "blocked-path",
       message: "복구함 항목 이름이 안전하지 않아 되돌리지 않았어요."
     };

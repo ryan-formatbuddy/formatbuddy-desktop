@@ -696,4 +696,21 @@ describe("registry leftover cleanup", () => {
     expect(result.status).toBe("blocked-path");
     expect(runner.importFile).not.toHaveBeenCalled();
   });
+
+  it("refuses non-string backup ids when restoring registry backups without throwing", async () => {
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+
+    const result = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: null as unknown as string,
+      runner
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
 });
