@@ -30,6 +30,7 @@ import type {
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
+import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { moveToFormatBuddyTrash } from "../cleanup/trash";
 import {
   backupAndDeleteRegistryKey,
@@ -73,6 +74,8 @@ const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지
 const UNREADABLE_LEFTOVER_PROTECTION = "권한이 없어 잔여 폴더를 정확히 확인하지 못했어요.";
 const UNSAFE_REGISTRY_PROTECTION =
   "지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.";
+const CHANGED_LEFTOVER_PROTECTION =
+  "잔여 폴더가 점검 후 바뀌었어요. 다시 점검한 뒤 정리해주세요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -832,6 +835,29 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
     : "execute-failed";
 }
 
+function leftoverChangedSincePlan(
+  planned: AppLeftoverPath,
+  measured: Awaited<ReturnType<typeof measurePath>>
+): boolean {
+  if (
+    typeof planned.sizeBytes === "number" &&
+    typeof measured.sizeBytes === "number" &&
+    Math.round(planned.sizeBytes) !== Math.round(measured.sizeBytes)
+  ) {
+    return true;
+  }
+
+  if (planned.lastModifiedAt && measured.lastModifiedAt) {
+    const plannedTime = Date.parse(planned.lastModifiedAt);
+    const measuredTime = Date.parse(measured.lastModifiedAt);
+    if (Number.isFinite(plannedTime) && Number.isFinite(measuredTime)) {
+      return plannedTime !== measuredTime;
+    }
+  }
+
+  return false;
+}
+
 export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
   options: CleanupAppLeftoversOptions
@@ -953,6 +979,17 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
+    const linkedPathPart = await findLinkedPathPart(path.path, cached.env.home, true);
+    if (linkedPathPart) {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: LINKED_LEFTOVER_PROTECTION
+      });
+      continue;
+    }
+
     const decision = evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
     if (!decision.allowed) {
       skippedItems.push({
@@ -975,6 +1012,15 @@ export async function cleanupAppLeftovers(
         path: path.path,
         reason: "blocked-path",
         detail: measured.protectedBy
+      });
+      continue;
+    }
+    if (leftoverChangedSincePlan(path, measured)) {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: CHANGED_LEFTOVER_PROTECTION
       });
       continue;
     }
