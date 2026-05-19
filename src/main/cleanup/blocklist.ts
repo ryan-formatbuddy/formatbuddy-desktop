@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 6;
+export const BLOCKLIST_VERSION = 7;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -95,6 +95,12 @@ function exactPathRule(id: string, label: string, roots: string[]): BlockRule {
     label,
     match: (p) => normalizedRoots.includes(p)
   };
+}
+
+function isSupportedAbsolutePath(input: string): boolean {
+  let p = input.trim();
+  if (p.startsWith("\\\\?\\")) p = p.slice(4);
+  return /^[a-z]:[\\/]/i.test(p) || p.startsWith("\\\\") || p.startsWith("/");
 }
 
 function isBroadSystemRoot(p: string): boolean {
@@ -366,6 +372,7 @@ export interface BlocklistOptions {
 export function evaluatePath(rawPath: string, opts: BlocklistOptions): BlocklistDecision {
   const normalized = normalizePath(rawPath);
   if (!normalized) return { allowed: false, blockedBy: "empty-path" };
+  if (!isSupportedAbsolutePath(rawPath)) return { allowed: false, blockedBy: "relative-path" };
 
   const home = opts.home ?? homedir();
   const normalizedAllowRoots = opts.allowRoots

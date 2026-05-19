@@ -47,6 +47,15 @@ describe("evaluatePath — whitelist enforcement", () => {
     expect(result.blockedBy).toBe("no-allow-root");
   });
 
+  it("rejects relative paths before checking the allow-root", () => {
+    const result = evaluatePath("relative-restore.tmp", {
+      allowRoots: ["relative-restore.tmp"],
+      home: HOME
+    });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedBy).toBe("relative-path");
+  });
+
   it("accepts a path inside its allowed root with no blocklist match", () => {
     const result = evaluatePath("C:\\Users\\Ryan\\AppData\\Local\\Temp\\old.tmp", {
       allowRoots: ["C:\\Users\\Ryan\\AppData\\Local\\Temp"],
@@ -183,7 +192,7 @@ describe("evaluatePath — user-scoped blocklist", () => {
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(6);
+    expect(BLOCKLIST_VERSION).toBe(7);
   });
 });
 
