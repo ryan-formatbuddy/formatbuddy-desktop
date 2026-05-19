@@ -688,6 +688,12 @@ function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): C
   };
 }
 
+function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"] {
+  return /cleanup-trash refuses|링크|보호 경로|protected source path/i.test(message)
+    ? "blocked-path"
+    : "execute-failed";
+}
+
 export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
   options: { userDataDir: string; now?: () => Date } 
@@ -797,11 +803,12 @@ export async function cleanupAppLeftovers(
         expiresAt: trashEntry.expiresAt
       });
     } catch (err) {
+      const message = (err as Error).message;
       skippedItems.push({
         itemId: cleanupItem.id,
         path: cleanupItem.path,
-        reason: "execute-failed",
-        detail: (err as Error).message
+        reason: skipReasonFromTrashError(message),
+        detail: message
       });
     }
   }

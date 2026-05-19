@@ -386,6 +386,46 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("reports a blocked path when a leftover path starts going through a symbolic-link parent before cleanup", async () => {
+    if (process.platform === "win32") return;
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const outsideRoaming = join(fx.root, "outside-roaming");
+    await fs.rm(fx.roaming, { recursive: true, force: true });
+    await fs.mkdir(join(outsideRoaming, "Slack"), { recursive: true });
+    await fs.writeFile(join(outsideRoaming, "Slack", "cache.bin"), "outside", "utf8");
+    await fs.symlink(outsideRoaming, fx.roaming, "dir");
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: slack,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/링크/);
+    await expect(fs.readFile(join(outsideRoaming, "Slack", "cache.bin"), "utf8")).resolves.toBe(
+      "outside"
+    );
+  });
+
   it("discards an app leftover cleanup plan after a wrong confirmation token", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
