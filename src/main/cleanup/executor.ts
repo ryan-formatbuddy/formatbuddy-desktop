@@ -38,6 +38,7 @@ import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
+  assertManagedTrashEntryManifest,
   findLinkedManagedTrashStoredPath,
   isManagedTrashEntryStoredPath,
   isManagedTrashStoredPath,
@@ -346,6 +347,13 @@ async function attemptItem(
       if (linkedStoredPath) {
         throw new Error(`FormatBuddy stored trash path contains a link: ${linkedStoredPath}`);
       }
+      await assertManagedTrashEntryManifest({
+        userDataDir: context.userDataDir,
+        entryId: trashEntry.id,
+        originalPath: item.path,
+        storedPath: trashEntry.storedPath,
+        expiresAt: trashEntry.expiresAt
+      });
     }
     return {
       removed: {

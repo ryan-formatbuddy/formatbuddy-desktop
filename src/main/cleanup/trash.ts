@@ -331,6 +331,58 @@ export async function findLinkedManagedTrashStoredPath(
   return findLinkedDescendant(candidatePath);
 }
 
+export async function assertManagedTrashEntryManifest(options: {
+  userDataDir: string;
+  entryId: string;
+  originalPath: string;
+  storedPath: string;
+  expiresAt: string;
+}): Promise<void> {
+  if (!isSafeTrashEntryId(options.entryId)) {
+    throw new Error("FormatBuddy restore manifest entry id is not safe");
+  }
+
+  const dir = entryDir(options.userDataDir, options.entryId);
+  const manifestPath = join(dir, "manifest.json");
+  const linkedManifest = await findLinkedPathPart(manifestPath, dir, true);
+  if (linkedManifest) {
+    throw new Error(`FormatBuddy restore manifest is a link: ${linkedManifest}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch {
+    throw new Error("FormatBuddy restore manifest was not created");
+  }
+
+  const entry = coerceEntry(parsed);
+  if (!entry) {
+    throw new Error("FormatBuddy restore manifest is not readable");
+  }
+  if (entry.id !== options.entryId) {
+    throw new Error("FormatBuddy restore manifest id does not match the restore entry");
+  }
+  if (
+    normalizePath(resolve(entry.originalPath)) !==
+    normalizePath(resolve(options.originalPath))
+  ) {
+    throw new Error("FormatBuddy restore manifest original path does not match the cleaned item");
+  }
+  if (
+    normalizePath(resolve(entry.storedPath)) !==
+    normalizePath(resolve(options.storedPath))
+  ) {
+    throw new Error("FormatBuddy restore manifest stored path does not match the restore entry");
+  }
+  if (entry.expiresAt !== options.expiresAt) {
+    throw new Error("FormatBuddy restore manifest expiry does not match the restore entry");
+  }
+  if (!isManagedTrashEntryStoredPath(options.userDataDir, options.entryId, entry.storedPath)) {
+    throw new Error("FormatBuddy restore manifest stored path is outside the restore entry folder");
+  }
+}
+
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const recovered = await recoverManifestEntries(userDataDir);
   const index = await loadIndex(userDataDir);
