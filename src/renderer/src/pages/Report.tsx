@@ -948,7 +948,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             return (
               <article
                 key={axis.id}
-                className="fb-card"
+                className="fb-card fb-card-hover"
                 style={{ borderLeft: `4px solid ${tone}` }}
               >
                 <div style={{ fontSize: 12, opacity: 0.65 }}>{axis.label}</div>
@@ -981,7 +981,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           }}
         >
           {onOpenCleanup && (
-            <article className="fb-card">
+            <article className="fb-card fb-card-hover">
               <h3 style={{ marginTop: 0 }}>{copy.nextStepsCleanup}</h3>
               <p style={{ fontSize: 13 }}>{copy.nextStepsCleanupHint}</p>
               <Button
@@ -995,7 +995,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             </article>
           )}
           {onOpenAppManager && (
-            <article className="fb-card">
+            <article className="fb-card fb-card-hover">
               <h3 style={{ marginTop: 0 }}>{copy.nextStepsApps}</h3>
               <p style={{ fontSize: 13 }}>{copy.nextStepsAppsHint}</p>
               <Button
@@ -1009,7 +1009,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             </article>
           )}
           {onOpenSecurity && (
-            <article className="fb-card">
+            <article className="fb-card fb-card-hover">
               <h3 style={{ marginTop: 0 }}>{copy.nextStepsSecurity}</h3>
               <p style={{ fontSize: 13 }}>{copy.nextStepsSecurityHint}</p>
               <Button
@@ -1022,7 +1022,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
               </Button>
             </article>
           )}
-          <article className="fb-card">
+          <article className="fb-card fb-card-hover">
             <h3 style={{ marginTop: 0 }}>{copy.nextStepsReport}</h3>
             <p style={{ fontSize: 13 }}>{copy.nextStepsReportHint}</p>
             <div style={{ display: "flex", gap: 6 }}>
@@ -1035,7 +1035,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             </div>
           </article>
           {onRescan && (
-            <article className="fb-card">
+            <article className="fb-card fb-card-hover">
               <h3 style={{ marginTop: 0 }}>{copy.nextStepsRescan}</h3>
               <p style={{ fontSize: 13 }}>{copy.nextStepsRescanHint}</p>
               <Button variant="primary" size="sm" onClick={onRescan}>
@@ -1089,7 +1089,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       </section>
 
       <section className="fb-report-advice">
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>{copy.recommendTryFirstTitle}</h3>
           <ul className="fb-advice-list">
             {recommendation.tryFirst.map((a, i) => (
@@ -1114,7 +1114,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           </ul>
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>{copy.recommendFormatReasonsTitle}</h3>
           {recommendation.formatReasons.length === 0 ? (
             <p className="fb-report-card-explain">{copy.recommendNoReasons}</p>
@@ -1143,7 +1143,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           )}
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>{copy.recommendAfterFormatTitle}</h3>
           <ul className="fb-advice-list">
             {recommendation.afterFormat.map((a, i) => (
@@ -1176,7 +1176,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       )}
 
       <section className="fb-report-grid">
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>이 PC</h3>
           <Row label="모델" value={`${report.system.manufacturer ?? "—"} ${report.system.model ?? ""}`.trim() || "—"} />
           <Row label="운영체제" value={report.system.osCaption ?? "—"} />
@@ -1184,7 +1184,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           <Row label="메모리" value={formatGb(report.system.memoryGb)} />
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>저장 공간</h3>
           <Row label="총 용량" value={formatGb(totalDiskGb)} />
           <Row label="여유 공간" value={formatGb(totalFreeGb)} />
@@ -1193,7 +1193,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           ))}
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>같이 챙길 것</h3>
           <Row label="공동인증서 후보" value={npkiFound > 0 ? `${npkiFound}곳 발견` : "찾지 못했어요"} />
           <Row label="클라우드 동기화" value={cloudFound > 0 ? `${cloudFound}개 연결됨` : "연결 없음"} />
@@ -1201,7 +1201,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           <Row label="BitLocker" value={report.bitlocker.length > 0 ? "암호화 볼륨 있음" : "확인 필요"} />
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>설치된 앱 / 드라이버</h3>
           <Row label="설치된 앱" value={`${installedCount}개`} />
           <Row label="드라이버" value={`${driverCount}개`} />
@@ -1209,14 +1209,14 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           <Row label="프린터" value={`${report.printers.length}개`} />
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>사용자 폴더</h3>
           {report.userFolders.map((f) => (
             <Row key={f.name} label={friendlyFolderName(f.name)} value={formatGb(f.sizeGb)} />
           ))}
         </article>
 
-        <article className="fb-card">
+        <article className="fb-card fb-card-hover">
           <h3>{copy.wingetSectionTitle}</h3>
           {report.winget.available ? (
             <p className="fb-report-card-explain">
@@ -1266,7 +1266,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             gap: 12
           }}
         >
-          <article className="fb-card">
+          <article className="fb-card fb-card-hover">
             <h3 style={{ marginTop: 0 }}>드라이버 백업</h3>
             <p style={{ fontSize: 13 }}>
               네트워크·프린터·지문인식 같은 제3자 드라이버를 사용자가 고른 폴더에 모아둬요. 포맷
@@ -1289,7 +1289,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
             )}
           </article>
 
-          <article className="fb-card">
+          <article className="fb-card fb-card-hover">
             <h3 style={{ marginTop: 0 }}>Wi-Fi 프로필 백업</h3>
             <p style={{ fontSize: 13 }}>
               저장된 Wi-Fi 프로필을 XML로 내보내요. 비밀번호는 기본으로 빼고, 필요할 때만 평문 포함해요.
