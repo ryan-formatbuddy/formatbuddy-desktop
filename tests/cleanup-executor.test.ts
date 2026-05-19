@@ -739,6 +739,53 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/stored trash path.*link/i);
   });
 
+  it("does not count trash mode as successful when the stored trash folder contains a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const entryId = "trash-folder-with-link";
+    const storedPath = join(
+      fx.userData,
+      "formatbuddy-trash",
+      "items",
+      entryId,
+      "files",
+      "old-folder"
+    );
+    const outsideStoredFolder = join(fx.root, "outside-stored-folder");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(storedPath, { recursive: true });
+        await fs.writeFile(join(storedPath, "visible.tmp"), "visible", "utf8");
+        await fs.mkdir(outsideStoredFolder, { recursive: true });
+        await fs.symlink(outsideStoredFolder, join(storedPath, "linked-folder"), "dir");
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: entryId,
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          storedPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect((await fs.lstat(join(storedPath, "linked-folder"))).isSymbolicLink()).toBe(true);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/stored trash path.*link/i);
+  });
+
   it("does not count trash mode as successful when the original path still exists", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
     const storedPath = join(fx.userData, "formatbuddy-trash", "items", "trash-but-source-left", "files", "old.tmp");

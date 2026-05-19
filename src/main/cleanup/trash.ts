@@ -217,7 +217,9 @@ export async function findLinkedManagedTrashStoredPath(
   if (!isManagedTrashEntryStoredPath(userDataDir, entryId, candidatePath)) {
     return candidatePath;
   }
-  return findLinkedPathPart(candidatePath, userDataDir, true);
+  const linkedPathPart = await findLinkedPathPart(candidatePath, userDataDir, true);
+  if (linkedPathPart) return linkedPathPart;
+  return findLinkedDescendant(candidatePath);
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
