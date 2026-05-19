@@ -564,8 +564,15 @@ export function AppManager({
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
-      if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;
-      if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;
+      const missingRestoreBridge =
+        (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
+        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup);
+      if (missingRestoreBridge) {
+        setRecentRestoreMessage(
+          "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
+        );
+        return;
+      }
 
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);

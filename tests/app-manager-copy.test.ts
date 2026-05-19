@@ -50,6 +50,15 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
+  it("shows a friendly message when recent restore cannot reach the app bridge", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("const missingRestoreBridge =");
+    expect(source).toContain("방금 정리 되돌리기를 연결하지 못했어요");
+    expect(source).not.toContain("if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;");
+    expect(source).not.toContain("if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;");
+  });
+
   it("counts only successful app-leftover cleanup items as cleaned", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
