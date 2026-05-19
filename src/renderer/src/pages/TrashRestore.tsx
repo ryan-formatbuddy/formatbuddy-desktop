@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   CleanupCategoryId,
   CleanupTrashEntry,
@@ -20,10 +21,12 @@ interface TrashRestoreProps {
  * file that the user explicitly selected in the Cleanup page; nothing
  * here was deleted automatically.
  *
- * Two user verbs:
+ * User verbs:
  *   - "되돌리기" calls cleanup-trash:restore, which atomically moves
  *     the stored bytes back to `originalPath`. Refuses when a same-name
  *     file already exists at the target (no overwrite, ever).
+ *   - "모두 되돌리기" loops through the same restore IPC for every
+ *     entry and summarizes restored/blocked/missing outcomes.
  *   - "지금 비우기" calls cleanup-trash:purge-expired and reflects the
  *     freed bytes in a small toast row. We intentionally do NOT expose
  *     "permanently delete this single entry" — purge is by expiry only
@@ -84,6 +87,8 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     void load();
   }, [load]);
 
+  const entries = useMemo(() => snapshot?.entries ?? [], [snapshot]);
+
   const onRestore = useCallback(
     async (entry: CleanupTrashEntry) => {
       if (!window.fb?.restoreCleanupTrash) return;
@@ -103,6 +108,24 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     },
     [load]
   );
+
+  const onRestoreAll = useCallback(async () => {
+    if (!window.fb?.restoreCleanupTrash || entries.length === 0) return;
+    setBusy("restore-all");
+    setToast(null);
+    try {
+      const results: CleanupTrashRestoreResult[] = [];
+      for (const entry of entries) {
+        results.push(await window.fb.restoreCleanupTrash({ entryId: entry.id }));
+      }
+      setToast(summarizeTrashRestoreResults(results));
+      await load();
+    } catch (e) {
+      setToast(`되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+    } finally {
+      setBusy(null);
+    }
+  }, [entries, load]);
 
   const onPurgeExpired = useCallback(async () => {
     if (!window.fb?.purgeExpiredCleanupTrash) return;
@@ -125,7 +148,6 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     }
   }, [load]);
 
-  const entries = snapshot?.entries ?? [];
   const headerSummary = useMemo(() => {
     if (!snapshot) return "복구함 불러오는 중...";
     if (entries.length === 0) return "복구함이 비어 있어요.";
@@ -171,16 +193,24 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           }}
         >
           <div>
-            <strong>만료된 항목 정리</strong>
+            <strong>복구함 관리</strong>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              30일이 지난 항목만 영구 삭제해요. 30일 이전 항목은 그대로 남아요.
+              모두 되돌리거나, 30일이 지난 항목만 영구 삭제할 수 있어요.
             </div>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void onRestoreAll()}
+            disabled={Boolean(busy) || entries.length === 0}
+          >
+            {busy === "restore-all" ? "되돌리는 중..." : "모두 원래 자리로"}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => void onPurgeExpired()}
-            disabled={busy === "purge"}
+            disabled={Boolean(busy)}
           >
             {busy === "purge" ? "정리 중..." : "지금 비우기"}
           </Button>
@@ -254,7 +284,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 variant="primary"
                 size="sm"
                 onClick={() => void onRestore(entry)}
-                disabled={busy === entry.id}
+                disabled={Boolean(busy)}
               >
                 {busy === entry.id ? "되돌리는 중..." : "원래 자리로 되돌리기"}
               </Button>
