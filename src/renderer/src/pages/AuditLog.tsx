@@ -137,8 +137,12 @@ export function AuditLog({ onBack }: AuditLogProps) {
         </section>
       )}
 
-      {entries.map((entry) => (
-        <article key={entry.id} className="fb-card" style={{ marginBottom: 12 }}>
+      {entries.map((entry, idx) => (
+        <article
+          key={entry.id}
+          className="fb-card fb-anim-slide fb-card-hover"
+          style={{ marginBottom: 12, animationDelay: `${Math.min(idx, 8) * 30}ms` }}
+        >
           <header
             style={{
               display: "flex",
