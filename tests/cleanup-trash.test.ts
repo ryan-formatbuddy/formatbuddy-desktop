@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -335,6 +335,36 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(source, "utf8")).toBe("hello");
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("notifies the caller when an app-leftover entry is restored", async () => {
+    const source = join(fx.home, "AppData", "Roaming", "Slack");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "cache.bin"), "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: {
+        ...makeItem(source),
+        label: "Slack",
+        categoryId: "app-leftovers",
+        riskLevel: "review",
+        reason: "앱 제거 후 남은 AppData 후보"
+      },
+      sizeBytes: 5,
+      home: fx.home
+    });
+    const onAppLeftoverRestored = vi.fn();
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home,
+      onAppLeftoverRestored
+    });
+
+    expect(result.status).toBe("restored");
+    expect(onAppLeftoverRestored).toHaveBeenCalledTimes(1);
+    expect(onAppLeftoverRestored).toHaveBeenCalledWith({ name: "Slack", publisher: null });
   });
 
   it("refuses restore when a same-name item already exists at the original path", async () => {

@@ -851,7 +851,13 @@ function registerIpc() {
       const result = await restoreTrashEntry({
         userDataDir: app.getPath("userData"),
         entryId: request.entryId,
-        home: app.getPath("home")
+        home: app.getPath("home"),
+        onAppLeftoverRestored: async (restoredApp) => {
+          rememberRecentlyUninstallLaunchedApp(restoredApp);
+          await rememberUninstallFollowup(app.getPath("userData"), restoredApp).catch((err) => {
+            log.warn("cleanup-trash restore followup remember failed:", (err as Error).message);
+          });
+        }
       });
       await appendAuditEntry(app.getPath("userData"), {
         category: "cleanup",

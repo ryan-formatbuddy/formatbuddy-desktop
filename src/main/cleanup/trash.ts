@@ -47,6 +47,9 @@ export interface TrashRuntimeOptions {
   userDataDir: string;
   home?: string;
   now?: () => Date;
+  onAppLeftoverRestored?: (
+    app: { name: string; publisher?: string | null }
+  ) => void | Promise<void>;
 }
 
 function trashRoot(userDataDir: string): string {
@@ -405,6 +408,16 @@ async function movePath(source: string, destination: string): Promise<void> {
   await rm(source, { recursive: true, force: true });
 }
 
+async function notifyAppLeftoverRestored(
+  options: TrashRuntimeOptions,
+  entry: CleanupTrashEntry
+): Promise<void> {
+  if (entry.categoryId !== "app-leftovers") return;
+  const name = entry.label.trim();
+  if (!name) return;
+  await Promise.resolve(options.onAppLeftoverRestored?.({ name, publisher: null })).catch(() => {});
+}
+
 function expiryFor(now: Date): string {
   return new Date(
     now.getTime() + FORMATBUDDY_TRASH_RETENTION_DAYS * 86_400_000
@@ -593,6 +606,7 @@ export async function restoreTrashEntry(
     await rm(entryDir(options.userDataDir, entry.id), { recursive: true, force: true });
     index.entries = index.entries.filter((e) => e.id !== entry.id);
     await saveIndex(options.userDataDir, index);
+    await notifyAppLeftoverRestored(options, entry);
     return {
       entryId: entry.id,
       status: "restored",
