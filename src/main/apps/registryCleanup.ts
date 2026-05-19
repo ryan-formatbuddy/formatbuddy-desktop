@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import type {
+  InstalledApp,
   RegistryBackupEntry,
   RegistryBackupPurgeResult,
   RegistryBackupRestoreResult,
@@ -55,6 +56,13 @@ function canonicalRegistryBackupExpiry(createdAt: string): string {
   return registryBackupExpiry(new Date(createdAt));
 }
 
+function cleanOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 1024);
+}
+
 function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
@@ -93,6 +101,7 @@ export async function backupAndDeleteRegistryKey(options: {
   keyPath: string;
   now?: () => Date;
   runner?: RegistryCleanupRunner;
+  app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
   const keyPath = normalizeRegistryKeyPath(options.keyPath);
   if (!isSafeUninstallRegistryKeyPath(keyPath)) {
@@ -109,6 +118,8 @@ export async function backupAndDeleteRegistryKey(options: {
   const backupPath = join(entryDir, "backup.reg");
   const metaPath = join(entryDir, "meta.json");
   const runner = options.runner ?? defaultRegistryCleanupRunner();
+  const appName = cleanOptionalString(options.app?.name);
+  const appPublisher = cleanOptionalString(options.app?.publisher);
 
   try {
     await runner.exportKey(keyPath, backupPath);
@@ -119,6 +130,8 @@ export async function backupAndDeleteRegistryKey(options: {
           id,
           keyPath,
           backupPath,
+          appName,
+          appPublisher,
           createdAt,
           expiresAt
         },
@@ -137,6 +150,8 @@ export async function backupAndDeleteRegistryKey(options: {
     id,
     keyPath,
     backupPath,
+    appName,
+    appPublisher,
     createdAt,
     expiresAt
   };
@@ -264,6 +279,10 @@ async function readRegistryBackupEntryForRestore(
     createdAt: raw.createdAt,
     expiresAt: canonicalRegistryBackupExpiry(raw.createdAt)
   };
+  const appName = cleanOptionalString(raw.appName);
+  const appPublisher = cleanOptionalString(raw.appPublisher);
+  if (appName) entry.appName = appName;
+  if (appPublisher) entry.appPublisher = appPublisher;
 
   try {
     const backupStat = await fs.lstat(backupPath);
@@ -398,6 +417,9 @@ export async function restoreRegistryBackup(options: {
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   beforeImport?: () => Promise<void>;
+  onAppRegistryBackupRestored?: (
+    app: { name: string; publisher?: string | null; registryKeyPath: string }
+  ) => void | Promise<void>;
 }): Promise<RegistryBackupRestoreResult> {
   if (!isSafeRegistryBackupId(options.backupId)) {
     return {
@@ -434,6 +456,16 @@ export async function restoreRegistryBackup(options: {
       recursive: true,
       force: true
     });
+    const appName = cleanOptionalString(entry.appName);
+    if (appName) {
+      await Promise.resolve(
+        options.onAppRegistryBackupRestored?.({
+          name: appName,
+          publisher: entry.appPublisher ?? null,
+          registryKeyPath: entry.keyPath
+        })
+      ).catch(() => {});
+    }
     return {
       backupId: entry.id,
       status: "restored",

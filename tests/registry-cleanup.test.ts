@@ -315,13 +315,16 @@ describe("registry leftover cleanup", () => {
       userDataDir: fx.userDataDir,
       keyPath,
       now: () => new Date("2026-05-19T00:00:00.000Z"),
-      runner
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
     });
 
+    const onAppRegistryBackupRestored = vi.fn();
     const restored = await restoreRegistryBackup({
       userDataDir: fx.userDataDir,
       backupId: result.id,
-      runner
+      runner,
+      onAppRegistryBackupRestored
     });
 
     expect(calls).toEqual(["import"]);
@@ -331,6 +334,15 @@ describe("registry leftover cleanup", () => {
       status: "restored",
       keyPath,
       message: "앱 삭제 흔적 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp."
+    });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      registryKeyPath: keyPath
     });
     const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
     expect(snapshot.entries).toEqual([]);

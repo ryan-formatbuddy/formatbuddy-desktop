@@ -806,6 +806,8 @@ export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
   backupPath: string;
+  appName?: string | null;
+  appPublisher?: string | null;
   createdAt: string;
   expiresAt: string;
 }

@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   cleanupAppLeftovers,
   planAppLeftovers,
   __resetLeftoversPlanCacheForTests
 } from "../src/main/apps/leftovers";
+import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot } from "../src/main/cleanup/trash";
 import type { InstalledApp } from "../src/shared/types";
 
@@ -411,7 +412,10 @@ describe("planAppLeftovers", () => {
     });
     const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
     const registryRunner = {
-      exportKey: vi.fn(async () => undefined),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
       deleteKey: vi.fn(async () => undefined)
     };
 
@@ -444,6 +448,13 @@ describe("planAppLeftovers", () => {
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
     expect(result.removedItems[0].registryBackupId).toBeTruthy();
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: registryKeyPath
+    });
   });
 
   it("does not delete a registry key when backup export fails", async () => {

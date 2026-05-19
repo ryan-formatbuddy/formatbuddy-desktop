@@ -906,7 +906,21 @@ function registerIpc() {
       const result = await restoreRegistryBackup({
         userDataDir,
         backupId: request.backupId,
-        beforeImport: () => maybeCreateRestorePoint("앱 삭제 흔적 백업 되돌리기")
+        beforeImport: () => maybeCreateRestorePoint("앱 삭제 흔적 백업 되돌리기"),
+        onAppRegistryBackupRestored: async (restoredApp) => {
+          rememberRecentlyUninstallLaunchedApp({
+            name: restoredApp.name,
+            publisher: restoredApp.publisher ?? null,
+            registryKeyPath: restoredApp.registryKeyPath
+          });
+          await rememberUninstallFollowup(userDataDir, {
+            name: restoredApp.name,
+            publisher: restoredApp.publisher ?? null,
+            registryKeyPath: restoredApp.registryKeyPath
+          }).catch((err) => {
+            log.warn("registry-backup restore followup remember failed:", (err as Error).message);
+          });
+        }
       });
       await appendAuditEntry(userDataDir, {
         category: "cleanup",

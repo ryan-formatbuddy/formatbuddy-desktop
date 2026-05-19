@@ -911,7 +911,10 @@ export async function cleanupAppLeftovers(
           userDataDir: options.userDataDir,
           keyPath: path.path,
           now: options.now,
-          runner: options.registryRunner ?? defaultRegistryCleanupRunner()
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group
+            ? { name: group.appName, publisher: group.publisher ?? null }
+            : undefined
         });
         removedItems.push({
           itemId: path.id,
