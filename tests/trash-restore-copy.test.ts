@@ -82,4 +82,15 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("summarizeRegistryBackupRestoreResults([result])");
     expect(source).not.toContain("setToast(result.message)");
   });
+
+  it("shows friendly toasts instead of silently returning when restore bridges are missing", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("파일 되돌리기를 연결하지 못했어요");
+    expect(source).toContain("앱 삭제 흔적 되돌리기를 연결하지 못했어요");
+    expect(source).toContain("모두 되돌리기를 연결하지 못했어요");
+    expect(source).not.toContain("if (!window.fb?.restoreCleanupTrash) return;");
+    expect(source).not.toContain("if (!window.fb?.restoreRegistryBackup) return;");
+    expect(source).not.toContain("totalEntryCount === 0\n    ) {\n      return;");
+  });
 });

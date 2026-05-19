@@ -175,7 +175,10 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
 
   const onRestore = useCallback(
     async (entry: CleanupTrashEntry) => {
-      if (!window.fb?.restoreCleanupTrash) return;
+      if (!window.fb?.restoreCleanupTrash) {
+        setToast("파일 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+        return;
+      }
       setBusy(`file:${entry.id}`);
       setToast(null);
       try {
@@ -195,7 +198,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
 
   const onRestoreRegistry = useCallback(
     async (entry: RegistryBackupEntry) => {
-      if (!window.fb?.restoreRegistryBackup) return;
+      if (!window.fb?.restoreRegistryBackup) {
+        setToast(
+          "앱 삭제 흔적 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+        );
+        return;
+      }
       setBusy(`registry:${entry.id}`);
       setToast(null);
       try {
@@ -216,11 +224,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const onRestoreAll = useCallback(async () => {
     const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
     const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
-    if (
-      (!restoreCleanupTrash && entries.length > 0) ||
-      (!restoreRegistryBackup && registryEntries.length > 0) ||
-      totalEntryCount === 0
-    ) {
+    if (totalEntryCount === 0) {
+      setToast("되돌릴 항목이 없어요.");
+      return;
+    }
+    if ((!restoreCleanupTrash && entries.length > 0) || (!restoreRegistryBackup && registryEntries.length > 0)) {
+      setToast("모두 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
       return;
     }
     setBusy("restore-all");
