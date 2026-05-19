@@ -56,6 +56,7 @@ const MAX_LEFTOVER_ITEMS = 50_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
 const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지 않아요.";
+const UNREADABLE_LEFTOVER_PROTECTION = "권한이 없어 잔여 폴더를 정확히 확인하지 못했어요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -408,7 +409,7 @@ async function* walkPath(
   try {
     entries = await fs.readdir(root, { withFileTypes: true });
   } catch {
-    return;
+    throw new LeftoverMeasurementProtection(UNREADABLE_LEFTOVER_PROTECTION);
   }
   for (const entry of entries) {
     if (counter.count >= MAX_LEFTOVER_ITEMS) return;
