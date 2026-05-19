@@ -634,6 +634,44 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(orphanDir)).toBe(false);
   });
 
+  it("ignores recovered manifests that escape through parent directory segments", async () => {
+    const orphanDir = __testing.entryDir(fx.userData, "traversal");
+    const folder = join(orphanDir, "files");
+    await mkdir(folder, { recursive: true });
+    const outside = join(__testing.trashRoot(fx.userData), "escaped.txt");
+    const traversalPath = `${folder}/../../../escaped.txt`;
+    await writeFile(outside, "outside stays put", "utf8");
+    await writeFile(
+      join(orphanDir, "manifest.json"),
+      JSON.stringify(
+        {
+          id: "traversal",
+          itemId: "item-evil",
+          originalPath: join(fx.home, "restored.txt"),
+          storedPath: traversalPath,
+          label: "escaped.txt",
+          categoryId: "temp-user",
+          sizeBytes: 17,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+    expect(existsSync(orphanDir)).toBe(false);
+  });
+
   it("cleans a failed prewritten trash manifest when no stored file exists", async () => {
     const orphanDir = __testing.entryDir(fx.userData, "failed-move");
     const storedPath = join(orphanDir, "files", "old.tmp");

@@ -12,7 +12,7 @@
 import { constants } from "node:fs";
 import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import type {
   CleanupItem,
   CleanupTrashEntry,
@@ -171,8 +171,8 @@ function isManifestEntrySelfContained(
   entry: CleanupTrashEntry
 ): boolean {
   if (entry.id !== entryFolderName) return false;
-  const filesRoot = normalizePath(join(entryDir(userDataDir, entryFolderName), "files"));
-  const stored = normalizePath(entry.storedPath);
+  const filesRoot = normalizePath(resolve(entryDir(userDataDir, entryFolderName), "files"));
+  const stored = normalizePath(resolve(entry.storedPath));
   return stored === filesRoot || stored.startsWith(`${filesRoot}\\`);
 }
 
