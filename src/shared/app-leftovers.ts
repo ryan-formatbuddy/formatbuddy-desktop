@@ -1,10 +1,14 @@
-import type { AppLeftoversSnapshot } from "./types";
+import type { AppLeftoverGroup, AppLeftoversSnapshot } from "./types";
+
+export function canCleanupLeftoverGroup(group: AppLeftoverGroup): boolean {
+  return group.source === "uninstall-launched" && group.cleanupState === "removed-confirmed";
+}
 
 export function selectableLeftoverPathIds(snapshot: AppLeftoversSnapshot): Set<string> {
   const ids = new Set<string>();
 
   for (const group of snapshot.groups) {
-    if (group.source !== "uninstall-launched") continue;
+    if (!canCleanupLeftoverGroup(group)) continue;
     for (const path of group.paths) {
       if (path.exists && !path.protectedBy) ids.add(path.id);
     }
@@ -19,13 +23,15 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
   protected: number;
   missing: number;
   installedLocked: number;
+  notChecked: number;
 } {
   const stats = {
     total: 0,
     selectable: 0,
     protected: 0,
     missing: 0,
-    installedLocked: 0
+    installedLocked: 0,
+    notChecked: 0
   };
 
   for (const group of snapshot.groups) {
@@ -33,7 +39,10 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
       stats.total += 1;
       if (!path.exists) stats.missing += 1;
       else if (path.protectedBy) stats.protected += 1;
-      else if (group.source !== "uninstall-launched") stats.installedLocked += 1;
+      else if (group.source !== "uninstall-launched" || group.cleanupState === "still-installed") {
+        stats.installedLocked += 1;
+      }
+      else if (group.cleanupState !== "removed-confirmed") stats.notChecked += 1;
       else stats.selectable += 1;
     }
   }

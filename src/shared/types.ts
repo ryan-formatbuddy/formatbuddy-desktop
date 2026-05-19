@@ -1128,11 +1128,21 @@ export interface AppLeftoverPath {
   protectedBy?: string;
 }
 
+export type AppLeftoverCleanupState =
+  | "removed-confirmed"
+  | "still-installed"
+  | "not-checked";
+
 export interface AppLeftoverGroup {
   appName: string;
   publisher?: string | null;
   /** Installed now, or remembered from a Windows uninstaller launched recently. */
   source?: "installed" | "uninstall-launched";
+  /**
+   * For uninstall follow-up groups, this says whether a fresh app scan
+   * proved the app is gone. We only allow cleanup when removed-confirmed.
+   */
+  cleanupState?: AppLeftoverCleanupState;
   paths: AppLeftoverPath[];
 }
 

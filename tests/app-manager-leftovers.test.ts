@@ -15,6 +15,7 @@ describe("AppManager leftover summary", () => {
         {
           appName: "Acme Notes",
           source: "uninstall-launched",
+          cleanupState: "removed-confirmed",
           paths: [
             { id: "selectable", path: "C:\\Users\\Ryan\\AppData\\Roaming\\Acme", exists: true },
             {
@@ -36,16 +37,29 @@ describe("AppManager leftover summary", () => {
               exists: true
             }
           ]
+        },
+        {
+          appName: "Need Check",
+          source: "uninstall-launched",
+          cleanupState: "not-checked",
+          paths: [
+            {
+              id: "not-checked",
+              path: "C:\\Users\\Ryan\\AppData\\Roaming\\NeedCheck",
+              exists: true
+            }
+          ]
         }
       ]
     };
 
     expect(summarizeLeftoverSnapshot(snapshot)).toEqual({
-      total: 4,
+      total: 5,
       selectable: 1,
       protected: 1,
       missing: 1,
-      installedLocked: 1
+      installedLocked: 1,
+      notChecked: 1
     });
     expect(selectableLeftoverPathIds(snapshot)).toEqual(new Set(["selectable"]));
   });

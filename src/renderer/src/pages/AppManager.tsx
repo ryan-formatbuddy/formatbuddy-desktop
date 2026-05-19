@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
-import { selectableLeftoverPathIds, summarizeLeftoverSnapshot } from "@shared/app-leftovers";
+import {
+  canCleanupLeftoverGroup,
+  selectableLeftoverPathIds,
+  summarizeLeftoverSnapshot
+} from "@shared/app-leftovers";
 import {
   restorableRegistryBackupIds,
   restorableTrashEntryIds,
@@ -233,7 +237,7 @@ function LeftoverPanel({
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
         아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
-        지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
+        제거 확인 전 {leftoverSummary.notChecked}개, 지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
       <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
@@ -310,13 +314,27 @@ function LeftoverGroupCard({
   selected: Set<string>;
   onToggle: (pathId: string, checked: boolean) => void;
 }) {
+  const cleanupAllowed = canCleanupLeftoverGroup(group);
+  const followUpLabel =
+    group.source === "uninstall-launched"
+      ? group.cleanupState === "removed-confirmed"
+        ? "제거 완료 확인됨"
+        : group.cleanupState === "still-installed"
+          ? "아직 앱 목록에 있어요"
+          : "다시 점검 후 정리 가능"
+      : "";
   const groupMeta = [
     group.publisher,
-    group.source === "uninstall-launched" ? "방금 제거를 연 앱 기준" : ""
+    group.source === "uninstall-launched" ? followUpLabel : ""
   ]
     .filter(Boolean)
     .join(" · ");
-  const cleanupAllowed = group.source === "uninstall-launched";
+  const lockCopy =
+    group.source !== "uninstall-launched"
+      ? "아직 설치된 앱 데이터라 미리보기만 해요. Windows 제거 후 다시 확인하면 선택할 수 있어요."
+      : group.cleanupState === "still-installed"
+        ? "아직 앱 목록에 있어요. 제거를 끝냈다면 다시 점검 후 정리할 수 있어요."
+        : "제거 완료 여부 확인 전이라 미리보기만 해요. 다시 점검 후 정리할 수 있어요.";
 
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
@@ -325,7 +343,7 @@ function LeftoverGroupCard({
         {groupMeta && <small style={{ opacity: 0.7 }}>{groupMeta}</small>}
         {!cleanupAllowed && (
           <small style={{ opacity: 0.7, display: "block" }}>
-            아직 설치된 앱 데이터라 미리보기만 해요. Windows 제거 후 다시 확인하면 선택할 수 있어요.
+            {lockCopy}
           </small>
         )}
       </header>

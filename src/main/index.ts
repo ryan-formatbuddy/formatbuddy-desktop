@@ -922,7 +922,8 @@ function registerIpc() {
   ipcMain.handle(IpcChannels.appsLeftovers, async (): Promise<AppLeftoversSnapshot> => {
     const cached = getLastScan();
     return planAppLeftovers(cached?.report.installedApps ?? [], {
-      extraApps: getRecentlyUninstallLaunchedApps()
+      extraApps: getRecentlyUninstallLaunchedApps(),
+      installedAppsKnown: Boolean(cached)
     });
   });
 

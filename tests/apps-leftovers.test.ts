@@ -552,23 +552,25 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].appName).toBe("Slack");
     expect(snapshot.groups[0].source).toBe("uninstall-launched");
+    expect(snapshot.groups[0].cleanupState).toBe("removed-confirmed");
     expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
   });
 
-  it("lets a recently opened uninstall wizard override the stale installed-app scan", async () => {
+  it("locks a recently opened uninstall wizard while the latest scan still shows the app", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
-    const staleInstalledApp = { name: "Slack", publisher: "Slack Technologies" };
+    const stillInstalledApp = { name: "Slack", publisher: "Slack Technologies" };
 
-    const snapshot = await planAppLeftovers([staleInstalledApp], {
+    const snapshot = await planAppLeftovers([stillInstalledApp], {
       home: fx.home,
       env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
-      extraApps: [staleInstalledApp]
+      extraApps: [stillInstalledApp]
     });
 
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].source).toBe("uninstall-launched");
+    expect(snapshot.groups[0].cleanupState).toBe("still-installed");
 
     const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
     const result = await cleanupAppLeftovers(
@@ -583,8 +585,53 @@ describe("planAppLeftovers", () => {
       }
     );
 
-    expect(result.removedItems).toHaveLength(1);
-    await expect(fs.stat(slack)).rejects.toThrow();
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      reason: "blocked-path",
+      detail: "아직 앱 목록에 있어요. 다시 점검으로 제거 완료를 확인한 뒤 정리해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+  });
+
+  it("locks a recently opened uninstall wizard when no latest scan exists yet", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }],
+      installedAppsKnown: false
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0]).toMatchObject({
+      source: "uninstall-launched",
+      cleanupState: "not-checked"
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      reason: "blocked-path",
+      detail: "제거 완료 여부를 아직 확인하지 못했어요. 다시 점검 후 정리해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
   });
 
   it("refuses to clean leftovers while the app is still installed", async () => {

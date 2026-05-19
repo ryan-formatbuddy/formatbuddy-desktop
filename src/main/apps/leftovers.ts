@@ -21,6 +21,7 @@ import type {
   AppLeftoverPath,
   AppLeftoversCleanupRequest,
   AppLeftoversSnapshot,
+  AppLeftoverCleanupState,
   CleanupExecuteResult,
   CleanupExecutedItem,
   CleanupItem,
@@ -347,6 +348,12 @@ export interface PlanLeftoversOptions {
    * review next.
    */
   extraApps?: InstalledApp[];
+  /**
+   * False when the uninstall wizard was opened and the scan cache was
+   * invalidated. In that state we can preview leftovers, but must not
+   * clean them until a fresh scan confirms the app disappeared.
+   */
+  installedAppsKnown?: boolean;
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -376,6 +383,10 @@ function nowMs(now?: () => Date): number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function appIdentityKey(app: Pick<InstalledApp, "name" | "publisher">): string {
+  return `${(app.name ?? "").trim().toLowerCase()}|${(app.publisher ?? "").trim().toLowerCase()}`;
 }
 
 function makePathId(path: string): string {
@@ -638,6 +649,8 @@ export async function planAppLeftovers(
 ): Promise<AppLeftoversSnapshot> {
   const home = options.home ?? homedir();
   const env = defaultEnv(home, options.env);
+  const installedAppsKnown = options.installedAppsKnown ?? true;
+  const installedAppKeys = new Set(apps.map(appIdentityKey));
 
   const groups: AppLeftoverGroup[] = [];
   const seenLabels = new Set<string>();
@@ -649,6 +662,14 @@ export async function planAppLeftovers(
 
   for (const { app, source } of candidates) {
     if (!app.name) continue;
+    const cleanupState: AppLeftoverCleanupState | undefined =
+      source === "uninstall-launched"
+        ? !installedAppsKnown
+          ? "not-checked"
+          : installedAppKeys.has(appIdentityKey(app))
+            ? "still-installed"
+            : "removed-confirmed"
+        : undefined;
     const text = `${app.name} ${app.publisher ?? ""}`;
     const rule = RULES.find((r) => r.match.test(text));
     if (!rule) {
@@ -664,6 +685,7 @@ export async function planAppLeftovers(
         appName: app.name,
         publisher: app.publisher,
         source,
+        cleanupState,
         paths
       });
       continue;
@@ -682,6 +704,7 @@ export async function planAppLeftovers(
       appName: rule.appLabel,
       publisher: app.publisher,
       source,
+      cleanupState,
       paths: uniqueLeftoverPaths(paths)
     });
   }
@@ -840,6 +863,18 @@ export async function cleanupAppLeftovers(
         path: path.path,
         reason: "blocked-path",
         detail: "앱이 아직 설치된 상태예요. Windows 제거 후 다시 확인해주세요."
+      });
+      continue;
+    }
+    if (group.cleanupState !== "removed-confirmed") {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail:
+          group.cleanupState === "still-installed"
+            ? "아직 앱 목록에 있어요. 다시 점검으로 제거 완료를 확인한 뒤 정리해주세요."
+            : "제거 완료 여부를 아직 확인하지 못했어요. 다시 점검 후 정리해주세요."
       });
       continue;
     }
