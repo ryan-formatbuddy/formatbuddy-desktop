@@ -3,6 +3,7 @@ import {
   clearRecentlyUninstallLaunchedApps,
   clearLastScan,
   DEFAULT_LAST_SCAN_TTL_MS,
+  forgetRecentlyUninstallLaunchedApp,
   getLastScan,
   getLastScanAge,
   getLastScanIfFresh,
@@ -179,5 +180,18 @@ describe("recently opened uninstall wizard memory", () => {
 
     expect(getRecentlyUninstallLaunchedApps(() => t0 + RECENT_UNINSTALL_TTL_MS - 1)).toHaveLength(1);
     expect(getRecentlyUninstallLaunchedApps(() => t0 + RECENT_UNINSTALL_TTL_MS + 1)).toEqual([]);
+  });
+
+  it("forgets a completed follow-up without clearing unrelated apps", () => {
+    const t0 = 1_000_000;
+    rememberRecentlyUninstallLaunchedApp({ name: "Slack", publisher: "Slack Technologies" }, () => t0);
+    rememberRecentlyUninstallLaunchedApp({ name: "Notion", publisher: "Notion Labs" }, () => t0 + 1000);
+
+    expect(
+      forgetRecentlyUninstallLaunchedApp({ name: "Slack", publisher: "Slack Technologies" })
+    ).toBe(true);
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + 2000)).toEqual([
+      { name: "Notion", publisher: "Notion Labs" }
+    ]);
   });
 });

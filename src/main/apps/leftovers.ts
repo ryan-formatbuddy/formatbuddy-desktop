@@ -57,6 +57,13 @@ interface CachedLeftoversPlan {
   expiresAt: number;
 }
 
+interface CleanupAppLeftoversOptions {
+  userDataDir: string;
+  now?: () => Date;
+  registryRunner?: RegistryCleanupRunner;
+  onFollowupCleaned?: (app: Pick<InstalledApp, "name" | "publisher">) => void | Promise<void>;
+}
+
 const PLAN_TTL_MS = 5 * 60 * 1000;
 const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
@@ -776,6 +783,24 @@ function appNameForPath(snapshot: AppLeftoversSnapshot, pathId: string): string 
   return groupForPath(snapshot, pathId)?.appName ?? "앱 잔여 폴더";
 }
 
+function groupIdentityKey(group: Pick<AppLeftoverGroup, "appName" | "publisher">): string {
+  return `${(group.appName ?? "").trim().toLowerCase()}|${(group.publisher ?? "").trim().toLowerCase()}`;
+}
+
+function rememberCleanedFollowupGroup(
+  groups: Map<string, Pick<InstalledApp, "name" | "publisher">>,
+  group: AppLeftoverGroup | undefined
+): void {
+  if (!group || group.source !== "uninstall-launched") return;
+  if (group.cleanupState !== "removed-confirmed") return;
+  const name = group.appName?.trim();
+  if (!name) return;
+  groups.set(groupIdentityKey(group), {
+    name,
+    publisher: group.publisher ?? null
+  });
+}
+
 function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
   return {
     id: path.id,
@@ -797,7 +822,7 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
 
 export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
-  options: { userDataDir: string; now?: () => Date; registryRunner?: RegistryCleanupRunner }
+  options: CleanupAppLeftoversOptions
 ): Promise<CleanupExecuteResult> {
   if (!request?.planId || !request?.confirmationToken) {
     throw new Error("apps:leftovers-cleanup requires planId and confirmationToken");
@@ -831,6 +856,7 @@ export async function cleanupAppLeftovers(
   const index = new Map(allPaths(cached.snapshot).map((path) => [path.id, path]));
   const removedItems: CleanupExecutedItem[] = [];
   const skippedItems: CleanupSkippedItem[] = [];
+  const cleanedFollowupGroups = new Map<string, Pick<InstalledApp, "name" | "publisher">>();
 
   for (const selectedId of selectedIds) {
     const path = index.get(selectedId);
@@ -897,6 +923,7 @@ export async function cleanupAppLeftovers(
           registryBackupId: backup.id,
           expiresAt: backup.expiresAt
         });
+        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
       } catch (err) {
         const message = (err as Error).message;
         skippedItems.push({
@@ -963,6 +990,7 @@ export async function cleanupAppLeftovers(
         trashEntryId: trashEntry.id,
         expiresAt: trashEntry.expiresAt
       });
+      rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
     } catch (err) {
       const message = (err as Error).message;
       skippedItems.push({
@@ -982,6 +1010,11 @@ export async function cleanupAppLeftovers(
     skippedItems
   });
   await recordCleanupExecution(options.userDataDir, logEntry);
+  if (options.onFollowupCleaned) {
+    for (const cleanedApp of cleanedFollowupGroups.values()) {
+      await options.onFollowupCleaned(cleanedApp);
+    }
+  }
 
   return {
     planId: cached.snapshot.planId,

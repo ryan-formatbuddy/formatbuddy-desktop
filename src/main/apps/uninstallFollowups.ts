@@ -196,6 +196,24 @@ export async function listUninstallFollowups(
   }));
 }
 
+export async function forgetUninstallFollowup(
+  userDataDir: string,
+  app: InstalledApp,
+  now: () => number = Date.now
+): Promise<boolean> {
+  const minimal = sanitizeFollowupApp(app);
+  if (!minimal) return false;
+
+  const loaded = await loadStoreWithMeta(userDataDir, now);
+  const key = followupKey(minimal);
+  const entries = loaded.store.entries.filter((entry) => followupKey(entry) !== key);
+  const removed = entries.length !== loaded.store.entries.length;
+  if (removed || loaded.changed) {
+    await saveStore(userDataDir, { version: 1, entries });
+  }
+  return removed;
+}
+
 export function mergeUninstallFollowupApps(...groups: InstalledApp[][]): InstalledApp[] {
   const seen = new Set<string>();
   const merged: InstalledApp[] = [];

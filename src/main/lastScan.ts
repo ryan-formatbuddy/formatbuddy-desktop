@@ -107,6 +107,11 @@ export function getRecentlyUninstallLaunchedApps(now: () => number = Date.now): 
   return Array.from(recentlyUninstallLaunched.values()).map((entry) => ({ ...entry.app }));
 }
 
+export function forgetRecentlyUninstallLaunchedApp(app: InstalledApp): boolean {
+  if (!app.name?.trim()) return false;
+  return recentlyUninstallLaunched.delete(appMemoryKey(app));
+}
+
 export function clearRecentlyUninstallLaunchedApps(): void {
   recentlyUninstallLaunched.clear();
 }

@@ -704,6 +704,39 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("notifies the caller to close the uninstall follow-up after a successful leftover cleanup", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const onFollowupCleaned = vi.fn();
+
+    await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        onFollowupCleaned
+      }
+    );
+
+    expect(onFollowupCleaned).toHaveBeenCalledTimes(1);
+    expect(onFollowupCleaned).toHaveBeenCalledWith({
+      name: "Slack",
+      publisher: "Slack Technologies"
+    });
+  });
+
   it("reports a blocked path when a leftover path starts going through a symbolic-link parent before cleanup", async () => {
     if (process.platform === "win32") return;
     const slack = join(fx.roaming, "Slack");

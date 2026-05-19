@@ -68,6 +68,7 @@ import {
 import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
+  forgetUninstallFollowup,
   listUninstallFollowups,
   mergeUninstallFollowupApps,
   rememberUninstallFollowup
@@ -75,6 +76,7 @@ import {
 import {
   clearLastScan,
   findInstalledApp,
+  forgetRecentlyUninstallLaunchedApp,
   getLastScan,
   getLastScanIfFresh,
   getRecentlyUninstallLaunchedApps,
@@ -957,7 +959,15 @@ function registerIpc() {
         }).catch((err) => {
           log.warn("registry-backup:purge-before-app-leftovers failed:", (err as Error).message);
         });
-        const result = await cleanupAppLeftovers(request, { userDataDir });
+        const result = await cleanupAppLeftovers(request, {
+          userDataDir,
+          onFollowupCleaned: async (cleanedApp) => {
+            forgetRecentlyUninstallLaunchedApp(cleanedApp);
+            await forgetUninstallFollowup(userDataDir, cleanedApp).catch((err) => {
+              log.warn("apps:leftovers followup forget failed:", (err as Error).message);
+            });
+          }
+        });
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         const trashEntryIds = result.removedItems
           .map((item) => item.trashEntryId)

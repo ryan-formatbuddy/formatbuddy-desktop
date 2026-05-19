@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  forgetUninstallFollowup,
   listUninstallFollowups,
   rememberUninstallFollowup,
   UNINSTALL_FOLLOWUPS_FILE
@@ -96,6 +97,35 @@ describe("persisted uninstall follow-ups", () => {
     expect(readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8")).not.toContain(
       "Slack"
     );
+  });
+
+  it("forgets a completed follow-up without touching unrelated apps", async () => {
+    const now = Date.parse("2026-05-20T10:00:00.000Z");
+    await rememberUninstallFollowup(
+      userDataDir,
+      { name: "Slack", publisher: "Slack Technologies" },
+      () => now
+    );
+    await rememberUninstallFollowup(
+      userDataDir,
+      { name: "Notion", publisher: "Notion Labs" },
+      () => now + 1000
+    );
+
+    await expect(
+      forgetUninstallFollowup(
+        userDataDir,
+        { name: "Slack", publisher: "Slack Technologies" },
+        () => now + 2000
+      )
+    ).resolves.toBe(true);
+
+    expect(await listUninstallFollowups(userDataDir, () => now + 3000)).toEqual([
+      { name: "Notion", publisher: "Notion Labs" }
+    ]);
+    const raw = readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8");
+    expect(raw).not.toContain("Slack");
+    expect(raw).toContain("Notion");
   });
 
   it("does not write the follow-up file through a symbolic link", async () => {
