@@ -33,6 +33,14 @@ function formatLocal(at: string): string {
   return new Date(t).toLocaleString("ko-KR");
 }
 
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0 MB";
+  const mb = value / 1024 / 1024;
+  if (mb < 1024) return `${mb.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} MB`;
+  const gb = mb / 1024;
+  return `${gb.toLocaleString("ko-KR", { maximumFractionDigits: 2 })} GB`;
+}
+
 function isAuditWarning(entry: AuditEntry): boolean {
   return entry.action.includes("-failed-") || entry.summary.includes("못했어요");
 }
@@ -44,6 +52,37 @@ function auditActionLabel(entry: AuditEntry): string {
   if (entry.action.includes("restore")) return "되돌리기";
   if (entry.action.includes("defender")) return "Windows 보안 확인";
   return "활동 기록";
+}
+
+function numberDetail(detail: Record<string, unknown>, key: string): number | null {
+  const value = detail[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function arrayCountDetail(detail: Record<string, unknown>, key: string): number {
+  const value = detail[key];
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function auditDetailLines(detail: AuditEntry["detail"]): string[] {
+  if (!detail) return [];
+  const lines: string[] = [];
+  const purgedCount = numberDetail(detail, "purgedCount");
+  const removedCount = arrayCountDetail(detail, "removedItems");
+  const failedCount =
+    arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
+  const skippedCount = arrayCountDetail(detail, "skippedItems");
+  const purgedBytes = numberDetail(detail, "purgedBytes");
+  const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
+
+  if (purgedCount !== null) lines.push(`비운 항목 ${purgedCount}개`);
+  if (removedCount > 0) lines.push(`정리한 항목 ${removedCount}개`);
+  if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
+  if (skippedCount > 0) lines.push(`건드리지 않은 항목 ${skippedCount}개`);
+  if (purgedBytes !== null) lines.push(`확보한 공간 ${formatBytes(purgedBytes)}`);
+  if (totalFreedBytes !== null) lines.push(`확보한 공간 ${formatBytes(totalFreedBytes)}`);
+
+  return lines;
 }
 
 export function AuditLog({ onBack }: AuditLogProps) {
@@ -153,6 +192,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
 
       {entries.map((entry, idx) => {
         const warning = isAuditWarning(entry);
+        const detailLines = auditDetailLines(entry.detail);
         return (
           <article
             key={entry.id}
@@ -217,24 +257,25 @@ export function AuditLog({ onBack }: AuditLogProps) {
                 되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.
               </small>
             )}
-            {entry.detail && (
+            {detailLines.length > 0 && (
               <details style={{ marginTop: 6 }}>
                 <summary style={{ fontSize: 12, opacity: 0.65, cursor: "pointer" }}>
                   상세 보기
                 </summary>
-                <pre
+                <ul
                   style={{
-                    fontSize: 11,
-                    background: "rgba(0,0,0,0.04)",
-                    padding: 8,
-                    borderRadius: 4,
+                    fontSize: 12,
+                    background: "rgba(15, 23, 42, 0.04)",
+                    padding: "8px 8px 8px 24px",
+                    borderRadius: 6,
                     marginTop: 6,
-                    maxHeight: 200,
-                    overflow: "auto"
+                    lineHeight: 1.7
                   }}
                 >
-                  {JSON.stringify(entry.detail, null, 2)}
-                </pre>
+                  {detailLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
               </details>
             )}
           </article>

@@ -23,4 +23,15 @@ describe("AuditLog copy", () => {
     expect(source).toContain("아직 비우지 못한 항목은 복구함에 남겨뒀어요");
     expect(source).not.toContain("{entry.action}</strong>");
   });
+
+  it("renders audit details as friendly lines instead of raw JSON", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("auditDetailLines");
+    expect(source).toContain("비운 항목");
+    expect(source).toContain("아직 남아 있는 항목");
+    expect(source).toContain("확보한 공간");
+    expect(source).not.toContain("JSON.stringify(entry.detail");
+    expect(source).not.toContain("<pre");
+  });
 });
