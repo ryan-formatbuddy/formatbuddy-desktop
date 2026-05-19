@@ -49,6 +49,7 @@ export interface TrashRuntimeOptions {
   userDataDir: string;
   home?: string;
   now?: () => Date;
+  removeEntryDir?: (dir: string, entry: CleanupTrashEntry) => Promise<void>;
   onAppLeftoverRestored?: (
     app: { name: string; publisher?: string | null }
   ) => void | Promise<void>;
@@ -762,17 +763,27 @@ export async function purgeExpiredTrash(
 
   let purgedBytes = 0;
   const purgedEntryIds: string[] = [];
+  const failedEntryIds: string[] = [];
+  const removeEntryDir =
+    options.removeEntryDir ??
+    ((dir: string) => rm(dir, { recursive: true, force: true }));
   for (const entry of purge) {
-    const linkedStoredPath = await findLinkedManagedTrashStoredPath(
-      options.userDataDir,
-      entry.id,
-      entry.storedPath
-    );
-    purgedBytes += linkedStoredPath
-      ? 0
-      : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
-    await rm(entryDir(options.userDataDir, entry.id), { recursive: true, force: true });
-    purgedEntryIds.push(entry.id);
+    try {
+      const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+        options.userDataDir,
+        entry.id,
+        entry.storedPath
+      );
+      const entryBytes = linkedStoredPath
+        ? 0
+        : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
+      await removeEntryDir(entryDir(options.userDataDir, entry.id), entry);
+      purgedBytes += entryBytes;
+      purgedEntryIds.push(entry.id);
+    } catch {
+      failedEntryIds.push(entry.id);
+      keep.push(entry);
+    }
   }
 
   if (purge.length > 0) {
@@ -783,9 +794,10 @@ export async function purgeExpiredTrash(
   }
 
   return {
-    purgedCount: purge.length,
+    purgedCount: purgedEntryIds.length,
     purgedBytes,
     purgedEntryIds,
+    failedEntryIds,
     retentionDays: FORMATBUDDY_TRASH_RETENTION_DAYS
   };
 }

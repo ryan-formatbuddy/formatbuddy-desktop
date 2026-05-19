@@ -674,6 +674,44 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("keeps other expired entries purgeable when one expired entry cannot be removed", async () => {
+    const blockedSource = join(fx.home, "AppData", "Local", "Temp", "blocked.tmp");
+    const okSource = join(fx.home, "AppData", "Local", "Temp", "ok.tmp");
+    await mkdir(join(blockedSource, ".."), { recursive: true });
+    await writeFile(blockedSource, "blocked", "utf8");
+    await writeFile(okSource, "ok", "utf8");
+    const blockedEntry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: { ...makeItem(blockedSource), id: "blocked", label: "blocked.tmp" },
+      sizeBytes: 7,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const okEntry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: { ...makeItem(okSource), id: "ok", label: "ok.tmp" },
+      sizeBytes: 2,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async (dir, entry) => {
+        if (entry.id === blockedEntry.id) throw new Error("file is busy");
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    expect(purged.purgedCount).toBe(1);
+    expect(purged.purgedBytes).toBe(2);
+    expect(purged.purgedEntryIds).toEqual([okEntry.id]);
+    expect(purged.failedEntryIds).toEqual([blockedEntry.id]);
+    expect(existsSync(blockedEntry.storedPath)).toBe(true);
+    expect(existsSync(okEntry.storedPath)).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([blockedEntry.id]);
+  });
+
   it("reports the actual stored bytes purged after 30 days", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

@@ -804,6 +804,7 @@ export interface CleanupTrashPurgeResult {
   purgedCount: number;
   purgedBytes: number;
   purgedEntryIds: string[];
+  failedEntryIds?: string[];
   retentionDays: number;
 }
 
