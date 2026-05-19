@@ -107,6 +107,13 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("setLeftovers({ loading: false, error: friendlyErrorMessage(err) });");
   });
 
+  it("surfaces app-leftover history persistence warnings without hiding the result", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("result.logPersistenceWarning");
+    expect(source).toContain("정리 결과는 처리됐지만 활동 기록 저장은 못 했어요");
+  });
+
   it("keeps existing leftover candidates visible when refresh fails before cleanup", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

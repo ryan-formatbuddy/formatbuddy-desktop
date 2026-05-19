@@ -65,6 +65,7 @@ interface CleanupAppLeftoversOptions {
   userDataDir: string;
   now?: () => Date;
   registryRunner?: RegistryCleanupRunner;
+  recordCleanupExecution?: typeof recordCleanupExecution;
   onFollowupCleaned?: (app: Pick<InstalledApp, "name" | "publisher">) => void | Promise<void>;
 }
 
@@ -1250,7 +1251,14 @@ export async function cleanupAppLeftovers(
     removedItems,
     skippedItems
   });
-  await recordCleanupExecution(options.userDataDir, logEntry);
+  let logPersistenceWarning: string | undefined;
+  try {
+    const recordHistory = options.recordCleanupExecution ?? recordCleanupExecution;
+    await recordHistory(options.userDataDir, logEntry);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logPersistenceWarning = `정리는 끝났지만 실행 기록을 저장하지 못했어요: ${message}`;
+  }
   if (options.onFollowupCleaned) {
     for (const cleanedApp of cleanedFollowupGroups.values()) {
       await options.onFollowupCleaned(cleanedApp);
@@ -1264,7 +1272,8 @@ export async function cleanupAppLeftovers(
     totalFreedBytes: logEntry.totalFreedBytes,
     removedItems,
     skippedItems,
-    logEntry
+    logEntry,
+    ...(logPersistenceWarning ? { logPersistenceWarning } : {})
   };
 }
 

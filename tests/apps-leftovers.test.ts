@@ -345,6 +345,51 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("returns the app leftover cleanup result when history recording fails after moving files", async () => {
+    const installFolder = join(fx.localAppData, "Programs", "Acme Notes");
+    const userDataDir = join(fx.root, "userdata");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        recordCleanupExecution: async () => {
+          throw new Error("history disk full");
+        }
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.totalFreedBytes).toBeGreaterThan(0);
+    expect(result.logPersistenceWarning).toMatch(/기록|history disk full/i);
+    await expect(fs.stat(installFolder)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toHaveLength(1);
+  });
+
   it.each([
     ["user home", (fx: Fixture) => fx.home],
     ["AppData Local", (fx: Fixture) => fx.localAppData],

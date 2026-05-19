@@ -344,6 +344,11 @@ function LeftoverPanel({
               {cleanedCount}개를 정리했어요. 실패/건너뜀{" "}
               {failedRemovedCount + skippedCount}개.
             </p>
+            {result.logPersistenceWarning && (
+              <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
+                정리 결과는 처리됐지만 활동 기록 저장은 못 했어요. 앱을 다시 열어 기록 화면을 확인해주세요.
+              </p>
+            )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Button variant="primary" size="sm" onClick={onRescan}>
                 다시 점검해서 효과 보기

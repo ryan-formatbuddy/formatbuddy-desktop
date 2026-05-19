@@ -315,6 +315,11 @@ function ResultPanel({
           {failedCount}개 항목은 권한 또는 잠금 때문에 처리하지 못해 건너뛰었어요.
         </p>
       )}
+      {result.logPersistenceWarning && (
+        <p style={{ fontSize: 13, opacity: 0.75 }}>
+          정리 결과는 처리됐지만 활동 기록 저장은 못 했어요. 앱을 다시 열어 기록 화면을 확인해주세요.
+        </p>
+      )}
       <details>
         <summary>처리 내역 자세히 보기</summary>
         <pre style={{ fontSize: 11, maxHeight: 300, overflow: "auto" }}>
@@ -322,6 +327,7 @@ function ResultPanel({
             {
               mode: result.mode,
               freedBytes: result.totalFreedBytes,
+              logPersistenceWarning: result.logPersistenceWarning,
               removed: result.removedItems.filter((i) => i.succeeded).map((i) => i.path),
               skipped: result.skippedItems
                 .filter((s) => s.reason !== "not-selected")

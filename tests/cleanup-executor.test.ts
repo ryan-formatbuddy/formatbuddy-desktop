@@ -576,6 +576,35 @@ describe("executeCleanup", () => {
     expect(history.entries[0].categories[0].categoryId).toBe("temp-user");
   });
 
+  it("returns the cleanup result when history recording fails after a successful move", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps, trashed } = makeSpyDeps();
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps,
+        home: fx.home,
+        recordCleanupExecution: async () => {
+          throw new Error("history disk full");
+        }
+      }
+    );
+
+    expect(trashed).toEqual([targetFile]);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.totalFreedBytes).toBeGreaterThan(0);
+    expect(result.logPersistenceWarning).toMatch(/기록|history disk full/i);
+  });
+
   it("reports execute-failed when the dep throws, without crashing the run", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];

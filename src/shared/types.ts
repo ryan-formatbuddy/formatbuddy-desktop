@@ -743,6 +743,8 @@ export interface CleanupExecuteResult {
   removedItems: CleanupExecutedItem[];
   skippedItems: CleanupSkippedItem[];
   logEntry: CleanupLogEntry;
+  /** Present when cleanup succeeded but the local history log could not be persisted. */
+  logPersistenceWarning?: string;
 }
 
 export interface CleanupHistorySnapshot {

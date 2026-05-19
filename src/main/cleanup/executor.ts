@@ -70,6 +70,7 @@ export interface ExecuteCleanupOptions {
   userDataDir: string;
   deps: ExecutorDeps;
   home?: string;
+  recordCleanupExecution?: typeof recordCleanupExecution;
   /** Inject "now" for deterministic logs in tests. */
   now?: () => Date;
   /**
@@ -469,7 +470,14 @@ export async function executeCleanup(
   });
   const totalFreedBytes = logEntry.totalFreedBytes;
 
-  await recordCleanupExecution(options.userDataDir, logEntry);
+  let logPersistenceWarning: string | undefined;
+  try {
+    const recordHistory = options.recordCleanupExecution ?? recordCleanupExecution;
+    await recordHistory(options.userDataDir, logEntry);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logPersistenceWarning = `정리는 끝났지만 실행 기록을 저장하지 못했어요: ${message}`;
+  }
 
   return {
     planId: plan.planId,
@@ -478,7 +486,8 @@ export async function executeCleanup(
     totalFreedBytes,
     removedItems,
     skippedItems,
-    logEntry
+    logEntry,
+    ...(logPersistenceWarning ? { logPersistenceWarning } : {})
   };
 }
 
