@@ -17,6 +17,7 @@ import type {
   InstalledApp
 } from "@shared/types";
 import { classifyInstalledApp } from "../appInventory";
+import { isUnsafeUninstallCommand } from "./uninstaller";
 
 const CATEGORY_ORDER: AppManagerCategory[] = [
   "work",
@@ -81,6 +82,12 @@ function evaluateAvailability(app: InstalledApp): {
     return {
       availability: "no-uninstall-string",
       note: "제거 명령이 없어서 Windows 기본 제거를 자동으로 띄울 수 없어요."
+    };
+  }
+  if (isUnsafeUninstallCommand(app.uninstallString)) {
+    return {
+      availability: "blocked",
+      note: "Windows가 다르게 해석할 수 있는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요."
     };
   }
   if (app.quietUninstallString && app.quietUninstallString.trim()) {

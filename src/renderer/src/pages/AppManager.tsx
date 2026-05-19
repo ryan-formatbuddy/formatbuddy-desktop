@@ -65,6 +65,8 @@ function availabilityBadge(item: AppManagerItem): { label: string; tone: string 
       return { label: "설정에서 직접", tone: "muted" };
     case "system-component":
       return { label: "Windows 구성요소", tone: "warning" };
+    case "blocked":
+      return { label: "자동 실행 안 함", tone: "warning" };
   }
 }
 

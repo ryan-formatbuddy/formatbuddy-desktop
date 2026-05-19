@@ -1070,7 +1070,8 @@ export type AppUninstallAvailability =
   | "ready"
   | "no-uninstall-string"
   | "system-component"
-  | "registry-only";
+  | "registry-only"
+  | "blocked";
 
 export interface AppManagerItem {
   id: string;

@@ -39,7 +39,7 @@ export interface UninstallerDeps {
   platform?: NodeJS.Platform;
 }
 
-function hasUnsafeShellControl(command: string): boolean {
+export function isUnsafeUninstallCommand(command: string): boolean {
   let inQuote = false;
 
   for (const char of command) {
@@ -70,7 +70,7 @@ export function canLaunchUninstall(
     mode === "quiet"
       ? app.quietUninstallString || ""
       : app.uninstallString || "";
-  return chosen.trim().length > 0 && !hasUnsafeShellControl(chosen);
+  return chosen.trim().length > 0 && !isUnsafeUninstallCommand(chosen);
 }
 
 async function defaultSpawn(command: string): Promise<{ pid?: number }> {
@@ -141,7 +141,7 @@ export async function runUninstall(
     };
   }
 
-  if (hasUnsafeShellControl(chosen)) {
+  if (isUnsafeUninstallCommand(chosen)) {
     return {
       status: "blocked",
       appName: request.appName,
@@ -171,4 +171,8 @@ export async function runUninstall(
   }
 }
 
-export const __testing = { defaultSpawn, hasUnsafeShellControl };
+export const __testing = {
+  defaultSpawn,
+  hasUnsafeShellControl: isUnsafeUninstallCommand,
+  isUnsafeUninstallCommand
+};

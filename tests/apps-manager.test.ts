@@ -75,6 +75,19 @@ describe("buildAppManagerSnapshot", () => {
     expect(snapshot.hiddenSystemCount).toBe(1);
   });
 
+  it("pre-blocks uninstall strings that cmd.exe could reinterpret", () => {
+    const snapshot = buildAppManagerSnapshot([
+      app({
+        name: "Sketchy Tool",
+        publisher: "Unknown",
+        uninstallString: '"C:\\Program Files\\Sketchy Tool\\unins000.exe" %COMSPEC%'
+      })
+    ]);
+    const item = snapshot.groups.flatMap((g) => g.items)[0];
+    expect(item.uninstallAvailability).toBe("blocked");
+    expect(item.availabilityNote).toMatch(/Windows 설정/);
+  });
+
   it("filters out KB/hotfix noise but still counts in hiddenSystemCount=0", () => {
     const snapshot = buildAppManagerSnapshot([
       app({ name: "Security Update for Windows (KB1234567)", publisher: "Microsoft" }),
