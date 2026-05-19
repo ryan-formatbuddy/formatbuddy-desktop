@@ -167,7 +167,7 @@ function QuickScanCard({
       <h2 style={{ marginTop: 0 }}>빠른 검사 시작</h2>
       <p style={{ fontSize: 13 }}>
         Windows 보안의 빠른 검사를 시작해요. 진행과 결과는 Windows 보안 화면에서 직접 보여드려요.
-        포맷버디가 위협을 직접 치료하지 않아요.
+        시작 직후 상태와 기록을 한 번 다시 읽고, 포맷버디가 위협을 직접 치료하지는 않아요.
       </p>
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant="primary" onClick={onRunScan} disabled={busy || !isWindows}>
@@ -176,6 +176,7 @@ function QuickScanCard({
         <Button
           variant="secondary"
           onClick={() => void window.fb?.runActionCommand("start windowsdefender:")}
+          disabled={!isWindows}
         >
           Windows 보안 화면 열기
         </Button>
@@ -306,6 +307,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
     try {
       const result = await window.fb.runDefenderQuickScan();
       setScanResult(result);
+      await Promise.all([refreshStatus(), loadThreats()]);
     } catch (err) {
       setScanResult({
         status: "spawn-failed",
@@ -315,11 +317,12 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
     } finally {
       setScanBusy(false);
     }
-  }, []);
+  }, [loadThreats, refreshStatus]);
 
   useEffect(() => {
     void refreshStatus();
-  }, [refreshStatus]);
+    void loadThreats();
+  }, [loadThreats, refreshStatus]);
 
   return (
     <main className="fb-report" aria-label="보안 점검">
