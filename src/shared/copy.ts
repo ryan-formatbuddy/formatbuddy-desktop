@@ -146,6 +146,21 @@ export const copy = {
   monitorTitle: "최근 점검 스냅샷",
   monitorSubtitle: "실시간 감시가 아니라, 가장 최근 점검 기록을 그대로 보여드려요.",
   monitorNoScan: "아직 저장된 점검 기록이 없어요. 한 번 점검하면 다음부터 변화도 같이 보여드릴게요.",
+  // v2.0 (Round D-8 / C4) — empty-state copy. Pages should reach for
+  // these instead of hardcoding a "데이터 없어요" string, so the tone
+  // stays consistent and i18n keys are pinned.
+  emptyStateAuditTitle: "아직 기록할 활동이 없어요",
+  emptyStateAuditBody:
+    "정리나 앱 제거를 한 번 하면 여기에 시간순으로 쌓여요. 진단만 봐도 충분할 땐 이 화면은 비어 있어도 괜찮아요.",
+  emptyStateCleanupTitle: "지울 게 거의 없어요",
+  emptyStateCleanupBody:
+    "휴지통도 비어 있고 임시 파일도 적어요. 가벼운 PC네요. 다음 점검에서 다시 살펴볼게요.",
+  emptyStateAppsTitle: "최근 진단이 없어요",
+  emptyStateAppsBody:
+    "앱 분류는 진단 결과를 바탕으로 보여드려요. 점검을 한 번 돌리면 카테고리별로 정리해드릴게요.",
+  emptyStateSecurityTitle: "Windows 보안이 잘 켜져 있어요",
+  emptyStateSecurityBody:
+    "실시간 보호도 켜져 있고 최근 검사 날짜도 멀지 않아요. 가끔 한 번씩 빠른 검사만 돌려도 충분해요.",
   nextStepsTitle: "이 결과로 바로 할 수 있는 일",
   nextStepsLede: "점검 끝났다고 손에서 떼지 마세요. 다음 행동 한 가지만 골라도 좋아요.",
   nextStepsCleanup: "안전 정리 시작",

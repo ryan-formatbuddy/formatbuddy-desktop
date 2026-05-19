@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { copy } from "@shared/copy";
 import type { AuditCategory, AuditEntry, AuditSnapshot } from "@shared/types";
 
 interface AuditLogProps {
@@ -130,10 +131,9 @@ export function AuditLog({ onBack }: AuditLogProps) {
       )}
 
       {snapshot && entries.length === 0 && (
-        <section className="fb-card">
-          <p>
-            아직 기록할 활동이 없어요. 정리나 앱 제거를 한 번 하면 여기에 차례대로 쌓여요.
-          </p>
+        <section className="fb-card fb-anim-fade">
+          <h3 style={{ marginTop: 0 }}>{copy.emptyStateAuditTitle}</h3>
+          <p>{copy.emptyStateAuditBody}</p>
         </section>
       )}
 
