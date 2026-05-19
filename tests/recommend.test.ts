@@ -316,7 +316,7 @@ describe("disk-health override + Defender visibility", () => {
     expect(defenderAction).toBeDefined();
     const security = rec.healthPillars.find((p) => p.id === "security");
     expect(security?.status).toBe("action");
-    expect(security?.detail).toMatch(/백신처럼 직접 치료/);
+    expect(security?.detail).toMatch(/위협을 직접 처리/);
     expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.status).toBe("warning");
     expect(rec.careActions.find((a) => a.id === "realtime-protection-check")?.status).toBe("warning");
   });
@@ -471,7 +471,7 @@ describe("buddy checklist", () => {
     expect(rec.careActions.find((a) => a.id === "app-uninstall-review")?.status).toBe("check");
     expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).toBe("Start-MpScan -ScanType QuickScan");
     expect(rec.careActions.find((a) => a.id === "windows-update-review")?.status).toBe("warning");
-    expect(rec.careActions.every((a) => /자동 삭제|승인 없는 삭제|직접 치료|상주 감시|Ryan이 직접|끄기|선택/.test(a.safetyNote))).toBe(true);
+    expect(rec.careActions.every((a) => /자동 삭제|승인 없는 삭제|직접 처리|상주 감시|Ryan이 직접|끄기|선택/.test(a.safetyNote))).toBe(true);
   });
 
   it("builds a cleanup center from temporary files, large files, duplicate candidates, and startup apps", () => {

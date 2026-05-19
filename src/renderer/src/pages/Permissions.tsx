@@ -165,7 +165,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "인터넷으로 보내는 기능은 현재 들어가 있지 않아요."
       },
       {
-        what: "백신처럼 위협 직접 치료",
+        what: "위협 해결 완료처럼 말하기",
         why: "Windows 보안의 작업만 그대로 표시해요.",
         evidence: "Windows 보안에서 확인한 결과만 쉽게 보여줘요."
       },

@@ -167,7 +167,7 @@ function QuickScanCard({
       <h2 style={{ marginTop: 0 }}>빠른 검사 시작</h2>
       <p style={{ fontSize: 13 }}>
         Windows 보안의 빠른 검사를 시작해요. 진행과 결과는 Windows 보안 화면에서 직접 보여드려요.
-        시작 직후 상태와 기록을 한 번 다시 읽고, 포맷버디가 위협을 직접 치료하지는 않아요.
+        시작 직후 상태와 기록을 한 번 다시 읽고, 포맷버디가 위협을 직접 처리하지는 않아요.
       </p>
       <div style={{ display: "flex", gap: 8 }}>
         <Button variant="primary" onClick={onRunScan} disabled={busy || !isWindows}>
@@ -208,7 +208,7 @@ function ThreatsPanel({
         <div>
           <h2 style={{ margin: 0 }}>Windows가 기록한 위협 내역</h2>
           <small>
-            Windows 보안에 남아 있는 기록만 그대로 보여드려요. 포맷버디는 치료/제거를 하지 않아요.
+            Windows 보안에 남아 있는 기록만 그대로 보여드려요. 포맷버디는 처리 결과를 만들지 않아요.
           </small>
         </div>
         <Button variant="ghost" size="sm" onClick={onLoad} disabled={busy}>
@@ -341,7 +341,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">보안 점검 센터</h1>
         <p className="fb-lede">
-          Windows 보안의 상태와 기록을 그대로 보여드려요. 치료와 제거는 모두 Windows가 직접 결정해요.
+          Windows 보안의 상태와 기록을 그대로 보여드려요. 확인과 조치는 모두 Windows가 직접 결정해요.
           포맷버디는 화면을 띄워주는 역할만 합니다.
         </p>
         {!isWindows && (

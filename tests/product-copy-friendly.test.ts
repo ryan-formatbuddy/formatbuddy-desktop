@@ -46,6 +46,8 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("자동 삭제될");
     expect(source).not.toContain("permanent-mode");
     expect(source).not.toContain("permanently delete");
+    expect(source).not.toContain("치료/제거");
+    expect(source).not.toContain("백신처럼 위협 직접 치료");
     expect(source).toContain("30일 뒤 자동으로 비워요");
   });
 

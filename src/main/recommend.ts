@@ -347,8 +347,8 @@ function buildCareActions(report: ScanReport, scores: {
             : scanAge > 14
               ? `최근 보안 검사가 ${scanAge}일 전이에요. 한 번 검사해보면 좋아요.`
               : `최근 보안 검사가 ${scanAge}일 전이라 크게 오래되진 않았어요.`,
-      description: "Windows Defender 빠른 검사를 준비해요. 포맷버디가 치료한다고 말하지 않습니다.",
-      safetyNote: "백신처럼 위협을 직접 치료하지 않고 Windows 보안으로 연결해요.",
+      description: "Windows 보안 빠른 검사를 준비해요. 포맷버디가 위협을 해결했다고 말하지 않아요.",
+      safetyNote: "위협을 직접 처리하지 않고 Windows 보안으로 연결해요.",
       cta: "검사 준비",
       command: "Start-MpScan -ScanType QuickScan"
     },
@@ -541,7 +541,7 @@ function buildHealthPillars(report: ScanReport, scores: {
             ? "업데이트나 보안 검사 날짜를 한 번 확인해보면 좋아요."
             : "Windows 보안 상태는 크게 신경 쓰이는 부분이 적어요.",
       detail:
-        "포맷버디가 백신처럼 직접 치료하지는 않아요. 대신 Windows 기본 보안 기능이 켜져 있는지 보고, 검사 화면을 바로 열어드리는 역할을 해요.",
+        "포맷버디가 위협을 직접 처리하지는 않아요. 대신 Windows 기본 보안 기능이 켜져 있는지 보고, 검사 화면을 바로 열어드리는 역할을 해요.",
       actions: [
         {
           title: "Windows 보안 열기",
@@ -634,9 +634,9 @@ export function generateRecommendation(report: ScanReport): Recommendation {
     "장치가 Windows와 대화할 때 쓰는 파일이 오래된 편이에요.",
     "드라이버는 프린터, 그래픽, 무선랜 같은 장치를 움직이는 설명서예요.",
     "제조사 업데이트나 Windows Update의 선택 업데이트를 확인해보세요.");
-  pushReason(reasons, "defender", "백신 상태", def, WEIGHTS.defender,
+  pushReason(reasons, "defender", "Windows 보안 상태", def, WEIGHTS.defender,
     "Windows 기본 보안 기능이 꺼져 있거나 오래 업데이트되지 않았어요.",
-    "포맷버디가 바이러스를 직접 잡지는 않아요. Windows 보안이 잘 켜져 있는지 확인합니다.",
+    "포맷버디가 위협을 직접 해결하지 않아요. Windows 보안이 잘 켜져 있는지 확인합니다.",
     "Windows 보안을 열고 빠른 검사를 한 번 실행해주세요.");
   pushReason(reasons, "storage-waste", "정리할 파일", sw, WEIGHTS.storageWaste,
     "오래된 임시 파일이나 이전 Windows 파일이 쌓여 있어요.",
