@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CleanupItem } from "../src/shared/types";
@@ -148,6 +148,35 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("target-exists");
     expect(await readFile(source, "utf8")).toBe("new file");
+    expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
+  it("refuses restore when the original parent folder is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const tempDir = join(fx.home, "AppData", "Local", "Temp");
+    const source = join(tempDir, "old.tmp");
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    const outside = join(fx.root, "outside-restore");
+    await rm(tempDir, { recursive: true, force: true });
+    await mkdir(outside, { recursive: true });
+    await symlink(outside, tempDir, "dir");
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(existsSync(join(outside, "old.tmp"))).toBe(false);
     expect(existsSync(entry.storedPath)).toBe(true);
   });
 
