@@ -214,15 +214,16 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function findLinkedRestoreParent(
+async function findLinkedPathPart(
   targetPath: string,
-  boundary?: string
+  boundary?: string,
+  includeSelf = false
 ): Promise<string | undefined> {
   if (!boundary) return undefined;
 
   const normalizedBoundary = normalizePath(boundary);
   if (!normalizedBoundary) return undefined;
-  let current = dirname(targetPath);
+  let current = includeSelf ? targetPath : dirname(targetPath);
 
   while (current) {
     const normalizedCurrent = normalizePath(current);
@@ -278,6 +279,11 @@ export async function moveToFormatBuddyTrash(
     throw new Error(
       `cleanup-trash refuses protected source path: ${sourceDecision.blockedBy ?? "blocked-path"}`
     );
+  }
+
+  const linkedSource = await findLinkedPathPart(options.item.path, options.home, true);
+  if (linkedSource) {
+    throw new Error(`cleanup-trash refuses linked source path (링크 경로): ${linkedSource}`);
   }
 
   const now = options.now?.() ?? new Date();
@@ -364,7 +370,7 @@ export async function restoreTrashEntry(
     };
   }
 
-  const linkedParent = await findLinkedRestoreParent(entry.originalPath, options.home);
+  const linkedParent = await findLinkedPathPart(entry.originalPath, options.home);
   if (linkedParent) {
     return {
       entryId: entry.id,
