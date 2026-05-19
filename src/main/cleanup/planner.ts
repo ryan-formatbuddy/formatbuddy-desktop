@@ -589,6 +589,19 @@ export function consumePlan(
   return cached.plan;
 }
 
+export function peekPlan(
+  planId: string,
+  confirmationToken: string,
+  now?: () => Date
+): CleanupPlan | undefined {
+  pruneExpired(now);
+  const cached = PLAN_CACHE.get(planId);
+  if (!cached) return undefined;
+  if (cached.plan.confirmationToken !== confirmationToken) return undefined;
+  if (cached.plan.blocklistVersion !== BLOCKLIST_VERSION) return undefined;
+  return cached.plan;
+}
+
 export function __resetPlanCacheForTests(): void {
   PLAN_CACHE.clear();
 }

@@ -536,22 +536,27 @@ describe("executeCleanup", () => {
     expect(fail?.detail).toMatch(/UAC denied/);
   });
 
-  it("reports not-found when the selected id is not in the plan", async () => {
-    const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
-    const { deps } = makeSpyDeps();
-    const result = await executeCleanup(
-      {
-        planId: plan.planId,
-        confirmationToken: plan.confirmationToken,
-        selectedItemIds: ["ghost-id-that-does-not-exist"],
-        mode: "trash"
-      },
-      { userDataDir: fx.userData, deps, home: fx.home }
-    );
-    const notFound = result.skippedItems.find(
-      (s) => s.reason === "not-found" && s.itemId === "ghost-id-that-does-not-exist"
-    );
-    expect(notFound).toBeDefined();
-    expect(result.removedItems).toHaveLength(0);
+  it("refuses unknown selected item ids before touching any selected file", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps, trashed, permanently } = makeSpyDeps();
+
+    await expect(
+      executeCleanup(
+        {
+          planId: plan.planId,
+          confirmationToken: plan.confirmationToken,
+          selectedItemIds: [item.id, "ghost-id-that-does-not-exist"],
+          mode: "trash"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/not present in the plan/);
+
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    expect(await fs.readFile(targetFile, "utf8")).toBe("x".repeat(4096));
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
   });
 });

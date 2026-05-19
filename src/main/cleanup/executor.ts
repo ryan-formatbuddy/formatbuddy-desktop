@@ -35,7 +35,7 @@ import type {
 import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
-import { consumePlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
+import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import { moveToFormatBuddyTrash } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
@@ -321,30 +321,39 @@ export async function executeCleanup(
     throw new Error(`cleanup:execute received invalid mode ${request.mode}`);
   }
 
+  const currentPlan = peekPlan(request.planId, request.confirmationToken, options.now);
+  if (!currentPlan) {
+    throw new Error("cleanup:execute could not match a current plan (expired, wrong token, or already executed)");
+  }
+
+  const currentItemIndex = buildItemIndex(currentPlan);
+  const selectedIds = new Set(request.selectedItemIds);
+  const unknownSelectionIds = Array.from(selectedIds).filter((id) => !currentItemIndex.has(id));
+  if (unknownSelectionIds.length > 0) {
+    throw new Error(
+      `cleanup:execute selectedItemIds not present in the plan: ${unknownSelectionIds.join(", ")}`
+    );
+  }
+
   const plan = consumePlan(request.planId, request.confirmationToken, options.now);
   if (!plan) {
     throw new Error("cleanup:execute could not match a current plan (expired, wrong token, or already executed)");
   }
 
   const home = options.home ?? homedir();
-  const itemIndex = buildItemIndex(plan);
+  const itemIndex = currentItemIndex;
   // collectAllowRootsByCategory currently informs nothing inside the
   // attempt loop (we now whitelist per-path), but keep it around so
   // a future relaxed mode (e.g. "trash a whole category") has the
   // structured root list to start from.
   void collectAllowRootsByCategory(plan);
 
-  const selectedIds = new Set(request.selectedItemIds);
   const removedItems: CleanupExecutedItem[] = [];
   const skippedItems: CleanupSkippedItem[] = [];
-  const unknownSelectionIds: string[] = [];
 
   for (const id of selectedIds) {
     const item = itemIndex.get(id);
-    if (!item) {
-      unknownSelectionIds.push(id);
-      continue;
-    }
+    if (!item) continue;
     const outcome = await attemptItem(item, request.mode, options.deps, home, {
       userDataDir: options.userDataDir,
       home,
@@ -367,15 +376,6 @@ export async function executeCleanup(
         reason: "not-selected"
       });
     }
-  }
-
-  for (const unknown of unknownSelectionIds) {
-    skippedItems.push({
-      itemId: unknown,
-      path: "",
-      reason: "not-found",
-      detail: "selectedItemIds referenced an item not present in the plan"
-    });
   }
 
   const executedAt = options.now?.().toISOString() ?? new Date().toISOString();
