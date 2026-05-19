@@ -84,7 +84,7 @@ async function measurePathSize(path: string, depth = 0): Promise<number | null> 
   try {
     entries = await fs.readdir(path, { withFileTypes: true });
   } catch {
-    return 0;
+    return null;
   }
 
   let total = 0;
