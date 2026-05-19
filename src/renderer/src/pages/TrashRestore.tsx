@@ -64,6 +64,16 @@ function formatLocal(at: string): string {
   return new Date(t).toLocaleString("ko-KR");
 }
 
+function registryBackupTitle(entry: RegistryBackupEntry): string {
+  const appName = entry.appName?.trim();
+  return appName ? `${appName} 삭제 흔적` : "앱 이름을 확인하지 못한 삭제 흔적";
+}
+
+function registryBackupSubtitle(entry: RegistryBackupEntry): string {
+  const appPublisher = entry.appPublisher?.trim();
+  return appPublisher ? `${appPublisher} · 앱 삭제 흔적 위치` : "앱 삭제 흔적 위치";
+}
+
 export function TrashRestore({ onBack }: TrashRestoreProps) {
   const [snapshot, setSnapshot] = useState<CleanupTrashSnapshot | null>(null);
   const [registrySnapshot, setRegistrySnapshot] = useState<RegistryBackupSnapshot | null>(null);
@@ -376,7 +386,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
               >
                 앱 삭제 흔적 백업
               </span>
-              <strong style={{ fontSize: 14 }}>앱 삭제 흔적 백업</strong>
+              <strong style={{ fontSize: 14 }}>{registryBackupTitle(entry)}</strong>
               <span
                 style={{
                   marginLeft: "auto",
@@ -388,7 +398,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 {days === 0 ? "오늘 만료" : `${days}일 뒤 만료`}
               </span>
             </header>
-            <div style={{ fontSize: 13, opacity: 0.85 }}>{entry.keyPath}</div>
+            <div style={{ fontSize: 12, opacity: 0.65, marginTop: -2 }}>
+              {registryBackupSubtitle(entry)}
+            </div>
+            <div style={{ fontSize: 13, opacity: 0.85, wordBreak: "break-all" }}>
+              {entry.keyPath}
+            </div>
             <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
               보낸 시각 {formatLocal(entry.createdAt)}
             </div>

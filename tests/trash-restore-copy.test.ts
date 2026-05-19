@@ -23,4 +23,14 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("앱 삭제 흔적 백업");
     expect(source).toContain("앱 흔적 되돌리기");
   });
+
+  it("uses app identity first for app deletion trace backups", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("registryBackupTitle");
+    expect(source).toContain("entry.appName");
+    expect(source).toContain("entry.appPublisher");
+    expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
+    expect(source).toContain("앱 삭제 흔적 위치");
+  });
 });
