@@ -128,6 +128,52 @@ async function ensureScanOutputDir(outputDir: string): Promise<string> {
   return outputDir;
 }
 
+async function findNearestExistingPath(targetPath: string): Promise<string> {
+  let current = targetPath;
+
+  while (current) {
+    try {
+      await fs.lstat(current);
+      return current;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+
+    const next = dirname(current);
+    if (next === current) return current;
+    current = next;
+  }
+
+  return targetPath;
+}
+
+async function ensureManifestOutputPath(outputPath: string): Promise<string> {
+  const parent = dirname(outputPath);
+  const existingBoundary = await findNearestExistingPath(parent);
+  const linkedBefore = await findLinkedPathPart(outputPath, existingBoundary, true);
+  if (linkedBefore) {
+    throw new Error(`Backup checklist output path is behind a link: ${linkedBefore}`);
+  }
+
+  await fs.mkdir(parent, { recursive: true });
+
+  const linkedAfter = await findLinkedPathPart(outputPath, existingBoundary, true);
+  if (linkedAfter) {
+    throw new Error(`Backup checklist output path is behind a link: ${linkedAfter}`);
+  }
+
+  try {
+    const stat = await fs.lstat(outputPath);
+    if (stat.isDirectory()) {
+      throw new Error(`Backup checklist output path is a folder: ${outputPath}`);
+    }
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+  }
+
+  return outputPath;
+}
+
 export interface RunScanOptions {
   scriptPath: string;
   outputDir: string;
@@ -541,6 +587,7 @@ export async function runBackupManifest(
     throw new Error("Backup checklist export is only available on Windows.");
   }
 
+  const outputPath = await ensureManifestOutputPath(options.outputPath);
   const stagedPath = await verifyAndStageScript(options.scriptPath, {
     enforce: !!options.enforceIntegrity
   });
@@ -565,7 +612,7 @@ export async function runBackupManifest(
           "-File",
           stagedPath,
           "-OutputPath",
-          options.outputPath,
+          outputPath,
           "-Mode",
           "manifest",
           "-ManifestMaxFileSizeBytes",
@@ -583,7 +630,7 @@ export async function runBackupManifest(
       const onAbort = () => {
         child.kill();
         cleanup();
-        rejectOk(new DOMException("Manifest export cancelled", "AbortError"));
+        rejectOk(new DOMException("Backup checklist export cancelled", "AbortError"));
       };
 
       if (options.signal) {
@@ -618,14 +665,14 @@ export async function runBackupManifest(
         // failed Out-File can still leave exit code 0. Verify the file exists
         // and is non-empty before reporting success.
         try {
-          const stat = await fs.stat(options.outputPath);
+          const stat = await fs.stat(outputPath);
           if (!stat.isFile() || stat.size === 0) {
-            rejectOk(new Error("Manifest file was not written or is empty."));
+            rejectOk(new Error("Backup checklist file was not written or is empty."));
             return;
           }
-          resolveOk({ saved: true, path: options.outputPath });
+          resolveOk({ saved: true, path: outputPath });
         } catch (e) {
-          rejectOk(new Error(`Manifest file missing: ${(e as Error).message}`));
+          rejectOk(new Error(`Backup checklist file missing: ${(e as Error).message}`));
         }
       });
     });
@@ -643,5 +690,6 @@ export const __testing = {
   progressForFinalizing,
   verifyAndStageScript,
   ensureScanOutputDir,
+  ensureManifestOutputPath,
   shouldUseMockPipeline
 };

@@ -178,6 +178,69 @@ describe("verifyAndStageScript", () => {
   });
 });
 
+describe("backup checklist output path safety", () => {
+  it("refuses a backup checklist output file that is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const root = mkdtempSync(join(tmpdir(), "fb-manifest-link-test-"));
+    const outside = join(root, "outside-manifest.json");
+    const outputPath = join(root, "빠진파일_확인목록.json");
+    try {
+      writeFileSync(outside, "outside stays put", "utf8");
+      symlinkSync(outside, outputPath);
+
+      const testing = __testing as typeof __testing & {
+        ensureManifestOutputPath?: (path: string) => Promise<string>;
+      };
+
+      await expect(
+        testing.ensureManifestOutputPath?.(outputPath) ?? Promise.resolve("missing-helper")
+      ).rejects.toThrow(/checklist|output|link/i);
+      expect(readFileSync(outside, "utf8")).toBe("outside stays put");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a backup checklist output folder chain that crosses a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const root = mkdtempSync(join(tmpdir(), "fb-manifest-parent-link-test-"));
+    const outside = mkdtempSync(join(root, "outside-"));
+    const linkedParent = join(root, "linked-parent");
+    const outputPath = join(linkedParent, "nested", "빠진파일_확인목록.json");
+    try {
+      symlinkSync(outside, linkedParent, "dir");
+
+      const testing = __testing as typeof __testing & {
+        ensureManifestOutputPath?: (path: string) => Promise<string>;
+      };
+
+      await expect(
+        testing.ensureManifestOutputPath?.(outputPath) ?? Promise.resolve("missing-helper")
+      ).rejects.toThrow(/checklist|output|link/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("creates the backup checklist output parent folder for a normal path", async () => {
+    const root = mkdtempSync(join(tmpdir(), "fb-manifest-output-test-"));
+    const outputPath = join(root, "nested", "빠진파일_확인목록.json");
+    try {
+      const testing = __testing as typeof __testing & {
+        ensureManifestOutputPath?: (path: string) => Promise<string>;
+      };
+
+      await expect(
+        testing.ensureManifestOutputPath?.(outputPath) ?? Promise.resolve("missing-helper")
+      ).resolves.toBe(outputPath);
+      writeFileSync(outputPath, "{}", "utf8");
+      expect(readFileSync(outputPath, "utf8")).toBe("{}");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("bundled PowerShell compatibility", () => {
   const scriptPath = join(process.cwd(), "resources", "powershell", "Invoke-FormatBuddyScan.ps1");
 

@@ -40,11 +40,11 @@ export function friendlyErrorMessage(input: FriendlyInput | Error | string | nul
     return "진단 스크립트를 안전하게 준비하지 못해 실행을 보류했어요. 다시 시도해주세요.";
   }
 
-  // Manifest export specific
-  if (/manifest file was not written|manifest file is empty/i.test(message)) {
+  // Backup checklist export specific
+  if (/(manifest|backup checklist) file was not written|(manifest|backup checklist) file is empty/i.test(message)) {
     return "빠진 파일 확인 목록을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
-  if (/manifest file missing/i.test(message)) {
+  if (/(manifest|backup checklist) file missing/i.test(message)) {
     return "빠진 파일 확인 목록 파일이 사라졌어요. 다른 폴더를 선택해 다시 시도해보세요.";
   }
 

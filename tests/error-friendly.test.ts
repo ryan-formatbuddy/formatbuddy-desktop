@@ -16,16 +16,18 @@ describe("friendlyErrorMessage", () => {
     expect(friendlyErrorMessage("refusing to spawn")).toMatch(/실행을 보류했어요/);
   });
 
-  it("maps manifest-export failures", () => {
-    expect(friendlyErrorMessage("Manifest file was not written or is empty.")).toMatch(/저장하지 못했어요/);
-    expect(friendlyErrorMessage("Manifest file missing: ENOENT ...")).toMatch(/사라졌어요/);
+  it("maps backup checklist export failures", () => {
+    expect(friendlyErrorMessage("Backup checklist file was not written or is empty.")).toMatch(
+      /저장하지 못했어요/
+    );
+    expect(friendlyErrorMessage("Backup checklist file missing: ENOENT ...")).toMatch(/사라졌어요/);
   });
 
   it("maps cancellation / abort", () => {
     expect(friendlyErrorMessage("Scan cancelled")).toMatch(/중간에 그만뒀어요/);
-    expect(friendlyErrorMessage({ name: "AbortError", message: "Manifest export cancelled" })).toMatch(
-      /그만뒀어요/
-    );
+    expect(
+      friendlyErrorMessage({ name: "AbortError", message: "Backup checklist export cancelled" })
+    ).toMatch(/그만뒀어요/);
   });
 
   it("maps filesystem error codes", () => {
