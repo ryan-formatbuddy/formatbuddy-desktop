@@ -136,6 +136,43 @@ export function App() {
     });
   }, []);
 
+  // v2.0 (Round D-7 / C8) -- global keyboard shortcuts.
+  //   Ctrl/Cmd+R  : run/rerun a scan (matches the report dashboard CTA)
+  //   Escape      : go back to home (matches every page's "처음으로")
+  // We skip when focus is in an editable element so users typing into
+  // the cleanup permanent-mode confirm dialog or any future settings
+  // input don't lose keystrokes.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const editable =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (target?.isContentEditable ?? false);
+      if (editable) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r") {
+        e.preventDefault();
+        void startScanRef.current();
+        return;
+      }
+      if (e.key === "Escape") {
+        // Only intercept when we're past home/onboarding so Esc on
+        // the home screen doesn't fight the OS-level window-close
+        // behavior.
+        setPhase((prev) =>
+          prev.kind === "home" || prev.kind === "onboarding"
+            ? prev
+            : { kind: "home" }
+        );
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   const startScan = useCallback(async () => {
     if (!window.fb) {
       setPhase({ kind: "error", error: { message: "Electron 브리지를 찾지 못했어요." } });
@@ -299,7 +336,9 @@ export function App() {
     <div className="fb-app">
       <WinChrome />
       {topBar}
-      <div className="fb-app-body">{content}</div>
+      <div className="fb-app-body fb-anim-fade" key={phase.kind}>
+        {content}
+      </div>
       <UpdateBanner />
       <footer className="fb-app-footer">
         <span>포맷버디 데스크탑</span>

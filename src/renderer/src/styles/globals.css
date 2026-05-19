@@ -99,6 +99,55 @@
   color: #fff;
 }
 
+/* v2.0 (Round D-7 / C3) -- micro-interactions.
+   Keyframes are kept short and respect prefers-reduced-motion so
+   accessibility settings disable every flourish at once. Applied with
+   utility classes so any inline-style site can opt in with a single
+   className. */
+@keyframes fb-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fb-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fb-pop {
+  0%   { transform: scale(0.94); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes fb-count-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.fb-anim-fade  { animation: fb-fade-in 220ms ease-out both; }
+.fb-anim-slide { animation: fb-slide-up 320ms ease-out both; }
+.fb-anim-pop   { animation: fb-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.fb-anim-count { animation: fb-count-pulse 600ms ease-in-out both; }
+
+.fb-card-hover {
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+}
+.fb-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--fb-shadow-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fb-anim-fade,
+  .fb-anim-slide,
+  .fb-anim-pop,
+  .fb-anim-count {
+    animation: none !important;
+  }
+  .fb-card-hover {
+    transition: none !important;
+  }
+}
+
 * { box-sizing: border-box; }
 
 html, body, #root {

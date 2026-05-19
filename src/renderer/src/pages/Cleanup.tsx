@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
+import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
 import type {
   CleanupCategoryPlan,
@@ -263,11 +264,16 @@ function ResultPanel({
   const removedCount = result.removedItems.filter((i) => i.succeeded).length;
   const failedCount = result.skippedItems.filter((s) => s.reason !== "not-selected").length;
   return (
-    <article className="fb-card">
-      <h2 style={{ marginTop: 0 }}>정리를 마쳤어요</h2>
-      <p>
-        총 <strong>{formatBytes(result.totalFreedBytes)}</strong>을 정리했어요. {removedCount}개 항목이 정상 처리됐어요.
-      </p>
+    <article className="fb-card fb-anim-pop">
+      <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <CloudBuddy size={64} variant="primary" expression={removedCount > 0 ? "success" : "calm"} />
+        <div>
+          <h2 style={{ margin: 0 }}>정리를 마쳤어요</h2>
+          <p style={{ margin: "4px 0 0" }}>
+            총 <strong className="fb-anim-count">{formatBytes(result.totalFreedBytes)}</strong>을 정리했어요. {removedCount}개 항목이 정상 처리됐어요.
+          </p>
+        </div>
+      </header>
       {failedCount > 0 && (
         <p style={{ fontSize: 13, opacity: 0.75 }}>
           {failedCount}개 항목은 권한 또는 잠금 때문에 처리하지 못해 건너뛰었어요.
