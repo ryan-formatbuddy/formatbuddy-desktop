@@ -105,18 +105,19 @@ describe("getDefenderStatus", () => {
     expect(result.lastFullScanDaysAgo).toBe(7);
   });
 
-  it("surfaces the PowerShell error when the cmdlet fails", async () => {
+  it("keeps Defender status failures friendly when the Windows security query fails", async () => {
     const shell = makeRunner({
       run: vi.fn().mockResolvedValue({
         stdout: "",
-        stderr: "Get-MpComputerStatus is not recognized",
+        stderr: "Get-MpComputerStatus is not recognized in PowerShell",
         code: 1,
         timedOut: false
       })
     });
     const result = await getDefenderStatus({ shell, platform: "win32", now: fixedNow });
     expect(result.available).toBe(false);
-    expect(result.unavailableReason).toMatch(/recognized/);
+    expect(result.unavailableReason).toContain("Windows 보안");
+    expect(result.unavailableReason).not.toMatch(/PowerShell|Get-MpComputerStatus|recognized/i);
   });
 
   it("treats timeouts as unavailable", async () => {
@@ -146,12 +147,14 @@ describe("runQuickScan", () => {
     expect(shell.detached).not.toHaveBeenCalled();
   });
 
-  it("reports spawn-failed when PowerShell rejects", async () => {
+  it("reports scan launch failure without exposing shell plumbing", async () => {
     const shell = makeRunner({
       detached: vi.fn().mockRejectedValue(new Error("EACCES"))
     });
     const result = await runQuickScan({ shell, platform: "win32", now: fixedNow });
     expect(result.status).toBe("spawn-failed");
+    expect(result.message).toContain("Windows 보안");
+    expect(result.message).not.toMatch(/PowerShell|명령 프롬프트|터미널/i);
     expect(result.detail).toMatch(/EACCES/);
   });
 });
@@ -241,5 +244,20 @@ describe("getThreatHistory", () => {
     expect(result.available).toBe(false);
     expect(result.records).toEqual([]);
     expect(shell.run).not.toHaveBeenCalled();
+  });
+
+  it("keeps threat history failures friendly when the Windows security query fails", async () => {
+    const shell = makeRunner({
+      run: vi.fn().mockResolvedValue({
+        stdout: "",
+        stderr: "Get-MpThreatDetection failed in PowerShell",
+        code: 1,
+        timedOut: false
+      })
+    });
+    const result = await getThreatHistory({ shell, platform: "win32", now: fixedNow });
+    expect(result.available).toBe(false);
+    expect(result.unavailableReason).toContain("Windows 보안");
+    expect(result.unavailableReason).not.toMatch(/PowerShell|Get-MpThreatDetection|failed/i);
   });
 });

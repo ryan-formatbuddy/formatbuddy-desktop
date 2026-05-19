@@ -29,6 +29,10 @@ import type {
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_THREAT_RECORDS = 50;
 const MAX_THREAT_RESOURCES = 10;
+const WINDOWS_SECURITY_STATUS_UNAVAILABLE =
+  "Windows 보안 상태를 가져오지 못했어요. Windows 보안 앱에서 직접 확인해주세요.";
+const WINDOWS_SECURITY_THREAT_HISTORY_UNAVAILABLE =
+  "Windows 보안 기록을 가져오지 못했어요. Windows 보안 앱에서 직접 확인해주세요.";
 
 export interface PowerShellRunResult {
   stdout: string;
@@ -150,8 +154,7 @@ export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiv
     return {
       capturedAt: isoNow(deps),
       available: false,
-      unavailableReason:
-        result.stderr.trim() || "Windows 보안 상태를 가져오지 못했어요. (PowerShell 모듈 확인 필요)"
+      unavailableReason: WINDOWS_SECURITY_STATUS_UNAVAILABLE
     };
   }
 
@@ -210,7 +213,7 @@ export async function runQuickScan(deps: DefenderDeps): Promise<DefenderQuickSca
     return {
       status: "spawn-failed",
       startedAt,
-      message: "빠른 검사를 시작하지 못했어요. PowerShell 실행이 막혀 있을 수 있어요.",
+      message: "Windows 보안 빠른 검사를 시작하지 못했어요. Windows 보안 앱에서 직접 확인해주세요.",
       detail: (err as Error).message
     };
   }
@@ -333,8 +336,7 @@ export async function getThreatHistory(deps: DefenderDeps): Promise<DefenderThre
       capturedAt: isoNow(deps),
       available: false,
       records: [],
-      unavailableReason:
-        result.stderr.trim() || "위협 기록을 가져오지 못했어요. (PowerShell 모듈 확인 필요)"
+      unavailableReason: WINDOWS_SECURITY_THREAT_HISTORY_UNAVAILABLE
     };
   }
   const text = result.stdout.trim();
