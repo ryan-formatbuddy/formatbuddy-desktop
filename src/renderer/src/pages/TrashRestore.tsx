@@ -10,6 +10,7 @@ import {
   summarizeTrashRestoreResults,
   trashExpirySummary
 } from "@shared/cleanup-result";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   CleanupCategoryId,
   CleanupTrashEntry,
@@ -133,7 +134,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       setRegistrySnapshot(registry);
       setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyErrorMessage(e as Error));
     }
   }, []);
 
@@ -183,7 +184,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         setToast(result.message);
         await load();
       } catch (e) {
-        setToast(`되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+        setToast(friendlyErrorMessage(e as Error));
       } finally {
         setBusy(null);
       }
@@ -203,7 +204,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         setToast(result.message);
         await load();
       } catch (e) {
-        setToast(`${registryRestoreErrorLabel(entry)} 되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+        setToast(`${registryRestoreErrorLabel(entry)} 되돌리기 중 문제가 생겼어요. ${friendlyErrorMessage(e as Error)}`);
       } finally {
         setBusy(null);
       }
@@ -247,7 +248,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       );
       await load();
     } catch (e) {
-      setToast(`되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+      setToast(friendlyErrorMessage(e as Error));
     } finally {
       setBusy(null);
     }

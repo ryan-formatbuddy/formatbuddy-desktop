@@ -59,4 +59,11 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("snapshot.totalBytes + registryBytes");
     expect(source).toContain("{formatBytes(entry.sizeBytes)} · 보낸 시각");
   });
+
+  it("does not show raw IPC error messages in restore toasts", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("friendlyErrorMessage");
+    expect(source).not.toContain("(e as Error).message");
+  });
 });
