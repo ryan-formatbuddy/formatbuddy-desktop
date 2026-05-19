@@ -10,7 +10,7 @@
  *   - all bytes stay local under Electron userData
  */
 import { constants } from "node:fs";
-import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import type {
@@ -21,6 +21,7 @@ import type {
   CleanupTrashSnapshot
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "./blocklist";
+import { findLinkedPathPart } from "./pathSafety";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
 
@@ -214,41 +215,6 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function findLinkedPathPart(
-  targetPath: string,
-  boundary?: string,
-  includeSelf = false
-): Promise<string | undefined> {
-  if (!boundary) return undefined;
-
-  const normalizedBoundary = normalizePath(boundary);
-  if (!normalizedBoundary) return undefined;
-  let current = includeSelf ? targetPath : dirname(targetPath);
-
-  while (current) {
-    const normalizedCurrent = normalizePath(current);
-    const insideBoundary =
-      normalizedCurrent === normalizedBoundary ||
-      normalizedCurrent.startsWith(`${normalizedBoundary}\\`);
-    if (!insideBoundary) break;
-
-    try {
-      const parentStat = await lstat(current);
-      if (parentStat.isSymbolicLink()) return current;
-    } catch {
-      // Missing parents are fine: restore will create them after the
-      // existing parent chain has passed this link check.
-    }
-
-    if (normalizedCurrent === normalizedBoundary) break;
-    const next = dirname(current);
-    if (next === current) break;
-    current = next;
-  }
-
-  return undefined;
-}
-
 async function movePath(source: string, destination: string): Promise<void> {
   await mkdir(dirname(destination), { recursive: true });
   try {
@@ -281,7 +247,11 @@ export async function moveToFormatBuddyTrash(
     );
   }
 
-  const linkedSource = await findLinkedPathPart(options.item.path, options.home, true);
+  const linkedSource = await findLinkedPathPart(
+    options.item.path,
+    options.home ?? options.item.path,
+    true
+  );
   if (linkedSource) {
     throw new Error(`cleanup-trash refuses linked source path (링크 경로): ${linkedSource}`);
   }
@@ -370,7 +340,10 @@ export async function restoreTrashEntry(
     };
   }
 
-  const linkedParent = await findLinkedPathPart(entry.originalPath, options.home);
+  const linkedParent = await findLinkedPathPart(
+    entry.originalPath,
+    options.home ?? dirname(entry.originalPath)
+  );
   if (linkedParent) {
     return {
       entryId: entry.id,

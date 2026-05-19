@@ -34,6 +34,7 @@ import type {
 } from "@shared/types";
 import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
+import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import { moveToFormatBuddyTrash } from "./trash";
 
@@ -234,6 +235,18 @@ async function attemptItem(
         path: item.path,
         reason: "blocked-path",
         detail: decision.blockedBy
+      }
+    };
+  }
+
+  const linkedSource = await findLinkedPathPart(item.path, home, true);
+  if (linkedSource) {
+    return {
+      skipped: {
+        itemId: item.id,
+        path: item.path,
+        reason: "blocked-path",
+        detail: `링크 경로라 자동 정리하지 않아요: ${linkedSource}`
       }
     };
   }
