@@ -33,6 +33,7 @@ export interface RestorePointRunner {
 }
 
 const PS_TIMEOUT_MS = 60_000;
+const MAX_DESCRIPTION_LENGTH = 120;
 
 function defaultInvoker(): RestorePointRunner["invoke"] {
   return (psCommand, timeoutMs) =>
@@ -83,6 +84,14 @@ export interface CreateRestorePointOptions {
   timeoutMs?: number;
 }
 
+function sanitizeDescription(description: string): string {
+  const cleaned = description
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (cleaned || "작업 전 안전 저장").slice(0, MAX_DESCRIPTION_LENGTH);
+}
+
 /**
  * Ask Windows to checkpoint the current system state. The description
  * is what the user sees in System Restore UI later, so prefix it with
@@ -100,12 +109,13 @@ export async function createRestorePoint(
   // Escape single-quotes in the description before passing through
   // PowerShell. Description should already be Korean-safe ASCII per
   // our copy rules, but defense in depth.
-  const safeDescription = opts.description.replace(/'/g, "''");
+  const sanitizedDescription = sanitizeDescription(opts.description);
+  const safeDescription = sanitizedDescription.replace(/'/g, "''");
   const psCommand = `Checkpoint-Computer -Description 'FormatBuddy: ${safeDescription}' -RestorePointType '${type}'`;
   try {
     const { exitCode, stderr } = await runner.invoke(psCommand, opts.timeoutMs ?? PS_TIMEOUT_MS);
     if (exitCode === 0) {
-      return { created: true, description: opts.description };
+      return { created: true, description: sanitizedDescription };
     }
     return {
       created: false,
@@ -119,4 +129,4 @@ export async function createRestorePoint(
   }
 }
 
-export const __testing = { defaultInvoker, PS_TIMEOUT_MS };
+export const __testing = { defaultInvoker, PS_TIMEOUT_MS, sanitizeDescription };

@@ -36,6 +36,21 @@ describe("createRestorePoint", () => {
     expect(psCommand).toContain("FormatBuddy: user''s run");
   });
 
+  it("removes control characters from the PowerShell description", async () => {
+    const invoke = vi.fn(async () => ({ exitCode: 0, stderr: "" }));
+    await createRestorePoint({
+      description: "cleanup\nrun\rwith\tcontrols\0",
+      platform: "win32",
+      runner: { invoke }
+    });
+    const calls = invoke.mock.calls as unknown as Array<[string, number]>;
+    const psCommand = calls[0][0];
+    expect(psCommand).toContain("FormatBuddy: cleanup run with controls");
+    expect(psCommand).not.toContain("\n");
+    expect(psCommand).not.toContain("\r");
+    expect(psCommand).not.toContain("\0");
+  });
+
   it("returns ps-error with detail on non-zero exit", async () => {
     const invoke = vi.fn(async () => ({
       exitCode: 1,
