@@ -178,6 +178,10 @@ function buildItemIndex(plan: CleanupPlan): Map<string, CleanupItem> {
   return idx;
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
@@ -304,11 +308,14 @@ export async function executeCleanup(
   request: CleanupExecuteRequest,
   options: ExecuteCleanupOptions
 ): Promise<CleanupExecuteResult> {
-  if (!request?.planId || !request?.confirmationToken) {
+  if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("cleanup:execute requires planId and confirmationToken");
   }
   if (!Array.isArray(request.selectedItemIds) || request.selectedItemIds.length === 0) {
     throw new Error("cleanup:execute requires at least one selected item");
+  }
+  if (!request.selectedItemIds.every(isNonEmptyString)) {
+    throw new Error("cleanup:execute requires selectedItemIds to contain only strings");
   }
   if (request.mode !== "trash" && request.mode !== "permanent") {
     throw new Error(`cleanup:execute received invalid mode ${request.mode}`);
