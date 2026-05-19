@@ -55,4 +55,29 @@ export async function ensureSafeOutputFilePath(
   return outputPath;
 }
 
+export async function ensureSafeOutputDirectoryPath(
+  outputPath: string,
+  options: SafeOutputFilePathOptions
+): Promise<string> {
+  const existingBoundary = await findNearestExistingPath(outputPath);
+  const linkedBefore = await findLinkedPathPart(outputPath, existingBoundary, true);
+  if (linkedBefore) {
+    throw new Error(`${options.label} output folder is behind a link: ${linkedBefore}`);
+  }
+
+  await fs.mkdir(outputPath, { recursive: true });
+
+  const linkedAfter = await findLinkedPathPart(outputPath, existingBoundary, true);
+  if (linkedAfter) {
+    throw new Error(`${options.label} output folder is behind a link: ${linkedAfter}`);
+  }
+
+  const stat = await fs.lstat(outputPath);
+  if (!stat.isDirectory()) {
+    throw new Error(`${options.label} output path is not a folder: ${outputPath}`);
+  }
+
+  return outputPath;
+}
+
 export const __testing = { findNearestExistingPath };

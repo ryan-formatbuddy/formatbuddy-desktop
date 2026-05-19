@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { exportWifiProfiles, __testing } from "../src/main/wifi/export";
@@ -107,5 +107,23 @@ describe("exportWifiProfiles", () => {
     });
     expect(result.status).toBe("exec-failed");
     expect(result.detail).toBe("timeout");
+  });
+
+  it("refuses an export target folder that is a symbolic link before invoking netsh", async () => {
+    if (process.platform === "win32") return;
+    const outside = mkdtempSync(join(dir, "outside-"));
+    const linkedTarget = join(dir, "linked-target");
+    symlinkSync(outside, linkedTarget, "dir");
+    const invoke = vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" }));
+
+    const result = await exportWifiProfiles({
+      targetDir: linkedTarget,
+      platform: "win32",
+      runner: { invoke }
+    });
+
+    expect(result.status).toBe("exec-failed");
+    expect(result.detail).toMatch(/link/i);
+    expect(invoke).not.toHaveBeenCalled();
   });
 });

@@ -8,12 +8,12 @@
  *
  * No registry edits, no system changes. Read + copy only.
  */
-import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import type {
   DriverBackupResult,
   DriverBackupStatus
 } from "@shared/types";
+import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 
 const PS_TIMEOUT_MS = 5 * 60 * 1000; // 5 min — large driver sets can be slow
 
@@ -106,7 +106,7 @@ export async function exportDrivers(
   if (platform !== "win32") return makeResult("windows-only");
 
   try {
-    await mkdir(opts.targetDir, { recursive: true });
+    await ensureSafeOutputDirectoryPath(opts.targetDir, { label: "Driver backup" });
   } catch (err) {
     return makeResult("exec-failed", {
       detail: (err as Error).message,

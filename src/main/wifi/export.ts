@@ -11,13 +11,13 @@
  * Windows install, requires no extra permissions for read-only export,
  * and the .xml output can be re-imported with `netsh wlan add profile`.
  */
-import { mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import type {
   WifiExportRequest,
   WifiExportResult,
   WifiExportStatus
 } from "@shared/types";
+import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 
 const NETSH_TIMEOUT_MS = 60_000;
 
@@ -110,7 +110,7 @@ export async function exportWifiProfiles(
   }
 
   try {
-    await mkdir(opts.targetDir, { recursive: true });
+    await ensureSafeOutputDirectoryPath(opts.targetDir, { label: "Wi-Fi export" });
   } catch (err) {
     return makeResult("exec-failed", includedPasswords, {
       detail: (err as Error).message,
