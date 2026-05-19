@@ -555,7 +555,13 @@ export function Cleanup({
 
   const runExecute = useCallback(async () => {
     if (phase.kind !== "confirm") return;
-    if (!window.fb?.executeCleanup) return;
+    if (!window.fb?.executeCleanup) {
+      setPhase({
+        kind: "error",
+        message: "정리 실행을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      });
+      return;
+    }
     const plan = phase.plan;
     setPhase({ kind: "executing", plan });
     setRecentRestoreMessage(undefined);
@@ -575,10 +581,15 @@ export function Cleanup({
 
   const restoreRecentCleanup = useCallback(
     async (result: CleanupExecuteResult) => {
-      if (!window.fb?.restoreCleanupTrash) return;
       const entryIds = restorableTrashEntryIds(result);
       if (entryIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
+        return;
+      }
+      if (!window.fb?.restoreCleanupTrash) {
+        setRecentRestoreMessage(
+          "복구함 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함에서 확인해주세요."
+        );
         return;
       }
 
@@ -605,7 +616,12 @@ export function Cleanup({
 
   const restoreFromTrash = useCallback(
     async (entryId: string) => {
-      if (!window.fb?.restoreCleanupTrash) return;
+      if (!window.fb?.restoreCleanupTrash) {
+        setTrashMessage(
+          "복구함 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함에서 확인해주세요."
+        );
+        return;
+      }
       try {
         const result = await window.fb.restoreCleanupTrash({ entryId });
         setTrashMessage(summarizeTrashRestoreResults([result]));

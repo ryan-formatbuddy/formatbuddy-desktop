@@ -47,4 +47,13 @@ describe("Cleanup copy", () => {
     expect(source).toContain("summarizeRestoreAllResults(results, [], restoreFailureCount)");
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
+
+  it("shows friendly messages instead of silently returning when cleanup bridges are missing", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("정리 실행을 연결하지 못했어요");
+    expect(source).toContain("복구함 되돌리기를 연결하지 못했어요");
+    expect(source).not.toContain("if (!window.fb?.executeCleanup) return;");
+    expect(source).not.toContain("if (!window.fb?.restoreCleanupTrash) return;");
+  });
 });
