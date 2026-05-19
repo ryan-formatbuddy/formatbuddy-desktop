@@ -889,6 +889,42 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(orphanDir)).toBe(false);
   });
 
+  it("ignores recovered manifests that point at the restore files folder itself", async () => {
+    const entryId = "files-root";
+    const orphanDir = __testing.entryDir(fx.userData, entryId);
+    const filesRoot = join(orphanDir, "files");
+    await mkdir(filesRoot, { recursive: true });
+    await writeFile(join(filesRoot, "old.tmp"), "stored bytes", "utf8");
+    await writeFile(
+      join(orphanDir, "manifest.json"),
+      JSON.stringify(
+        {
+          id: entryId,
+          itemId: "item-files-root",
+          originalPath: join(fx.home, "restored.txt"),
+          storedPath: filesRoot,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 12,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+    expect(existsSync(orphanDir)).toBe(false);
+  });
+
   it("ignores recovered manifests when the entry manifest file is a symbolic link", async () => {
     if (process.platform === "win32") return;
     const entryId = "manifest-link";

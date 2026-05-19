@@ -293,7 +293,7 @@ function isManifestEntrySelfContained(
   if (entry.id !== entryFolderName) return false;
   const filesRoot = normalizePath(resolve(entryDir(userDataDir, entryFolderName), "files"));
   const stored = normalizePath(resolve(entry.storedPath));
-  return stored === filesRoot || stored.startsWith(`${filesRoot}\\`);
+  return stored.startsWith(`${filesRoot}\\`);
 }
 
 export function isManagedTrashStoredPath(userDataDir: string, candidatePath: string): boolean {
@@ -314,7 +314,7 @@ export function isManagedTrashEntryStoredPath(
 
   const files = normalizePath(resolve(entryDir(userDataDir, entryId), "files"));
   const candidate = normalizePath(resolve(candidatePath));
-  return candidate === files || candidate.startsWith(`${files}\\`);
+  return candidate.startsWith(`${files}\\`);
 }
 
 export async function findLinkedManagedTrashStoredPath(
