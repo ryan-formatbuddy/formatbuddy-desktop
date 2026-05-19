@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
@@ -26,9 +26,11 @@ interface AppManagerProps {
   onBack: () => void;
   onOpenCleanup: () => void;
   onRescan: () => void;
-  onQuickRescan?: () => void;
+  onVerifyUninstall?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
+  autoOpenLeftovers?: boolean;
+  notice?: string;
 }
 
 type LoadState =
@@ -78,14 +80,14 @@ function AppRow({
   lastStatus,
   onUninstall,
   onCheckLeftovers,
-  onRescan
+  onVerifyUninstall
 }: {
   item: AppManagerItem;
   busy: boolean;
   lastStatus?: AppUninstallResult;
   onUninstall: (item: AppManagerItem) => void;
   onCheckLeftovers: () => void;
-  onRescan: () => void;
+  onVerifyUninstall: () => void;
 }) {
   const badge = availabilityBadge(item);
   const meta = [item.publisher, item.version].filter(Boolean).join(" · ");
@@ -137,8 +139,8 @@ function AppRow({
             <Button variant="secondary" size="sm" onClick={onCheckLeftovers}>
               잔여 항목 확인
             </Button>
-            <Button variant="ghost" size="sm" onClick={onRescan}>
-              다시 점검
+            <Button variant="primary" size="sm" onClick={onVerifyUninstall}>
+              제거 확인하기
             </Button>
           </div>
         )}
@@ -394,9 +396,11 @@ export function AppManager({
   onBack,
   onOpenCleanup,
   onRescan,
-  onQuickRescan,
+  onVerifyUninstall,
   onOpenTrashRestore,
-  onOpenAuditLog
+  onOpenAuditLog,
+  autoOpenLeftovers,
+  notice
 }: AppManagerProps) {
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [leftovers, setLeftovers] = useState<LeftoverState>({ loading: false });
@@ -410,6 +414,7 @@ export function AppManager({
   const [uninstallStatuses, setUninstallStatuses] = useState<Record<string, AppUninstallResult>>(
     {}
   );
+  const autoOpenedLeftoversRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (!window.fb?.listApps) {
@@ -444,6 +449,12 @@ export function AppManager({
       setLeftovers({ loading: false, error: (err as Error).message });
     }
   }, []);
+
+  useEffect(() => {
+    if (!autoOpenLeftovers || autoOpenedLeftoversRef.current) return;
+    autoOpenedLeftoversRef.current = true;
+    void loadLeftovers();
+  }, [autoOpenLeftovers, loadLeftovers]);
 
   const toggleLeftover = useCallback((pathId: string, checked: boolean) => {
     setSelectedLeftovers((prev) => {
@@ -585,6 +596,12 @@ export function AppManager({
         )}
       </section>
 
+      {notice && (
+        <section className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>{notice}</p>
+        </section>
+      )}
+
       <section className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
         <header
           style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
@@ -643,21 +660,18 @@ export function AppManager({
             <h2 style={{ margin: 0 }}>{postUninstallAppName} 제거 후도 같이 챙길게요</h2>
           </header>
           <p style={{ fontSize: 13, opacity: 0.78 }}>
-            Windows 제거 마법사를 끝냈다면 남은 폴더가 있는지 확인해보세요. 앱 목록에서
-            사라진 뒤에도 오늘 제거를 연 앱 기준으로 잔여 항목 후보를 한 번 더 찾아볼 수 있어요.
+            Windows 제거 마법사를 끝냈다면 먼저 제거 완료를 확인해볼게요. 제거 확인이 끝나면 남은 항목을 바로 보여드려요.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
-              잔여 항목 확인
+            <Button variant="primary" size="sm" onClick={onVerifyUninstall ?? onRescan}>
+              제거 확인하기
             </Button>
             <Button variant="secondary" size="sm" onClick={onRescan}>
               다시 점검
             </Button>
-            {onQuickRescan && (
-              <Button variant="ghost" size="sm" onClick={onQuickRescan}>
-                빠르게 다시 보기
-              </Button>
-            )}
+            <Button variant="ghost" size="sm" onClick={() => void loadLeftovers()}>
+              잔여 후보 미리보기
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setPostUninstallAppName(null)}>
               닫기
             </Button>
@@ -689,8 +703,8 @@ export function AppManager({
             <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
               잔여 항목 확인
             </Button>
-            <Button variant="secondary" size="sm" onClick={onRescan}>
-              다시 점검
+            <Button variant="secondary" size="sm" onClick={onVerifyUninstall ?? onRescan}>
+              제거 확인하기
             </Button>
           </div>
         </article>
@@ -718,7 +732,7 @@ export function AppManager({
                   lastStatus={uninstallStatuses[item.id]}
                   onUninstall={onUninstall}
                   onCheckLeftovers={() => void loadLeftovers()}
-                  onRescan={onRescan}
+                  onVerifyUninstall={onVerifyUninstall ?? onRescan}
                 />
               ))}
             </ul>

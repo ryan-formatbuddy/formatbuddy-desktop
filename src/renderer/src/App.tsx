@@ -33,13 +33,17 @@ type Phase =
   | { kind: "scanning"; progress: ScanProgress }
   | { kind: "report"; result: ScanResult }
   | { kind: "cleanup"; report?: ScanReport }
-  | { kind: "apps" }
+  | { kind: "apps"; autoOpenLeftovers?: boolean; notice?: string }
   | { kind: "security" }
   | { kind: "permissions" }
   | { kind: "audit" }
   | { kind: "trash" }
   | { kind: "startup" }
   | { kind: "error"; error: ScanError };
+
+type AfterScanTarget =
+  | { kind: "report" }
+  | { kind: "apps"; autoOpenLeftovers: boolean; notice: string };
 
 function readOnboardingSeen(): boolean {
   try {
@@ -90,10 +94,29 @@ export function App() {
   const [appPlatform, setAppPlatform] = useState<AppPlatform>(() => guessPlatform());
   const [appState, setAppState] = useState<AppStateSnapshot | null>(null);
   const isMacPreview = appPlatform === "darwin";
+  const afterScanTargetRef = useRef<AfterScanTarget | null>(null);
+  const scanCompletionHandledRef = useRef(false);
 
   const finishOnboarding = useCallback(() => {
     markOnboardingSeen();
     setPhase({ kind: "home" });
+  }, []);
+
+  const completeScan = useCallback((result: ScanResult) => {
+    if (scanCompletionHandledRef.current) return;
+    scanCompletionHandledRef.current = true;
+    if (result.appState) setAppState(result.appState);
+    const target = afterScanTargetRef.current;
+    afterScanTargetRef.current = null;
+    if (target?.kind === "apps") {
+      setPhase({
+        kind: "apps",
+        autoOpenLeftovers: target.autoOpenLeftovers,
+        notice: target.notice
+      });
+      return;
+    }
+    setPhase({ kind: "report", result });
   }, []);
 
   useEffect(() => {
@@ -125,10 +148,11 @@ export function App() {
       );
     });
     const offComplete = window.fb.onScanComplete((r) => {
-      if (r.appState) setAppState(r.appState);
-      setPhase({ kind: "report", result: r });
+      completeScan(r);
     });
     const offError = window.fb.onScanError((err) => {
+      scanCompletionHandledRef.current = true;
+      afterScanTargetRef.current = null;
       setPhase({ kind: "error", error: err });
     });
     return () => {
@@ -136,7 +160,7 @@ export function App() {
       offComplete();
       offError();
     };
-  }, []);
+  }, [completeScan]);
 
   // Tray "PC 점검 시작" forwards through window.fb.onTrayTriggerScan.
   // We re-bind whenever startScan changes (which is never, since
@@ -184,20 +208,35 @@ export function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const startScan = useCallback(async (opts: ScanStartRequest = {}) => {
+  const startScan = useCallback(async (
+    opts: ScanStartRequest = {},
+    afterScanTarget: AfterScanTarget | null = null
+  ) => {
     if (!window.fb) {
       setPhase({ kind: "error", error: { message: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요." } });
       return;
     }
+    scanCompletionHandledRef.current = false;
+    afterScanTargetRef.current = afterScanTarget;
     setPhase({ kind: "scanning", progress: INITIAL_PROGRESS });
     try {
       const result = await window.fb.startScan(opts);
-      if (result.appState) setAppState(result.appState);
-      setPhase({ kind: "report", result });
+      completeScan(result);
     } catch {
       // 에러는 onScanError 이벤트로 처리
     }
-  }, []);
+  }, [completeScan]);
+
+  const scanThenOpenApps = useCallback(() => {
+    void startScan(
+      {},
+      {
+        kind: "apps",
+        autoOpenLeftovers: true,
+        notice: "제거 확인이 끝나면 남은 항목을 바로 보여드려요."
+      }
+    );
+  }, [startScan]);
 
   // Stable ref so the tray listener (registered once) always invokes
   // the latest startScan implementation.
@@ -371,8 +410,11 @@ export function App() {
             onBack={goHome}
             onOpenCleanup={() => setPhase({ kind: "cleanup" })}
             onRescan={() => void startScan()}
+            onVerifyUninstall={() => void scanThenOpenApps()}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
+            autoOpenLeftovers={phase.autoOpenLeftovers}
+            notice={phase.notice}
           />
         );
       case "security":
@@ -388,7 +430,7 @@ export function App() {
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }
-  }, [phase, startScan, cancelScan, goHome, finishOnboarding, appPlatform, isMacPreview, appState]);
+  }, [phase, startScan, scanThenOpenApps, cancelScan, goHome, finishOnboarding, appPlatform, isMacPreview, appState]);
 
   return (
     <div className="fb-app">
