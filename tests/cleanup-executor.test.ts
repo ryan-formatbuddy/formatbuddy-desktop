@@ -280,6 +280,29 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/simulated lock/);
   });
 
+  it("does not count trash mode as successful without a restore entry id", async () => {
+    const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async () => undefined
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/restore entry/i);
+  });
+
   it("routes the recycle-bin sentinel to emptyRecycleBin and counts as removed", async () => {
     // The recycle-bin category lives at the top of every plan with one
     // virtual item -- planning it doesn't require any disk fixture.

@@ -248,6 +248,9 @@ async function attemptItem(
 
   try {
     const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;
+    if (mode === "trash" && !trashEntry?.id) {
+      throw new Error("FormatBuddy restore entry was not created");
+    }
     if (mode === "permanent") await deps.permanentRemove(item.path);
     return {
       removed: {
