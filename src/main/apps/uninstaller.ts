@@ -128,6 +128,24 @@ export function unsafeUninstallCommandKind(command: string): UnsafeUninstallComm
   return inQuote ? "unclosed-quote" : null;
 }
 
+export function blockedUninstallMessage(command: string): string {
+  const kind = unsafeUninstallCommandKind(command);
+
+  switch (kind) {
+    case "shell-host":
+      return "PowerShell이나 명령 프롬프트를 거쳐 실행되는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "script-file":
+      return "스크립트 파일을 실행하는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "unquoted-spaced-path":
+      return "경로에 공백이 있는데 따옴표가 없어 Windows가 다르게 해석할 수 있어요. Windows 설정에서 직접 제거해주세요.";
+    case "unclosed-quote":
+      return "제거 명령의 따옴표가 닫혀 있지 않아 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "cmd-syntax":
+    default:
+      return "Windows가 다르게 해석할 수 있는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+  }
+}
+
 export function canLaunchUninstall(
   request: AppUninstallRequest,
   app: InstalledApp | undefined,
@@ -216,7 +234,7 @@ export async function runUninstall(
     return {
       status: "blocked",
       appName: request.appName,
-      message: "Windows 제거 명령이 안전하지 않아 자동으로 실행하지 않았어요. Windows 설정에서 직접 제거해주세요.",
+      message: blockedUninstallMessage(chosen),
       detail: "unsafe-uninstall-command"
     };
   }
@@ -243,6 +261,7 @@ export async function runUninstall(
 }
 
 export const __testing = {
+  blockedUninstallMessage,
   defaultSpawn,
   hasUnsafeShellControl: isUnsafeUninstallCommand,
   isUnsafeUninstallCommand,

@@ -245,6 +245,43 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      "shell host",
+      "powershell.exe -NoProfile -File uninstall.ps1",
+      /PowerShell|명령 프롬프트/
+    ],
+    [
+      "script target",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.ps1"',
+      /스크립트/
+    ],
+    [
+      "unquoted spaced path",
+      "C:\\Program Files\\Friendly Tool\\unins000.exe /remove",
+      /공백|따옴표/
+    ]
+  ] as const)("explains blocked runUninstall reason for %s", async (_label, command, expected) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "Friendly Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Friendly Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(expected);
+    expect(result.message).toMatch(/Windows 설정/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
   it("allows ordinary MSI uninstall commands", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const command = "MsiExec.exe /X{12345678-1234-1234-1234-123456789012}";
