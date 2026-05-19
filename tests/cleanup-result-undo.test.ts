@@ -108,7 +108,7 @@ describe("Cleanup result undo helper", () => {
     ];
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
-      "레지스트리 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
+      "앱 삭제 흔적 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
     );
   });
 

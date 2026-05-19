@@ -227,8 +227,8 @@ function LeftoverPanel({
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 레지스트리 후보예요. 직접 고른
-        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 레지스트리는 먼저 백업해요.
+        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 앱 삭제 흔적 후보예요. 직접 고른
+        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 앱 삭제 흔적은 먼저 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
@@ -444,7 +444,7 @@ export function AppManager({
     const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
     if (selectedPathIds.length === 0) return;
     const confirmed = window.confirm(
-      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더는 30일 안에 되돌릴 수 있고, 레지스트리는 먼저 백업해요.`
+      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더는 30일 안에 되돌릴 수 있고, 앱 삭제 흔적은 먼저 백업해요.`
     );
     if (!confirmed) return;
     setCleanupBusy(true);
@@ -558,7 +558,7 @@ export function AppManager({
         <h1 className="fb-h1-sm">앱 정리 센터</h1>
         <p className="fb-lede">
           설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 항목은
-          직접 고른 것만 정리하고, 레지스트리는 백업 후 처리해요.
+          직접 고른 것만 정리하고, 앱 삭제 흔적은 백업 후 처리해요.
         </p>
         {!isWindows && (
           <p style={{ color: "#a36400", fontSize: 13 }}>

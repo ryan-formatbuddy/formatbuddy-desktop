@@ -802,15 +802,15 @@ function registerIpc() {
       const result = await restoreRegistryBackup({
         userDataDir,
         backupId: request.backupId,
-        beforeImport: () => maybeCreateRestorePoint("레지스트리 백업 되돌리기")
+        beforeImport: () => maybeCreateRestorePoint("앱 삭제 흔적 백업 되돌리기")
       });
       await appendAuditEntry(userDataDir, {
         category: "cleanup",
         action: `registry-backup-restore-${result.status}`,
         summary:
           result.status === "restored"
-            ? "레지스트리 백업을 복구함에서 되돌렸어요."
-            : `레지스트리 백업 되돌리기 결과: ${result.message}`,
+            ? "앱 삭제 흔적 백업을 복구함에서 되돌렸어요."
+            : `앱 삭제 흔적 백업 되돌리기 결과: ${result.message}`,
         detail: {
           backupId: result.backupId,
           keyPath: result.keyPath,

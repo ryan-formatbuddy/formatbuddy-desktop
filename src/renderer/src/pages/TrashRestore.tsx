@@ -3,6 +3,7 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  summarizeRegistryBackupRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
 } from "@shared/cleanup-result";
@@ -62,15 +63,6 @@ function formatLocal(at: string): string {
   const t = Date.parse(at);
   if (!Number.isFinite(t)) return at;
   return new Date(t).toLocaleString("ko-KR");
-}
-
-function summarizeRegistryRestoreResults(results: RegistryBackupRestoreResult[]): string {
-  if (results.length === 0) return "";
-  const restored = results.filter((r) => r.status === "restored").length;
-  const skipped = results.length - restored;
-  if (restored > 0 && skipped === 0) return `레지스트리 백업 ${restored}개를 되돌렸어요.`;
-  if (restored > 0) return `레지스트리 백업 ${restored}개를 되돌렸고, ${skipped}개는 확인이 필요해요.`;
-  return "레지스트리 백업을 되돌리지 못했어요. 활동 기록에서 이유를 확인해주세요.";
 }
 
 export function TrashRestore({ onBack }: TrashRestoreProps) {
@@ -141,7 +133,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         setToast(result.message);
         await load();
       } catch (e) {
-        setToast(`레지스트리 되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+        setToast(`앱 흔적 되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
       } finally {
         setBusy(null);
       }
@@ -171,7 +163,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       setToast(
         [
           results.length > 0 ? summarizeTrashRestoreResults(results) : "",
-          summarizeRegistryRestoreResults(registryResults)
+          summarizeRegistryBackupRestoreResults(registryResults)
         ]
           .filter(Boolean)
           .join(" ")
@@ -187,7 +179,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const headerSummary = useMemo(() => {
     if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
     if (totalEntryCount === 0) return "복구함이 비어 있어요.";
-    return `파일 ${entries.length}개 · 레지스트리 백업 ${registryEntries.length}개 · 총 ${formatBytes(snapshot.totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
+    return `파일 ${entries.length}개 · 앱 삭제 흔적 백업 ${registryEntries.length}개 · 총 ${formatBytes(snapshot.totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
   }, [snapshot, registrySnapshot, entries.length, registryEntries.length, totalEntryCount]);
 
   const expirySummary = useMemo(
@@ -220,7 +212,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">복구함 (30일)</h1>
         <p className="fb-lede">
-          깔끔 정리에서 보낸 파일과 앱 정리 때 만든 레지스트리 백업은 30일 동안 여기 보관해요.
+          깔끔 정리에서 보낸 파일과 앱 정리 때 만든 앱 삭제 흔적 백업은 30일 동안 여기 보관해요.
           마음이 바뀌면 한 번에 되돌릴 수 있고, 30일이 지나면 자동으로 영구 삭제돼요. {headerSummary}
         </p>
       </section>
@@ -283,7 +275,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         <section className="fb-card fb-anim-fade">
           <h3 style={{ marginTop: 0 }}>복구함이 비어 있어요</h3>
           <p>
-            깔끔 정리에서 보낸 파일이나 앱 정리에서 만든 레지스트리 백업이 있으면 여기 시간순으로
+            깔끔 정리에서 보낸 파일이나 앱 정리에서 만든 앱 삭제 흔적 백업이 있으면 여기 시간순으로
             표시돼요. 곧 만료될 항목부터 위에 보여드려요.
           </p>
         </section>
@@ -383,9 +375,9 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                   fontWeight: 600
                 }}
               >
-                레지스트리 백업
+                앱 삭제 흔적 백업
               </span>
-              <strong style={{ fontSize: 14 }}>앱 제거 정보 백업</strong>
+              <strong style={{ fontSize: 14 }}>앱 삭제 흔적 백업</strong>
               <span
                 style={{
                   marginLeft: "auto",
@@ -408,7 +400,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 onClick={() => void onRestoreRegistry(entry)}
                 disabled={Boolean(busy)}
               >
-                {busy === `registry:${entry.id}` ? "되돌리는 중..." : "레지스트리 되돌리기"}
+                {busy === `registry:${entry.id}` ? "되돌리는 중..." : "앱 흔적 되돌리기"}
               </Button>
             </div>
           </article>

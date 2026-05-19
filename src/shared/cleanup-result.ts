@@ -75,7 +75,7 @@ export function summarizeRegistryBackupRestoreResults(
   const failed = results.length - restored;
   const parts: string[] = [];
 
-  if (restored > 0) parts.push(`레지스트리 백업 ${restored}개를 되돌렸어요.`);
+  if (restored > 0) parts.push(`앱 삭제 흔적 백업 ${restored}개를 되돌렸어요.`);
   if (failed > 0) parts.push(`${failed}개는 이미 없거나 확인이 필요해요.`);
 
   return parts.length > 0 ? parts.join(" ") : "";

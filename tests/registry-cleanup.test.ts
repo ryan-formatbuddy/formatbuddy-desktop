@@ -219,7 +219,7 @@ describe("registry leftover cleanup", () => {
       backupId: result.id,
       status: "restored",
       keyPath,
-      message: "레지스트리 백업을 되돌렸어요."
+      message: "앱 삭제 흔적 백업을 되돌렸어요."
     });
     const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
     expect(snapshot.entries).toEqual([]);

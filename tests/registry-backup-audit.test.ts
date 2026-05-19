@@ -62,7 +62,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     expect(audit.entries[0]).toMatchObject({
       category: "cleanup",
       action: "registry-backup-expired-purge-startup",
-      summary: "30일이 지난 레지스트리 백업 1개를 영구 정리했어요."
+      summary: "30일이 지난 앱 삭제 흔적 백업 1개를 영구 정리했어요."
     });
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,

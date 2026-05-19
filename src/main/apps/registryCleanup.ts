@@ -176,7 +176,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "blocked-path",
-        message: "레지스트리 백업 폴더가 링크라 되돌리지 않았어요."
+        message: "앱 삭제 흔적 백업 폴더가 링크라 되돌리지 않았어요."
       }
     };
   }
@@ -187,7 +187,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "blocked-path",
-        message: "레지스트리 백업 정보 파일이 링크라 되돌리지 않았어요."
+        message: "앱 삭제 흔적 백업 정보 파일이 링크라 되돌리지 않았어요."
       }
     };
   }
@@ -198,7 +198,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "blocked-path",
-        message: "레지스트리 백업 파일이 링크라 되돌리지 않았어요."
+        message: "앱 삭제 흔적 백업 파일이 링크라 되돌리지 않았어요."
       }
     };
   }
@@ -212,7 +212,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "not-found",
-        message: "레지스트리 백업을 찾지 못했어요."
+        message: "앱 삭제 흔적 백업을 찾지 못했어요."
       }
     };
   }
@@ -223,7 +223,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "not-found",
-        message: "레지스트리 백업 정보를 확인하지 못했어요."
+        message: "앱 삭제 흔적 백업 정보를 확인하지 못했어요."
       }
     };
   }
@@ -243,7 +243,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "not-found",
-        message: "레지스트리 백업 정보를 확인하지 못했어요."
+        message: "앱 삭제 흔적 백업 정보를 확인하지 못했어요."
       }
     };
   }
@@ -264,7 +264,7 @@ async function readRegistryBackupEntryForRestore(
         result: {
           backupId,
           status: "blocked-path",
-          message: "레지스트리 백업 파일이 링크라 되돌리지 않았어요.",
+          message: "앱 삭제 흔적 백업 파일이 링크라 되돌리지 않았어요.",
           keyPath: entry.keyPath,
           entry
         }
@@ -276,7 +276,7 @@ async function readRegistryBackupEntryForRestore(
         result: {
           backupId,
           status: "missing-backup",
-          message: "레지스트리 백업 파일이 보이지 않아요.",
+          message: "앱 삭제 흔적 백업 파일이 보이지 않아요.",
           keyPath: entry.keyPath,
           entry
         }
@@ -289,7 +289,7 @@ async function readRegistryBackupEntryForRestore(
       result: {
         backupId,
         status: "missing-backup",
-        message: "레지스트리 백업 파일이 보이지 않아요.",
+        message: "앱 삭제 흔적 백업 파일이 보이지 않아요.",
         keyPath: entry.keyPath,
         entry
       }
@@ -407,7 +407,7 @@ export async function restoreRegistryBackup(options: {
     return {
       backupId: options.backupId,
       status: "restore-failed",
-      message: "레지스트리 백업을 되돌릴 준비가 되지 않았어요.",
+      message: "앱 삭제 흔적 백업을 되돌릴 준비가 되지 않았어요.",
       keyPath: entry.keyPath,
       entry
     };
@@ -423,7 +423,7 @@ export async function restoreRegistryBackup(options: {
     return {
       backupId: entry.id,
       status: "restored",
-      message: "레지스트리 백업을 되돌렸어요.",
+      message: "앱 삭제 흔적 백업을 되돌렸어요.",
       keyPath: entry.keyPath,
       entry
     };
@@ -431,7 +431,7 @@ export async function restoreRegistryBackup(options: {
     return {
       backupId: entry.id,
       status: "restore-failed",
-      message: `레지스트리 백업 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
+      message: `앱 삭제 흔적 백업 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
       keyPath: entry.keyPath,
       entry
     };
