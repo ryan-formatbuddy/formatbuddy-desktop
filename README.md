@@ -4,6 +4,24 @@ Windows-only PC 포맷 동행 데스크탑 앱. Electron + React + TypeScript.
 
 기존 `local-agent/Invoke-FormatBuddyScan.ps1` PowerShell 진단을 GUI로 감싸고, `design_handoff_format_buddy/`의 디자인을 그대로 적용했습니다.
 
+## v2 작업 중인 기능 (Round D, 2026-05-19)
+
+- 한글 Windows 진단 결과 보존 (cp949 mojibake 차단)
+- 안전 정리 실행 엔진 (휴지통 이동 기본 + 시스템 복원 지점 자동)
+- Windows 휴지통 비우기 (단일 카테고리)
+- 한국 특화 앱 14종 잔여 후보 인식 (V3 / 한컴 / 더존 / 카카오게임즈 / 토스 등)
+- 드라이버 + Wi-Fi 프로필 원클릭 백업
+- 통합 감사 로그 (정리·앱 제거·Defender·설정 변경 시간순)
+- 권한 매니페스트 화면 (이 앱이 PC에서 하는 일)
+- stable / beta 업데이트 채널
+- 4축 점수 (정리·보안·속도·디스크)
+- 페이지 진입 애니메이션 + Ctrl+R / Esc 키보드 단축키
+
+자세한 변경 이력: `git log` + Hermes 핸드오버
+`~/.hermes/handovers/2026-05-19-formatbuddy-v2-roundd.md`.
+
+톤 가이드: [docs/tone-guide.md](docs/tone-guide.md)
+
 ## Quick start
 
 ```bash
