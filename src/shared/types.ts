@@ -49,6 +49,8 @@ export interface InstalledApp {
   uninstallString?: string | null;
   quietUninstallString?: string | null;
   installLocation?: string | null;
+  /** Exact uninstall registry key path, used only for previewing leftovers. */
+  registryKeyPath?: string | null;
   estimatedSizeKb?: number | null;
   installDate?: string | null;
   /** SystemComponent=1 in registry — hide from user-facing uninstall lists. */
@@ -1027,6 +1029,7 @@ export interface AppManagerSnapshot {
 
 export interface AppLeftoverPath {
   id: string;
+  kind?: "folder" | "registry";
   path: string;
   exists: boolean;
   sizeBytes?: number | null;

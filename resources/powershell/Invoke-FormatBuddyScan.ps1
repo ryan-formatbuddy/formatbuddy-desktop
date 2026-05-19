@@ -49,6 +49,18 @@ function Join-PathSafe {
   }
 }
 
+function Convert-RegistryPsPath {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  $p = $Path -replace '^Microsoft\.PowerShell\.Core\\Registry::', ''
+  $p = $p -replace '^HKEY_LOCAL_MACHINE', 'HKLM'
+  $p = $p -replace '^HKEY_CURRENT_USER', 'HKCU'
+  $p = $p -replace '^HKEY_CLASSES_ROOT', 'HKCR'
+  $p = $p -replace '^HKEY_USERS', 'HKU'
+  $p = $p -replace '^HKEY_CURRENT_CONFIG', 'HKCC'
+  return $p
+}
+
 function Get-InstalledApps {
   # v1.3.x - expanded with UninstallString, InstallLocation, EstimatedSize
   # and InstallDate. main/apps/uninstaller.ts will hand UninstallString
@@ -68,6 +80,7 @@ function Get-InstalledApps {
         uninstallString = $_.UninstallString
         quietUninstallString = $_.QuietUninstallString
         installLocation = $_.InstallLocation
+        registryKeyPath = Convert-RegistryPsPath $_.PSPath
         estimatedSizeKb = $_.EstimatedSize
         installDate = $_.InstallDate
         systemComponent = if ($null -ne $_.SystemComponent) { [bool]$_.SystemComponent } else { $null }

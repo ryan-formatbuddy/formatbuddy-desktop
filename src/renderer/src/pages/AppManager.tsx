@@ -218,10 +218,10 @@ function LeftoverPanel({
   const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
   return (
     <section style={{ marginTop: 16 }}>
-      <h2 className="fb-h2">앱별 잔여 폴더 후보</h2>
+      <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 폴더예요. 지울 항목을 직접 고르면 포맷버디
-        복구함에 30일 동안 보관한 뒤 자동 삭제해요.
+        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 레지스트리 후보예요. 지울 수 있는
+        폴더를 직접 고르면 포맷버디 복구함에 30일 동안 보관한 뒤 자동 삭제해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
@@ -343,7 +343,11 @@ function LeftoverGroupCard({
             />
             <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>{path.path}</code>
             <span style={{ fontSize: 12, opacity: 0.7 }}>
-              {path.exists ? formatBytes(path.sizeBytes) : "없음"}
+              {path.kind === "registry"
+                ? "레지스트리"
+                : path.exists
+                  ? formatBytes(path.sizeBytes)
+                  : "없음"}
             </span>
             {path.protectedBy && (
               <span

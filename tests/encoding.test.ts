@@ -101,6 +101,12 @@ describe("PowerShell encoding guard", () => {
     void firstRegistryIdx;
   });
 
+  it("exports the uninstall registry key path for safe leftover preview", () => {
+    expect(script).toContain("registryKeyPath");
+    expect(script).toContain("Convert-RegistryPsPath");
+    expect(script).toContain("$_.PSPath");
+  });
+
   it("wraps the encoding setup in try/catch so PS7 / non-Windows hosts don't crash", () => {
     const encodingIdx = lines.findIndex((line) =>
       line.includes("[Console]::OutputEncoding")

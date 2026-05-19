@@ -57,6 +57,8 @@ const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
 const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지 않아요.";
 const UNREADABLE_LEFTOVER_PROTECTION = "권한이 없어 잔여 폴더를 정확히 확인하지 못했어요.";
+const REGISTRY_PREVIEW_ONLY_PROTECTION =
+  "레지스트리 항목은 지금 미리보기만 해요. 삭제 전 백업 기능이 준비되면 선택할 수 있어요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -557,7 +559,7 @@ async function genericLeftoverPaths(
     if (seen.has(key)) return;
     seen.add(key);
     const info = await pathInfo(candidate, env);
-    if (info.exists) paths.push(info);
+    if (info.exists) paths.push({ ...info, kind: "folder" });
   }
 
   for (const root of roots) {
@@ -583,7 +585,24 @@ async function installLocationLeftoverPaths(
   if (!installLocation) return [];
 
   const info = await pathInfo(installLocation, env);
-  return info.exists ? [info] : [];
+  return info.exists ? [{ ...info, kind: "folder" }] : [];
+}
+
+function registryLeftoverPaths(app: InstalledApp): AppLeftoverPath[] {
+  const registryKeyPath = app.registryKeyPath?.trim();
+  if (!registryKeyPath) return [];
+
+  return [
+    {
+      id: makePathId(`registry:${registryKeyPath}`),
+      kind: "registry",
+      path: registryKeyPath,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null,
+      protectedBy: REGISTRY_PREVIEW_ONLY_PROTECTION
+    }
+  ];
 }
 
 function uniqueLeftoverPaths(paths: AppLeftoverPath[]): AppLeftoverPath[] {
@@ -623,7 +642,8 @@ export async function planAppLeftovers(
       if (seenLabels.has(app.name)) continue;
       const paths = uniqueLeftoverPaths([
         ...(await genericLeftoverPaths(app, env)),
-        ...(await installLocationLeftoverPaths(app, env))
+        ...(await installLocationLeftoverPaths(app, env)),
+        ...registryLeftoverPaths(app)
       ]);
       if (paths.length === 0) continue;
       seenLabels.add(app.name);
@@ -640,9 +660,10 @@ export async function planAppLeftovers(
     seenLabels.add(rule.appLabel);
     const paths: AppLeftoverPath[] = [];
     for (const builder of rule.paths) {
-      paths.push(await pathInfo(builder(env), env));
+      paths.push({ ...(await pathInfo(builder(env), env)), kind: "folder" });
     }
     paths.push(...(await installLocationLeftoverPaths(app, env)));
+    paths.push(...registryLeftoverPaths(app));
 
     groups.push({
       appName: rule.appLabel,

@@ -312,6 +312,30 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("shows uninstall registry leftovers as preview-only candidates", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          registryKeyPath
+        }
+      ]
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    const registryCandidate = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath);
+    expect(registryCandidate).toMatchObject({
+      kind: "registry",
+      exists: true
+    });
+    expect(registryCandidate?.protectedBy).toMatch(/미리보기/);
+  });
+
   it("does not create generic leftover groups when the app folders do not exist", async () => {
     const snapshot = await planAppLeftovers(
       [{ name: "Obscure Notes", publisher: "Tiny Vendor" }],

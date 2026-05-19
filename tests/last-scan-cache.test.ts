@@ -144,7 +144,8 @@ describe("recently opened uninstall wizard memory", () => {
         publisher: "Slack Technologies",
         uninstallString: '"C:\\Program Files\\Slack\\unins000.exe"',
         quietUninstallString: "quiet uninstall command",
-        installLocation: "C:\\Program Files\\Slack"
+        installLocation: "C:\\Program Files\\Slack",
+        registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Slack"
       },
       () => t0
     );
@@ -153,7 +154,8 @@ describe("recently opened uninstall wizard memory", () => {
       {
         name: "Slack",
         publisher: "Slack Technologies",
-        installLocation: "C:\\Program Files\\Slack"
+        installLocation: "C:\\Program Files\\Slack",
+        registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Slack"
       }
     ]);
   });
