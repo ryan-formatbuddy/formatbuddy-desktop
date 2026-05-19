@@ -74,6 +74,12 @@ export interface ExecuteCleanupOptions {
   home?: string;
   /** Inject "now" for deterministic logs in tests. */
   now?: () => Date;
+  /**
+   * Product flows never set this. It exists only for controlled
+   * maintenance tests/tools that deliberately need to exercise the
+   * permanent branch.
+   */
+  allowPermanentForMaintenance?: boolean;
 }
 
 async function measurePathSize(path: string, depth = 0): Promise<number | null> {
@@ -390,6 +396,9 @@ export async function executeCleanup(
   }
   if (request.mode !== "trash" && request.mode !== "permanent") {
     throw new Error(`cleanup:execute received invalid mode ${request.mode}`);
+  }
+  if (request.mode === "permanent" && !options.allowPermanentForMaintenance) {
+    throw new Error("cleanup:execute permanent mode is blocked. 포맷버디 정리는 30일 복구함으로만 보내요.");
   }
 
   const currentPlan = peekPlan(request.planId, request.confirmationToken, options.now);

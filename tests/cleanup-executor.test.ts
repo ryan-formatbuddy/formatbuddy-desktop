@@ -169,11 +169,36 @@ describe("executeCleanup", () => {
         selectedItemIds: [item.id],
         mode: "permanent"
       },
-      { userDataDir: fx.userData, deps, home: fx.home }
+      { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 
     expect(trashed).toEqual([]);
     expect(permanently).toEqual([targetFile]);
+  });
+
+  it("refuses permanent mode by default before consuming the plan", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    const { deps, trashed, permanently } = makeSpyDeps();
+
+    await expect(
+      executeCleanup(
+        {
+          planId: plan.planId,
+          confirmationToken: plan.confirmationToken,
+          selectedItemIds: [item.id],
+          mode: "permanent"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/30일 복구함|permanent mode/i);
+
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    expect(await fs.readFile(targetFile, "utf8")).toBe("x".repeat(4096));
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
   });
 
   it("permanent mode refuses a selected path that now goes through a symbolic-link parent", async () => {
@@ -196,7 +221,12 @@ describe("executeCleanup", () => {
         selectedItemIds: [item.id],
         mode: "permanent"
       },
-      { userDataDir: fx.userData, deps: defaultDeps(fx.userData), home: fx.home }
+      {
+        userDataDir: fx.userData,
+        deps: defaultDeps(fx.userData),
+        home: fx.home,
+        allowPermanentForMaintenance: true
+      }
     );
 
     expect(result.removedItems).toHaveLength(0);
@@ -233,7 +263,7 @@ describe("executeCleanup", () => {
         selectedItemIds: [item.id],
         mode: "permanent"
       },
-      { userDataDir: fx.userData, deps, home: fx.home }
+      { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 
     expect(result.removedItems).toHaveLength(0);
@@ -1007,7 +1037,7 @@ describe("executeCleanup", () => {
         selectedItemIds: [item.id],
         mode: "permanent"
       },
-      { userDataDir: fx.userData, deps, home: fx.home }
+      { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 
     expect(result.removedItems).toHaveLength(0);
