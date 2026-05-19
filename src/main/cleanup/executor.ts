@@ -67,7 +67,7 @@ export interface ExecuteCleanupOptions {
 }
 
 async function measurePathSize(path: string, depth = 0): Promise<number | null> {
-  if (depth > MAX_SIZE_SCAN_DEPTH) return 0;
+  if (depth > MAX_SIZE_SCAN_DEPTH) return null;
 
   let stat;
   try {

@@ -231,6 +231,19 @@ describe("executeCleanup", () => {
     }
   });
 
+  it("returns null when folder depth exceeds the measurement limit", async () => {
+    let current = join(fx.tempDir, "deep-cache");
+    for (let i = 0; i < 34; i += 1) {
+      current = join(current, `level-${i}`);
+    }
+    await fs.mkdir(current, { recursive: true });
+    await fs.writeFile(join(current, "deep.tmp"), "12345", "utf8");
+
+    const size = await defaultDeps(fx.userData).statSize(join(fx.tempDir, "deep-cache"));
+
+    expect(size).toBeNull();
+  });
+
   it("refuses to run when the confirmationToken is wrong", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
