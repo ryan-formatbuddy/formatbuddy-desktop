@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { restorableTrashEntryIds } from "../src/shared/cleanup-result";
-import type { CleanupExecuteResult } from "../src/shared/types";
+import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
+import type { CleanupExecuteResult, CleanupTrashRestoreResult } from "../src/shared/types";
 
 function resultWithEntries(): CleanupExecuteResult {
   return {
@@ -52,5 +52,17 @@ function resultWithEntries(): CleanupExecuteResult {
 describe("Cleanup result undo helper", () => {
   it("returns only successful 30-day trash entry ids", () => {
     expect(restorableTrashEntryIds(resultWithEntries())).toEqual(["trash-ok"]);
+  });
+
+  it("summarizes recent restore outcomes in friendly Korean", () => {
+    const results: CleanupTrashRestoreResult[] = [
+      { entryId: "a", status: "restored", message: "ok" },
+      { entryId: "b", status: "target-exists", message: "blocked" },
+      { entryId: "c", status: "not-found", message: "missing" }
+    ];
+
+    expect(summarizeTrashRestoreResults(results)).toBe(
+      "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 1개는 이미 없거나 되돌리지 못했어요."
+    );
   });
 });

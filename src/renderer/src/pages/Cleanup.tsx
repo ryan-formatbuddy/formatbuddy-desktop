@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
-import { restorableTrashEntryIds } from "@shared/cleanup-result";
+import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteMode,
@@ -578,13 +578,7 @@ export function Cleanup({
         for (const entryId of entryIds) {
           results.push(await window.fb.restoreCleanupTrash({ entryId }));
         }
-        const restored = results.filter((item) => item.status === "restored").length;
-        const blocked = results.filter((item) => item.status === "target-exists").length;
-        const failed = results.length - restored - blocked;
-        const parts = [`${restored}개를 원래 위치로 되돌렸어요.`];
-        if (blocked > 0) parts.push(`${blocked}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
-        if (failed > 0) parts.push(`${failed}개는 이미 없거나 되돌리지 못했어요.`);
-        setRecentRestoreMessage(parts.join(" "));
+        setRecentRestoreMessage(summarizeTrashRestoreResults(results));
         await loadTrash();
       } catch (err) {
         setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);

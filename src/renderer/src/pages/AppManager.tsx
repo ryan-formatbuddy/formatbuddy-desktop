@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   AppLeftoverGroup,
   AppLeftoversSnapshot,
@@ -169,6 +170,9 @@ function LeftoverPanel({
   onToggle,
   onCleanup,
   onRescan,
+  onRestoreRecent,
+  restoreRecentBusy,
+  restoreRecentMessage,
   onOpenTrashRestore,
   onOpenAuditLog
 }: {
@@ -179,6 +183,9 @@ function LeftoverPanel({
   onToggle: (pathId: string, checked: boolean) => void;
   onCleanup: () => void;
   onRescan: () => void;
+  onRestoreRecent: (result: CleanupExecuteResult) => void;
+  restoreRecentBusy: boolean;
+  restoreRecentMessage?: string;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }) {
@@ -197,6 +204,7 @@ function LeftoverPanel({
     );
   }
   if (!state.snapshot) return null;
+  const restorableCount = result ? restorableTrashEntryIds(result).length : 0;
   if (state.snapshot.groups.length === 0) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
@@ -243,10 +251,25 @@ function LeftoverPanel({
                   복구함 보기
                 </Button>
               )}
+              {restorableCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onRestoreRecent(result)}
+                  disabled={restoreRecentBusy}
+                >
+                  {restoreRecentBusy ? "되돌리는 중…" : "방금 정리 되돌리기"}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
                 활동 기록 보기
               </Button>
             </div>
+            {restoreRecentMessage && (
+              <p style={{ fontSize: 12, opacity: 0.75, margin: "8px 0 0" }}>
+                {restoreRecentMessage}
+              </p>
+            )}
           </div>
         )}
       </article>
@@ -336,6 +359,8 @@ export function AppManager({
   const [selectedLeftovers, setSelectedLeftovers] = useState<Set<string>>(new Set());
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupExecuteResult | undefined>();
+  const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
+  const [recentRestoreMessage, setRecentRestoreMessage] = useState<string | undefined>();
   const [activeUninstall, setActiveUninstall] = useState<string | null>(null);
   const [postUninstallAppName, setPostUninstallAppName] = useState<string | null>(null);
   const [uninstallStatuses, setUninstallStatuses] = useState<Record<string, AppUninstallResult>>(
@@ -394,6 +419,7 @@ export function AppManager({
     );
     if (!confirmed) return;
     setCleanupBusy(true);
+    setRecentRestoreMessage(undefined);
     try {
       const result = await window.fb.cleanupAppLeftovers({
         planId: snapshot.planId,
@@ -409,6 +435,33 @@ export function AppManager({
       setCleanupBusy(false);
     }
   }, [leftovers.snapshot, loadLeftovers, selectedLeftovers]);
+
+  const restoreRecentLeftovers = useCallback(
+    async (result: CleanupExecuteResult) => {
+      if (!window.fb?.restoreCleanupTrash) return;
+      const entryIds = restorableTrashEntryIds(result);
+      if (entryIds.length === 0) {
+        setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
+        return;
+      }
+
+      setRecentRestoreBusy(true);
+      setRecentRestoreMessage(undefined);
+      try {
+        const results = [];
+        for (const entryId of entryIds) {
+          results.push(await window.fb.restoreCleanupTrash({ entryId }));
+        }
+        setRecentRestoreMessage(summarizeTrashRestoreResults(results));
+        await loadLeftovers();
+      } catch (err) {
+        setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);
+      } finally {
+        setRecentRestoreBusy(false);
+      }
+    },
+    [loadLeftovers]
+  );
 
   const onUninstall = useCallback(async (item: AppManagerItem) => {
     if (!window.fb?.uninstallApp) return;
@@ -616,6 +669,9 @@ export function AppManager({
         onToggle={toggleLeftover}
         onCleanup={cleanupSelectedLeftovers}
         onRescan={onRescan}
+        onRestoreRecent={(result) => void restoreRecentLeftovers(result)}
+        restoreRecentBusy={recentRestoreBusy}
+        restoreRecentMessage={recentRestoreMessage}
         onOpenTrashRestore={onOpenTrashRestore}
         onOpenAuditLog={onOpenAuditLog}
       />
