@@ -28,6 +28,13 @@ function normalizeRegistryKeyPath(keyPath: string): string {
   return keyPath.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
 }
 
+function canonicalRegistryKeyForComparison(keyPath: string): string {
+  return normalizeRegistryKeyPath(keyPath)
+    .replace(/^HKCU\\/i, "HKEY_CURRENT_USER\\")
+    .replace(/^HKLM\\/i, "HKEY_LOCAL_MACHINE\\")
+    .toLowerCase();
+}
+
 export function isSafeUninstallRegistryKeyPath(keyPath: string): boolean {
   const normalized = normalizeRegistryKeyPath(keyPath);
   if (!normalized) return false;
@@ -106,7 +113,8 @@ function runRegCommand(args: string[]): Promise<void> {
 
 async function assertRestorableRegistryBackupFile(
   entryDir: string,
-  backupPath: string
+  backupPath: string,
+  expectedKeyPath?: string
 ): Promise<number> {
   const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
   if (linkedBackup) {
@@ -130,12 +138,31 @@ async function assertRestorableRegistryBackupFile(
     throw new Error("앱 삭제 흔적 백업 파일이 비어 있어 정리하지 않았어요.");
   }
 
-  const head = (await fs.readFile(backupPath, "utf8")).slice(0, 256).trimStart();
+  const content = await fs.readFile(backupPath, "utf8");
+  const head = content.slice(0, 256).trimStart();
   if (!/^Windows Registry Editor Version\s+\d+(?:\.\d+)?/i.test(head) && !/^REGEDIT4\b/i.test(head)) {
     throw new Error("앱 삭제 흔적 백업 파일이 레지스트리 백업 형식이 아니라 정리하지 않았어요.");
   }
+  if (expectedKeyPath && !registryBackupSectionsMatchExpectedKey(content, expectedKeyPath)) {
+    throw new Error("앱 삭제 흔적 백업 파일의 레지스트리 위치가 달라 되돌리지 않았어요.");
+  }
 
   return Math.max(0, stat.size);
+}
+
+function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath: string): boolean {
+  const expected = canonicalRegistryKeyForComparison(expectedKeyPath);
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith("[")) continue;
+    const match = /^\[(-?)([^\]]+)\]$/.exec(line);
+    if (!match) return false;
+    const sectionKey = canonicalRegistryKeyForComparison(match[2]);
+    if (sectionKey !== expected && !sectionKey.startsWith(`${expected}\\`)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function writeRegistryBackupMetaFile(
@@ -206,7 +233,7 @@ export async function backupAndDeleteRegistryKey(options: {
 
   try {
     await runner.exportKey(keyPath, backupPath);
-    sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath);
+    sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath, keyPath);
     await writeRegistryBackupMetaFile(
       entryDir,
       metaPath,
@@ -393,7 +420,20 @@ async function readRegistryBackupEntryForRestore(
         }
       };
     }
-    entry.sizeBytes = Math.max(0, backupStat.size);
+    try {
+      entry.sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath, entry.keyPath);
+    } catch (err) {
+      return {
+        kind: "restore-result",
+        result: {
+          backupId,
+          status: "blocked-path",
+          message: (err as Error).message,
+          keyPath: entry.keyPath,
+          entry
+        }
+      };
+    }
     return { kind: "entry", entry };
   } catch {
     return {
