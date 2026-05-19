@@ -55,7 +55,7 @@ const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const GENERIC_NAME_BLOCKLIST =
-  /^(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)$/i;
+  /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
 const RULES: LeftoverRule[] = [
   {

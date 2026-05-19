@@ -150,6 +150,22 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups).toEqual([]);
   });
 
+  it("does not use generic matching for system/runtime style app names", async () => {
+    const runtimeFolder = join(fx.programData, "Microsoft Visual C++ 2015 Redistributable");
+    await fs.mkdir(runtimeFolder, { recursive: true });
+    await fs.writeFile(join(runtimeFolder, "runtime.dat"), "x", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Microsoft Visual C++ 2015 Redistributable", publisher: "Microsoft Corporation" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    expect(snapshot.groups).toEqual([]);
+  });
+
   it("does not duplicate groups when the same app appears twice in the registry", async () => {
     const snapshot = await planAppLeftovers(
       [
