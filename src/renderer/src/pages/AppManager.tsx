@@ -370,8 +370,12 @@ export function AppManager({ isWindows, onBack, onOpenCleanup }: AppManagerProps
       )}
 
       {load.kind === "ready" &&
-        load.snapshot.groups.map((group) => (
-          <article key={group.category} className="fb-card" style={{ marginBottom: 16 }}>
+        load.snapshot.groups.map((group, idx) => (
+          <article
+            key={group.category}
+            className="fb-card fb-anim-slide fb-card-hover"
+            style={{ marginBottom: 16, animationDelay: `${Math.min(idx, 6) * 35}ms` }}
+          >
             <header
               style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
             >
