@@ -39,8 +39,33 @@ export interface UninstallerDeps {
   platform?: NodeJS.Platform;
 }
 
+const BLOCKED_UNINSTALL_COMMAND_HOSTS = new Set([
+  "cmd",
+  "powershell",
+  "pwsh",
+  "wscript",
+  "cscript",
+  "mshta"
+]);
+
+function commandHost(command: string): string {
+  const trimmed = command.trim();
+  if (!trimmed) return "";
+  let first = "";
+  if (trimmed.startsWith("\"")) {
+    const closing = trimmed.indexOf("\"", 1);
+    first = closing === -1 ? trimmed.slice(1) : trimmed.slice(1, closing);
+  } else {
+    first = trimmed.split(/\s+/, 1)[0] ?? "";
+  }
+  const base = first.split(/[\\/]/).pop() ?? first;
+  return base.toLowerCase().replace(/\.exe$/i, "");
+}
+
 export function isUnsafeUninstallCommand(command: string): boolean {
   let inQuote = false;
+
+  if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return true;
 
   for (const char of command) {
     if (char === "\n" || char === "\r" || char === "\0") return true;
