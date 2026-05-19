@@ -31,7 +31,7 @@ import type {
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
-import { moveToFormatBuddyTrash } from "../cleanup/trash";
+import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
 import {
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
@@ -1081,6 +1081,13 @@ export async function cleanupAppLeftovers(
         sizeBytes: cleanupItem.sizeBytes,
         home: cached.env.home,
         now: options.now
+      });
+      await assertManagedTrashEntryManifest({
+        userDataDir: options.userDataDir,
+        entryId: trashEntry.id,
+        originalPath: cleanupItem.path,
+        storedPath: trashEntry.storedPath,
+        expiresAt: trashEntry.expiresAt
       });
       removedItems.push({
         itemId: cleanupItem.id,
