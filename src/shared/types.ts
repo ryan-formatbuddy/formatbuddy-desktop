@@ -945,9 +945,9 @@ export interface WifiExportResult {
  *                       fake UninstallString.
  *   2. apps:leftovers → per-app AppData / ProgramData paths that
  *                       might be left behind after Windows uninstall.
- *                       Display only; never deleted from this surface.
- *                       The Cleanup engine (Phase 1) is the only place
- *                       that ever removes user files.
+ *                       Selected items go through the same blocklist,
+ *                       confirmation token, and 30-day FormatBuddy
+ *                       Trash flow as the cleanup engine.
  *   3. apps:uninstall → main process looks up the app by (name,
  *                       publisher) in the cached scan, validates the
  *                       UninstallString, then spawns Windows' own
@@ -1008,6 +1008,13 @@ export interface AppManagerSnapshot {
   groups: AppManagerGroup[];
   /** Items the user agent chose to hide (system components, mostly). */
   hiddenSystemCount: number;
+  /**
+   * v2.0 (D-38) — apps the user uninstalled in the last 24h via the
+   * Windows uninstall wizard. We keep just (name, publisher) so the
+   * follow-up leftover scan + the "방금 제거한 앱" UI section can
+   * surface them; no command strings or install paths are persisted.
+   */
+  recentlyUninstalled: InstalledApp[];
 }
 
 export interface AppLeftoverPath {
@@ -1023,6 +1030,8 @@ export interface AppLeftoverPath {
 export interface AppLeftoverGroup {
   appName: string;
   publisher?: string | null;
+  /** Installed now, or remembered from a Windows uninstaller launched recently. */
+  source?: "installed" | "recent-uninstall";
   paths: AppLeftoverPath[];
 }
 

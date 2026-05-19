@@ -48,7 +48,15 @@ import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
-import { clearLastScan, findInstalledApp, getLastScan, getLastScanIfFresh, setLastScan } from "./lastScan";
+import {
+  clearLastScan,
+  findInstalledApp,
+  getLastScan,
+  getLastScanIfFresh,
+  getRecentlyUninstalledApps,
+  rememberRecentlyUninstalledApp,
+  setLastScan
+} from "./lastScan";
 import {
   defaultPowerShellRunner,
   getDefenderStatus,
@@ -741,12 +749,16 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
     const cached = getLastScan();
-    return buildAppManagerSnapshot(cached?.report.installedApps ?? []);
+    return buildAppManagerSnapshot(cached?.report.installedApps ?? [], {
+      recentlyUninstalled: getRecentlyUninstalledApps()
+    });
   });
 
   ipcMain.handle(IpcChannels.appsLeftovers, async (): Promise<AppLeftoversSnapshot> => {
     const cached = getLastScan();
-    return planAppLeftovers(cached?.report.installedApps ?? []);
+    return planAppLeftovers(cached?.report.installedApps ?? [], {
+      extraApps: getRecentlyUninstalledApps()
+    });
   });
 
   ipcMain.handle(
@@ -790,9 +802,13 @@ function registerIpc() {
         };
       }
       await maybeCreateRestorePoint(`앱 제거 (${request.appName})`);
+      const matchedApp = findInstalledApp(request.appName, request.publisher);
       const result = await runUninstall(request, {
-        findApp: (req) => findInstalledApp(req.appName, req.publisher)
+        findApp: () => matchedApp
       });
+      if (result.status === "launched" && matchedApp) {
+        rememberRecentlyUninstalledApp(matchedApp);
+      }
       log.info(
         `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`
       );

@@ -109,7 +109,21 @@ function toItem(app: InstalledApp): AppManagerItem {
   };
 }
 
-export function buildAppManagerSnapshot(apps: InstalledApp[]): AppManagerSnapshot {
+export interface BuildAppManagerSnapshotOptions {
+  /**
+   * v2.0 (D-38) — apps the user just uninstalled. Renderer surfaces
+   * these in a 24h "방금 제거한 앱" section so the user can verify
+   * the uninstall worked before they forget. Not deduplicated against
+   * the live `apps` list because a still-installed app reappearing in
+   * a recently-uninstalled list is itself useful signal.
+   */
+  recentlyUninstalled?: InstalledApp[];
+}
+
+export function buildAppManagerSnapshot(
+  apps: InstalledApp[],
+  opts: BuildAppManagerSnapshotOptions = {}
+): AppManagerSnapshot {
   const seen = new Set<string>();
   const usable = apps
     .filter((app) => Boolean(app.name?.trim()))
@@ -146,7 +160,13 @@ export function buildAppManagerSnapshot(apps: InstalledApp[]): AppManagerSnapsho
     total: items.length,
     classified: items.filter((item) => item.category !== "unknown").length,
     groups,
-    hiddenSystemCount
+    hiddenSystemCount,
+    recentlyUninstalled: (opts.recentlyUninstalled ?? [])
+      .filter((app) => Boolean(app.name?.trim()))
+      .map((app) => ({
+        name: app.name,
+        publisher: app.publisher ?? null
+      }))
   };
 }
 

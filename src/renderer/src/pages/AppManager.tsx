@@ -15,6 +15,7 @@ interface AppManagerProps {
   onBack: () => void;
   onOpenCleanup: () => void;
   onRescan: () => void;
+  onQuickRescan?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
 }
@@ -64,12 +65,16 @@ function AppRow({
   item,
   busy,
   lastStatus,
-  onUninstall
+  onUninstall,
+  onCheckLeftovers,
+  onRescan
 }: {
   item: AppManagerItem;
   busy: boolean;
   lastStatus?: AppUninstallResult;
   onUninstall: (item: AppManagerItem) => void;
+  onCheckLeftovers: () => void;
+  onRescan: () => void;
 }) {
   const badge = availabilityBadge(item);
   const meta = [item.publisher, item.version].filter(Boolean).join(" · ");
@@ -115,6 +120,16 @@ function AppRow({
             {lastStatus.message}
             {lastStatus.detail ? ` (${lastStatus.detail})` : ""}
           </p>
+        )}
+        {lastStatus?.status === "launched" && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <Button variant="secondary" size="sm" onClick={onCheckLeftovers}>
+              잔여 폴더 확인
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onRescan}>
+              다시 점검
+            </Button>
+          </div>
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
@@ -256,11 +271,18 @@ function LeftoverGroupCard({
   selected: Set<string>;
   onToggle: (pathId: string, checked: boolean) => void;
 }) {
+  const groupMeta = [
+    group.publisher,
+    group.source === "recent-uninstall" ? "방금 제거한 앱 기준" : ""
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
       <header>
         <h3 style={{ margin: 0 }}>{group.appName}</h3>
-        {group.publisher && <small style={{ opacity: 0.7 }}>{group.publisher}</small>}
+        {groupMeta && <small style={{ opacity: 0.7 }}>{groupMeta}</small>}
       </header>
       <ul style={{ listStyle: "none", padding: 0, marginTop: 8 }}>
         {group.paths.map((path) => (
@@ -305,6 +327,7 @@ export function AppManager({
   onBack,
   onOpenCleanup,
   onRescan,
+  onQuickRescan,
   onOpenTrashRestore,
   onOpenAuditLog
 }: AppManagerProps) {
@@ -314,6 +337,7 @@ export function AppManager({
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupExecuteResult | undefined>();
   const [activeUninstall, setActiveUninstall] = useState<string | null>(null);
+  const [postUninstallAppName, setPostUninstallAppName] = useState<string | null>(null);
   const [uninstallStatuses, setUninstallStatuses] = useState<Record<string, AppUninstallResult>>(
     {}
   );
@@ -400,6 +424,9 @@ export function AppManager({
         publisher: item.publisher
       });
       setUninstallStatuses((prev) => ({ ...prev, [item.id]: result }));
+      if (result.status === "launched") {
+        setPostUninstallAppName(item.name);
+      }
     } catch (err) {
       setUninstallStatuses((prev) => ({
         ...prev,
@@ -497,6 +524,61 @@ export function AppManager({
         </article>
       )}
 
+      {postUninstallAppName && (
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
+          <header>
+            <h2 style={{ margin: 0 }}>{postUninstallAppName} 제거 후도 같이 챙길게요</h2>
+          </header>
+          <p style={{ fontSize: 13, opacity: 0.78 }}>
+            Windows 제거 마법사를 끝냈다면 남은 폴더가 있는지 확인해보세요. 앱 목록에서
+            사라진 뒤에도 오늘 제거한 앱 기준으로 잔여 폴더 후보를 한 번 더 찾아볼 수 있어요.
+          </p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
+              잔여 폴더 확인
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onRescan}>
+              다시 점검
+            </Button>
+            {onQuickRescan && (
+              <Button variant="ghost" size="sm" onClick={onQuickRescan}>
+                빠르게 다시 보기
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setPostUninstallAppName(null)}>
+              닫기
+            </Button>
+          </div>
+        </article>
+      )}
+
+      {load.kind === "ready" && load.snapshot.recentlyUninstalled.length > 0 && (
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
+          <header>
+            <h2 style={{ margin: 0 }}>방금 제거한 앱</h2>
+            <small style={{ opacity: 0.7 }}>
+              최근 24시간 안에 Windows 제거 마법사를 띄운 앱이에요.
+            </small>
+          </header>
+          <ul style={{ listStyle: "none", padding: 0, margin: "10px 0" }}>
+            {load.snapshot.recentlyUninstalled.map((app) => (
+              <li key={`${app.name}|${app.publisher ?? ""}`} style={{ padding: "4px 0" }}>
+                <strong>{app.name}</strong>
+                {app.publisher && <small style={{ opacity: 0.68 }}> · {app.publisher}</small>}
+              </li>
+            ))}
+          </ul>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button variant="primary" size="sm" onClick={() => void loadLeftovers()}>
+              잔여 폴더 확인
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onRescan}>
+              다시 점검
+            </Button>
+          </div>
+        </article>
+      )}
+
       {load.kind === "ready" &&
         load.snapshot.groups.map((group, idx) => (
           <article
@@ -518,6 +600,8 @@ export function AppManager({
                   busy={activeUninstall === item.id}
                   lastStatus={uninstallStatuses[item.id]}
                   onUninstall={onUninstall}
+                  onCheckLeftovers={() => void loadLeftovers()}
+                  onRescan={onRescan}
                 />
               ))}
             </ul>
