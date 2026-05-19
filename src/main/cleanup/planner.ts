@@ -577,7 +577,10 @@ export function consumePlan(
   pruneExpired(now);
   const cached = PLAN_CACHE.get(planId);
   if (!cached) return undefined;
-  if (cached.plan.confirmationToken !== confirmationToken) return undefined;
+  if (cached.plan.confirmationToken !== confirmationToken) {
+    PLAN_CACHE.delete(planId);
+    return undefined;
+  }
   if (cached.plan.blocklistVersion !== BLOCKLIST_VERSION) {
     PLAN_CACHE.delete(planId);
     return undefined;

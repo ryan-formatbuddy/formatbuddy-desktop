@@ -241,10 +241,7 @@ describe("consumePlan", () => {
       });
       const tampered = plan.confirmationToken.split("").reverse().join("");
       expect(consumePlan(plan.planId, tampered)).toBeUndefined();
-      // The original token should now NOT consume the plan either —
-      // but we don't enforce that today (consumePlan only deletes the
-      // cache on version mismatch). The replay-once guarantee covers
-      // double-execution, which is the real risk.
+      expect(consumePlan(plan.planId, plan.confirmationToken)).toBeUndefined();
     } finally {
       fx.cleanup();
     }
