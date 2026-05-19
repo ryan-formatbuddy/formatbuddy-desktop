@@ -173,19 +173,29 @@ function isManifestEntrySelfContained(
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);
-  if (recovered.length === 0) return index;
 
-  const byId = new Map(index.entries.map((entry) => [entry.id, entry]));
+  const byId = new Map<string, CleanupTrashEntry>();
   let changed = false;
+  for (const entry of index.entries) {
+    if (!isManifestEntrySelfContained(userDataDir, entry.id, entry)) {
+      changed = true;
+      continue;
+    }
+    if (byId.has(entry.id)) {
+      changed = true;
+      continue;
+    }
+    byId.set(entry.id, entry);
+  }
+
   for (const entry of recovered) {
     if (byId.has(entry.id)) continue;
     byId.set(entry.id, entry);
     changed = true;
   }
 
-  if (!changed) return index;
   const next = { ...index, entries: Array.from(byId.values()) };
-  await saveIndex(userDataDir, next);
+  if (changed) await saveIndex(userDataDir, next);
   return next;
 }
 

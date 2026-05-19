@@ -258,4 +258,44 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
     expect(existsSync(orphanDir)).toBe(false);
   });
+
+  it("ignores index entries that point outside the managed trash folder", async () => {
+    const outside = join(fx.root, "outside-index.txt");
+    await writeFile(outside, "outside stays put", "utf8");
+    await mkdir(__testing.trashRoot(fx.userData), { recursive: true });
+    await writeFile(
+      __testing.indexPath(fx.userData),
+      JSON.stringify(
+        {
+          version: 1,
+          retentionDays: 30,
+          entries: [
+            {
+              id: "index-evil",
+              itemId: "item-evil",
+              originalPath: join(fx.home, "restored.txt"),
+              storedPath: outside,
+              label: "outside-index.txt",
+              categoryId: "temp-user",
+              sizeBytes: 17,
+              createdAt: "2026-05-19T00:00:00.000Z",
+              expiresAt: "2026-06-18T00:00:00.000Z"
+            }
+          ]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+  });
 });
