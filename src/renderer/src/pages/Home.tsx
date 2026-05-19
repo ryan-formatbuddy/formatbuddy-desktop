@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, ArrowRight } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
+import { applyThemeMode } from "../theme";
 import { copy } from "@shared/copy";
-import type { MonitorPreferences, StatusMonitorSnapshot } from "@shared/types";
+import type { MonitorPreferences, StatusMonitorSnapshot, ThemeMode } from "@shared/types";
 
 interface HomeProps {
   onStartScan: () => void;
@@ -22,7 +23,13 @@ function MonitorPrefsCard() {
 
   useEffect(() => {
     if (!window.fb?.getMonitorPrefs) return;
-    void window.fb.getMonitorPrefs().then(setPrefs).catch(() => setPrefs(null));
+    void window.fb
+      .getMonitorPrefs()
+      .then((next) => {
+        setPrefs(next);
+        applyThemeMode(next.themeMode);
+      })
+      .catch(() => setPrefs(null));
   }, []);
 
   const update = useCallback(async (patch: Parameters<NonNullable<typeof window.fb.updateMonitorPrefs>>[0]) => {
@@ -31,6 +38,7 @@ function MonitorPrefsCard() {
     try {
       const next = await window.fb.updateMonitorPrefs(patch);
       setPrefs(next);
+      applyThemeMode(next.themeMode);
     } finally {
       setBusy(false);
     }
@@ -105,9 +113,22 @@ function MonitorPrefsCard() {
           <option value="beta">베타 (beta) — 새 기능 먼저 받기</option>
         </select>
       </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <span>화면 모드:</span>
+        <select
+          value={prefs.themeMode}
+          disabled={busy}
+          onChange={(e) => void update({ themeMode: e.target.value as ThemeMode })}
+          style={{ padding: "4px 6px" }}
+        >
+          <option value="system">PC 설정 따라가기</option>
+          <option value="light">밝게 보기</option>
+          <option value="dark">어둡게 보기</option>
+        </select>
+      </label>
       <small style={{ opacity: 0.6 }}>
         포맷버디는 자동 점검을 하지 않아요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
-        베타 채널은 가끔 불안정할 수 있어요.
+        베타 채널은 가끔 불안정할 수 있고, 화면 모드는 이 PC에만 저장돼요.
       </small>
     </section>
   );

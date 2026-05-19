@@ -14,6 +14,7 @@ import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { WinChrome } from "./components/WinChrome";
 import { TopBar } from "./components/TopBar";
+import { applyThemeMode } from "./theme";
 import type {
   AppPlatform,
   AppStateSnapshot,
@@ -106,6 +107,12 @@ export function App() {
     }
     if (typeof window.fb?.getAppState === "function") {
       void window.fb.getAppState().then(setAppState).catch(() => setAppState(null));
+    }
+    if (typeof window.fb?.getMonitorPrefs === "function") {
+      void window.fb
+        .getMonitorPrefs()
+        .then((prefs) => applyThemeMode(prefs.themeMode))
+        .catch(() => undefined);
     }
   }, []);
 

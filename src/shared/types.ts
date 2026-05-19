@@ -1116,6 +1116,19 @@ export interface DefenderThreatSnapshot {
  */
 export type UpdateChannel = "stable" | "beta";
 
+/**
+ * v2.0 (Round D-31 / C7 follow-up) — manual theme override.
+ *
+ *   "system" : follow the OS prefers-color-scheme (default).
+ *   "light"  : force the light token set even on a dark OS.
+ *   "dark"   : force the dark token set even on a light OS.
+ *
+ * Renderer translates this into a body class (`theme-light` /
+ * `theme-dark`) which the dark @media block in globals.css respects
+ * via a `:where(:root[data-theme="dark"], …)` companion selector.
+ */
+export type ThemeMode = "system" | "light" | "dark";
+
 export interface MonitorPreferences {
   trayEnabled: boolean;
   reminderEnabled: boolean;
@@ -1135,6 +1148,8 @@ export interface MonitorPreferences {
    * Default ON. Failure to create one never blocks the action.
    */
   restorePointEnabled: boolean;
+  /** v2.0 (D-31) — manual theme override; defaults to "system". */
+  themeMode: ThemeMode;
   updatedAt?: string;
 }
 
@@ -1144,4 +1159,5 @@ export interface UpdateMonitorPreferencesRequest {
   reminderDays?: number;
   updateChannel?: UpdateChannel;
   restorePointEnabled?: boolean;
+  themeMode?: ThemeMode;
 }

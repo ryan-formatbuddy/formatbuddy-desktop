@@ -21,6 +21,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   MonitorPreferences,
+  ThemeMode,
   UpdateChannel,
   UpdateMonitorPreferencesRequest
 } from "@shared/types";
@@ -30,9 +31,15 @@ const DEFAULT_REMINDER_DAYS = 14;
 const MIN_REMINDER_DAYS = 1;
 const MAX_REMINDER_DAYS = 90;
 const DEFAULT_UPDATE_CHANNEL: UpdateChannel = "stable";
+const DEFAULT_THEME_MODE: ThemeMode = "system";
 
 function coerceChannel(value: unknown): UpdateChannel {
   return value === "beta" ? "beta" : DEFAULT_UPDATE_CHANNEL;
+}
+
+function coerceThemeMode(value: unknown): ThemeMode {
+  if (value === "light" || value === "dark" || value === "system") return value;
+  return DEFAULT_THEME_MODE;
 }
 
 interface PersistedMonitorPrefs {
@@ -53,7 +60,10 @@ export function defaultPrefs(): MonitorPreferences {
     // v2.0 — Restore Point is ON by default. It is a safety net for
     // every destructive action (cleanup execute, app uninstall) and
     // costs the user nothing when it succeeds.
-    restorePointEnabled: true
+    restorePointEnabled: true,
+    // D-31 — system follow by default so a fresh install picks up
+    // whichever theme the OS is already in without any opt-in click.
+    themeMode: DEFAULT_THEME_MODE
   };
 }
 
@@ -76,6 +86,7 @@ function coerce(value: unknown): MonitorPreferences {
     // Default to ON: any value other than the explicit boolean false
     // keeps the safety net. Older state files without the field opt in.
     restorePointEnabled: prefs?.restorePointEnabled !== false,
+    themeMode: coerceThemeMode(prefs?.themeMode),
     lastReminderAt:
       typeof prefs?.lastReminderAt === "string" ? prefs.lastReminderAt : undefined,
     updatedAt: typeof prefs?.updatedAt === "string" ? prefs.updatedAt : undefined
@@ -121,6 +132,9 @@ export async function updatePrefs(
       : {}),
     ...(patch.restorePointEnabled !== undefined
       ? { restorePointEnabled: Boolean(patch.restorePointEnabled) }
+      : {}),
+    ...(patch.themeMode !== undefined
+      ? { themeMode: coerceThemeMode(patch.themeMode) }
       : {})
   };
   return savePrefs(userDataDir, next);
