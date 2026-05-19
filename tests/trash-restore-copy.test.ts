@@ -22,19 +22,23 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain("자동 삭제될");
     expect(source).toContain("30일이 지난 항목은 앱이 알아서 정리해요");
     expect(source).toContain("자동으로 비워요");
-    expect(source).not.toContain("레지스트리 백업");
     expect(source).toContain("앱 삭제 흔적 백업");
-    expect(source).toContain("앱 흔적 되돌리기");
+    expect(source).toContain("시작 항목 백업");
+    expect(source).toContain("registryBackupRestoreButtonLabel");
+    expect(source).not.toContain("시작 레지스트리 백업");
   });
 
-  it("uses app identity first for app deletion trace backups", () => {
+  it("uses app identity and value names for backup titles", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 
     expect(source).toContain("registryBackupTitle");
     expect(source).toContain("entry.appName");
     expect(source).toContain("entry.appPublisher");
+    expect(source).toContain("entry.valueName");
+    expect(source).toContain('entry.backupKind === "startup-value"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
     expect(source).toContain("앱 삭제 흔적 위치");
+    expect(source).toContain("시작 항목 이름을 확인하지 못했어요");
   });
 
   it("uses one expiry-sorted restore list for files and app deletion traces", () => {

@@ -3,6 +3,8 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  registryBackupKindLabel,
+  registryBackupRestoreButtonLabel,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeTrashRestoreResults,
@@ -82,13 +84,32 @@ function formatLocal(at: string): string {
 }
 
 function registryBackupTitle(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "startup-value") {
+    const appName = entry.appName?.trim();
+    const valueName = entry.valueName?.trim();
+    if (appName) return `${appName} 시작 항목`;
+    if (valueName) return `${valueName} 시작 항목`;
+    return "시작 항목 이름을 확인하지 못했어요";
+  }
+
   const appName = entry.appName?.trim();
   return appName ? `${appName} 삭제 흔적` : "앱 이름을 확인하지 못한 삭제 흔적";
 }
 
 function registryBackupSubtitle(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "startup-value") {
+    const appPublisher = entry.appPublisher?.trim();
+    const valueName = entry.valueName?.trim();
+    const detail = valueName ? `시작 항목 이름 ${valueName}` : "Windows 시작 때 실행되는 항목";
+    return appPublisher ? `${appPublisher} · ${detail}` : detail;
+  }
+
   const appPublisher = entry.appPublisher?.trim();
   return appPublisher ? `${appPublisher} · 앱 삭제 흔적 위치` : "앱 삭제 흔적 위치";
+}
+
+function registryRestoreErrorLabel(entry: RegistryBackupEntry): string {
+  return entry.backupKind === "startup-value" ? "시작 항목" : "앱 흔적";
 }
 
 export function TrashRestore({ onBack }: TrashRestoreProps) {
@@ -182,7 +203,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         setToast(result.message);
         await load();
       } catch (e) {
-        setToast(`앱 흔적 되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
+        setToast(`${registryRestoreErrorLabel(entry)} 되돌리기 중 문제가 생겼어요: ${(e as Error).message}`);
       } finally {
         setBusy(null);
       }
@@ -236,12 +257,22 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
     if (totalEntryCount === 0) return "복구함이 비어 있어요.";
     const totalBytes = snapshot.totalBytes + registryBytes;
-    return `파일 ${entries.length}개 · 앱 삭제 흔적 백업 ${registryEntries.length}개 · 총 ${formatBytes(totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
+    const appTraceCount = registryEntries.filter(
+      (entry) => entry.backupKind !== "startup-value"
+    ).length;
+    const startupCount = registryEntries.length - appTraceCount;
+    const backupSummary = [
+      appTraceCount > 0 ? `앱 삭제 흔적 백업 ${appTraceCount}개` : "",
+      startupCount > 0 ? `시작 항목 백업 ${startupCount}개` : ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return `파일 ${entries.length}개 · ${backupSummary || "백업 0개"} · 총 ${formatBytes(totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
   }, [
     snapshot,
     registrySnapshot,
     entries.length,
-    registryEntries.length,
+    registryEntries,
     registryBytes,
     totalEntryCount
   ]);
@@ -276,7 +307,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">복구함 (30일)</h1>
         <p className="fb-lede">
-          깔끔 정리에서 보낸 파일과 앱 정리 때 만든 앱 삭제 흔적 백업은 30일 동안 여기 보관해요.
+          깔끔 정리에서 보낸 파일과 앱 정리 때 만든 백업은 30일 동안 여기 보관해요.
           마음이 바뀌면 한 번에 되돌릴 수 있고, 30일 뒤 자동으로 비워요. {headerSummary}
         </p>
       </section>
@@ -339,8 +370,8 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         <section className="fb-card fb-anim-fade">
           <h3 style={{ marginTop: 0 }}>복구함이 비어 있어요</h3>
           <p>
-            깔끔 정리에서 보낸 파일이나 앱 정리에서 만든 앱 삭제 흔적 백업이 있으면 여기 시간순으로
-            표시돼요. 곧 만료될 항목부터 위에 보여드려요.
+            깔끔 정리에서 보낸 파일이나 앱 정리에서 만든 백업이 있으면 여기 시간순으로 표시돼요.
+            곧 만료될 항목부터 위에 보여드려요.
           </p>
         </section>
       )}
@@ -438,7 +469,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                   fontWeight: 600
                 }}
               >
-                앱 삭제 흔적 백업
+                {registryBackupKindLabel(entry)}
               </span>
               <strong style={{ fontSize: 14 }}>{registryBackupTitle(entry)}</strong>
               <span
@@ -468,7 +499,9 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 onClick={() => void onRestoreRegistry(entry)}
                 disabled={Boolean(busy)}
               >
-                {busy === `registry:${entry.id}` ? "되돌리는 중..." : "앱 흔적 되돌리기"}
+                {busy === `registry:${entry.id}`
+                  ? "되돌리는 중..."
+                  : registryBackupRestoreButtonLabel(entry)}
               </Button>
             </div>
           </article>

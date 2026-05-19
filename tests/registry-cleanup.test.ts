@@ -761,6 +761,56 @@ describe("registry leftover cleanup", () => {
     expect(snapshot.entries).toEqual([]);
   });
 
+  it("uses startup item wording when restoring a startup value backup", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            "Windows Registry Editor Version 5.00",
+            "",
+            "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+            "\"Acme Notes\"=\"C:\\\\Acme\\\\Acme.exe\""
+          ].join("\n"),
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(restored).toMatchObject({
+      backupId: result.id,
+      status: "restored",
+      keyPath,
+      message: "시작 항목 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({
+      backupKind: "startup-value",
+      valueName,
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp."
+    });
+  });
+
   it("runs the safety hook before importing a registry backup", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const calls: string[] = [];

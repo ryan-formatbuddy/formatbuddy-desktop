@@ -9,6 +9,7 @@ import type {
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot
 } from "@shared/types";
+import { registryBackupKindLabel } from "@shared/cleanup-result";
 import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { normalizePath } from "../cleanup/blocklist";
@@ -883,10 +884,11 @@ export async function restoreRegistryBackup(options: {
 
   const importFile = options.runner?.importFile ?? defaultRegistryCleanupRunner().importFile;
   if (!importFile) {
+    const label = registryBackupKindLabel(entry);
     return {
       backupId: options.backupId,
       status: "restore-failed",
-      message: "앱 삭제 흔적 백업을 되돌릴 준비가 되지 않았어요.",
+      message: `${label}을 되돌릴 준비가 되지 않았어요.`,
       keyPath: entry.keyPath,
       entry
     };
@@ -909,18 +911,20 @@ export async function restoreRegistryBackup(options: {
         })
       ).catch(() => {});
     }
+    const label = registryBackupKindLabel(entry);
     return {
       backupId: entry.id,
       status: "restored",
-      message: "앱 삭제 흔적 백업을 되돌렸어요.",
+      message: `${label}을 되돌렸어요.`,
       keyPath: entry.keyPath,
       entry
     };
   } catch (err) {
+    const label = registryBackupKindLabel(entry);
     return {
       backupId: entry.id,
       status: "restore-failed",
-      message: `앱 삭제 흔적 백업 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
+      message: `${label} 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
       keyPath: entry.keyPath,
       entry
     };

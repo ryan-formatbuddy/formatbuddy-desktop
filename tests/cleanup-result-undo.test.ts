@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   daysUntilTrashExpiry,
   restorableRegistryBackupIds,
+  registryBackupKindLabel,
+  registryBackupRestoreButtonLabel,
   restorableTrashEntryIds,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
@@ -12,6 +14,7 @@ import type {
   CleanupExecuteResult,
   CleanupTrashEntry,
   CleanupTrashRestoreResult,
+  RegistryBackupEntry,
   RegistryBackupRestoreResult
 } from "../src/shared/types";
 
@@ -81,6 +84,19 @@ function resultWithEntries(): CleanupExecuteResult {
 }
 
 describe("Cleanup result undo helper", () => {
+  const registryBackupEntry = (
+    overrides: Partial<RegistryBackupEntry>
+  ): RegistryBackupEntry => ({
+    id: overrides.id ?? "backup",
+    keyPath:
+      overrides.keyPath ?? "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+    backupPath: overrides.backupPath ?? "C:\\FormatBuddy\\backup.reg",
+    sizeBytes: overrides.sizeBytes ?? 10,
+    createdAt: overrides.createdAt ?? "2026-05-19T00:00:00.000Z",
+    expiresAt: overrides.expiresAt ?? "2026-06-18T00:00:00.000Z",
+    ...overrides
+  });
+
   it("returns only successful 30-day trash entry ids", () => {
     expect(restorableTrashEntryIds(resultWithEntries())).toEqual(["trash-ok"]);
   });
@@ -103,13 +119,28 @@ describe("Cleanup result undo helper", () => {
 
   it("summarizes registry backup restore outcomes in friendly Korean", () => {
     const results: RegistryBackupRestoreResult[] = [
-      { backupId: "a", status: "restored", message: "ok" },
+      { backupId: "a", status: "restored", message: "ok", entry: registryBackupEntry({ backupKind: "key" }) },
       { backupId: "b", status: "missing-backup", message: "missing" },
-      { backupId: "c", status: "blocked-path", message: "blocked" }
+      {
+        backupId: "c",
+        status: "restored",
+        message: "ok",
+        entry: registryBackupEntry({ backupKind: "startup-value" })
+      },
+      { backupId: "d", status: "blocked-path", message: "blocked" }
     ];
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
-      "앱 삭제 흔적 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
+      "앱 삭제 흔적 백업 1개를 되돌렸어요. 시작 항목 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
+    );
+  });
+
+  it("labels startup value backups without exposing registry jargon", () => {
+    expect(registryBackupKindLabel({ backupKind: "key" })).toBe("앱 삭제 흔적 백업");
+    expect(registryBackupKindLabel({ backupKind: "startup-value" })).toBe("시작 항목 백업");
+    expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
+    expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
+      "시작 항목 되돌리기"
     );
   });
 

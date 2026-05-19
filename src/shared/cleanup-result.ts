@@ -2,6 +2,7 @@ import type {
   CleanupExecuteResult,
   CleanupTrashEntry,
   CleanupTrashRestoreResult,
+  RegistryBackupEntry,
   RegistryBackupRestoreResult
 } from "./types";
 
@@ -92,14 +93,35 @@ export function summarizeTrashRestoreResults(
   return parts.length > 0 ? parts.join(" ") : "되돌린 항목이 없어요.";
 }
 
+type RegistryBackupKindSource = Pick<RegistryBackupEntry, "backupKind">;
+
+export function isStartupRegistryBackup(entry: RegistryBackupKindSource | null | undefined): boolean {
+  return entry?.backupKind === "startup-value";
+}
+
+export function registryBackupKindLabel(entry: RegistryBackupKindSource): string {
+  return isStartupRegistryBackup(entry) ? "시작 항목 백업" : "앱 삭제 흔적 백업";
+}
+
+export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource): string {
+  return isStartupRegistryBackup(entry) ? "시작 항목 되돌리기" : "앱 흔적 되돌리기";
+}
+
 export function summarizeRegistryBackupRestoreResults(
   results: RegistryBackupRestoreResult[]
 ): string {
-  const restored = results.filter((item) => item.status === "restored").length;
-  const failed = results.length - restored;
+  const restored = results.filter((item) => item.status === "restored");
+  const restoredAppBackups = restored.filter((item) => !isStartupRegistryBackup(item.entry)).length;
+  const restoredStartupBackups = restored.filter((item) => isStartupRegistryBackup(item.entry)).length;
+  const failed = results.length - restored.length;
   const parts: string[] = [];
 
-  if (restored > 0) parts.push(`앱 삭제 흔적 백업 ${restored}개를 되돌렸어요.`);
+  if (restoredAppBackups > 0) {
+    parts.push(`앱 삭제 흔적 백업 ${restoredAppBackups}개를 되돌렸어요.`);
+  }
+  if (restoredStartupBackups > 0) {
+    parts.push(`시작 항목 백업 ${restoredStartupBackups}개를 되돌렸어요.`);
+  }
   if (failed > 0) parts.push(`${failed}개는 이미 없거나 확인이 필요해요.`);
 
   return parts.length > 0 ? parts.join(" ") : "";
