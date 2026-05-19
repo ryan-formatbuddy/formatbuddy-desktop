@@ -545,6 +545,45 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/30-day|30일/);
   });
 
+  it("does not count trash mode as successful when the restore expiry is shorter than 30 days", async () => {
+    const targetFile = join(fx.tempDir, "old-too-short.tmp");
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "trash-too-short", "files", "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(storedPath, "stored", "utf8");
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: "trash-too-short",
+          expiresAt: "2026-05-20T00:00:00.000Z",
+          storedPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/30-day|30일/);
+  });
+
   it("does not count trash mode as successful without a real stored trash path", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);

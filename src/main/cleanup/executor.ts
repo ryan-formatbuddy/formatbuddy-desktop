@@ -47,7 +47,7 @@ import {
 
 const MAX_SIZE_SCAN_DEPTH = 32;
 const DAY_MS = 86_400_000;
-const TRASH_EXPIRY_CLOCK_SKEW_MS = 5 * 60_000;
+const TRASH_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 
 export interface ExecutorDeps {
   /** Move a path into FormatBuddy's app-managed 30-day restore bin. */
@@ -197,11 +197,15 @@ function isValidIsoDateString(value: unknown): value is string {
 
 function isWithinTrashRetentionWindow(expiresAt: string, now: Date): boolean {
   const expiresAtMs = Date.parse(expiresAt);
+  const earliestAllowed =
+    now.getTime() +
+    FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS -
+    TRASH_EXPIRY_CLOCK_SKEW_MS;
   const latestAllowed =
     now.getTime() +
     FORMATBUDDY_TRASH_RETENTION_DAYS * DAY_MS +
     TRASH_EXPIRY_CLOCK_SKEW_MS;
-  return expiresAtMs <= latestAllowed;
+  return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
 }
 
 interface AttemptOutcome {
