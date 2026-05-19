@@ -48,18 +48,38 @@ const BLOCKED_UNINSTALL_COMMAND_HOSTS = new Set([
   "mshta"
 ]);
 
-function commandHost(command: string): string {
+const BLOCKED_UNINSTALL_TARGET_EXTENSIONS = new Set([
+  ".bat",
+  ".cmd",
+  ".ps1",
+  ".vbs",
+  ".vbe",
+  ".js",
+  ".jse",
+  ".wsf"
+]);
+
+function firstCommandPart(command: string): string {
   const trimmed = command.trim();
   if (!trimmed) return "";
-  let first = "";
   if (trimmed.startsWith("\"")) {
     const closing = trimmed.indexOf("\"", 1);
-    first = closing === -1 ? trimmed.slice(1) : trimmed.slice(1, closing);
-  } else {
-    first = trimmed.split(/\s+/, 1)[0] ?? "";
+    return closing === -1 ? trimmed.slice(1) : trimmed.slice(1, closing);
   }
+  return trimmed.split(/\s+/, 1)[0] ?? "";
+}
+
+function commandHost(command: string): string {
+  const first = firstCommandPart(command);
   const base = first.split(/[\\/]/).pop() ?? first;
   return base.toLowerCase().replace(/\.exe$/i, "");
+}
+
+function targetsBlockedScriptFile(command: string): boolean {
+  const first = firstCommandPart(command).toLowerCase();
+  return Array.from(BLOCKED_UNINSTALL_TARGET_EXTENSIONS).some((extension) =>
+    first.endsWith(extension)
+  );
 }
 
 function startsWithUnquotedSpacedExecutablePath(command: string): boolean {
@@ -76,6 +96,7 @@ export function isUnsafeUninstallCommand(command: string): boolean {
   let inQuote = false;
 
   if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return true;
+  if (targetsBlockedScriptFile(command)) return true;
   if (startsWithUnquotedSpacedExecutablePath(command)) return true;
 
   for (const char of command) {

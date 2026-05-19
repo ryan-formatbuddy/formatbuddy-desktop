@@ -295,6 +295,40 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["batch", '"C:\\Program Files\\Friendly Tool\\uninstall.bat"'],
+    ["cmd script", '"C:\\Program Files\\Friendly Tool\\uninstall.cmd" /quiet'],
+    ["PowerShell script", '"C:\\Program Files\\Friendly Tool\\uninstall.ps1"'],
+    ["VBScript", '"C:\\Program Files\\Friendly Tool\\uninstall.vbs"']
+  ])("blocks uninstall strings that target a %s file", async (_label, command) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+
+    expect(
+      canLaunchUninstall(
+        { appName: "Friendly Tool" },
+        { ...baseApp, name: "Friendly Tool", uninstallString: command },
+        "win32"
+      )
+    ).toBe(false);
+
+    const result = await runUninstall(
+      { appName: "Friendly Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Friendly Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
   it("allows parentheses inside a quoted uninstaller path", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const quoted = '"C:\\Program Files (x86)\\Friendly Tool\\unins000.exe" /remove';
