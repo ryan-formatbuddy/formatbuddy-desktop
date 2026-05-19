@@ -36,8 +36,23 @@ function norm(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
-function followupKey(app: Pick<InstalledApp, "name" | "publisher">): string {
-  return `${norm(app.name)}|${norm(app.publisher)}`;
+function sameFollowupApp(
+  a: Pick<InstalledApp, "name" | "publisher">,
+  b: Pick<InstalledApp, "name" | "publisher">
+): boolean {
+  if (norm(a.name) !== norm(b.name)) return false;
+  const aPublisher = norm(a.publisher);
+  const bPublisher = norm(b.publisher);
+  return !aPublisher || !bPublisher || aPublisher === bPublisher;
+}
+
+function mergeFollowupApp(base: InstalledApp, incoming: InstalledApp): InstalledApp {
+  return {
+    name: base.name || incoming.name,
+    publisher: base.publisher ?? incoming.publisher ?? null,
+    installLocation: base.installLocation ?? incoming.installLocation,
+    registryKeyPath: base.registryKeyPath ?? incoming.registryKeyPath
+  };
 }
 
 function cleanOptionalString(value: unknown): string | undefined {
@@ -89,20 +104,26 @@ function pruneAndDedupe(
   entries: PersistedUninstallFollowup[],
   nowMs: number
 ): PersistedUninstallFollowup[] {
-  const seen = new Set<string>();
-  return entries
+  const deduped: PersistedUninstallFollowup[] = [];
+  for (const entry of entries
     .filter((entry) => {
       const remembered = Date.parse(entry.rememberedAt);
       return Number.isFinite(remembered) && nowMs - remembered <= RECENT_UNINSTALL_TTL_MS;
     })
-    .sort((a, b) => Date.parse(b.rememberedAt) - Date.parse(a.rememberedAt))
-    .filter((entry) => {
-      const key = followupKey(entry);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, MAX_FOLLOWUPS);
+    .sort((a, b) => Date.parse(b.rememberedAt) - Date.parse(a.rememberedAt))) {
+    const existingIndex = deduped.findIndex((item) => sameFollowupApp(item, entry));
+    if (existingIndex === -1) {
+      deduped.push(entry);
+      continue;
+    }
+    deduped[existingIndex] = {
+      ...deduped[existingIndex],
+      publisher: deduped[existingIndex].publisher ?? entry.publisher ?? null,
+      installLocation: deduped[existingIndex].installLocation ?? entry.installLocation,
+      registryKeyPath: deduped[existingIndex].registryKeyPath ?? entry.registryKeyPath
+    };
+  }
+  return deduped.slice(0, MAX_FOLLOWUPS);
 }
 
 async function loadStore(
@@ -164,7 +185,6 @@ export async function rememberUninstallFollowup(
 
   const t = now();
   const current = await loadStore(userDataDir, () => t);
-  const key = followupKey(minimal);
   const entry: PersistedUninstallFollowup = {
     name: minimal.name,
     publisher: minimal.publisher ?? null,
@@ -173,7 +193,7 @@ export async function rememberUninstallFollowup(
     rememberedAt: new Date(t).toISOString()
   };
   const entries = pruneAndDedupe(
-    [entry, ...current.entries.filter((item) => followupKey(item) !== key)],
+    [entry, ...current.entries.filter((item) => !sameFollowupApp(item, minimal))],
     t
   );
   await saveStore(userDataDir, { version: 1, entries });
@@ -205,8 +225,7 @@ export async function forgetUninstallFollowup(
   if (!minimal) return false;
 
   const loaded = await loadStoreWithMeta(userDataDir, now);
-  const key = followupKey(minimal);
-  const entries = loaded.store.entries.filter((entry) => followupKey(entry) !== key);
+  const entries = loaded.store.entries.filter((entry) => !sameFollowupApp(entry, minimal));
   const removed = entries.length !== loaded.store.entries.length;
   if (removed || loaded.changed) {
     await saveStore(userDataDir, { version: 1, entries });
@@ -215,16 +234,17 @@ export async function forgetUninstallFollowup(
 }
 
 export function mergeUninstallFollowupApps(...groups: InstalledApp[][]): InstalledApp[] {
-  const seen = new Set<string>();
   const merged: InstalledApp[] = [];
   for (const group of groups) {
     for (const app of group) {
       const minimal = sanitizeFollowupApp(app);
       if (!minimal) continue;
-      const key = followupKey(minimal);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(minimal);
+      const existingIndex = merged.findIndex((item) => sameFollowupApp(item, minimal));
+      if (existingIndex === -1) {
+        merged.push(minimal);
+        continue;
+      }
+      merged[existingIndex] = mergeFollowupApp(merged[existingIndex], minimal);
     }
   }
   return merged;
@@ -234,5 +254,6 @@ export const __testing = {
   followupsPath,
   sanitizeFollowupApp,
   coerceStore,
-  pruneAndDedupe
+  pruneAndDedupe,
+  sameFollowupApp
 };

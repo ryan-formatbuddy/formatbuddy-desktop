@@ -12,6 +12,7 @@ import { join } from "node:path";
 import {
   forgetUninstallFollowup,
   listUninstallFollowups,
+  mergeUninstallFollowupApps,
   rememberUninstallFollowup,
   UNINSTALL_FOLLOWUPS_FILE
 } from "../src/main/apps/uninstallFollowups";
@@ -126,6 +127,41 @@ describe("persisted uninstall follow-ups", () => {
     const raw = readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8");
     expect(raw).not.toContain("Slack");
     expect(raw).toContain("Notion");
+  });
+
+  it("forgets a publisher-missing follow-up when cleanup reports the same app with publisher", async () => {
+    const now = Date.parse("2026-05-20T10:00:00.000Z");
+    await rememberUninstallFollowup(
+      userDataDir,
+      { name: "Slack", publisher: null },
+      () => now
+    );
+
+    await expect(
+      forgetUninstallFollowup(
+        userDataDir,
+        { name: "Slack", publisher: "Slack Technologies" },
+        () => now + 1000
+      )
+    ).resolves.toBe(true);
+
+    expect(await listUninstallFollowups(userDataDir, () => now + 2000)).toEqual([]);
+  });
+
+  it("merges publisher-missing and publisher-known follow-ups as one app", () => {
+    expect(
+      mergeUninstallFollowupApps(
+        [{ name: "Slack", publisher: "Slack Technologies", installLocation: "C:\\Slack" }],
+        [{ name: "Slack", publisher: null, registryKeyPath: "HKCU\\Software\\Slack" }]
+      )
+    ).toEqual([
+      {
+        name: "Slack",
+        publisher: "Slack Technologies",
+        installLocation: "C:\\Slack",
+        registryKeyPath: "HKCU\\Software\\Slack"
+      }
+    ]);
   });
 
   it("does not write the follow-up file through a symbolic link", async () => {
