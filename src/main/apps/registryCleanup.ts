@@ -927,6 +927,7 @@ export async function restoreRegistryBackup(options: {
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   beforeImport?: () => Promise<void>;
+  removeEntryDir?: (dir: string, entryId: string) => Promise<void>;
   onAppRegistryBackupRestored?: (app: RegistryBackupRestoredApp) => void | Promise<void>;
 }): Promise<RegistryBackupRestoreResult> {
   if (!isSafeRegistryBackupId(options.backupId)) {
@@ -963,10 +964,14 @@ export async function restoreRegistryBackup(options: {
     await options.beforeImport?.().catch(() => {});
     await importFile(entry.backupPath);
     await assertRegistryBackupRestored(entry, runner);
-    await fs.rm(join(registryBackupItemsRoot(options.userDataDir), entry.id), {
-      recursive: true,
-      force: true
-    });
+    const restoredEntryDir = join(registryBackupItemsRoot(options.userDataDir), entry.id);
+    const removeEntryDir =
+      options.removeEntryDir ??
+      ((dir: string) => fs.rm(dir, { recursive: true, force: true }));
+    await removeEntryDir(restoredEntryDir, entry.id);
+    if (await pathExists(restoredEntryDir)) {
+      throw new Error("Registry backup restore entry still exists after restore");
+    }
     const appName = cleanOptionalString(entry.appName);
     if (appName) {
       const backupKind = entry.backupKind === "startup-value" ? "startup-value" : "key";

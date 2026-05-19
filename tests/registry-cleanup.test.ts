@@ -916,6 +916,40 @@ describe("registry leftover cleanup", () => {
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
   });
 
+  it("does not report a registry backup as restored when its restore-bin folder still exists", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      keyExists: vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true),
+      importFile: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      runner,
+      removeEntryDir: async () => undefined
+    });
+
+    expect(runner.importFile).toHaveBeenCalledWith(backup.backupPath);
+    expect(restored.status).toBe("restore-failed");
+    expect(restored.message).toMatch(/아직|still|되돌리지 못|문제/);
+    expect(existsSync(join(__testing.registryBackupItemsRoot(fx.userDataDir), backup.id))).toBe(true);
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
+  });
+
   it("uses startup item wording when restoring a startup value backup", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const valueName = "Acme Notes";
