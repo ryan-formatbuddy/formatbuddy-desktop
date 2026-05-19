@@ -20,6 +20,7 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import type {
   CleanupCategoryId,
   CleanupExecuteMode,
@@ -35,6 +36,8 @@ import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { consumePlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 import { moveToFormatBuddyTrash } from "./trash";
+
+const MAX_SIZE_SCAN_DEPTH = 32;
 
 export interface ExecutorDeps {
   /** Move a path into FormatBuddy's app-managed 30-day restore bin. */
@@ -63,6 +66,36 @@ export interface ExecuteCleanupOptions {
   now?: () => Date;
 }
 
+async function measurePathSize(path: string, depth = 0): Promise<number | null> {
+  if (depth > MAX_SIZE_SCAN_DEPTH) return 0;
+
+  let stat;
+  try {
+    stat = await fs.lstat(path);
+  } catch {
+    return null;
+  }
+
+  if (stat.isSymbolicLink()) return 0;
+  if (stat.isFile()) return stat.size;
+  if (!stat.isDirectory()) return 0;
+
+  let entries;
+  try {
+    entries = await fs.readdir(path, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const childSize = await measurePathSize(join(path, entry.name), depth + 1);
+    if (childSize !== null) total += childSize;
+  }
+  return total;
+}
+
 /**
  * Default deps wired against electron.shell.trashItem and node:fs. Keep this
  * factory in this module (not at the call site) so tests can swap in mocks
@@ -82,12 +115,7 @@ export function defaultDeps(userDataDir: string): ExecutorDeps {
       await fs.rm(path, { recursive: true, force: true });
     },
     statSize: async (path) => {
-      try {
-        const stat = await fs.stat(path);
-        return stat.size;
-      } catch {
-        return null;
-      }
+      return measurePathSize(path);
     },
     emptyRecycleBin: () =>
       new Promise<void>((resolve, reject) => {

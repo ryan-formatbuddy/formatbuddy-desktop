@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { executeCleanup, type ExecutorDeps } from "../src/main/cleanup/executor";
+import { defaultDeps, executeCleanup, type ExecutorDeps } from "../src/main/cleanup/executor";
 import {
   consumePlan,
   planCleanup,
@@ -165,6 +165,17 @@ describe("executeCleanup", () => {
 
     expect(trashed).toEqual([]);
     expect(permanently).toEqual([targetFile]);
+  });
+
+  it("measures selected folders by their file contents, not directory metadata", async () => {
+    const folder = join(fx.tempDir, "old-cache");
+    await fs.mkdir(join(folder, "nested"), { recursive: true });
+    await fs.writeFile(join(folder, "a.tmp"), "12345", "utf8");
+    await fs.writeFile(join(folder, "nested", "b.tmp"), "1234567", "utf8");
+
+    const size = await defaultDeps(fx.userData).statSize(folder);
+
+    expect(size).toBe(12);
   });
 
   it("refuses to run when the confirmationToken is wrong", async () => {
