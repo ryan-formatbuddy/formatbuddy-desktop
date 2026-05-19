@@ -278,7 +278,10 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
 
   const refreshStatus = useCallback(async () => {
     if (!window.fb?.getDefenderStatus) {
-      setStatus({ loading: false, error: "Electron 브리지를 찾지 못했어요." });
+      setStatus({
+        loading: false,
+        error: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요."
+      });
       return;
     }
     setStatus({ loading: true });

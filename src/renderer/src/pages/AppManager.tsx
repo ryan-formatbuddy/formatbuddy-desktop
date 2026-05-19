@@ -395,7 +395,7 @@ export function AppManager({
 
   const refresh = useCallback(async () => {
     if (!window.fb?.listApps) {
-      setLoad({ kind: "error", message: "Electron 브리지를 찾지 못했어요." });
+      setLoad({ kind: "error", message: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요." });
       return;
     }
     setLoad({ kind: "loading" });

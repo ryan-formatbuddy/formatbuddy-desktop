@@ -201,14 +201,12 @@ function ItemRow({
 }
 
 function ConfirmDialog({
-  plan,
   selectedCount,
   selectedBytes,
   mode,
   onCancel,
   onConfirm
 }: {
-  plan: CleanupPlan;
   selectedCount: number;
   selectedBytes: number;
   mode: CleanupExecuteMode;
@@ -251,10 +249,9 @@ function ConfirmDialog({
           선택한 <strong>{selectedCount}개</strong> 항목, 총 <strong>{formatBytes(selectedBytes)}</strong>을 정리해요.
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>{modeDescription}</p>
-        <ul style={{ fontSize: 12, opacity: 0.7 }}>
-          <li>Plan ID: {plan.planId.slice(0, 8)}</li>
-          <li>Blocklist 버전: v{plan.blocklistVersion}</li>
-        </ul>
+        <p style={{ fontSize: 12, opacity: 0.7 }}>
+          보호 경로를 한 번 더 확인하고 진행해요. 같은 이름 파일이나 잠긴 파일은 건드리지 않아요.
+        </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
           <Button variant="ghost" onClick={onCancel}>
             취소
@@ -476,7 +473,7 @@ export function Cleanup({
 
   const startPlanning = useCallback(async () => {
     if (!window.fb?.planCleanup) {
-      setPhase({ kind: "error", message: "Electron 브리지를 찾지 못했어요." });
+      setPhase({ kind: "error", message: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요." });
       return;
     }
     setPhase({ kind: "planning" });
@@ -701,7 +698,6 @@ export function Cleanup({
 
       {phase.kind === "confirm" && (
         <ConfirmDialog
-          plan={phase.plan}
           selectedCount={selected.size}
           selectedBytes={selectedBytes}
           mode={phase.mode}

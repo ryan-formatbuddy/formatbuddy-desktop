@@ -56,7 +56,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
 
   const load = useCallback(async () => {
     if (!window.fb?.listStartupAuto) {
-      setError("Electron 브리지를 찾지 못했어요.");
+      setError("앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요.");
       return;
     }
     setLoading(true);

@@ -79,7 +79,7 @@ const CATEGORIES: PermissionCategory[] = [
       },
       {
         what: "1시간 이내 같은 점검 결과 (메모리 캐시)",
-        why: "사용자가 '빠른 다시 점검'을 누르면 PowerShell을 다시 돌리지 않고 메모리에 둔 결과를 그대로 보여주기 위해서요.",
+        why: "사용자가 '빠른 다시 점검'을 누르면 방금 확인한 결과를 그대로 보여주기 위해서요.",
         evidence: "main/lastScan.ts (in-memory, 1시간 TTL, 앱 재시작 시 사라짐)"
       }
     ]
@@ -171,7 +171,7 @@ const CATEGORIES: PermissionCategory[] = [
       },
       {
         what: "관리자 권한 없이 시스템 폴더 변경",
-        why: "System32 / Program Files / 레지스트리 하이브 등은 모두 차단 경로에 있어요.",
+        why: "System32 / Program Files / Windows 핵심 설정 영역은 모두 차단 경로에 있어요.",
         evidence: "blocklist.ts SYSTEM_BLOCK_RULES"
       }
     ]
