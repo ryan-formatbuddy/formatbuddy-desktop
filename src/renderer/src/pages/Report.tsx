@@ -869,6 +869,25 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">{copy.reportTitle}</h1>
         <p className="fb-lede">{copy.reportLede}</p>
+        {result.source === "cache" && (
+          <p
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: "var(--color-fb-blue-tint)",
+              color: "var(--color-fb-blue-heavy)",
+              marginTop: 8
+            }}
+            role="note"
+            aria-label="캐시된 점검 결과"
+          >
+            ⚡ 캐시된 결과 — 1시간 안에 본 점검을 다시 보여드렸어요.
+          </p>
+        )}
         {!isWindows && <p className="fb-report-preview-note">{copy.macReportPreviewNote}</p>}
       </section>
 
