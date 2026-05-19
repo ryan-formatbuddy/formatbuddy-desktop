@@ -632,6 +632,69 @@ button { font-family: inherit; }
   justify-content: flex-end;
   gap: 7px;
 }
+.fb-home-quick {
+  border: 1px solid rgba(0,102,255,0.12);
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 20px 22px;
+}
+.fb-home-quick-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+.fb-home-quick-head .fb-h2 { margin-bottom: 4px; }
+.fb-home-quick-head p {
+  margin: 0;
+  color: var(--color-fb-ink-2);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 550;
+}
+.fb-home-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.fb-home-quick-action {
+  min-height: 102px;
+  text-align: left;
+  border: 1px solid var(--color-fb-line);
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 14px;
+  cursor: pointer;
+  color: var(--color-fb-ink-1);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.fb-home-quick-action:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--fb-shadow-2);
+  border-color: rgba(0,102,255,0.24);
+}
+.fb-home-quick-action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-fb-blue) 48%, transparent);
+  outline-offset: 2px;
+}
+.fb-home-quick-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.fb-home-quick-action strong {
+  font-size: 14px;
+  line-height: 18px;
+}
+.fb-home-quick-action span {
+  color: var(--color-fb-ink-2);
+  font-size: 12px;
+  line-height: 18px;
+}
 .fb-home-bullets {
   margin: 0;
   padding-left: 18px;
@@ -641,6 +704,29 @@ button { font-family: inherit; }
   font-weight: 500;
 }
 .fb-home-bullets li { margin: 0 0 6px; }
+
+@media (max-width: 860px) {
+  .fb-home-hero {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .fb-home-quick-head,
+  .fb-home-monitor {
+    flex-direction: column;
+  }
+  .fb-home-quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .fb-home {
+    padding: 20px;
+  }
+  .fb-home-quick-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ============================================================
    Scanning
@@ -2483,6 +2569,8 @@ button { font-family: inherit; }
 :root[data-theme="dark"] .fb-card,
 :root[data-theme="dark"] .fb-home-monitor,
 :root[data-theme="dark"] .fb-home-privacy,
+:root[data-theme="dark"] .fb-home-quick,
+:root[data-theme="dark"] .fb-home-quick-action,
 :root[data-theme="dark"] .fb-update-banner,
 :root[data-theme="dark"] .fb-topbar,
 :root[data-theme="dark"] .fb-cap,
@@ -2543,6 +2631,8 @@ button { font-family: inherit; }
   :root:not([data-theme="light"]) .fb-card,
   :root:not([data-theme="light"]) .fb-home-monitor,
   :root:not([data-theme="light"]) .fb-home-privacy,
+  :root:not([data-theme="light"]) .fb-home-quick,
+  :root:not([data-theme="light"]) .fb-home-quick-action,
   :root:not([data-theme="light"]) .fb-update-banner,
   :root:not([data-theme="light"]) .fb-topbar,
   :root:not([data-theme="light"]) .fb-cap,

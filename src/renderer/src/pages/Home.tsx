@@ -15,6 +15,9 @@ interface HomeProps {
   onOpenAuditLog?: () => void;
   onOpenTrashRestore?: () => void;
   onOpenStartupAuto?: () => void;
+  onOpenCleanup?: () => void;
+  onOpenAppManager?: () => void;
+  onOpenSecurity?: () => void;
 }
 
 function MonitorPrefsCard() {
@@ -175,7 +178,19 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
-export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog, onOpenTrashRestore, onOpenStartupAuto }: HomeProps) {
+export function Home({
+  onStartScan,
+  onOpenWebReport,
+  isMacPreview = false,
+  monitor,
+  onOpenPermissions,
+  onOpenAuditLog,
+  onOpenTrashRestore,
+  onOpenStartupAuto,
+  onOpenCleanup,
+  onOpenAppManager,
+  onOpenSecurity
+}: HomeProps) {
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
@@ -214,6 +229,60 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
       </section>
 
       <MonitorCard monitor={monitor} />
+
+      <section className="fb-home-quick" aria-labelledby="home-quick-title">
+        <div className="fb-home-quick-head">
+          <h2 id="home-quick-title" className="fb-h2">
+            {copy.homeQuickTitle}
+          </h2>
+          <p>{copy.homeQuickLede}</p>
+        </div>
+        <div className="fb-home-quick-grid">
+          {onOpenCleanup && (
+            <button
+              type="button"
+              className="fb-home-quick-action"
+              onClick={onOpenCleanup}
+              disabled={isMacPreview}
+            >
+              <strong>{isMacPreview ? "안전 정리 (Windows 전용)" : copy.homeQuickCleanup}</strong>
+              <span>{copy.homeQuickCleanupHint}</span>
+            </button>
+          )}
+          {onOpenAppManager && (
+            <button
+              type="button"
+              className="fb-home-quick-action"
+              onClick={onOpenAppManager}
+              disabled={isMacPreview}
+            >
+              <strong>{isMacPreview ? "앱 정리 (Windows 전용)" : copy.homeQuickApps}</strong>
+              <span>{copy.homeQuickAppsHint}</span>
+            </button>
+          )}
+          {onOpenSecurity && (
+            <button
+              type="button"
+              className="fb-home-quick-action"
+              onClick={onOpenSecurity}
+              disabled={isMacPreview}
+            >
+              <strong>{isMacPreview ? "보안 점검 (Windows 전용)" : copy.homeQuickSecurity}</strong>
+              <span>{copy.homeQuickSecurityHint}</span>
+            </button>
+          )}
+          {onOpenTrashRestore && (
+            <button
+              type="button"
+              className="fb-home-quick-action"
+              onClick={onOpenTrashRestore}
+            >
+              <strong>{copy.homeQuickTrash}</strong>
+              <span>{copy.homeQuickTrashHint}</span>
+            </button>
+          )}
+        </div>
+      </section>
 
       <MonitorPrefsCard />
 

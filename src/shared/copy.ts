@@ -146,6 +146,17 @@ export const copy = {
   monitorTitle: "최근 점검 스냅샷",
   monitorSubtitle: "실시간 감시가 아니라, 가장 최근 점검 기록을 그대로 보여드려요.",
   monitorNoScan: "아직 저장된 점검 기록이 없어요. 한 번 점검하면 다음부터 변화도 같이 보여드릴게요.",
+  homeQuickTitle: "바로 관리하기",
+  homeQuickLede:
+    "점검부터 시작해도 좋고, 필요한 관리 기능만 바로 열어도 좋아요.",
+  homeQuickCleanup: "안전 정리",
+  homeQuickCleanupHint: "직접 고른 후보만 30일 복구함으로 보내요.",
+  homeQuickApps: "앱 정리",
+  homeQuickAppsHint: "앱을 분류해서 보고, 남은 폴더까지 확인해요.",
+  homeQuickSecurity: "보안 점검",
+  homeQuickSecurityHint: "Windows 보안 상태와 기록을 그대로 확인해요.",
+  homeQuickTrash: "복구함",
+  homeQuickTrashHint: "정리한 항목을 30일 안에 되돌릴 수 있어요.",
   // v2.0 (Round D-8 / C4) — empty-state copy. Pages should reach for
   // these instead of hardcoding a "데이터 없어요" string, so the tone
   // stays consistent and i18n keys are pinned.

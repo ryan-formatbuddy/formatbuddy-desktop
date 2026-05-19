@@ -332,6 +332,9 @@ export function App() {
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
             onOpenStartupAuto={() => setPhase({ kind: "startup" })}
+            onOpenCleanup={() => setPhase({ kind: "cleanup" })}
+            onOpenAppManager={() => setPhase({ kind: "apps" })}
+            onOpenSecurity={() => setPhase({ kind: "security" })}
           />
         );
       case "scanning":
