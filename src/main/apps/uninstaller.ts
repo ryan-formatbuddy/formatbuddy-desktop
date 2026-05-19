@@ -16,6 +16,7 @@
  *   - the app must be in the cached scan (renderer cannot inject one)
  *   - it must not be flagged systemComponent=true
  *   - the resolved string must not be empty / whitespace
+ *   - it must not include cmd control, expansion, or escape syntax
  *   - we never run quietUninstallString unless the caller opted in
  *
  * After spawning, the process detaches — we don't wait for Windows'
@@ -43,6 +44,7 @@ function hasUnsafeShellControl(command: string): boolean {
 
   for (const char of command) {
     if (char === "\n" || char === "\r" || char === "\0") return true;
+    if (char === "%" || char === "!" || char === "^") return true;
     if (char === "\"") {
       inQuote = !inQuote;
       continue;
