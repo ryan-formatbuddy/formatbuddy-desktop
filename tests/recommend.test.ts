@@ -201,6 +201,74 @@ describe("generateRecommendation — severity buckets", () => {
   });
 });
 
+describe("categoryScores (v2.0 / Round D-4 / B7)", () => {
+  it("returns four axes, all 0..100", () => {
+    const rec = generateRecommendation(baseReport());
+    expect(rec.categoryScores).toEqual(
+      expect.objectContaining({
+        cleanup: expect.any(Number),
+        security: expect.any(Number),
+        performance: expect.any(Number),
+        disk: expect.any(Number)
+      })
+    );
+    for (const v of Object.values(rec.categoryScores)) {
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it("healthy PC reports near-zero on every axis", () => {
+    const rec = generateRecommendation(baseReport());
+    expect(rec.categoryScores.cleanup).toBeLessThanOrEqual(25);
+    expect(rec.categoryScores.security).toBeLessThanOrEqual(25);
+    expect(rec.categoryScores.performance).toBeLessThanOrEqual(25);
+    expect(rec.categoryScores.disk).toBeLessThanOrEqual(25);
+  });
+
+  it("disabled Defender drives security high but leaves disk alone", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        defender: {
+          antivirusEnabled: false,
+          realTimeProtectionEnabled: false,
+          antivirusSignatureAgeDays: 40,
+          lastQuickScanDaysAgo: 90,
+          lastFullScanDaysAgo: 365
+        }
+      })
+    );
+    expect(rec.categoryScores.security).toBeGreaterThanOrEqual(60);
+    expect(rec.categoryScores.disk).toBeLessThanOrEqual(25);
+  });
+
+  it("low disk free pushes both performance and disk axes", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        disks: [{ drive: "C:", sizeGb: 256, freeGb: 5 }]
+      })
+    );
+    expect(rec.categoryScores.performance).toBeGreaterThan(40);
+    expect(rec.categoryScores.disk).toBeGreaterThan(40);
+  });
+
+  it("storage waste shows up on cleanup, not security", () => {
+    const rec = generateRecommendation(
+      baseReport({
+        storageWaste: {
+          userTempGb: 12,
+          localAppDataTempGb: 0,
+          windowsTempGb: 8,
+          windowsOldExists: true,
+          windowsOldGb: 10
+        }
+      })
+    );
+    expect(rec.categoryScores.cleanup).toBeGreaterThan(25);
+    expect(rec.categoryScores.security).toBeLessThanOrEqual(25);
+  });
+});
+
 describe("severity thresholds (v0.5.0 — adopted from design_handoff_format_buddy_app)", () => {
   it("getSeverity maps quartile boundaries correctly", () => {
     expect(__testing.getSeverity(0)).toBe("safe");

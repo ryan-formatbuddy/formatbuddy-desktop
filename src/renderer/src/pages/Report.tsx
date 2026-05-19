@@ -863,6 +863,68 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
         <p className="fb-score-card-summary">{recommendation.summary}</p>
       </section>
 
+      <section
+        aria-labelledby="category-scores-title"
+        style={{ marginBottom: 16 }}
+      >
+        <div style={{ marginBottom: 8 }}>
+          <h2 id="category-scores-title" className="fb-h2">
+            축별 점수
+          </h2>
+          <p style={{ opacity: 0.7, fontSize: 13 }}>
+            정리·보안·속도·디스크 네 축으로 나눠봤어요. 숫자가 낮을수록 좋아요.
+          </p>
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 10
+          }}
+        >
+          {(
+            [
+              { id: "cleanup", label: "정리", value: recommendation.categoryScores.cleanup },
+              { id: "security", label: "보안", value: recommendation.categoryScores.security },
+              {
+                id: "performance",
+                label: "속도",
+                value: recommendation.categoryScores.performance
+              },
+              { id: "disk", label: "디스크", value: recommendation.categoryScores.disk }
+            ] as const
+          ).map((axis) => {
+            const tone =
+              axis.value <= 25
+                ? "var(--color-fb-tone-safe)"
+                : axis.value <= 50
+                  ? "var(--color-fb-tone-watch)"
+                  : axis.value <= 75
+                    ? "var(--color-fb-tone-organize)"
+                    : "var(--color-fb-tone-format)";
+            const verdict =
+              axis.value <= 25
+                ? "괜찮아요"
+                : axis.value <= 50
+                  ? "한 번 보면 좋아요"
+                  : axis.value <= 75
+                    ? "정리가 필요해요"
+                    : "꼭 챙길게요";
+            return (
+              <article
+                key={axis.id}
+                className="fb-card"
+                style={{ borderLeft: `4px solid ${tone}` }}
+              >
+                <div style={{ fontSize: 12, opacity: 0.65 }}>{axis.label}</div>
+                <strong style={{ fontSize: 26 }}>{axis.value}</strong>
+                <div style={{ fontSize: 12, marginTop: 4 }}>{verdict}</div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
       <SmartCareOverview result={result} appState={appState ?? result.appState} />
 
       <section

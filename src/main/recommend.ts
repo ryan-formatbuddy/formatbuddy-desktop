@@ -660,11 +660,34 @@ export function generateRecommendation(report: ScanReport): Recommendation {
   const headline = getHeadline(severity, formatScore);
   const summary = getSummary(severity, reasons);
 
+  // v2.0 / Round D-4 / B7 -- per-axis scores so the UI can render four
+  // "where is this PC tired?" trend cards. We deliberately reuse the
+  // already-computed scalar scores instead of re-deriving from the
+  // raw report; that keeps the formatScore and the per-category cards
+  // in lockstep -- a 0 in formatScore can never coexist with a 70 in
+  // any category and vice versa.
+  const categoryScores = {
+    // Cleanup is dominated by accumulated storage waste; we let bad
+    // memory pressure bump it slightly because a packed system tends
+    // to leave more orphan temp files.
+    cleanup: Math.round(Math.max(sw, mem * 0.4)),
+    // Security is the worse of "Defender state" and "patches behind".
+    security: Math.round(Math.max(def, wu)),
+    // Performance signal is the worst of free space, memory, and
+    // recent crash density. Driver age is a soft tie-breaker.
+    performance: Math.round(Math.max(dFree, mem, ev, da * 0.5)),
+    // Disk is the disk-only view, separated from "performance"
+    // because a failing drive deserves its own card even when the
+    // rest of the PC looks fine.
+    disk: Math.round(Math.max(dHealth, dFree))
+  };
+
   return {
     formatScore,
     severity,
     headline,
     summary,
+    categoryScores,
     tryFirst: buildTryFirst(report, reasons),
     formatReasons: reasons,
     afterFormat: buildAfterFormat(report),

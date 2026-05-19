@@ -38,6 +38,65 @@
   --color-fb-tone-watch:    #1ea0d6;
   --color-fb-tone-organize: var(--color-fb-blue);
   --color-fb-tone-format:   var(--color-fb-blue-heavy);
+
+  /* v2.0 (Round D-4 / C1) — design tokens.
+     Spacing scale is 4-pt baseline. Radius/shadow tokens land here so
+     inline styles in Cleanup / AuditLog / Permissions / Home can
+     migrate off magic numbers in subsequent rounds. */
+  --fb-space-1: 4px;
+  --fb-space-2: 8px;
+  --fb-space-3: 12px;
+  --fb-space-4: 16px;
+  --fb-space-5: 24px;
+  --fb-space-6: 32px;
+  --fb-space-7: 48px;
+  --fb-space-8: 64px;
+
+  --fb-radius-sm: 6px;
+  --fb-radius-md: 8px;
+  --fb-radius-lg: 12px;
+  --fb-radius-xl: 20px;
+  --fb-radius-pill: 999px;
+
+  --fb-shadow-1: 0 1px 2px rgba(14, 17, 22, 0.06);
+  --fb-shadow-2: 0 4px 14px rgba(14, 17, 22, 0.08);
+  --fb-shadow-3: 0 12px 32px rgba(14, 17, 22, 0.12);
+
+  --fb-font-size-xs: 11px;
+  --fb-font-size-sm: 13px;
+  --fb-font-size-md: 15px;
+  --fb-font-size-lg: 18px;
+  --fb-font-size-xl: 22px;
+  --fb-font-size-h2: 28px;
+  --fb-font-size-h1: 40px;
+
+  --fb-line-tight: 1.25;
+  --fb-line-normal: 1.5;
+  --fb-line-loose: 1.7;
+
+  /* Severity badge colors used by AuditLog filter chips + category pills */
+  --fb-audit-cleanup:   #0ea5e9;
+  --fb-audit-uninstall: #9333ea;
+  --fb-audit-defender:  #dc2626;
+  --fb-audit-monitor:   #16a34a;
+  --fb-audit-system:    #475569;
+
+  /* Convenience utility classes used by the newer pages (Cleanup,
+     AuditLog, Permissions). Defined here so inline-style sites can
+     adopt them progressively without invalidating existing CSS. */
+}
+
+.fb-stack-row { display: flex; align-items: center; gap: var(--fb-space-2); }
+.fb-stack-col { display: flex; flex-direction: column; gap: var(--fb-space-2); }
+.fb-text-sm  { font-size: var(--fb-font-size-sm); }
+.fb-text-xs  { font-size: var(--fb-font-size-xs); }
+.fb-muted    { opacity: 0.7; }
+.fb-pill {
+  padding: var(--fb-space-1) var(--fb-space-2);
+  border-radius: var(--fb-radius-pill);
+  font-size: var(--fb-font-size-xs);
+  font-weight: 600;
+  color: #fff;
 }
 
 * { box-sizing: border-box; }

@@ -381,11 +381,27 @@ export interface BuddyChecklistItem {
   guide: string[];
 }
 
+/**
+ * v2.0 (Round D-4 / B7) -- Per-category 0..100 scores.
+ *
+ * The single `formatScore` answers "should I format?"; these answer
+ * "where exactly is this PC tired?". 0 = healthy, 100 = action needed.
+ * Lives on the recommendation so the UI can render trend cards vs.
+ * the prior scan without recomputing.
+ */
+export interface CategoryScores {
+  cleanup: number;
+  security: number;
+  performance: number;
+  disk: number;
+}
+
 export interface Recommendation {
   formatScore: number;
   severity: FormatSeverity;
   headline: string;
   summary: string;
+  categoryScores: CategoryScores;
   tryFirst: ActionItem[];
   formatReasons: ReasonItem[];
   afterFormat: ActionItem[];
