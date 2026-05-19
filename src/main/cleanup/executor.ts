@@ -46,7 +46,7 @@ export interface ExecutorDeps {
     item: CleanupItem,
     sizeBytes: number,
     context: { userDataDir: string; home?: string; now?: () => Date }
-  ) => Promise<{ id: string; expiresAt: string } | undefined>;
+  ) => Promise<{ id: string; expiresAt: string; storedPath: string } | undefined>;
   /** Permanently delete a file or directory tree. */
   permanentRemove: (path: string) => Promise<void>;
   /** Stat a path on disk; returns null if missing. */
@@ -297,6 +297,9 @@ async function attemptItem(
     if (mode === "permanent") await deps.permanentRemove(item.path);
     if (await pathExists(item.path)) {
       throw new Error("Source path still exists after cleanup");
+    }
+    if (mode === "trash" && (!isNonEmptyString(trashEntry?.storedPath) || !(await pathExists(trashEntry.storedPath)))) {
+      throw new Error("FormatBuddy stored trash path was not created");
     }
     return {
       removed: {
