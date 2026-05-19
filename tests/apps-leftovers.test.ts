@@ -115,6 +115,41 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups).toEqual([]);
   });
 
+  it("finds existing AppData leftovers for apps outside the built-in dictionary", async () => {
+    const notionRoaming = join(fx.roaming, "Notion");
+    const notionLocal = join(fx.localAppData, "Notion");
+    await fs.mkdir(notionRoaming, { recursive: true });
+    await fs.mkdir(notionLocal, { recursive: true });
+    await fs.writeFile(join(notionRoaming, "settings.json"), "{}", "utf8");
+    await fs.writeFile(join(notionLocal, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Notion", publisher: "Notion Labs, Inc." }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].appName).toBe("Notion");
+    expect(snapshot.groups[0].paths.map((p) => p.path).sort()).toEqual(
+      [notionLocal, notionRoaming].sort()
+    );
+  });
+
+  it("does not create generic leftover groups when the app folders do not exist", async () => {
+    const snapshot = await planAppLeftovers(
+      [{ name: "Obscure Notes", publisher: "Tiny Vendor" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    expect(snapshot.groups).toEqual([]);
+  });
+
   it("does not duplicate groups when the same app appears twice in the registry", async () => {
     const snapshot = await planAppLeftovers(
       [

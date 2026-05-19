@@ -54,6 +54,8 @@ const PLAN_TTL_MS = 5 * 60 * 1000;
 const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
+const GENERIC_NAME_BLOCKLIST =
+  /^(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)$/i;
 
 const RULES: LeftoverRule[] = [
   {
@@ -458,6 +460,53 @@ async function pathInfo(
   };
 }
 
+function isUsefulGenericName(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length < 3) return false;
+  if (GENERIC_NAME_BLOCKLIST.test(trimmed)) return false;
+  if (/^kb\d{6,}$/i.test(trimmed)) return false;
+  return /[a-z가-힣0-9]/i.test(trimmed);
+}
+
+function genericFolderNames(app: InstalledApp): string[] {
+  const raw = (app.name ?? "").replace(/[™®©]/g, "").trim();
+  const withoutArchitecture = raw
+    .replace(/\s*\((?:x64|x86|64-bit|32-bit|user|machine)\)\s*$/i, "")
+    .trim();
+  const withoutVersion = withoutArchitecture
+    .replace(/\s+v?\d+(?:\.\d+){0,4}\s*$/i, "")
+    .trim();
+
+  const candidates = [raw, withoutArchitecture, withoutVersion, withoutVersion.replace(/\s+/g, "")]
+    .map((value) => value.trim())
+    .filter(isUsefulGenericName);
+
+  return Array.from(new Set(candidates));
+}
+
+async function genericLeftoverPaths(
+  app: InstalledApp,
+  env: LeftoverEnv
+): Promise<AppLeftoverPath[]> {
+  const names = genericFolderNames(app);
+  const roots = [env.roaming, env.localAppData, env.programData];
+  const paths: AppLeftoverPath[] = [];
+  const seen = new Set<string>();
+
+  for (const root of roots) {
+    for (const name of names) {
+      const candidate = join(root, name);
+      const key = normalizePath(candidate);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const info = await pathInfo(candidate, env);
+      if (info.exists) paths.push(info);
+    }
+  }
+
+  return paths;
+}
+
 export async function planAppLeftovers(
   apps: InstalledApp[],
   options: PlanLeftoversOptions = {}
@@ -477,10 +526,22 @@ export async function planAppLeftovers(
     if (!app.name) continue;
     const text = `${app.name} ${app.publisher ?? ""}`;
     const rule = RULES.find((r) => r.match.test(text));
-    if (!rule) continue;
+    if (!rule) {
+      if (seenLabels.has(app.name)) continue;
+      const paths = await genericLeftoverPaths(app, env);
+      if (paths.length === 0) continue;
+      seenLabels.add(app.name);
+      groups.push({
+        appName: app.name,
+        publisher: app.publisher,
+        source,
+        paths
+      });
+      continue;
+    }
+
     if (seenLabels.has(rule.appLabel)) continue;
     seenLabels.add(rule.appLabel);
-
     const paths: AppLeftoverPath[] = [];
     for (const builder of rule.paths) {
       paths.push(await pathInfo(builder(env), env));
