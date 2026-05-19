@@ -75,12 +75,16 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
 
-  if (purgedCount !== null) lines.push(`비운 항목 ${purgedCount}개`);
+  if (purgedCount !== null && purgedCount > 0) lines.push(`비운 항목 ${purgedCount}개`);
   if (removedCount > 0) lines.push(`정리한 항목 ${removedCount}개`);
   if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
   if (skippedCount > 0) lines.push(`건드리지 않은 항목 ${skippedCount}개`);
-  if (purgedBytes !== null) lines.push(`확보한 공간 ${formatBytes(purgedBytes)}`);
-  if (totalFreedBytes !== null) lines.push(`확보한 공간 ${formatBytes(totalFreedBytes)}`);
+  if (purgedBytes !== null && purgedBytes > 0) {
+    lines.push(`확보한 공간 ${formatBytes(purgedBytes)}`);
+  }
+  if (totalFreedBytes !== null && totalFreedBytes > 0) {
+    lines.push(`확보한 공간 ${formatBytes(totalFreedBytes)}`);
+  }
 
   return lines;
 }

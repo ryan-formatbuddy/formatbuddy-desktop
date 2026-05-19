@@ -34,4 +34,15 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("JSON.stringify(entry.detail");
     expect(source).not.toContain("<pre");
   });
+
+  it("does not show zero-count audit detail lines as if they mattered", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("purgedCount !== null && purgedCount > 0");
+    expect(source).toContain("purgedBytes !== null && purgedBytes > 0");
+    expect(source).toContain("totalFreedBytes !== null && totalFreedBytes > 0");
+    expect(source).not.toContain("purgedCount !== null) lines.push");
+    expect(source).not.toContain("purgedBytes !== null) lines.push");
+    expect(source).not.toContain("totalFreedBytes !== null) lines.push");
+  });
 });
