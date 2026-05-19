@@ -510,6 +510,23 @@ async function notifyAppLeftoverRestored(
   ).catch(() => {});
 }
 
+function friendlyRestoreFailureMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  const code = err && typeof err === "object" && "code" in err ? String((err as NodeJS.ErrnoException).code ?? "") : "";
+  const haystack = `${code} ${message}`.toLowerCase();
+
+  if (/eacces|eperm|access.*denied|permission.*denied/.test(haystack)) {
+    return "권한이 부족해서 원래 위치로 되돌리지 못했어요. 관리자 권한으로 다시 실행한 뒤 시도해주세요.";
+  }
+  if (/eexist|enotdir|not a directory/.test(haystack)) {
+    return "원래 위치의 폴더를 다시 만들지 못해서 되돌리지 못했어요. 같은 이름의 파일이나 폴더를 확인한 뒤 다시 시도해주세요.";
+  }
+  if (/ebusy|locked|resource busy/.test(haystack)) {
+    return "다른 프로그램이 파일을 사용 중이라 되돌리지 못했어요. 잠시 후 다시 시도해주세요.";
+  }
+  return "원래 위치로 되돌리지 못했어요. 잠시 후 다시 시도해주세요.";
+}
+
 function expiryFor(now: Date): string {
   return new Date(
     now.getTime() + FORMATBUDDY_TRASH_RETENTION_DAYS * 86_400_000
@@ -720,7 +737,7 @@ export async function restoreTrashEntry(
     return {
       entryId: entry.id,
       status: "restore-failed",
-      message: `되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
+      message: friendlyRestoreFailureMessage(err),
       originalPath: entry.originalPath,
       entry
     };

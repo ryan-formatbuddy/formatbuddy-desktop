@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { CleanupItem } from "../src/shared/types";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
@@ -76,6 +76,34 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.retentionDays).toBe(FORMATBUDDY_TRASH_RETENTION_DAYS);
     expect(snapshot.entries).toHaveLength(1);
     expect(snapshot.totalBytes).toBe(5);
+  });
+
+  it("recovers a moved item when the trash index was blocked by a link", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+
+    const outsideIndex = join(fx.root, "outside-index.json");
+    await mkdir(join(__testing.indexPath(fx.userData), ".."), { recursive: true });
+    await writeFile(outsideIndex, "outside-original", "utf8");
+    await symlink(outsideIndex, __testing.indexPath(fx.userData));
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(true);
+    await expect(readFile(outsideIndex, "utf8")).resolves.toBe("outside-original");
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries.map((e) => e.id)).toContain(entry.id);
   });
 
   it("caps a recovered manifest expiry to the 30-day window", async () => {
@@ -373,6 +401,32 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(source, "utf8")).toBe("hello");
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("keeps restore failure messages friendly when the original folder cannot be recreated", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(dirname(source), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    await rm(dirname(source), { recursive: true, force: true });
+    await writeFile(dirname(source), "not a folder", "utf8");
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("restore-failed");
+    expect(result.message).toContain("되돌리지 못했어요");
+    expect(result.message).not.toMatch(/EEXIST|ENOTDIR|not a directory|operation not permitted|permission denied/i);
+    expect(existsSync(entry.storedPath)).toBe(true);
   });
 
   it("notifies the caller when an app-leftover entry is restored", async () => {
