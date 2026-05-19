@@ -349,8 +349,8 @@ function buildCareActions(report: ScanReport, scores: {
               : `최근 보안 검사가 ${scanAge}일 전이라 크게 오래되진 않았어요.`,
       description: "Windows 보안 빠른 검사를 준비해요. 포맷버디가 위협을 해결했다고 말하지 않아요.",
       safetyNote: "위협을 직접 처리하지 않고 Windows 보안으로 연결해요.",
-      cta: "검사 준비",
-      command: "Start-MpScan -ScanType QuickScan"
+      cta: "보안 화면 열기",
+      command: "start windowsdefender:"
     },
     {
       id: "realtime-protection-check",

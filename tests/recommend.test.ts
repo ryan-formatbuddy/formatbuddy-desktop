@@ -469,7 +469,8 @@ describe("buddy checklist", () => {
 
     expect(rec.careActions.find((a) => a.id === "safe-cleanup")?.status).toBe("check");
     expect(rec.careActions.find((a) => a.id === "app-uninstall-review")?.status).toBe("check");
-    expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).toBe("Start-MpScan -ScanType QuickScan");
+    expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).toBe("start windowsdefender:");
+    expect(rec.careActions.find((a) => a.id === "quick-security-scan")?.command).not.toMatch(/Start-MpScan|PowerShell/i);
     expect(rec.careActions.find((a) => a.id === "windows-update-review")?.status).toBe("warning");
     expect(rec.careActions.every((a) => /자동 삭제|승인 없는 삭제|직접 처리|상주 감시|Ryan이 직접|끄기|선택/.test(a.safetyNote))).toBe(true);
   });
