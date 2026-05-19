@@ -811,6 +811,7 @@ export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
   backupPath: string;
+  sizeBytes: number;
   appName?: string | null;
   appPublisher?: string | null;
   createdAt: string;

@@ -104,7 +104,10 @@ function runRegCommand(args: string[]): Promise<void> {
   });
 }
 
-async function assertRestorableRegistryBackupFile(entryDir: string, backupPath: string): Promise<void> {
+async function assertRestorableRegistryBackupFile(
+  entryDir: string,
+  backupPath: string
+): Promise<number> {
   const linkedBackup = await findLinkedPathPart(backupPath, entryDir, true);
   if (linkedBackup) {
     throw new Error(`앱 삭제 흔적 백업 파일이 링크라 정리하지 않았어요: ${linkedBackup}`);
@@ -131,6 +134,8 @@ async function assertRestorableRegistryBackupFile(entryDir: string, backupPath: 
   if (!/^Windows Registry Editor Version\s+\d+(?:\.\d+)?/i.test(head) && !/^REGEDIT4\b/i.test(head)) {
     throw new Error("앱 삭제 흔적 백업 파일이 레지스트리 백업 형식이 아니라 정리하지 않았어요.");
   }
+
+  return Math.max(0, stat.size);
 }
 
 async function writeRegistryBackupMetaFile(
@@ -197,10 +202,11 @@ export async function backupAndDeleteRegistryKey(options: {
   const runner = options.runner ?? defaultRegistryCleanupRunner();
   const appName = cleanOptionalString(options.app?.name);
   const appPublisher = cleanOptionalString(options.app?.publisher);
+  let sizeBytes = 0;
 
   try {
     await runner.exportKey(keyPath, backupPath);
-    await assertRestorableRegistryBackupFile(entryDir, backupPath);
+    sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath);
     await writeRegistryBackupMetaFile(
       entryDir,
       metaPath,
@@ -208,6 +214,7 @@ export async function backupAndDeleteRegistryKey(options: {
         id,
         keyPath,
         backupPath,
+        sizeBytes,
         appName,
         appPublisher,
         createdAt,
@@ -224,6 +231,7 @@ export async function backupAndDeleteRegistryKey(options: {
     id,
     keyPath,
     backupPath,
+    sizeBytes,
     appName,
     appPublisher,
     createdAt,
@@ -350,6 +358,7 @@ async function readRegistryBackupEntryForRestore(
     id: backupId,
     keyPath: normalizeRegistryKeyPath(raw.keyPath),
     backupPath,
+    sizeBytes: 0,
     createdAt: raw.createdAt,
     expiresAt: canonicalRegistryBackupExpiry(raw.createdAt)
   };
@@ -384,6 +393,7 @@ async function readRegistryBackupEntryForRestore(
         }
       };
     }
+    entry.sizeBytes = Math.max(0, backupStat.size);
     return { kind: "entry", entry };
   } catch {
     return {

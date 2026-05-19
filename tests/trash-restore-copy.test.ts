@@ -47,4 +47,12 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain("entries.map((entry, idx)");
     expect(source).not.toContain("registryEntries.map((entry, idx)");
   });
+
+  it("includes app deletion trace backup bytes in the restore bin total", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("registryBytes");
+    expect(source).toContain("snapshot.totalBytes + registryBytes");
+    expect(source).toContain("{formatBytes(entry.sizeBytes)} · 보낸 시각");
+  });
 });

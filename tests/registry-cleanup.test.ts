@@ -12,6 +12,8 @@ import {
   __testing
 } from "../src/main/apps/registryCleanup";
 
+const REGISTRY_BACKUP_CONTENT = "Windows Registry Editor Version 5.00";
+
 interface Fixture {
   root: string;
   userDataDir: string;
@@ -69,7 +71,7 @@ describe("registry leftover cleanup", () => {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         calls.push("export");
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
       }),
       deleteKey: vi.fn(async () => {
         calls.push("delete");
@@ -86,6 +88,7 @@ describe("registry leftover cleanup", () => {
     expect(calls).toEqual(["export", "delete"]);
     expect(runner.exportKey).toHaveBeenCalledWith(keyPath, result.backupPath);
     expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    expect(result.sizeBytes).toBe(Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"));
     expect(result.expiresAt).toBe("2026-06-18T00:00:00.000Z");
 
     const metaPath = join(
@@ -100,6 +103,7 @@ describe("registry leftover cleanup", () => {
       id: result.id,
       keyPath,
       backupPath: result.backupPath,
+      sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
       createdAt: "2026-05-19T00:00:00.000Z",
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
@@ -254,7 +258,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -305,6 +309,7 @@ describe("registry leftover cleanup", () => {
         id: result.id,
         keyPath,
         backupPath: result.backupPath,
+        sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
         createdAt: "2026-05-19T00:00:00.000Z",
         expiresAt: "2026-06-18T00:00:00.000Z"
       }

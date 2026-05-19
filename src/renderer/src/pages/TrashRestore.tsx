@@ -125,6 +125,10 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     () => registrySnapshot?.entries ?? [],
     [registrySnapshot]
   );
+  const registryBytes = useMemo(
+    () => registryEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
+    [registryEntries]
+  );
   const totalEntryCount = entries.length + registryEntries.length;
   const sortedRestoreItems = useMemo(() => {
     const items: RestoreListItem[] = [
@@ -231,8 +235,16 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const headerSummary = useMemo(() => {
     if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
     if (totalEntryCount === 0) return "복구함이 비어 있어요.";
-    return `파일 ${entries.length}개 · 앱 삭제 흔적 백업 ${registryEntries.length}개 · 총 ${formatBytes(snapshot.totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
-  }, [snapshot, registrySnapshot, entries.length, registryEntries.length, totalEntryCount]);
+    const totalBytes = snapshot.totalBytes + registryBytes;
+    return `파일 ${entries.length}개 · 앱 삭제 흔적 백업 ${registryEntries.length}개 · 총 ${formatBytes(totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
+  }, [
+    snapshot,
+    registrySnapshot,
+    entries.length,
+    registryEntries.length,
+    registryBytes,
+    totalEntryCount
+  ]);
 
   const expirySummary = useMemo(
     () => trashExpirySummary([...entries, ...registryEntries]),
@@ -447,7 +459,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
               {entry.keyPath}
             </div>
             <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
-              보낸 시각 {formatLocal(entry.createdAt)}
+              {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.createdAt)}
             </div>
             <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
               <Button
