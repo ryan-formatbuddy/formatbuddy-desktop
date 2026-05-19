@@ -260,6 +260,30 @@ describe("registry leftover cleanup", () => {
     expect(await readFile(outsideFile, "utf8")).toBe("outside stays put");
   });
 
+  it("removes a linked registry backup items folder during automatic purge", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const outsideItems = join(fx.root, "outside-registry-purge-items");
+    const outsideFile = join(outsideItems, "backup.reg");
+    await mkdir(join(root, ".."), { recursive: true });
+    await mkdir(outsideItems, { recursive: true });
+    await writeFile(outsideFile, "outside stays put", "utf8");
+    await symlink(outsideItems, root, "dir");
+
+    const result = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedIds: [],
+      retentionDays: 30
+    });
+    expect(existsSync(root)).toBe(false);
+    expect(await readFile(outsideFile, "utf8")).toBe("outside stays put");
+  });
+
   it("prunes registry backup folders that cannot be restored", async () => {
     const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
     await mkdir(brokenDir, { recursive: true });

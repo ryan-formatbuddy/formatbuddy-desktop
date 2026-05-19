@@ -410,6 +410,7 @@ export async function purgeExpiredRegistryBackups(options: {
   const root = registryBackupItemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
   if (linkedRoot) {
+    await removeLinkedRegistryBackupRootIfManaged(options.userDataDir, linkedRoot);
     return { purgedCount: 0, purgedIds: [], retentionDays: REGISTRY_BACKUP_RETENTION_DAYS };
   }
 
