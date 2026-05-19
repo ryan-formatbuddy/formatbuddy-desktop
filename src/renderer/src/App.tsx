@@ -288,7 +288,20 @@ export function App() {
   const content = useMemo(() => {
     switch (phase.kind) {
       case "onboarding":
-        return <Onboarding onComplete={finishOnboarding} isMacPreview={isMacPreview} />;
+        return (
+          <Onboarding
+            onComplete={finishOnboarding}
+            isMacPreview={isMacPreview}
+            onOpenPermissions={() => {
+              finishOnboarding();
+              setPhase({ kind: "permissions" });
+            }}
+            onStartFirstScan={() => {
+              finishOnboarding();
+              void startScan();
+            }}
+          />
+        );
       case "home":
         return (
           <Home
