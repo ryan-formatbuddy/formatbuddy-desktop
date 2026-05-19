@@ -53,9 +53,9 @@ import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import {
   listRegistryBackups,
-  purgeExpiredRegistryBackups,
   restoreRegistryBackup
 } from "./apps/registryCleanup";
+import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
   clearLastScan,
@@ -780,6 +780,12 @@ function registerIpc() {
   });
 
   ipcMain.handle(IpcChannels.registryBackupsList, async (): Promise<RegistryBackupSnapshot> => {
+    await purgeExpiredRegistryBackupsWithAudit({
+      userDataDir: app.getPath("userData"),
+      trigger: "registry-list"
+    }).catch((err) => {
+      log.warn("registry-backup:purge-before-list failed:", (err as Error).message);
+    });
     return listRegistryBackups({ userDataDir: app.getPath("userData") });
   });
 
@@ -787,6 +793,12 @@ function registerIpc() {
     IpcChannels.registryBackupRestore,
     async (_e, request: RegistryBackupRestoreRequest): Promise<RegistryBackupRestoreResult> => {
       const userDataDir = app.getPath("userData");
+      await purgeExpiredRegistryBackupsWithAudit({
+        userDataDir,
+        trigger: "registry-restore"
+      }).catch((err) => {
+        log.warn("registry-backup:purge-before-restore failed:", (err as Error).message);
+      });
       const result = await restoreRegistryBackup({
         userDataDir,
         backupId: request.backupId,
@@ -829,7 +841,10 @@ function registerIpc() {
       const userDataDir = app.getPath("userData");
       try {
         await maybeCreateRestorePoint("앱 잔여 폴더 정리");
-        await purgeExpiredRegistryBackups({ userDataDir }).catch((err) => {
+        await purgeExpiredRegistryBackupsWithAudit({
+          userDataDir,
+          trigger: "app-leftovers"
+        }).catch((err) => {
           log.warn("registry-backup:purge-before-app-leftovers failed:", (err as Error).message);
         });
         const result = await cleanupAppLeftovers(request, { userDataDir });
@@ -1043,8 +1058,9 @@ app.whenReady().then(() => {
           log.info(`cleanup-trash:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
         }
       });
-      await purgeExpiredRegistryBackups({
-        userDataDir: app.getPath("userData")
+      await purgeExpiredRegistryBackupsWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: "startup"
       }).then((result) => {
         if (result.purgedCount > 0) {
           log.info(`registry-backup:startup purged=${result.purgedCount}`);
