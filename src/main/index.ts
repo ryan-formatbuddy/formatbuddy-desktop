@@ -47,7 +47,7 @@ import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
 import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
-import { runUninstall } from "./apps/uninstaller";
+import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import {
   clearLastScan,
   findInstalledApp,
@@ -220,7 +220,10 @@ async function reconcileReminderTimer(): Promise<void> {
  * who just toggled "취소" sees the new behavior immediately. Never
  * throws -- caller proceeds with the destructive action either way.
  */
-async function maybeCreateRestorePoint(actionDescription: string): Promise<void> {
+async function maybeCreateRestorePoint(
+  actionDescription: string,
+  type: "MODIFY_SETTINGS" | "APPLICATION_INSTALL" | "APPLICATION_UNINSTALL" = "MODIFY_SETTINGS"
+): Promise<void> {
   try {
     const prefs = await loadMonitorPrefs(app.getPath("userData"));
     if (!prefs.restorePointEnabled) {
@@ -229,6 +232,7 @@ async function maybeCreateRestorePoint(actionDescription: string): Promise<void>
     }
     const result = await createRestorePoint({
       description: actionDescription,
+      type,
       runner: defaultRestorePointRunner()
     });
     if (result.created) {
@@ -801,8 +805,10 @@ function registerIpc() {
           message: "최근 진단 결과가 없어요. 점검을 한 번 돌린 뒤 다시 시도해주세요."
         };
       }
-      await maybeCreateRestorePoint(`앱 제거 (${request.appName})`);
       const matchedApp = findInstalledApp(request.appName, request.publisher);
+      if (canLaunchUninstall(request, matchedApp)) {
+        await maybeCreateRestorePoint(`앱 제거 (${request.appName})`, "APPLICATION_UNINSTALL");
+      }
       const result = await runUninstall(request, {
         findApp: () => matchedApp
       });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runUninstall } from "../src/main/apps/uninstaller";
+import { canLaunchUninstall, runUninstall } from "../src/main/apps/uninstaller";
 import type { InstalledApp } from "../src/shared/types";
 
 const baseApp: InstalledApp = {
@@ -12,6 +12,20 @@ const baseApp: InstalledApp = {
 };
 
 describe("runUninstall", () => {
+  it("exposes whether a request is launchable before taking a restore point", () => {
+    expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "win32")).toBe(true);
+    expect(canLaunchUninstall({ appName: "Slack", mode: "quiet" }, baseApp, "win32")).toBe(false);
+    expect(
+      canLaunchUninstall(
+        { appName: "Runtime" },
+        { ...baseApp, systemComponent: true },
+        "win32"
+      )
+    ).toBe(false);
+    expect(canLaunchUninstall({ appName: "Slack" }, undefined, "win32")).toBe(false);
+    expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "darwin")).toBe(false);
+  });
+
   it("launches Windows uninstaller via cmd.exe in interactive mode", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const result = await runUninstall(

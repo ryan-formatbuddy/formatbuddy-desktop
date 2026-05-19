@@ -38,6 +38,22 @@ export interface UninstallerDeps {
   platform?: NodeJS.Platform;
 }
 
+export function canLaunchUninstall(
+  request: AppUninstallRequest,
+  app: InstalledApp | undefined,
+  platform: NodeJS.Platform = process.platform
+): boolean {
+  if (platform !== "win32") return false;
+  if (!app) return false;
+  if (app.systemComponent === true) return false;
+  const mode = request.mode ?? "interactive";
+  const chosen =
+    mode === "quiet"
+      ? app.quietUninstallString || ""
+      : app.uninstallString || "";
+  return chosen.trim().length > 0;
+}
+
 async function defaultSpawn(command: string): Promise<{ pid?: number }> {
   return await new Promise((resolveSpawn, rejectSpawn) => {
     try {
