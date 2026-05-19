@@ -126,6 +126,38 @@ async function assertRestorableRegistryBackupFile(entryDir: string, backupPath: 
   }
 }
 
+async function writeRegistryBackupMetaFile(
+  entryDir: string,
+  metaPath: string,
+  payload: unknown
+): Promise<void> {
+  const linkedMetaBefore = await findLinkedPathPart(metaPath, entryDir, true);
+  if (linkedMetaBefore) {
+    throw new Error(`앱 삭제 흔적 백업 정보 파일이 링크라 정리하지 않았어요: ${linkedMetaBefore}`);
+  }
+
+  await fs.writeFile(metaPath, JSON.stringify(payload, null, 2), {
+    encoding: "utf8",
+    flag: "wx"
+  });
+
+  const linkedMetaAfter = await findLinkedPathPart(metaPath, entryDir, true);
+  if (linkedMetaAfter) {
+    throw new Error(`앱 삭제 흔적 백업 정보 파일이 링크라 정리하지 않았어요: ${linkedMetaAfter}`);
+  }
+
+  const stat = await fs.lstat(metaPath);
+  if (stat.isSymbolicLink()) {
+    throw new Error("앱 삭제 흔적 백업 정보 파일이 링크라 정리하지 않았어요.");
+  }
+  if (!stat.isFile()) {
+    throw new Error("앱 삭제 흔적 백업 정보 파일이 파일이 아니라 정리하지 않았어요.");
+  }
+  if (stat.size <= 0) {
+    throw new Error("앱 삭제 흔적 백업 정보 파일이 비어 있어 정리하지 않았어요.");
+  }
+}
+
 export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
   return {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
@@ -162,22 +194,18 @@ export async function backupAndDeleteRegistryKey(options: {
   try {
     await runner.exportKey(keyPath, backupPath);
     await assertRestorableRegistryBackupFile(entryDir, backupPath);
-    await fs.writeFile(
+    await writeRegistryBackupMetaFile(
+      entryDir,
       metaPath,
-      JSON.stringify(
-        {
-          id,
-          keyPath,
-          backupPath,
-          appName,
-          appPublisher,
-          createdAt,
-          expiresAt
-        },
-        null,
-        2
-      ),
-      "utf8"
+      {
+        id,
+        keyPath,
+        backupPath,
+        appName,
+        appPublisher,
+        createdAt,
+        expiresAt
+      }
     );
     await runner.deleteKey(keyPath);
   } catch (err) {

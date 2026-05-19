@@ -171,6 +171,33 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not delete when the registry backup metadata path is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const outsideMeta = join(fx.root, "outside-meta.json");
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(outsideMeta, "outside stays put", "utf8");
+        await symlink(outsideMeta, join(dirname(backupPath), "meta.json"));
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/정보 파일|metadata|meta|링크|link/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    expect(await readFile(outsideMeta, "utf8")).toBe("outside stays put");
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("removes the temporary backup when registry deletion fails after export", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     let exportedBackupPath = "";
