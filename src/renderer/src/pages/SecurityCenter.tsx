@@ -155,11 +155,13 @@ function StatusPanel({
 function QuickScanCard({
   isWindows,
   onRunScan,
+  onOpenSecurity,
   lastResult,
   busy
 }: {
   isWindows: boolean;
   onRunScan: () => void;
+  onOpenSecurity: () => void;
   lastResult?: DefenderQuickScanResult;
   busy: boolean;
 }) {
@@ -176,7 +178,7 @@ function QuickScanCard({
         </Button>
         <Button
           variant="secondary"
-          onClick={() => void window.fb?.runActionCommand("start windowsdefender:")}
+          onClick={onOpenSecurity}
           disabled={!isWindows}
         >
           Windows 보안 화면 열기
@@ -295,7 +297,13 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
   }, []);
 
   const loadThreats = useCallback(async () => {
-    if (!window.fb?.getDefenderThreats) return;
+    if (!window.fb?.getDefenderThreats) {
+      setThreats({
+        loading: false,
+        error: "위협 기록 조회를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      });
+      return;
+    }
     setThreats({ loading: true });
     try {
       const data = await window.fb.getDefenderThreats();
@@ -306,7 +314,14 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
   }, []);
 
   const runScan = useCallback(async () => {
-    if (!window.fb?.runDefenderQuickScan) return;
+    if (!window.fb?.runDefenderQuickScan) {
+      setScanResult({
+        status: "spawn-failed",
+        startedAt: new Date().toISOString(),
+        message: "빠른 검사 시작을 연결하지 못했어요. Windows 보안 화면에서 직접 실행해주세요."
+      });
+      return;
+    }
     setScanBusy(true);
     try {
       const result = await window.fb.runDefenderQuickScan();
@@ -322,6 +337,26 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       setScanBusy(false);
     }
   }, [loadThreats, refreshStatus]);
+
+  const openSecurity = useCallback(async () => {
+    if (!window.fb?.runActionCommand) {
+      setScanResult({
+        status: "spawn-failed",
+        startedAt: new Date().toISOString(),
+        message: "Windows 보안 화면 열기를 연결하지 못했어요. 시작 메뉴에서 Windows 보안을 직접 열어주세요."
+      });
+      return;
+    }
+    try {
+      await window.fb.runActionCommand("start windowsdefender:");
+    } catch (err) {
+      setScanResult({
+        status: "spawn-failed",
+        startedAt: new Date().toISOString(),
+        message: friendlyErrorMessage(err)
+      });
+    }
+  }, []);
 
   useEffect(() => {
     void refreshStatus();
@@ -357,6 +392,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       <QuickScanCard
         isWindows={isWindows}
         onRunScan={() => void runScan()}
+        onOpenSecurity={() => void openSecurity()}
         lastResult={scanResult}
         busy={scanBusy}
       />
