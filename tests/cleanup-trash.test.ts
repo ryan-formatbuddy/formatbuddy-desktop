@@ -132,6 +132,33 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
   });
 
+  it("refuses to move a source folder that contains a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old-cache");
+    const outside = join(fx.root, "outside-cache");
+    await mkdir(source, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(source, "visible.tmp"), "hello", "utf8");
+    await symlink(outside, join(source, "linked-cache"), "dir");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: {
+          ...makeItem(source),
+          label: "old-cache",
+          sizeBytes: 5
+        },
+        sizeBytes: 5,
+        home: fx.home
+      })
+    ).rejects.toThrow(/링크/);
+
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(join(source, "linked-cache"))).toBe(true);
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
   it("restores an entry to the original path and removes it from the index", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

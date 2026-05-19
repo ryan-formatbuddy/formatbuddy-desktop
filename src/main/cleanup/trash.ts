@@ -21,7 +21,7 @@ import type {
   CleanupTrashSnapshot
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "./blocklist";
-import { findLinkedPathPart } from "./pathSafety";
+import { findLinkedDescendant, findLinkedPathPart } from "./pathSafety";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
 
@@ -254,6 +254,11 @@ export async function moveToFormatBuddyTrash(
   );
   if (linkedSource) {
     throw new Error(`cleanup-trash refuses linked source path (링크 경로): ${linkedSource}`);
+  }
+
+  const linkedDescendant = await findLinkedDescendant(options.item.path);
+  if (linkedDescendant) {
+    throw new Error(`cleanup-trash refuses linked source contents (링크 포함): ${linkedDescendant}`);
   }
 
   const now = options.now?.() ?? new Date();
