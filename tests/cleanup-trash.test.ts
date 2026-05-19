@@ -78,6 +78,37 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.totalBytes).toBe(5);
   });
 
+  it("refuses to move protected system paths into the restore bin", async () => {
+    const blockedPath = "C:\\Windows\\System32\\drivers\\etc\\hosts";
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(blockedPath),
+        sizeBytes: 5,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow("cleanup-trash refuses protected source path");
+
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
+  it("refuses to move user-scoped sensitive folders into the restore bin", async () => {
+    const npkiPath = join(fx.home, "AppData", "Roaming", "NPKI", "user-cert.dat");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(npkiPath),
+        sizeBytes: 5,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow("cleanup-trash refuses protected source path");
+
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
   it("restores an entry to the original path and removes it from the index", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

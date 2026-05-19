@@ -748,6 +748,7 @@ export async function cleanupAppLeftovers(
         userDataDir: options.userDataDir,
         item: cleanupItem,
         sizeBytes: cleanupItem.sizeBytes,
+        home: cached.env.home,
         now: options.now
       });
       removedItems.push({

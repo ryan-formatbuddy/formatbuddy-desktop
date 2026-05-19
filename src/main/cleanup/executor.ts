@@ -41,7 +41,7 @@ export interface ExecutorDeps {
   trashItem: (
     item: CleanupItem,
     sizeBytes: number,
-    context: { userDataDir: string; now?: () => Date }
+    context: { userDataDir: string; home?: string; now?: () => Date }
   ) => Promise<{ id: string; expiresAt: string } | undefined>;
   /** Permanently delete a file or directory tree. */
   permanentRemove: (path: string) => Promise<void>;
@@ -75,6 +75,7 @@ export function defaultDeps(userDataDir: string): ExecutorDeps {
         userDataDir: context.userDataDir || userDataDir,
         item,
         sizeBytes,
+        home: context.home,
         now: context.now
       }),
     permanentRemove: async (path) => {
@@ -157,7 +158,7 @@ async function attemptItem(
   mode: CleanupExecuteMode,
   deps: ExecutorDeps,
   home: string,
-  context: { userDataDir: string; now?: () => Date }
+  context: { userDataDir: string; home?: string; now?: () => Date }
 ): Promise<AttemptOutcome> {
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
   // real filesystem path, so the blocklist whitelist check would
@@ -285,6 +286,7 @@ export async function executeCleanup(
     }
     const outcome = await attemptItem(item, request.mode, options.deps, home, {
       userDataDir: options.userDataDir,
+      home,
       now: options.now
     });
     if (outcome.removed) removedItems.push(outcome.removed);

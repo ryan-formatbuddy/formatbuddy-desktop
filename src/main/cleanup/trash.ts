@@ -38,6 +38,7 @@ export interface MoveToTrashOptions {
   userDataDir: string;
   item: CleanupItem;
   sizeBytes: number;
+  home?: string;
   now?: () => Date;
 }
 
@@ -234,6 +235,16 @@ function expiryFor(now: Date): string {
 export async function moveToFormatBuddyTrash(
   options: MoveToTrashOptions
 ): Promise<CleanupTrashEntry> {
+  const sourceDecision = evaluatePath(options.item.path, {
+    allowRoots: [options.item.path],
+    home: options.home
+  });
+  if (!sourceDecision.allowed) {
+    throw new Error(
+      `cleanup-trash refuses protected source path: ${sourceDecision.blockedBy ?? "blocked-path"}`
+    );
+  }
+
   const now = options.now?.() ?? new Date();
   const entryId = randomUUID();
   const targetDir = entryDir(options.userDataDir, entryId);
