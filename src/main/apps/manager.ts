@@ -61,6 +61,10 @@ function appIdentityKey(app: Pick<InstalledApp, "name" | "publisher">): string {
   return `${norm(app.name)}|${norm(app.publisher)}`;
 }
 
+function appNameKey(app: Pick<InstalledApp, "name">): string {
+  return norm(app.name);
+}
+
 function evaluateAvailability(app: InstalledApp): {
   availability: AppUninstallAvailability;
   note: string;
@@ -140,6 +144,7 @@ export function buildAppManagerSnapshot(
   opts: BuildAppManagerSnapshotOptions = {}
 ): AppManagerSnapshot {
   const seen = new Set<string>();
+  const seenNames = new Set<string>();
   const usable = apps
     .filter((app) => Boolean(app.name?.trim()))
     .filter((app) => !isWindowsUpdateNoise(app));
@@ -152,6 +157,7 @@ export function buildAppManagerSnapshot(
       const key = `${item.name}|${item.publisher ?? ""}`.toLowerCase();
       if (seen.has(key)) return false;
       seen.add(key);
+      seenNames.add(appNameKey(item));
       return true;
     })
     .sort(
@@ -181,7 +187,7 @@ export function buildAppManagerSnapshot(
       .map((app) => ({
         name: app.name,
         publisher: app.publisher ?? null,
-        stillInstalled: seen.has(appIdentityKey(app))
+        stillInstalled: seen.has(appIdentityKey(app)) || seenNames.has(appNameKey(app))
       }))
   };
 }

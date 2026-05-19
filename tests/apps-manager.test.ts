@@ -140,6 +140,19 @@ describe("buildAppManagerSnapshot", () => {
       { name: "Ghost App", publisher: "Ghost Co.", stillInstalled: false }
     ]);
   });
+
+  it("treats a publisher-missing recent uninstall as still installed when the same app name remains", () => {
+    const snapshot = buildAppManagerSnapshot(
+      [app({ name: "Slack", publisher: "Slack Technologies", uninstallString: "uninstall.exe" })],
+      {
+        recentlyUninstallLaunched: [app({ name: "Slack", publisher: null })]
+      }
+    );
+
+    expect(snapshot.recentlyUninstallLaunched).toEqual([
+      { name: "Slack", publisher: null, stillInstalled: true }
+    ]);
+  });
 });
 
 describe("availability evaluator", () => {

@@ -605,6 +605,24 @@ describe("planAppLeftovers", () => {
     await expect(fs.stat(slack)).resolves.toBeTruthy();
   });
 
+  it("locks a publisher-missing uninstall follow-up when the same app name remains installed", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+        extraApps: [{ name: "Slack", publisher: null }]
+      }
+    );
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].cleanupState).toBe("still-installed");
+  });
+
   it("locks a recently opened uninstall wizard when no latest scan exists yet", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });

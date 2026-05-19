@@ -658,6 +658,7 @@ export async function planAppLeftovers(
   const env = defaultEnv(home, options.env);
   const installedAppsKnown = options.installedAppsKnown ?? true;
   const installedAppKeys = new Set(apps.map(appIdentityKey));
+  const installedAppNames = new Set(apps.map(appNameKey));
 
   const groups: AppLeftoverGroup[] = [];
   const seenLabels = new Set<string>();
@@ -673,7 +674,7 @@ export async function planAppLeftovers(
       source === "uninstall-launched"
         ? !installedAppsKnown
           ? "not-checked"
-          : installedAppKeys.has(appIdentityKey(app))
+          : isStillInstalled(app, installedAppKeys, installedAppNames)
             ? "still-installed"
             : "removed-confirmed"
         : undefined;
@@ -781,6 +782,18 @@ function groupForPath(snapshot: AppLeftoversSnapshot, pathId: string): AppLeftov
 
 function groupIdentityKey(group: Pick<AppLeftoverGroup, "appName" | "publisher">): string {
   return `${(group.appName ?? "").trim().toLowerCase()}|${(group.publisher ?? "").trim().toLowerCase()}`;
+}
+
+function appNameKey(app: Pick<InstalledApp, "name">): string {
+  return (app.name ?? "").trim().toLowerCase();
+}
+
+function isStillInstalled(
+  app: InstalledApp,
+  installedAppKeys: Set<string>,
+  installedAppNames: Set<string>
+): boolean {
+  return installedAppKeys.has(appIdentityKey(app)) || installedAppNames.has(appNameKey(app));
 }
 
 function rememberCleanedFollowupGroup(
