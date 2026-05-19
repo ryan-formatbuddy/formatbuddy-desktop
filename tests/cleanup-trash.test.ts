@@ -309,6 +309,33 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
   });
 
+  it("refuses to move a source folder that is too deep to inspect safely", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "deep-cache");
+    let leaf = source;
+    for (let i = 0; i < 40; i += 1) {
+      leaf = join(leaf, `level-${i}`);
+    }
+    await mkdir(leaf, { recursive: true });
+    await writeFile(join(leaf, "old.tmp"), "hello", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: {
+          ...makeItem(source),
+          label: "deep-cache",
+          sizeBytes: 5
+        },
+        sizeBytes: 5,
+        home: fx.home
+      })
+    ).rejects.toThrow(/너무 깊|too deep|inspect/i);
+
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(join(leaf, "old.tmp"))).toBe(true);
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
   it("refuses to move a cleanup item when the managed trash items folder is a symbolic link", async () => {
     if (process.platform === "win32") return;
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");

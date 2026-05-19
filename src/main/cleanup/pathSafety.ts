@@ -42,7 +42,7 @@ export async function findLinkedDescendant(
   root: string,
   depth = 0
 ): Promise<string | undefined> {
-  if (depth > MAX_LINK_DESCENDANT_DEPTH) return undefined;
+  if (depth > MAX_LINK_DESCENDANT_DEPTH) return root;
 
   let rootStat;
   try {

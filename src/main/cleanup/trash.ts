@@ -558,7 +558,9 @@ export async function moveToFormatBuddyTrash(
 
   const linkedDescendant = await findLinkedDescendant(options.item.path);
   if (linkedDescendant) {
-    throw new Error(`cleanup-trash refuses linked source contents (링크 포함): ${linkedDescendant}`);
+    throw new Error(
+      `cleanup-trash refuses unsafe source contents (링크 또는 너무 깊은 폴더): ${linkedDescendant}`
+    );
   }
 
   const now = options.now?.() ?? new Date();
