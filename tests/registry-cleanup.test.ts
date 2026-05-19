@@ -885,6 +885,37 @@ describe("registry leftover cleanup", () => {
     expect(snapshot.entries).toEqual([]);
   });
 
+  it("does not report a registry key backup as restored when the key is still missing after import", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      keyExists: vi.fn(async () => false),
+      importFile: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      runner
+    });
+
+    expect(runner.importFile).toHaveBeenCalledWith(backup.backupPath);
+    expect(restored.status).toBe("restore-failed");
+    expect(restored.message).toMatch(/아직|still|되돌리지 못/);
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
+  });
+
   it("uses startup item wording when restoring a startup value backup", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const valueName = "Acme Notes";
@@ -945,6 +976,49 @@ describe("registry leftover cleanup", () => {
       "registryKeyPath",
       keyPath
     );
+  });
+
+  it("does not report a startup value backup as restored when the value is still missing after import", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            "Windows Registry Editor Version 5.00",
+            "",
+            "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+            "\"Acme Notes\"=\"C:\\\\Acme\\\\Acme.exe\""
+          ].join("\n"),
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      valueExists: vi.fn(async () => false),
+      importFile: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      runner
+    });
+
+    expect(runner.importFile).toHaveBeenCalledWith(backup.backupPath);
+    expect(restored.status).toBe("restore-failed");
+    expect(restored.message).toMatch(/아직|still|되돌리지 못/);
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
   });
 
   it("runs the safety hook before importing a registry backup", async () => {

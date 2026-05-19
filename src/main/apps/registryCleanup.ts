@@ -946,7 +946,8 @@ export async function restoreRegistryBackup(options: {
   if (readResult.kind === "restore-result") return readResult.result;
   const { entry } = readResult;
 
-  const importFile = options.runner?.importFile ?? defaultRegistryCleanupRunner().importFile;
+  const runner = options.runner ?? defaultRegistryCleanupRunner();
+  const importFile = runner.importFile;
   if (!importFile) {
     const label = registryBackupKindLabel(entry);
     return {
@@ -961,6 +962,7 @@ export async function restoreRegistryBackup(options: {
   try {
     await options.beforeImport?.().catch(() => {});
     await importFile(entry.backupPath);
+    await assertRegistryBackupRestored(entry, runner);
     await fs.rm(join(registryBackupItemsRoot(options.userDataDir), entry.id), {
       recursive: true,
       force: true
@@ -1003,6 +1005,25 @@ export async function restoreRegistryBackup(options: {
       keyPath: entry.keyPath,
       entry
     };
+  }
+}
+
+async function assertRegistryBackupRestored(
+  entry: RegistryBackupEntry,
+  runner: RegistryCleanupRunner
+): Promise<void> {
+  const label = registryBackupKindLabel(entry);
+  if (entry.backupKind === "startup-value") {
+    if (!entry.valueName || !runner.valueExists) return;
+    if (!(await runner.valueExists(entry.keyPath, entry.valueName))) {
+      throw new Error(`${label}이 아직 되살아나지 않았어요.`);
+    }
+    return;
+  }
+
+  if (!runner.keyExists) return;
+  if (!(await runner.keyExists(entry.keyPath))) {
+    throw new Error(`${label}이 아직 되살아나지 않았어요.`);
   }
 }
 
