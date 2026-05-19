@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
-import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
+import {
+  daysUntilTrashExpiry,
+  restorableTrashEntryIds,
+  summarizeTrashRestoreResults
+} from "@shared/cleanup-result";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteResult,
@@ -53,9 +57,19 @@ function riskLabel(level: CleanupRiskLevel): string {
   }
 }
 
-function daysLeft(expiresAt: string): number {
-  const diff = Date.parse(expiresAt) - Date.now();
-  return Math.max(0, Math.ceil(diff / 86_400_000));
+function trashEntryExpiryLabel(expiresAt: string): string {
+  const days = daysUntilTrashExpiry(expiresAt);
+  if (days <= 0) return "오늘 비워질 예정이에요";
+  return `${days}일 뒤 비워요`;
+}
+
+function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
+  const nextExpiryAt = snapshot.nextExpiryAt ?? snapshot.entries[0]?.expiresAt;
+  if (!nextExpiryAt) return `${snapshot.retentionDays}일 동안 보관해요`;
+
+  const days = daysUntilTrashExpiry(nextExpiryAt);
+  if (days <= 0) return "다음 항목은 오늘 비워질 예정이에요";
+  return `다음 항목은 ${days}일 뒤 비워요`;
 }
 
 function defaultSelectionFor(plan: CleanupPlan): Set<string> {
@@ -380,7 +394,7 @@ function TrashEntryRow({
           {entry.label}
         </div>
         <small style={{ opacity: 0.7 }}>
-          {formatBytes(entry.sizeBytes)} · {daysLeft(entry.expiresAt)}일 뒤 비워요
+          {formatBytes(entry.sizeBytes)} · {trashEntryExpiryLabel(entry.expiresAt)}
         </small>
         <div style={{ fontSize: 11, opacity: 0.55, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {entry.originalPath}
@@ -411,7 +425,7 @@ function TrashPanel({
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
-            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {snapshot.retentionDays}일 뒤 자동으로 비워요
+            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {trashSnapshotExpiryLabel(snapshot)}
           </small>
         </div>
       </header>
