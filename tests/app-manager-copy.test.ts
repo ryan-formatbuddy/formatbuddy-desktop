@@ -29,6 +29,7 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("restoreRegistryBackup");
     expect(source).toContain("restorableRegistryBackupIds");
+    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount)");
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).not.toContain("레지스트리는");
     expect(source).not.toContain("? \"레지스트리\"");
@@ -39,6 +40,14 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("시작 항목");
     expect(source).not.toContain("시작 레지스트리");
     expect(source).toContain("시작 흔적");
+  });
+
+  it("keeps recent app-leftover restore moving when one item fails", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("restoreFailureCount += 1");
+    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount)");
+    expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
   it("shows the startup item name beside the startup location", () => {

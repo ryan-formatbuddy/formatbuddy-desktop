@@ -9,8 +9,7 @@ import {
 import {
   restorableRegistryBackupIds,
   restorableTrashEntryIds,
-  summarizeRegistryBackupRestoreResults,
-  summarizeTrashRestoreResults
+  summarizeRestoreAllResults
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
@@ -20,7 +19,9 @@ import type {
   AppManagerItem,
   AppManagerSnapshot,
   CleanupExecuteResult,
-  AppUninstallResult
+  AppUninstallResult,
+  CleanupTrashRestoreResult,
+  RegistryBackupRestoreResult
 } from "@shared/types";
 
 interface AppManagerProps {
@@ -535,25 +536,25 @@ export function AppManager({
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);
       try {
-        const results = [];
+        const results: CleanupTrashRestoreResult[] = [];
+        const registryResults: RegistryBackupRestoreResult[] = [];
+        let restoreFailureCount = 0;
         for (const entryId of entryIds) {
-          results.push(await window.fb.restoreCleanupTrash({ entryId }));
+          try {
+            results.push(await window.fb.restoreCleanupTrash({ entryId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
         }
-        const registryResults = [];
         for (const backupId of registryBackupIds) {
-          registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
+          try {
+            registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
         }
-        setRecentRestoreMessage(
-          [
-            results.length > 0 ? summarizeTrashRestoreResults(results) : "",
-            summarizeRegistryBackupRestoreResults(registryResults)
-          ]
-            .filter(Boolean)
-            .join(" ")
-        );
+        setRecentRestoreMessage(summarizeRestoreAllResults(results, registryResults, restoreFailureCount));
         await loadLeftovers();
-      } catch (err) {
-        setRecentRestoreMessage(friendlyErrorMessage(err));
       } finally {
         setRecentRestoreBusy(false);
       }

@@ -39,4 +39,12 @@ describe("Cleanup copy", () => {
     expect(source).toContain("summarizeTrashRestoreResults([result])");
     expect(source).not.toContain("setTrashMessage(result.message)");
   });
+
+  it("keeps recent cleanup restore moving when one item fails", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("restoreFailureCount += 1");
+    expect(source).toContain("summarizeRestoreAllResults(results, [], restoreFailureCount)");
+    expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
+  });
 });

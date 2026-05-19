@@ -5,6 +5,7 @@ import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
   restorableTrashEntryIds,
+  summarizeRestoreAllResults,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
@@ -15,6 +16,7 @@ import type {
   CleanupPlan,
   CleanupRiskLevel,
   CleanupTrashEntry,
+  CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   LargeFileCandidate,
   ScanReport
@@ -583,14 +585,17 @@ export function Cleanup({
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);
       try {
-        const results = [];
+        const results: CleanupTrashRestoreResult[] = [];
+        let restoreFailureCount = 0;
         for (const entryId of entryIds) {
-          results.push(await window.fb.restoreCleanupTrash({ entryId }));
+          try {
+            results.push(await window.fb.restoreCleanupTrash({ entryId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
         }
-        setRecentRestoreMessage(summarizeTrashRestoreResults(results));
+        setRecentRestoreMessage(summarizeRestoreAllResults(results, [], restoreFailureCount));
         await loadTrash();
-      } catch (err) {
-        setRecentRestoreMessage(friendlyErrorMessage(err));
       } finally {
         setRecentRestoreBusy(false);
       }
