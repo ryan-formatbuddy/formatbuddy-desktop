@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 2;
+export const BLOCKLIST_VERSION = 3;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -97,6 +97,31 @@ const KOREAN_CERT_FOLDER_EXACT = new Set([
   "tradesign",
   "yessign"
 ]);
+
+const CHROMIUM_PROFILE_ROOT_MARKERS = [
+  "\\google\\chrome\\user data",
+  "\\microsoft\\edge\\user data",
+  "\\naver\\naver whale\\user data"
+];
+
+function endsWithBrowserProfileRoot(p: string): boolean {
+  if (
+    p.endsWith("\\mozilla\\firefox") ||
+    p.endsWith("\\mozilla\\firefox\\profiles")
+  ) {
+    return true;
+  }
+
+  return CHROMIUM_PROFILE_ROOT_MARKERS.some((marker) => {
+    const at = p.indexOf(marker);
+    if (at < 0) return false;
+    const tail = p.slice(at + marker.length);
+    if (tail === "") return true;
+    const segments = tail.split("\\").filter(Boolean);
+    if (segments.length !== 1) return false;
+    return segments[0] === "default" || /^profile \d+$/i.test(segments[0]);
+  });
+}
 
 function includesKoreanCertificateFolder(p: string): boolean {
   return p
@@ -201,6 +226,11 @@ const SYSTEM_BLOCK_RULES: BlockRule[] = [
     id: "system:korean-certificate-folders",
     label: "공동인증서/NPKI 보관 폴더",
     match: includesKoreanCertificateFolder
+  },
+  {
+    id: "system:browser-profile-root",
+    label: "브라우저 프로필 폴더 (비밀번호·쿠키 포함 가능)",
+    match: endsWithBrowserProfileRoot
   },
   {
     id: "system:hibernation",

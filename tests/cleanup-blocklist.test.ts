@@ -136,11 +136,23 @@ describe("evaluatePath — user-scoped blocklist", () => {
     );
     expect(result.allowed).toBe(true);
   });
+
+  it.each([
+    "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data",
+    "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Default",
+    "C:\\Users\\Ryan\\AppData\\Local\\Microsoft\\Edge\\User Data",
+    "C:\\Users\\Ryan\\AppData\\Local\\Naver\\Naver Whale\\User Data",
+    "C:\\Users\\Ryan\\AppData\\Roaming\\Mozilla\\Firefox"
+  ])("blocks whole browser profile folders %s", (path) => {
+    const result = evaluatePath(path, { allowRoots: [path], home: HOME });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedBy).toMatch(/브라우저|프로필|비밀번호|쿠키/);
+  });
 });
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(2);
+    expect(BLOCKLIST_VERSION).toBe(3);
   });
 });
 

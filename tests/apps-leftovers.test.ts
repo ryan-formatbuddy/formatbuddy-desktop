@@ -166,6 +166,38 @@ describe("planAppLeftovers", () => {
     expect(path?.protectedBy).toBeTruthy();
   });
 
+  it.each([
+    [
+      { name: "Google Chrome", publisher: "Google LLC" },
+      (fx: Fixture) => join(fx.localAppData, "Google", "Chrome", "User Data")
+    ],
+    [
+      { name: "Microsoft Edge", publisher: "Microsoft Corporation" },
+      (fx: Fixture) => join(fx.localAppData, "Microsoft", "Edge", "User Data")
+    ],
+    [
+      { name: "Naver Whale", publisher: "NAVER" },
+      (fx: Fixture) => join(fx.localAppData, "Naver", "Naver Whale", "User Data")
+    ],
+    [
+      { name: "Mozilla Firefox", publisher: "Mozilla" },
+      (fx: Fixture) => join(fx.roaming, "Mozilla", "Firefox")
+    ]
+  ] as const)("marks browser profile leftovers as protected: %s", async (app, folderFor) => {
+    const profileRoot = folderFor(fx);
+    await fs.mkdir(profileRoot, { recursive: true });
+    await fs.writeFile(join(profileRoot, "profile-data.sqlite"), "private", "utf8");
+
+    const snapshot = await planAppLeftovers([app as InstalledApp], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === profileRoot);
+
+    expect(path?.exists).toBe(true);
+    expect(path?.protectedBy).toMatch(/브라우저|프로필|비밀번호|쿠키/);
+  });
+
   it("returns an empty group set when no app matches", async () => {
     const snapshot = await planAppLeftovers(
       [{ name: "Some Random Tool", publisher: "Unknown" }],
