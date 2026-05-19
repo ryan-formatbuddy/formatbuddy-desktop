@@ -102,9 +102,9 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "%APPDATA%/FormatBuddy/formatbuddy-cleanup-log.json + formatbuddy-audit-log.json"
       },
       {
-        what: "포맷버디 복구함 (30일 보관 후 자동 영구 삭제)",
+        what: "포맷버디 복구함 (30일 보관 후 자동 비움)",
         why: "안전 정리에서 보낸 파일을 30일 안에 한 번에 되돌릴 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash/items/<entryId>/files/… + trash-index.json"
+        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash/items/<entryId>/files/… + trash-index.json (30일 뒤 자동으로 비워요)"
       },
       {
         what: "사용자가 선택한 위치에 진단 리포트(HTML/JSON) 또는 드라이버/Wi-Fi 백업 저장",

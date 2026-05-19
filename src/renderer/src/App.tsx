@@ -152,8 +152,7 @@ export function App() {
   //   Ctrl/Cmd+R  : run/rerun a scan (matches the report dashboard CTA)
   //   Escape      : go back to home (matches every page's "처음으로")
   // We skip when focus is in an editable element so users typing into
-  // the cleanup permanent-mode confirm dialog or any future settings
-  // input don't lose keystrokes.
+  // a confirmation dialog or any future settings input don't lose keystrokes.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;

@@ -36,9 +36,8 @@ interface TrashRestoreProps {
  *   - "모두 되돌리기" loops through the same restore IPC for every
  *     entry and summarizes restored/blocked/missing outcomes.
  *   - Expired entries are cleaned by the main process on load/startup.
- *     We intentionally do NOT expose "permanently delete this single
- *     entry" — purge is by expiry only so users can't shoot themselves
- *     in the foot with one wrong click.
+ *     We intentionally do NOT expose a manual single-entry empty action;
+ *     purge is by expiry only so one wrong click can't remove a backup.
  */
 const CATEGORY_LABEL: Record<CleanupCategoryId, string> = {
   "recycle-bin": "휴지통",
@@ -213,7 +212,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         <h1 className="fb-h1-sm">복구함 (30일)</h1>
         <p className="fb-lede">
           깔끔 정리에서 보낸 파일과 앱 정리 때 만든 앱 삭제 흔적 백업은 30일 동안 여기 보관해요.
-          마음이 바뀌면 한 번에 되돌릴 수 있고, 30일이 지나면 자동으로 영구 삭제돼요. {headerSummary}
+          마음이 바뀌면 한 번에 되돌릴 수 있고, 30일 뒤 자동으로 비워요. {headerSummary}
         </p>
       </section>
 

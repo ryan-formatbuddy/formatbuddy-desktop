@@ -27,4 +27,15 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("PowerShell을 다시 돌리지");
     expect(source).not.toContain("레지스트리 하이브");
   });
+
+  it("uses friendly 30-day restore-bin language instead of permanent-delete wording", () => {
+    const source = USER_FACING_FILES.map((file) =>
+      readFileSync(join(RENDERER_ROOT, file), "utf8")
+    ).join("\n");
+
+    expect(source).not.toContain("영구 삭제");
+    expect(source).not.toContain("permanent-mode");
+    expect(source).not.toContain("permanently delete");
+    expect(source).toContain("30일 뒤 자동으로 비워요");
+  });
 });
