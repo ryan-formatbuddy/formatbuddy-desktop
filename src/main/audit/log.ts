@@ -16,10 +16,12 @@
  *   stale-but-already-pruned read returns the right view without
  *   touching disk twice.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { AuditCategory, AuditEntry, AuditSnapshot } from "@shared/types";
+import { normalizePath } from "../cleanup/blocklist";
+import { findLinkedPathPart } from "../cleanup/pathSafety";
 
 const LOG_FILE = "formatbuddy-audit-log.json";
 const DEFAULT_RETENTION_DAYS = 90;
@@ -103,6 +105,14 @@ function prune(
 }
 
 async function loadLog(userDataDir: string): Promise<PersistedAuditLog> {
+  const linkedLog = await findLinkedPathPart(auditPath(userDataDir), userDataDir, true);
+  if (linkedLog) {
+    if (normalizePath(resolve(linkedLog)) === normalizePath(resolve(auditPath(userDataDir)))) {
+      await rm(auditPath(userDataDir), { force: true }).catch(() => {});
+    }
+    return emptyLog();
+  }
+
   try {
     const raw = await readFile(auditPath(userDataDir), "utf8");
     return coerceLog(JSON.parse(raw));
@@ -113,6 +123,13 @@ async function loadLog(userDataDir: string): Promise<PersistedAuditLog> {
 
 async function saveLog(userDataDir: string, log: PersistedAuditLog): Promise<void> {
   await mkdir(userDataDir, { recursive: true });
+  const linkedLog = await findLinkedPathPart(auditPath(userDataDir), userDataDir, true);
+  if (linkedLog) {
+    if (normalizePath(resolve(linkedLog)) !== normalizePath(resolve(auditPath(userDataDir)))) {
+      throw new Error(`FormatBuddy audit log path is behind a link: ${linkedLog}`);
+    }
+    await rm(auditPath(userDataDir), { force: true });
+  }
   await writeFile(auditPath(userDataDir), JSON.stringify(log, null, 2), "utf8");
 }
 

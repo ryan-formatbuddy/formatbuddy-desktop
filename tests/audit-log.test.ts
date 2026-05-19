@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  lstatSync,
+  mkdtempSync,
+  rmSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appendAuditEntry, getAuditSnapshot, __testing } from "../src/main/audit/log";
@@ -112,6 +119,25 @@ describe("appendAuditEntry + getAuditSnapshot", () => {
     const raw = readFileSync(join(dir, "formatbuddy-audit-log.json"), "utf8");
     const parsed = JSON.parse(raw);
     expect(parsed.entries).toEqual([]);
+  });
+
+  it("does not write the audit log through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const outsideLog = join(dir, "outside-audit-log.json");
+    const auditLog = join(dir, "formatbuddy-audit-log.json");
+    writeFileSync(outsideLog, "outside stays put");
+    symlinkSync(outsideLog, auditLog);
+
+    await appendAuditEntry(
+      dir,
+      { category: "cleanup", action: "trash", summary: "safe write" },
+      new Date("2026-05-19T10:00:00.000Z")
+    );
+
+    expect(readFileSync(outsideLog, "utf8")).toBe("outside stays put");
+    expect(lstatSync(auditLog).isSymbolicLink()).toBe(false);
+    const snap = await getAuditSnapshot(dir);
+    expect(snap.entries.map((entry) => entry.summary)).toEqual(["safe write"]);
   });
 });
 
