@@ -137,12 +137,22 @@ async function loadIndex(userDataDir: string): Promise<PersistedTrashIndex> {
 }
 
 async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promise<void> {
+  const linkedRoot = await findLinkedPathPart(trashRoot(userDataDir), userDataDir, true);
+  if (linkedRoot) {
+    throw new Error(`FormatBuddy restore bin folder is a link: ${linkedRoot}`);
+  }
   await mkdir(trashRoot(userDataDir), { recursive: true });
   await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
 }
 
 async function isUsableItemsRoot(userDataDir: string): Promise<boolean> {
   const root = itemsRoot(userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) {
+    await rm(linkedRoot, { force: true }).catch(() => {});
+    return false;
+  }
+
   try {
     const stat = await lstat(root);
     if (stat.isSymbolicLink()) {
@@ -262,8 +272,8 @@ export async function findLinkedManagedTrashStoredPath(
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
-  const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);
+  const index = await loadIndex(userDataDir);
 
   const next = { ...index, entries: recovered };
   const changed = JSON.stringify(index.entries) !== JSON.stringify(next.entries);
