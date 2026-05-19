@@ -374,6 +374,10 @@ function nowMs(now?: () => Date): number {
   return now?.().getTime() ?? Date.now();
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
 function makePathId(path: string): string {
   return createHash("sha1").update(normalizePath(path)).digest("hex").slice(0, 16);
 }
@@ -762,6 +766,9 @@ export async function cleanupAppLeftovers(
   }
   if (!Array.isArray(request.selectedPathIds) || request.selectedPathIds.length === 0) {
     throw new Error("apps:leftovers-cleanup requires at least one selected path");
+  }
+  if (!request.selectedPathIds.every(isNonEmptyString)) {
+    throw new Error("apps:leftovers-cleanup requires selectedPathIds to contain only strings");
   }
 
   const cached = consumeLeftoversPlan(request.planId, request.confirmationToken, options.now);
