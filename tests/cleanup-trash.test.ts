@@ -109,6 +109,37 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 
+  it("does not purge earlier than 30 days even if a manifest expiry was shortened", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    await writeFile(
+      join(__testing.entryDir(fx.userData, entry.id), "manifest.json"),
+      JSON.stringify({ ...entry, expiresAt: "2026-05-20T00:00:00.000Z" }, null, 2),
+      "utf8"
+    );
+
+    const earlyPurge = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-21T00:00:00.000Z")
+    });
+    expect(earlyPurge.purgedCount).toBe(0);
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-21T00:00:01.000Z")
+    });
+    expect(snapshot.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
   it("refreshes restore-bin snapshot sizes from the stored item on disk", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

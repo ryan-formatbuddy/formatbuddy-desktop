@@ -51,9 +51,8 @@ function registryBackupExpiry(now: Date): string {
   return expiresAt.toISOString();
 }
 
-function cappedRegistryBackupExpiry(createdAt: string, expiresAt: string): string {
-  const maxExpiry = registryBackupExpiry(new Date(createdAt));
-  return Date.parse(expiresAt) > Date.parse(maxExpiry) ? maxExpiry : expiresAt;
+function canonicalRegistryBackupExpiry(createdAt: string): string {
+  return registryBackupExpiry(new Date(createdAt));
 }
 
 function registryBackupItemsRoot(userDataDir: string): string {
@@ -263,7 +262,7 @@ async function readRegistryBackupEntryForRestore(
     keyPath: normalizeRegistryKeyPath(raw.keyPath),
     backupPath,
     createdAt: raw.createdAt,
-    expiresAt: cappedRegistryBackupExpiry(raw.createdAt, raw.expiresAt)
+    expiresAt: canonicalRegistryBackupExpiry(raw.createdAt)
   };
 
   try {
@@ -375,7 +374,7 @@ export async function purgeExpiredRegistryBackups(options: {
       if (typeof meta.expiresAt !== "string") continue;
       const effectiveExpiresAt =
         typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
-          ? cappedRegistryBackupExpiry(meta.createdAt, meta.expiresAt)
+          ? canonicalRegistryBackupExpiry(meta.createdAt)
           : meta.expiresAt;
       const expiresAt = Date.parse(effectiveExpiresAt);
       if (!Number.isFinite(expiresAt) || expiresAt > now.getTime()) continue;
