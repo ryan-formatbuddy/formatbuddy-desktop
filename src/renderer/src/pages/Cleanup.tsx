@@ -472,12 +472,16 @@ export function Cleanup({
   const largeFiles = useMemo<LargeFileCandidate[]>(() => report?.largeFiles ?? [], [report]);
 
   const loadTrash = useCallback(async () => {
-    if (!window.fb?.getCleanupTrash) return;
+    if (!window.fb?.getCleanupTrash) {
+      setTrashMessage("복구함 목록을 연결하지 못했어요. 정리는 계속할 수 있고, 포맷버디를 다시 열면 복구함을 다시 확인할 수 있어요.");
+      return;
+    }
     try {
       const snapshot = await window.fb.getCleanupTrash();
       setTrashSnapshot(snapshot);
+      setTrashMessage(undefined);
     } catch {
-      // 복구함은 보조 기능이므로 정리 흐름을 막지 않아요.
+      setTrashMessage("복구함 목록을 불러오지 못했어요. 정리는 계속할 수 있고, 잠시 뒤 다시 확인해볼게요.");
     }
   }, []);
 
