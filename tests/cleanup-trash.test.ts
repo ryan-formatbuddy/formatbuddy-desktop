@@ -9,7 +9,8 @@ import {
   getTrashSnapshot,
   moveToFormatBuddyTrash,
   purgeExpiredTrash,
-  restoreTrashEntry
+  restoreTrashEntry,
+  __testing
 } from "../src/main/cleanup/trash";
 
 interface Fixture {
@@ -159,5 +160,33 @@ describe("FormatBuddy Trash", () => {
 
     expect(snapshot.entries).toHaveLength(0);
     expect(snapshot.totalBytes).toBe(0);
+  });
+
+  it("recovers a trash entry from its manifest when the index is lost", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(__testing.indexPath(fx.userData), JSON.stringify({ version: 1, entries: [] }), "utf8");
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0].id).toBe(entry.id);
+
+    const restored = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id
+    });
+    expect(restored.status).toBe("restored");
+    expect(await readFile(source, "utf8")).toBe("hello");
   });
 });

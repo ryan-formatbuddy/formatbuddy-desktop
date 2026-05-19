@@ -10,7 +10,7 @@
  *   - all bytes stay local under Electron userData
  */
 import { constants } from "node:fs";
-import { access, cp, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import type {
@@ -126,6 +126,49 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
   await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
 }
 
+async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrashEntry[]> {
+  let entries;
+  try {
+    entries = await readdir(itemsRoot(userDataDir), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const recovered: CleanupTrashEntry[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    try {
+      const raw = await readFile(join(entryDir(userDataDir, entry.name), "manifest.json"), "utf8");
+      const coerced = coerceEntry(JSON.parse(raw));
+      if (!coerced) continue;
+      if (!(await exists(coerced.storedPath))) continue;
+      recovered.push(coerced);
+    } catch {
+      // A broken manifest should not hide the rest of the restore bin.
+    }
+  }
+  return recovered;
+}
+
+async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
+  const index = await loadIndex(userDataDir);
+  const recovered = await recoverManifestEntries(userDataDir);
+  if (recovered.length === 0) return index;
+
+  const byId = new Map(index.entries.map((entry) => [entry.id, entry]));
+  let changed = false;
+  for (const entry of recovered) {
+    if (byId.has(entry.id)) continue;
+    byId.set(entry.id, entry);
+    changed = true;
+  }
+
+  if (!changed) return index;
+  const next = { ...index, entries: Array.from(byId.values()) };
+  await saveIndex(userDataDir, next);
+  return next;
+}
+
 async function pruneMissingStoredEntries(
   userDataDir: string,
   index: PersistedTrashIndex
@@ -211,7 +254,7 @@ export async function getTrashSnapshot(
   await purgeExpiredTrash(options);
   const index = await pruneMissingStoredEntries(
     options.userDataDir,
-    await loadIndex(options.userDataDir)
+    await loadReconciledIndex(options.userDataDir)
   );
   const entries = index.entries.slice().sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
   const totalBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
@@ -226,7 +269,7 @@ export async function getTrashSnapshot(
 export async function restoreTrashEntry(
   options: TrashRuntimeOptions & { entryId: string }
 ): Promise<CleanupTrashRestoreResult> {
-  const index = await loadIndex(options.userDataDir);
+  const index = await loadReconciledIndex(options.userDataDir);
   const entry = index.entries.find((e) => e.id === options.entryId);
   if (!entry) {
     return {
@@ -286,7 +329,7 @@ export async function purgeExpiredTrash(
   options: TrashRuntimeOptions
 ): Promise<CleanupTrashPurgeResult> {
   const now = options.now?.() ?? new Date();
-  const index = await loadIndex(options.userDataDir);
+  const index = await loadReconciledIndex(options.userDataDir);
   const keep: CleanupTrashEntry[] = [];
   const purge: CleanupTrashEntry[] = [];
 
