@@ -62,9 +62,11 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   deps: ExecutorDeps;
   trashed: string[];
   permanently: string[];
+  recycleBinEmptyCount: { value: number };
 } {
   const trashed: string[] = [];
   const permanently: string[] = [];
+  const recycleBinEmptyCount = { value: 0 };
   const deps: ExecutorDeps = {
     trashItem: async (p) => {
       trashed.push(p);
@@ -82,9 +84,12 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
         return null;
       }
     },
+    emptyRecycleBin: async () => {
+      recycleBinEmptyCount.value += 1;
+    },
     ...overrides
   };
-  return { deps, trashed, permanently };
+  return { deps, trashed, permanently, recycleBinEmptyCount };
 }
 
 describe("executeCleanup", () => {
@@ -235,6 +240,75 @@ describe("executeCleanup", () => {
     const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
     expect(failure).toBeDefined();
     expect(failure?.detail).toMatch(/simulated lock/);
+  });
+
+  it("routes the recycle-bin sentinel to emptyRecycleBin and counts as removed", async () => {
+    // The recycle-bin category lives at the top of every plan with one
+    // virtual item -- planning it doesn't require any disk fixture.
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+    const bin = plan.categories.find((c) => c.id === "recycle-bin")!;
+    const item = bin.items[0];
+
+    const { deps, recycleBinEmptyCount, trashed, permanently } = makeSpyDeps();
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        // Mode is irrelevant for recycle-bin (it's always permanent) but
+        // the request still has to specify something valid.
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+    expect(recycleBinEmptyCount.value).toBe(1);
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].path).toBe("shell:recycle-bin");
+    expect(result.removedItems[0].mode).toBe("permanent");
+  });
+
+  it("reports execute-failed if emptyRecycleBin throws (UAC denied, etc)", async () => {
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+    const bin = plan.categories.find((c) => c.id === "recycle-bin")!;
+    const item = bin.items[0];
+
+    const { deps } = makeSpyDeps({
+      emptyRecycleBin: async () => {
+        throw new Error("UAC denied");
+      }
+    });
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+    expect(result.removedItems).toHaveLength(0);
+    const fail = result.skippedItems.find(
+      (s) => s.itemId === item.id && s.reason === "execute-failed"
+    );
+    expect(fail?.detail).toMatch(/UAC denied/);
   });
 
   it("reports not-found when the selected id is not in the plan", async () => {

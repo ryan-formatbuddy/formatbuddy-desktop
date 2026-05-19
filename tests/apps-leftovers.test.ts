@@ -111,4 +111,38 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].paths.every((p) => !p.exists)).toBe(true);
   });
+
+  // ====================================================================
+  // v2.0 / Round D-3 (B2) — Korean-user dictionary regression tests.
+  // We do not list every rule -- just one per category so a future
+  // refactor that drops a category trips immediately.
+  // ====================================================================
+  it.each([
+    [{ name: "안랩 V3 Internet Security 9.0", publisher: "AhnLab, Inc." }, "안랩 V3"],
+    [{ name: "알약 공개용 (ALYac)", publisher: "ESTsoft" }, "알약 (ESTsoft)"],
+    [{ name: "한컴오피스 2024", publisher: "한글과컴퓨터" }, "한컴 오피스 / 한글"],
+    [{ name: "더존 Smart A", publisher: "더존비즈온" }, "더존"],
+    [{ name: "위하고 (WEHAGO)", publisher: "더존" }, "위하고"],
+    [{ name: "세무사랑 Pro", publisher: "DUZON" }, "세무사랑"],
+    [{ name: "카카오게임즈 런처", publisher: "Kakao Games Corp." }, "카카오게임즈"],
+    [{ name: "넥슨 런처", publisher: "NEXON Korea" }, "넥슨 런처"],
+    [{ name: "미르4 (위메이드)", publisher: "Wemade" }, "위메이드 / 미르4"],
+    [{ name: "Purple Launcher (엔씨소프트)", publisher: "NCSOFT" }, "엔씨소프트 / Purple"],
+    [{ name: "검은사막 (Black Desert)", publisher: "Pearl Abyss" }, "펄어비스 / 검은사막"],
+    [{ name: "곰플레이어", publisher: "GRETECH" }, "곰플레이어 (GOM)"],
+    [{ name: "다음 팟플레이어", publisher: "Daum" }, "다음 팟플레이어"],
+    [{ name: "토스 (Toss)", publisher: "비바리퍼블리카" }, "토스"],
+    [{ name: "신한플레이", publisher: "신한카드" }, "신한플레이"]
+  ] as const)("recognizes Korean-locale app: %s", async (app, expectedAppLabel) => {
+    const snapshot = await planAppLeftovers(
+      [app as InstalledApp],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].appName).toBe(expectedAppLabel);
+    expect(snapshot.groups[0].paths.length).toBeGreaterThan(0);
+  });
 });

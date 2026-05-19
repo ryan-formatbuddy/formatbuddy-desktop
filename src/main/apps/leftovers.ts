@@ -146,6 +146,156 @@ const RULES: LeftoverRule[] = [
       ({ roaming }) => join(roaming, "JetBrains"),
       ({ localAppData }) => join(localAppData, "JetBrains")
     ]
+  },
+
+  // ====================================================================
+  // v2.0 Round D-3 (B2) — Korean-user leftover dictionary.
+  //
+  // Ordered by Korean-Windows-install frequency. Every rule lists ONLY
+  // app-managed cache / settings paths -- never user-authored documents.
+  // Anything that could hold user content (NPKI, browser Login Data,
+  // KakaoTalk message DB) is still blocked by cleanup/blocklist.ts;
+  // these paths are surfaced only as "candidates" the user reviews
+  // before uninstalling, never auto-cleaned.
+  // ====================================================================
+
+  // 안티바이러스 / 보안
+  {
+    match: /(?:^|\s)v3(?:\s|$)|ahnlab|안랩/i,
+    appLabel: "안랩 V3",
+    paths: [
+      ({ programData }) => join(programData, "AhnLab"),
+      ({ localAppData }) => join(localAppData, "AhnLab"),
+      ({ roaming }) => join(roaming, "AhnLab")
+    ]
+  },
+  {
+    match: /알약|alyac/i,
+    appLabel: "알약 (ESTsoft)",
+    paths: [
+      ({ programData }) => join(programData, "ESTsoft", "ALYac"),
+      ({ localAppData }) => join(localAppData, "ESTsoft", "ALYac")
+    ]
+  },
+
+  // 오피스 / 문서
+  {
+    match: /hancom|한컴|hwp|한글\(?(?:office|오피스)?\)?|hoffice/i,
+    appLabel: "한컴 오피스 / 한글",
+    paths: [
+      ({ roaming }) => join(roaming, "HNC"),
+      ({ localAppData }) => join(localAppData, "HNC"),
+      ({ programData }) => join(programData, "HNC")
+    ]
+  },
+
+  // 세무 / 업무 -- "Smart A" is intentionally NOT in this rule's regex
+  // because more than one Korean tax/ERP product uses the brand. We
+  // match the Korean word "세무사랑" only and let the generic 더존 /
+  // 위하고 rules catch the rest, which is more conservative.
+  {
+    match: /세무사랑/i,
+    appLabel: "세무사랑",
+    paths: [
+      ({ roaming }) => join(roaming, "DUZON"),
+      ({ programData }) => join(programData, "Smart A")
+    ]
+  },
+  {
+    match: /위하고|wehago/i,
+    appLabel: "위하고",
+    paths: [
+      ({ roaming }) => join(roaming, "WEHAGO"),
+      ({ localAppData }) => join(localAppData, "WEHAGO")
+    ]
+  },
+  {
+    match: /더존|duzon/i,
+    appLabel: "더존",
+    paths: [
+      ({ roaming }) => join(roaming, "Duzon"),
+      ({ localAppData }) => join(localAppData, "Duzon"),
+      ({ programData }) => join(programData, "Duzon")
+    ]
+  },
+
+  // 게임 런처
+  {
+    match: /kakaogames|카카오게임즈/i,
+    appLabel: "카카오게임즈",
+    paths: [
+      ({ localAppData }) => join(localAppData, "KakaoGames"),
+      ({ roaming }) => join(roaming, "KakaoGames")
+    ]
+  },
+  {
+    match: /nexon|넥슨/i,
+    appLabel: "넥슨 런처",
+    paths: [
+      ({ localAppData }) => join(localAppData, "Nexon"),
+      ({ programData }) => join(programData, "Nexon")
+    ]
+  },
+  {
+    match: /wemade|위메이드|미르4|mir4/i,
+    appLabel: "위메이드 / 미르4",
+    paths: [
+      ({ localAppData }) => join(localAppData, "Wemade"),
+      ({ roaming }) => join(roaming, "Wemade")
+    ]
+  },
+  {
+    match: /엔씨소프트|ncsoft|ncwest|purplelauncher/i,
+    appLabel: "엔씨소프트 / Purple",
+    paths: [
+      ({ localAppData }) => join(localAppData, "NCSOFT"),
+      ({ roaming }) => join(roaming, "NCSOFT")
+    ]
+  },
+  {
+    match: /pearl ?abyss|펄어비스|black ?desert|검은사막/i,
+    appLabel: "펄어비스 / 검은사막",
+    paths: [
+      ({ localAppData }) => join(localAppData, "PearlAbyss"),
+      ({ roaming }) => join(roaming, "PearlAbyss")
+    ]
+  },
+
+  // 미디어 플레이어
+  {
+    match: /gom\s*(player|audio|cam|mix|encoder)|곰\s*(플레이어|오디오|캠|믹스|인코더)/i,
+    appLabel: "곰플레이어 (GOM)",
+    paths: [
+      ({ roaming }) => join(roaming, "GRETECH"),
+      ({ localAppData }) => join(localAppData, "GRETECH"),
+      ({ programData }) => join(programData, "GRETECH")
+    ]
+  },
+  {
+    match: /potplayer|팟플레이어/i,
+    appLabel: "다음 팟플레이어",
+    paths: [
+      ({ roaming }) => join(roaming, "PotPlayerMini"),
+      ({ roaming: r }) => join(r, "Daum", "PotPlayer")
+    ]
+  },
+
+  // 금융 / 결제
+  {
+    match: /toss|토스/i,
+    appLabel: "토스",
+    paths: [
+      ({ roaming }) => join(roaming, "Toss"),
+      ({ localAppData }) => join(localAppData, "Toss")
+    ]
+  },
+  {
+    match: /신한플레이|shinhan\s*play|신한카드/i,
+    appLabel: "신한플레이",
+    paths: [
+      ({ roaming }) => join(roaming, "ShinhanPlay"),
+      ({ localAppData }) => join(localAppData, "ShinhanPlay")
+    ]
   }
 ];
 

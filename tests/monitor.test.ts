@@ -26,6 +26,10 @@ describe("defaultPrefs", () => {
   it("defaults updateChannel to 'stable'", () => {
     expect(defaultPrefs().updateChannel).toBe("stable");
   });
+
+  it("defaults restorePointEnabled to true (safety net is opt-out, not opt-in)", () => {
+    expect(defaultPrefs().restorePointEnabled).toBe(true);
+  });
 });
 
 describe("coerce + clampReminderDays", () => {
@@ -82,7 +86,8 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       trayEnabled: true,
       reminderEnabled: true,
       reminderDays: 21,
-      updateChannel: "beta"
+      updateChannel: "beta",
+      restorePointEnabled: false
     });
     const reloaded = await loadPrefs(dir);
     expect(reloaded.trayEnabled).toBe(true);
@@ -97,7 +102,8 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       trayEnabled: true,
       reminderEnabled: false,
       reminderDays: 14,
-      updateChannel: "stable"
+      updateChannel: "stable",
+      restorePointEnabled: true
     });
     const next = await updatePrefs(dir, { reminderEnabled: true, reminderDays: 30 });
     expect(next.trayEnabled).toBe(true);
@@ -111,12 +117,27 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       trayEnabled: false,
       reminderEnabled: false,
       reminderDays: 14,
-      updateChannel: "stable"
+      updateChannel: "stable",
+      restorePointEnabled: true
     });
     let next = await updatePrefs(dir, { updateChannel: "beta" });
     expect(next.updateChannel).toBe("beta");
     next = await updatePrefs(dir, { updateChannel: "stable" });
     expect(next.updateChannel).toBe("stable");
+  });
+
+  it("updatePrefs flips restorePointEnabled off and back on", async () => {
+    await savePrefs(dir, {
+      trayEnabled: false,
+      reminderEnabled: false,
+      reminderDays: 14,
+      updateChannel: "stable",
+      restorePointEnabled: true
+    });
+    let next = await updatePrefs(dir, { restorePointEnabled: false });
+    expect(next.restorePointEnabled).toBe(false);
+    next = await updatePrefs(dir, { restorePointEnabled: true });
+    expect(next.restorePointEnabled).toBe(true);
   });
 
   it("coerces a garbage updateChannel back to 'stable'", async () => {
@@ -136,7 +157,8 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       trayEnabled: true,
       reminderEnabled: true,
       reminderDays: 14,
-      updateChannel: "stable"
+      updateChannel: "stable",
+      restorePointEnabled: true
     });
     const fixedNow = new Date("2026-05-19T00:00:00.000Z");
     const next = await markReminderShown(dir, fixedNow);

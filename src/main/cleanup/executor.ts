@@ -17,6 +17,7 @@
  * Default mode is "trash". Permanent removal is only used when the
  * caller explicitly opts in.
  */
+import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import type {
@@ -32,7 +33,7 @@ import type {
 } from "@shared/types";
 import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
-import { consumePlan } from "./planner";
+import { consumePlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
 
 export interface ExecutorDeps {
   /** Move a path into the OS recycle bin. Wrap electron.shell.trashItem. */
@@ -41,6 +42,12 @@ export interface ExecutorDeps {
   permanentRemove: (path: string) => Promise<void>;
   /** Stat a path on disk; returns null if missing. */
   statSize: (path: string) => Promise<number | null>;
+  /**
+   * Empty the Windows recycle bin. Returns void on success; throws to
+   * surface a skip ("execute-failed") in the executor. Injected so
+   * tests don't shell out to powershell.
+   */
+  emptyRecycleBin: () => Promise<void>;
 }
 
 export interface ExecuteCleanupOptions {
@@ -69,7 +76,40 @@ export function defaultDeps(trashItemImpl: (path: string) => Promise<void>): Exe
       } catch {
         return null;
       }
-    }
+    },
+    emptyRecycleBin: () =>
+      new Promise<void>((resolve, reject) => {
+        if (process.platform !== "win32") {
+          reject(new Error("Recycle bin emptying is Windows-only"));
+          return;
+        }
+        const child = spawn(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"
+          ],
+          { windowsHide: true }
+        );
+        let stderr = "";
+        child.stderr?.on("data", (chunk: Buffer) => {
+          stderr += chunk.toString("utf8");
+          if (stderr.length > 8192) stderr = stderr.slice(-8192);
+        });
+        child.on("error", (err) => reject(err));
+        child.on("close", (code) => {
+          // Clear-RecycleBin returns 0 even when the bin was empty; a
+          // non-zero exit usually means the user denied UAC or the
+          // shell session lacked privileges. Pass stderr along so the
+          // skip detail is actionable.
+          if (code === 0) resolve();
+          else reject(new Error(`Clear-RecycleBin exited ${code}: ${stderr.slice(0, 300)}`));
+        });
+      })
   };
 }
 
@@ -107,6 +147,39 @@ async function attemptItem(
   deps: ExecutorDeps,
   home: string
 ): Promise<AttemptOutcome> {
+  // Recycle-bin sentinel bypass: this item is a virtual entry, not a
+  // real filesystem path, so the blocklist whitelist check would
+  // correctly reject it. We route to emptyRecycleBin instead. The
+  // categoryId check is the second guard so a tampered plan can't
+  // smuggle a sentinel path into a different category.
+  if (
+    item.categoryId === "recycle-bin" &&
+    item.path === RECYCLE_BIN_SENTINEL_PATH
+  ) {
+    try {
+      await deps.emptyRecycleBin();
+    } catch (err) {
+      return {
+        skipped: {
+          itemId: item.id,
+          path: item.path,
+          reason: "execute-failed",
+          detail: (err as Error).message
+        }
+      };
+    }
+    return {
+      removed: {
+        itemId: item.id,
+        path: item.path,
+        sizeBytes: 0,
+        categoryId: item.categoryId,
+        mode: "permanent",
+        succeeded: true
+      }
+    };
+  }
+
   // Re-check the blocklist against just this path. We pass the path
   // itself as its sole allow-root: combined with the system + user
   // rule set, this catches both "the path looks safe" and "the path

@@ -49,7 +49,11 @@ export function defaultPrefs(): MonitorPreferences {
     trayEnabled: false,
     reminderEnabled: false,
     reminderDays: DEFAULT_REMINDER_DAYS,
-    updateChannel: DEFAULT_UPDATE_CHANNEL
+    updateChannel: DEFAULT_UPDATE_CHANNEL,
+    // v2.0 — Restore Point is ON by default. It is a safety net for
+    // every destructive action (cleanup execute, app uninstall) and
+    // costs the user nothing when it succeeds.
+    restorePointEnabled: true
   };
 }
 
@@ -69,6 +73,9 @@ function coerce(value: unknown): MonitorPreferences {
     reminderEnabled: Boolean(prefs?.reminderEnabled),
     reminderDays: clampReminderDays(prefs?.reminderDays),
     updateChannel: coerceChannel(prefs?.updateChannel),
+    // Default to ON: any value other than the explicit boolean false
+    // keeps the safety net. Older state files without the field opt in.
+    restorePointEnabled: prefs?.restorePointEnabled !== false,
     lastReminderAt:
       typeof prefs?.lastReminderAt === "string" ? prefs.lastReminderAt : undefined,
     updatedAt: typeof prefs?.updatedAt === "string" ? prefs.updatedAt : undefined
@@ -111,6 +118,9 @@ export async function updatePrefs(
       : {}),
     ...(patch.updateChannel !== undefined
       ? { updateChannel: coerceChannel(patch.updateChannel) }
+      : {}),
+    ...(patch.restorePointEnabled !== undefined
+      ? { restorePointEnabled: Boolean(patch.restorePointEnabled) }
       : {})
   };
   return savePrefs(userDataDir, next);

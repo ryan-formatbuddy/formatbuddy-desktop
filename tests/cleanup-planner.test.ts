@@ -65,6 +65,7 @@ describe("planCleanup", () => {
     });
     const categoryIds = plan.categories.map((c) => c.id);
     expect(categoryIds).toEqual([
+      "recycle-bin",
       "temp-user",
       "temp-windows",
       "browser-cache",
@@ -72,6 +73,10 @@ describe("planCleanup", () => {
       "downloads-installers",
       "large-files"
     ]);
+    const recycleBin = plan.categories.find((c) => c.id === "recycle-bin");
+    expect(recycleBin?.items).toHaveLength(1);
+    expect(recycleBin?.items[0].path).toBe("shell:recycle-bin");
+    expect(recycleBin?.items[0].riskLevel).toBe("review");
     expect(plan.blocklistVersion).toBe(1);
   });
 

@@ -334,6 +334,32 @@ async function planDownloadsInstallersCategory(args: {
   return acc;
 }
 
+/**
+ * v2.0 -- Recycle bin "empty" action surfaced as a planner category
+ * so it flows through the same select-confirm-execute UX as everything
+ * else, even though we can't measure or enumerate its contents from
+ * JS-land. The single item carries a sentinel path ("shell:recycle-bin")
+ * which the executor recognizes and routes to Clear-RecycleBin. We
+ * skip pushCandidate() because the blocklist would correctly reject
+ * the sentinel as "not under any allow-root" -- recycle bin is a
+ * special namespace, not a real path.
+ */
+export const RECYCLE_BIN_SENTINEL_PATH = "shell:recycle-bin";
+
+function planRecycleBinCategory(): CandidateAccumulator {
+  const acc = emptyAccumulator();
+  acc.items.push({
+    id: makeItemId(RECYCLE_BIN_SENTINEL_PATH),
+    path: RECYCLE_BIN_SENTINEL_PATH,
+    label: "Windows 휴지통 전체",
+    sizeBytes: 0,
+    categoryId: "recycle-bin",
+    riskLevel: "review",
+    reason: "휴지통 안의 모든 항목을 한 번에 비워요. Windows가 직접 처리해요."
+  });
+  return acc;
+}
+
 function planLargeFilesCategory(args: {
   home: string;
   largeFiles: LargeFileCandidate[];
@@ -374,10 +400,10 @@ interface CategorySpec {
 const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
   "recycle-bin": {
     id: "recycle-bin",
-    label: "휴지통",
-    description: "Windows 휴지통에 들어있는 항목을 한 번에 비워요.",
-    safetyNote: "휴지통 비우기는 별도 액션에서 진행해요.",
-    riskLevel: "safe"
+    label: "Windows 휴지통",
+    description: "휴지통에 모아둔 모든 항목을 한 번에 비워요.",
+    safetyNote: "비우면 휴지통에서 복원할 수 없어요. 미리 한 번 열어보세요.",
+    riskLevel: "review"
   },
   "temp-user": {
     id: "temp-user",
@@ -481,8 +507,10 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
     home,
     largeFiles: env?.largeFiles ?? []
   });
+  const recycleBin = planRecycleBinCategory();
 
   const categories: CleanupCategoryPlan[] = [
+    toCategoryPlan(CATEGORY_SPECS["recycle-bin"], recycleBin),
     toCategoryPlan(CATEGORY_SPECS["temp-user"], tempUser),
     toCategoryPlan(CATEGORY_SPECS["temp-windows"], tempWindows),
     toCategoryPlan(CATEGORY_SPECS["browser-cache"], browserCache),

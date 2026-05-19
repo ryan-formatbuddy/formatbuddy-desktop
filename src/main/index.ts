@@ -27,6 +27,10 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { getCleanupHistory } from "./cleanup/log";
+import {
+  createRestorePoint,
+  defaultRestorePointRunner
+} from "./cleanup/restorePoint";
 import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { planAppLeftovers } from "./apps/leftovers";
@@ -187,6 +191,44 @@ async function reconcileReminderTimer(): Promise<void> {
   // Run once on startup so users who enable reminders right after
   // install don't wait an hour for the first check.
   setTimeout(() => void runReminderTick(), 30_000);
+}
+
+/**
+ * Best-effort restore point trigger. Reads prefs each call so a user
+ * who just toggled "취소" sees the new behavior immediately. Never
+ * throws -- caller proceeds with the destructive action either way.
+ */
+async function maybeCreateRestorePoint(actionDescription: string): Promise<void> {
+  try {
+    const prefs = await loadMonitorPrefs(app.getPath("userData"));
+    if (!prefs.restorePointEnabled) {
+      log.info(`restore-point skipped (user opt-out): ${actionDescription}`);
+      return;
+    }
+    const result = await createRestorePoint({
+      description: actionDescription,
+      runner: defaultRestorePointRunner()
+    });
+    if (result.created) {
+      log.info(`restore-point created: ${actionDescription}`);
+    } else {
+      log.warn(
+        `restore-point not created (${result.reason})${
+          "detail" in result && result.detail ? ": " + result.detail : ""
+        }`
+      );
+    }
+    await appendAuditEntry(app.getPath("userData"), {
+      category: "system",
+      action: result.created ? "restore-point-created" : "restore-point-skipped",
+      summary: result.created
+        ? `시스템 복원 지점을 만들었어요 (${actionDescription}).`
+        : `시스템 복원 지점을 만들지 못했어요 (${actionDescription}, reason=${result.reason}).`,
+      detail: { ...result, actionDescription }
+    }).catch(() => {});
+  } catch (err) {
+    log.warn("restore-point trigger failed:", (err as Error).message);
+  }
 }
 
 async function runReminderTick(): Promise<void> {
@@ -490,6 +532,10 @@ function registerIpc() {
     async (_e, request: CleanupExecuteRequest): Promise<CleanupExecuteResult> => {
       const deps = defaultDeps((path: string) => shell.trashItem(path));
       try {
+        // Safety net first. If the prefs disabled this, the helper
+        // logs + returns silently. We never block cleanup on the
+        // restore point succeeding.
+        await maybeCreateRestorePoint(`정리 실행 (${request.mode})`);
         const result = await executeCleanup(request, {
           userDataDir: app.getPath("userData"),
           deps
@@ -544,6 +590,7 @@ function registerIpc() {
           message: "최근 진단 결과가 없어요. 점검을 한 번 돌린 뒤 다시 시도해주세요."
         };
       }
+      await maybeCreateRestorePoint(`앱 제거 (${request.appName})`);
       const result = await runUninstall(request, {
         findApp: (req) => findInstalledApp(req.appName, req.publisher)
       });

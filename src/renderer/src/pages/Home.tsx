@@ -81,6 +81,15 @@ function MonitorPrefsCard() {
         <span>일</span>
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+        <input
+          type="checkbox"
+          checked={prefs.restorePointEnabled}
+          disabled={busy}
+          onChange={(e) => void update({ restorePointEnabled: e.target.checked })}
+        />
+        <span>정리·앱 제거 전에 시스템 복원 지점 자동 생성 (권장 ON)</span>
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
         <span>업데이트 채널:</span>
         <select
           value={prefs.updateChannel}

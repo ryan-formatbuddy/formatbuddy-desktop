@@ -940,6 +940,12 @@ export interface MonitorPreferences {
    * prerelease tags so early adopters can opt into nightlies.
    */
   updateChannel: UpdateChannel;
+  /**
+   * v2.0 — when true, FormatBuddy asks Windows to create a System
+   * Restore Point right before each cleanup execute / app uninstall.
+   * Default ON. Failure to create one never blocks the action.
+   */
+  restorePointEnabled: boolean;
   updatedAt?: string;
 }
 
@@ -948,4 +954,5 @@ export interface UpdateMonitorPreferencesRequest {
   reminderEnabled?: boolean;
   reminderDays?: number;
   updateChannel?: UpdateChannel;
+  restorePointEnabled?: boolean;
 }
