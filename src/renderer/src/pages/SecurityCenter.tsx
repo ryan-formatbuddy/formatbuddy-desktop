@@ -78,7 +78,7 @@ function StatusPanel({
   const protectionOff =
     state.data && state.data.available && state.data.realTimeProtectionEnabled === false;
   return (
-    <article className="fb-card" style={{ marginBottom: 16 }}>
+    <article className="fb-card fb-anim-slide fb-card-hover" style={{ marginBottom: 16 }}>
       <header
         style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
       >
@@ -163,7 +163,7 @@ function QuickScanCard({
   busy: boolean;
 }) {
   return (
-    <article className="fb-card" style={{ marginBottom: 16 }}>
+    <article className="fb-card fb-anim-slide fb-card-hover" style={{ marginBottom: 16 }}>
       <h2 style={{ marginTop: 0 }}>빠른 검사 시작</h2>
       <p style={{ fontSize: 13 }}>
         Windows 보안의 빠른 검사를 시작해요. 진행과 결과는 Windows 보안 화면에서 직접 보여드려요.
