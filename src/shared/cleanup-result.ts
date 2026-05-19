@@ -19,8 +19,32 @@ function parseTrashExpiryDays(expiresAt: string, now: number): number | null {
   return Math.max(0, Math.ceil((t - now) / MS_PER_DAY));
 }
 
+function parseSortTime(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : fallback;
+}
+
 export function daysUntilTrashExpiry(expiresAt: string, now = Date.now()): number {
   return parseTrashExpiryDays(expiresAt, now) ?? 0;
+}
+
+export function sortTrashEntriesByExpiry<T extends { expiresAt: string; createdAt?: string; id?: string }>(
+  entries: T[]
+): T[] {
+  return entries.slice().sort((a, b) => {
+    const expiryDiff =
+      parseSortTime(a.expiresAt, Number.POSITIVE_INFINITY) -
+      parseSortTime(b.expiresAt, Number.POSITIVE_INFINITY);
+    if (expiryDiff !== 0) return expiryDiff;
+
+    const createdDiff =
+      parseSortTime(a.createdAt, Number.POSITIVE_INFINITY) -
+      parseSortTime(b.createdAt, Number.POSITIVE_INFINITY);
+    if (createdDiff !== 0) return createdDiff;
+
+    return (a.id ?? "").localeCompare(b.id ?? "", "ko-KR");
+  });
 }
 
 export function trashExpirySummary(

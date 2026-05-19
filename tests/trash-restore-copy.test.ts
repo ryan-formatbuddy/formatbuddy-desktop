@@ -33,4 +33,15 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
     expect(source).toContain("앱 삭제 흔적 위치");
   });
+
+  it("uses one expiry-sorted restore list for files and app deletion traces", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("sortTrashEntriesByExpiry");
+    expect(source).toContain("sortedRestoreItems");
+    expect(source).toContain('kind: "file"');
+    expect(source).toContain('kind: "registry"');
+    expect(source).not.toContain("entries.map((entry, idx)");
+    expect(source).not.toContain("registryEntries.map((entry, idx)");
+  });
 });

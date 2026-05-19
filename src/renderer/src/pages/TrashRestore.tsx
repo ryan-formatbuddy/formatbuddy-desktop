@@ -3,6 +3,7 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
@@ -49,6 +50,22 @@ const CATEGORY_LABEL: Record<CleanupCategoryId, string> = {
   "large-files": "큰 파일",
   "app-leftovers": "앱 잔여 폴더"
 };
+
+type RestoreListItem =
+  | {
+      id: string;
+      kind: "file";
+      entry: CleanupTrashEntry;
+      expiresAt: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      kind: "registry";
+      entry: RegistryBackupEntry;
+      expiresAt: string;
+      createdAt: string;
+    };
 
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0 MB";
@@ -109,6 +126,25 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     [registrySnapshot]
   );
   const totalEntryCount = entries.length + registryEntries.length;
+  const sortedRestoreItems = useMemo(() => {
+    const items: RestoreListItem[] = [
+      ...entries.map((entry) => ({
+        id: `file:${entry.id}`,
+        kind: "file" as const,
+        entry,
+        expiresAt: entry.expiresAt,
+        createdAt: entry.createdAt
+      })),
+      ...registryEntries.map((entry) => ({
+        id: `registry:${entry.id}`,
+        kind: "registry" as const,
+        entry,
+        expiresAt: entry.expiresAt,
+        createdAt: entry.createdAt
+      }))
+    ];
+    return sortTrashEntriesByExpiry(items);
+  }, [entries, registryEntries]);
 
   const onRestore = useCallback(
     async (entry: CleanupTrashEntry) => {
@@ -151,9 +187,11 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   );
 
   const onRestoreAll = useCallback(async () => {
+    const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
+    const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
     if (
-      (!window.fb?.restoreCleanupTrash && entries.length > 0) ||
-      (!window.fb?.restoreRegistryBackup && registryEntries.length > 0) ||
+      (!restoreCleanupTrash && entries.length > 0) ||
+      (!restoreRegistryBackup && registryEntries.length > 0) ||
       totalEntryCount === 0
     ) {
       return;
@@ -162,12 +200,17 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     setToast(null);
     try {
       const results: CleanupTrashRestoreResult[] = [];
-      for (const entry of entries) {
-        results.push(await window.fb.restoreCleanupTrash({ entryId: entry.id }));
-      }
       const registryResults: RegistryBackupRestoreResult[] = [];
-      for (const entry of registryEntries) {
-        registryResults.push(await window.fb.restoreRegistryBackup({ backupId: entry.id }));
+      for (const item of sortedRestoreItems) {
+        if (item.kind === "file") {
+          if (restoreCleanupTrash) {
+            results.push(await restoreCleanupTrash({ entryId: item.entry.id }));
+          }
+          continue;
+        }
+        if (restoreRegistryBackup) {
+          registryResults.push(await restoreRegistryBackup({ backupId: item.entry.id }));
+        }
       }
       setToast(
         [
@@ -183,7 +226,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     } finally {
       setBusy(null);
     }
-  }, [entries, load, registryEntries, totalEntryCount]);
+  }, [entries.length, load, registryEntries.length, sortedRestoreItems, totalEntryCount]);
 
   const headerSummary = useMemo(() => {
     if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
@@ -290,79 +333,78 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         </section>
       )}
 
-      {entries.map((entry, idx) => {
-        const days = daysUntilTrashExpiry(entry.expiresAt);
+      {sortedRestoreItems.map((item, idx) => {
+        const days = daysUntilTrashExpiry(item.expiresAt);
         const isUrgent = days <= 3;
+        if (item.kind === "file") {
+          const entry = item.entry;
+          return (
+            <article
+              key={item.id}
+              className="fb-card fb-anim-slide fb-card-hover"
+              style={{
+                marginBottom: 12,
+                animationDelay: `${Math.min(idx, 8) * 30}ms`
+              }}
+            >
+              <header
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginBottom: 4
+                }}
+              >
+                <span
+                  style={{
+                    background: "#0ea5e9",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}
+                >
+                  {CATEGORY_LABEL[entry.categoryId] ?? entry.categoryId}
+                </span>
+                <strong style={{ fontSize: 14 }}>{entry.label}</strong>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 12,
+                    color: isUrgent ? "#1d4ed8" : "rgba(0,0,0,0.55)",
+                    fontWeight: isUrgent ? 600 : 400
+                  }}
+                >
+                  {days === 0 ? "오늘 만료" : `${days}일 뒤 만료`}
+                </span>
+              </header>
+              <div style={{ fontSize: 13, opacity: 0.85 }}>{entry.originalPath}</div>
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
+                {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.createdAt)}
+              </div>
+              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void onRestore(entry)}
+                  disabled={Boolean(busy)}
+                >
+                  {busy === `file:${entry.id}` ? "되돌리는 중..." : "원래 자리로 되돌리기"}
+                </Button>
+              </div>
+            </article>
+          );
+        }
+        const entry = item.entry;
         return (
           <article
-            key={entry.id}
+            key={item.id}
             className="fb-card fb-anim-slide fb-card-hover"
             style={{
               marginBottom: 12,
               animationDelay: `${Math.min(idx, 8) * 30}ms`
-            }}
-          >
-            <header
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                flexWrap: "wrap",
-                marginBottom: 4
-              }}
-            >
-              <span
-                style={{
-                  background: "#0ea5e9",
-                  color: "#fff",
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600
-                }}
-              >
-                {CATEGORY_LABEL[entry.categoryId] ?? entry.categoryId}
-              </span>
-              <strong style={{ fontSize: 14 }}>{entry.label}</strong>
-              <span
-                style={{
-                  marginLeft: "auto",
-                  fontSize: 12,
-                  color: isUrgent ? "#1d4ed8" : "rgba(0,0,0,0.55)",
-                  fontWeight: isUrgent ? 600 : 400
-                }}
-              >
-                {days === 0 ? "오늘 만료" : `${days}일 뒤 만료`}
-              </span>
-            </header>
-            <div style={{ fontSize: 13, opacity: 0.85 }}>{entry.originalPath}</div>
-            <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
-              {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.createdAt)}
-            </div>
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void onRestore(entry)}
-                disabled={Boolean(busy)}
-              >
-                {busy === `file:${entry.id}` ? "되돌리는 중..." : "원래 자리로 되돌리기"}
-              </Button>
-            </div>
-          </article>
-        );
-      })}
-
-      {registryEntries.map((entry, idx) => {
-        const days = daysUntilTrashExpiry(entry.expiresAt);
-        const isUrgent = days <= 3;
-        return (
-          <article
-            key={entry.id}
-            className="fb-card fb-anim-slide fb-card-hover"
-            style={{
-              marginBottom: 12,
-              animationDelay: `${Math.min(idx + entries.length, 8) * 30}ms`
             }}
           >
             <header

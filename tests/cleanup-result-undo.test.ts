@@ -3,6 +3,7 @@ import {
   daysUntilTrashExpiry,
   restorableRegistryBackupIds,
   restorableTrashEntryIds,
+  sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
@@ -135,5 +136,39 @@ describe("Cleanup result undo helper", () => {
       expiringSoonCount: 0,
       todayCount: 0
     });
+  });
+
+  it("sorts mixed restore-bin entries by expiry before type", () => {
+    const entries = [
+      {
+        id: "file-later",
+        kind: "file",
+        expiresAt: "2026-06-18T00:00:00.000Z",
+        createdAt: "2026-05-19T00:00:00.000Z"
+      },
+      {
+        id: "registry-today",
+        kind: "registry",
+        expiresAt: "2026-05-20T00:00:00.000Z",
+        createdAt: "2026-05-19T00:01:00.000Z"
+      },
+      {
+        id: "file-soon",
+        kind: "file",
+        expiresAt: "2026-05-22T00:00:00.000Z",
+        createdAt: "2026-05-19T00:02:00.000Z"
+      }
+    ];
+
+    expect(sortTrashEntriesByExpiry(entries).map((entry) => entry.id)).toEqual([
+      "registry-today",
+      "file-soon",
+      "file-later"
+    ]);
+    expect(entries.map((entry) => entry.id)).toEqual([
+      "file-later",
+      "registry-today",
+      "file-soon"
+    ]);
   });
 });
