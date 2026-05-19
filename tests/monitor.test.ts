@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -214,6 +214,23 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     expect(next.trayEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.updateChannel).toBe("stable");
+  });
+
+  it("does not write monitor prefs through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const outsidePrefs = join(dir, "outside-monitor-prefs.json");
+    const prefsFile = join(dir, "formatbuddy-monitor-prefs.json");
+    writeFileSync(outsidePrefs, "outside stays put", "utf8");
+    symlinkSync(outsidePrefs, prefsFile);
+
+    const next = await updatePrefs(dir, { reminderEnabled: true, reminderDays: 30 });
+
+    expect(next.reminderEnabled).toBe(true);
+    expect(readFileSync(outsidePrefs, "utf8")).toBe("outside stays put");
+    expect(lstatSync(prefsFile).isSymbolicLink()).toBe(false);
+    const reloaded = await loadPrefs(dir);
+    expect(reloaded.reminderEnabled).toBe(true);
+    expect(reloaded.reminderDays).toBe(30);
   });
 });
 

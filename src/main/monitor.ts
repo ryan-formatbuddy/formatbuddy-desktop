@@ -17,14 +17,16 @@
  * The tray module is responsible for showing tray icon + menu when
  * prefs.trayEnabled flips on. This module does not touch electron.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type {
   MonitorPreferences,
   ThemeMode,
   UpdateChannel,
   UpdateMonitorPreferencesRequest
 } from "@shared/types";
+import { normalizePath } from "./cleanup/blocklist";
+import { findLinkedPathPart } from "./cleanup/pathSafety";
 
 const PREFS_FILE = "formatbuddy-monitor-prefs.json";
 const DEFAULT_REMINDER_DAYS = 14;
@@ -99,6 +101,14 @@ function coerce(value: unknown): MonitorPreferences {
 }
 
 export async function loadPrefs(userDataDir: string): Promise<MonitorPreferences> {
+  const linkedPrefs = await findLinkedPathPart(prefsPath(userDataDir), userDataDir, true);
+  if (linkedPrefs) {
+    if (normalizePath(resolve(linkedPrefs)) === normalizePath(resolve(prefsPath(userDataDir)))) {
+      await rm(prefsPath(userDataDir), { force: true }).catch(() => {});
+    }
+    return defaultPrefs();
+  }
+
   try {
     const raw = await readFile(prefsPath(userDataDir), "utf8");
     return coerce(JSON.parse(raw));
@@ -113,6 +123,13 @@ export async function savePrefs(
 ): Promise<MonitorPreferences> {
   const stamped: MonitorPreferences = { ...prefs, updatedAt: new Date().toISOString() };
   await mkdir(userDataDir, { recursive: true });
+  const linkedPrefs = await findLinkedPathPart(prefsPath(userDataDir), userDataDir, true);
+  if (linkedPrefs) {
+    if (normalizePath(resolve(linkedPrefs)) !== normalizePath(resolve(prefsPath(userDataDir)))) {
+      throw new Error(`FormatBuddy monitor prefs path is behind a link: ${linkedPrefs}`);
+    }
+    await rm(prefsPath(userDataDir), { force: true });
+  }
   const payload: PersistedMonitorPrefs = { version: 1, prefs: stamped };
   await writeFile(prefsPath(userDataDir), JSON.stringify(payload, null, 2), "utf8");
   return stamped;
