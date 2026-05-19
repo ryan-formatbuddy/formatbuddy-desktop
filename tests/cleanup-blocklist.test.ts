@@ -92,6 +92,20 @@ describe("evaluatePath — system blocklist", () => {
       }).allowed
     ).toBe(false);
   });
+
+  it.each([
+    "C:\\",
+    "D:\\",
+    "C:\\Windows",
+    "C:\\ProgramData",
+    "C:\\Program Files",
+    "C:\\Program Files (x86)",
+    "C:\\Users"
+  ])("blocks broad system roots %s", (path) => {
+    const result = evaluatePath(path, { allowRoots: [path], home: HOME });
+    expect(result.allowed).toBe(false);
+    expect(result.blockedBy).toMatch(/루트|Windows|ProgramData|Program Files|Users|넓은/);
+  });
 });
 
 describe("evaluatePath — user-scoped blocklist", () => {
@@ -164,7 +178,7 @@ describe("evaluatePath — user-scoped blocklist", () => {
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(4);
+    expect(BLOCKLIST_VERSION).toBe(5);
   });
 });
 

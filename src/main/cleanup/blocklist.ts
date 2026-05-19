@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 4;
+export const BLOCKLIST_VERSION = 5;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -95,6 +95,17 @@ function exactPathRule(id: string, label: string, roots: string[]): BlockRule {
     label,
     match: (p) => normalizedRoots.includes(p)
   };
+}
+
+function isBroadSystemRoot(p: string): boolean {
+  if (/^[a-z]:\\$/i.test(p)) return true;
+  return (
+    p.endsWith("\\windows") ||
+    p.endsWith("\\programdata") ||
+    p.endsWith("\\program files") ||
+    p.endsWith("\\program files (x86)") ||
+    p.endsWith("\\users")
+  );
 }
 
 const KOREAN_CERT_FOLDER_EXACT = new Set([
@@ -207,6 +218,11 @@ function userScopedRules(home: string): BlockRule[] {
 
 /** System paths that are never deletable, regardless of category. */
 const SYSTEM_BLOCK_RULES: BlockRule[] = [
+  {
+    id: "system:broad-root",
+    label: "시스템 루트처럼 너무 넓은 경로",
+    match: isBroadSystemRoot
+  },
   {
     id: "system:windows-core",
     label: "Windows 시스템 폴더 (System32, SysWOW64, WindowsApps, Boot, EFI, Recovery, Fonts, Drivers)",

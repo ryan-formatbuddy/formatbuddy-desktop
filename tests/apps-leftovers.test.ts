@@ -347,7 +347,8 @@ describe("planAppLeftovers", () => {
   it.each([
     ["user home", (fx: Fixture) => fx.home],
     ["AppData Local", (fx: Fixture) => fx.localAppData],
-    ["AppData Roaming", (fx: Fixture) => fx.roaming]
+    ["AppData Roaming", (fx: Fixture) => fx.roaming],
+    ["ProgramData", (fx: Fixture) => fx.programData]
   ] as const)("marks broad installLocation roots as protected: %s", async (_label, folderFor) => {
     const installLocation = folderFor(fx);
     await fs.mkdir(installLocation, { recursive: true });
@@ -367,7 +368,7 @@ describe("planAppLeftovers", () => {
     const path = snapshot.groups[0].paths.find((p) => p.path === installLocation);
 
     expect(path?.exists).toBe(true);
-    expect(path?.protectedBy).toMatch(/사용자|AppData|넓은/);
+    expect(path?.protectedBy).toMatch(/사용자|AppData|시스템|루트|넓은/);
   });
 
   it("shows uninstall registry leftovers as selectable backup-first candidates", async () => {
