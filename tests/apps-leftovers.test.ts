@@ -245,6 +245,73 @@ describe("planAppLeftovers", () => {
     );
   });
 
+  it("finds a recently uninstalled app's install folder even outside AppData roots", async () => {
+    const installFolder = join(fx.localAppData, "Programs", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0]).toMatchObject({
+      appName: "Acme Notes",
+      source: "uninstall-launched"
+    });
+    expect(snapshot.groups[0].paths.some((p) => p.path === installFolder && p.exists)).toBe(true);
+  });
+
+  it("moves a selected install folder leftover into the 30-day trash after uninstall follow-up", async () => {
+    const installFolder = join(fx.localAppData, "Programs", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    await expect(fs.stat(installFolder)).rejects.toThrow();
+
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toHaveLength(1);
+    expect(trash.entries[0].originalPath).toBe(installFolder);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
   it("does not create generic leftover groups when the app folders do not exist", async () => {
     const snapshot = await planAppLeftovers(
       [{ name: "Obscure Notes", publisher: "Tiny Vendor" }],
@@ -466,7 +533,7 @@ describe("planAppLeftovers", () => {
   it("refuses protected leftover cleanup even with a valid plan", async () => {
     const kakaoRoaming = join(fx.roaming, "KakaoTalk");
     await fs.mkdir(kakaoRoaming, { recursive: true });
-    await fs.writeFile(join(kakaoRoaming, "talk.db"), "secret", "utf8");
+    await fs.writeFile(join(kakaoRoaming, "talk.db"), "private-db-placeholder", "utf8");
 
     const snapshot = await planAppLeftovers(
       [{ name: "KakaoTalk", publisher: "Kakao" }],

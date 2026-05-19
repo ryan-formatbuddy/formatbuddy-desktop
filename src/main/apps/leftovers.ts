@@ -575,6 +575,31 @@ async function genericLeftoverPaths(
   return paths;
 }
 
+async function installLocationLeftoverPaths(
+  app: InstalledApp,
+  env: LeftoverEnv
+): Promise<AppLeftoverPath[]> {
+  const installLocation = app.installLocation?.trim();
+  if (!installLocation) return [];
+
+  const info = await pathInfo(installLocation, env);
+  return info.exists ? [info] : [];
+}
+
+function uniqueLeftoverPaths(paths: AppLeftoverPath[]): AppLeftoverPath[] {
+  const seen = new Set<string>();
+  const unique: AppLeftoverPath[] = [];
+
+  for (const path of paths) {
+    const key = normalizePath(path.path);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(path);
+  }
+
+  return unique;
+}
+
 export async function planAppLeftovers(
   apps: InstalledApp[],
   options: PlanLeftoversOptions = {}
@@ -596,7 +621,10 @@ export async function planAppLeftovers(
     const rule = RULES.find((r) => r.match.test(text));
     if (!rule) {
       if (seenLabels.has(app.name)) continue;
-      const paths = await genericLeftoverPaths(app, env);
+      const paths = uniqueLeftoverPaths([
+        ...(await genericLeftoverPaths(app, env)),
+        ...(await installLocationLeftoverPaths(app, env))
+      ]);
       if (paths.length === 0) continue;
       seenLabels.add(app.name);
       groups.push({
@@ -614,12 +642,13 @@ export async function planAppLeftovers(
     for (const builder of rule.paths) {
       paths.push(await pathInfo(builder(env), env));
     }
+    paths.push(...(await installLocationLeftoverPaths(app, env)));
 
     groups.push({
       appName: rule.appLabel,
       publisher: app.publisher,
       source,
-      paths
+      paths: uniqueLeftoverPaths(paths)
     });
   }
 
