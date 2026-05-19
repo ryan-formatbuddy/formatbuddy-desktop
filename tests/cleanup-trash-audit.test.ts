@@ -93,4 +93,41 @@ describe("purgeExpiredTrashWithAudit", () => {
     const audit = await getAuditSnapshot(fx.userData, new Date("2026-05-19T00:00:01.000Z"));
     expect(audit.entries).toEqual([]);
   });
+
+  it("records an audit entry when an expired trash item could not be emptied", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "busy.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "busy", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: { ...makeItem(source), id: "busy", label: "busy.tmp" },
+      sizeBytes: 4,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const result = await purgeExpiredTrashWithAudit({
+      userDataDir: fx.userData,
+      trigger: "scheduled",
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async () => {
+        throw new Error("busy");
+      }
+    });
+
+    expect(result.purgedCount).toBe(0);
+    expect(result.failedEntryIds).toEqual([entry.id]);
+    const audit = await getAuditSnapshot(fx.userData, new Date("2026-06-18T00:00:02.000Z"));
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0]).toMatchObject({
+      category: "cleanup",
+      action: "trash-expired-purge-failed-scheduled",
+      summary: "30일이 지난 복구함 항목 1개를 아직 비우지 못했어요."
+    });
+    expect(audit.entries[0].summary).not.toContain("영구");
+    expect(audit.entries[0].detail).toMatchObject({
+      purgedCount: 0,
+      failedEntryIds: [entry.id],
+      trigger: "scheduled"
+    });
+  });
 });

@@ -87,6 +87,48 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     expect(audit.entries).toEqual([]);
   });
 
+  it("records an audit entry when an expired registry backup could not be emptied", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Busy Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userData,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const result = await purgeExpiredRegistryBackupsWithAudit({
+      userDataDir: fx.userData,
+      trigger: "scheduled",
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async () => {
+        throw new Error("busy");
+      }
+    });
+
+    expect(result.purgedCount).toBe(0);
+    expect(result.failedIds).toEqual([backup.id]);
+    const audit = await getAuditSnapshot(fx.userData, new Date("2026-06-18T00:00:02.000Z"));
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0]).toMatchObject({
+      category: "cleanup",
+      action: "registry-backup-expired-purge-failed-scheduled",
+      summary: "30일이 지난 앱 삭제 흔적 백업 1개를 아직 비우지 못했어요."
+    });
+    expect(audit.entries[0].summary).not.toContain("영구");
+    expect(audit.entries[0].detail).toMatchObject({
+      purgedCount: 0,
+      failedIds: [backup.id],
+      trigger: "scheduled"
+    });
+  });
+
   it("cleans non-restorable registry backup store items during startup purge without an audit entry", async () => {
     if (process.platform === "win32") return;
     const root = __testing.registryBackupItemsRoot(fx.userData);
