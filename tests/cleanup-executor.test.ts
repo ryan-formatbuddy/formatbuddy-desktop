@@ -72,7 +72,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   const deps: ExecutorDeps = {
     trashItem: async (item, _sizeBytes, context) => {
       trashed.push(item.path);
-      const storedPath = join(context.userDataDir, "spy-trash", item.id);
+      const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", `spy-${item.id}`, "files", "stored");
       await fs.mkdir(join(storedPath, ".."), { recursive: true });
       await fs.writeFile(storedPath, "stored", "utf8");
       await fs.rm(item.path, { recursive: true, force: true });
@@ -472,7 +472,7 @@ describe("executeCleanup", () => {
 
   it("does not count trash mode as successful without a valid restore expiry", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
-    const storedPath = join(fx.userData, "fake-trash", "bad-expiry.tmp");
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "bad-expiry", "files", "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({
@@ -530,9 +530,44 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/stored trash path/i);
   });
 
+  it("does not count trash mode as successful when the stored path is outside the managed restore bin", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const outsideStoredPath = join(fx.root, "outside-trash", "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(outsideStoredPath, ".."), { recursive: true });
+        await fs.writeFile(outsideStoredPath, "stored outside", "utf8");
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return {
+          id: "trash-outside-managed-bin",
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          storedPath: outsideStoredPath
+        };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect(await fs.readFile(outsideStoredPath, "utf8")).toBe("stored outside");
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/managed restore bin/i);
+  });
+
   it("does not count trash mode as successful when the original path still exists", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
-    const storedPath = join(fx.userData, "fake-trash", "source-left.tmp");
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", "source-left", "files", "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
     const { deps } = makeSpyDeps({

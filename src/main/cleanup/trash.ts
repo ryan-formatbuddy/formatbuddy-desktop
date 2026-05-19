@@ -176,6 +176,12 @@ function isManifestEntrySelfContained(
   return stored === filesRoot || stored.startsWith(`${filesRoot}\\`);
 }
 
+export function isManagedTrashStoredPath(userDataDir: string, candidatePath: string): boolean {
+  const root = normalizePath(resolve(itemsRoot(userDataDir)));
+  const candidate = normalizePath(resolve(candidatePath));
+  return candidate.startsWith(`${root}\\`);
+}
+
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const index = await loadIndex(userDataDir);
   const recovered = await recoverManifestEntries(userDataDir);

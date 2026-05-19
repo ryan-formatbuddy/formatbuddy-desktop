@@ -36,7 +36,7 @@ import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
-import { moveToFormatBuddyTrash } from "./trash";
+import { isManagedTrashStoredPath, moveToFormatBuddyTrash } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
 
@@ -288,18 +288,25 @@ async function attemptItem(
 
   try {
     const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;
-    if (mode === "trash" && !trashEntry?.id) {
-      throw new Error("FormatBuddy restore entry was not created");
-    }
-    if (mode === "trash" && !isValidIsoDateString(trashEntry?.expiresAt)) {
-      throw new Error("FormatBuddy restore expiry was not created");
+    if (mode === "trash") {
+      if (!trashEntry?.id) {
+        throw new Error("FormatBuddy restore entry was not created");
+      }
+      if (!isValidIsoDateString(trashEntry.expiresAt)) {
+        throw new Error("FormatBuddy restore expiry was not created");
+      }
     }
     if (mode === "permanent") await deps.permanentRemove(item.path);
     if (await pathExists(item.path)) {
       throw new Error("Source path still exists after cleanup");
     }
-    if (mode === "trash" && (!isNonEmptyString(trashEntry?.storedPath) || !(await pathExists(trashEntry.storedPath)))) {
-      throw new Error("FormatBuddy stored trash path was not created");
+    if (mode === "trash") {
+      if (!isNonEmptyString(trashEntry?.storedPath) || !(await pathExists(trashEntry.storedPath))) {
+        throw new Error("FormatBuddy stored trash path was not created");
+      }
+      if (!isManagedTrashStoredPath(context.userDataDir, trashEntry.storedPath)) {
+        throw new Error("FormatBuddy stored trash path is outside the managed restore bin");
+      }
     }
     return {
       removed: {
