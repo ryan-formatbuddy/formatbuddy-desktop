@@ -34,6 +34,8 @@ describe("product copy friendliness", () => {
     ).join("\n");
 
     expect(source).not.toContain("영구 삭제");
+    expect(source).not.toContain("자동 삭제돼요");
+    expect(source).not.toContain("자동 삭제될");
     expect(source).not.toContain("permanent-mode");
     expect(source).not.toContain("permanently delete");
     expect(source).toContain("30일 뒤 자동으로 비워요");

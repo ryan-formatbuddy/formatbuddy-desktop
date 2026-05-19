@@ -20,6 +20,6 @@ describe("cleanup policy wiring", () => {
     expect(source).not.toContain("영구 삭제했어요");
     expect(source).toContain('action: "trash"');
     expect(source).toContain("포맷버디 복구함으로");
-    expect(source).toContain("30일 뒤 자동 삭제돼요");
+    expect(source).toContain("30일 뒤 자동으로 비워요");
   });
 });

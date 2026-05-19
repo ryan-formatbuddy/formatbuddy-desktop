@@ -18,7 +18,10 @@ describe("TrashRestore copy", () => {
 
     expect(source).not.toContain("지금 비우기");
     expect(source).not.toContain("만료된 항목 정리");
+    expect(source).not.toContain("자동 삭제돼요");
+    expect(source).not.toContain("자동 삭제될");
     expect(source).toContain("30일이 지난 항목은 앱이 알아서 정리해요");
+    expect(source).toContain("자동으로 비워요");
     expect(source).not.toContain("레지스트리 백업");
     expect(source).toContain("앱 삭제 흔적 백업");
     expect(source).toContain("앱 흔적 되돌리기");

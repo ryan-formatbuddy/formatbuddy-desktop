@@ -240,7 +240,7 @@ function ConfirmDialog({
           선택한 <strong>{selectedCount}개</strong> 항목, 총 <strong>{formatBytes(selectedBytes)}</strong>을 정리해요.
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동 삭제돼요.
+          30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동으로 비워요.
         </p>
         <p style={{ fontSize: 12, opacity: 0.7 }}>
           보호 경로를 한 번 더 확인하고 진행해요. 같은 이름 파일이나 잠긴 파일은 건드리지 않아요.
@@ -380,7 +380,7 @@ function TrashEntryRow({
           {entry.label}
         </div>
         <small style={{ opacity: 0.7 }}>
-          {formatBytes(entry.sizeBytes)} · {daysLeft(entry.expiresAt)}일 뒤 자동 삭제
+          {formatBytes(entry.sizeBytes)} · {daysLeft(entry.expiresAt)}일 뒤 비워요
         </small>
         <div style={{ fontSize: 11, opacity: 0.55, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {entry.originalPath}
@@ -411,7 +411,7 @@ function TrashPanel({
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
-            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {snapshot.retentionDays}일 뒤 자동 삭제
+            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {snapshot.retentionDays}일 뒤 자동으로 비워요
           </small>
         </div>
       </header>

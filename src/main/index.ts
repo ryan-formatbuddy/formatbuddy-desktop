@@ -801,7 +801,7 @@ function registerIpc() {
         await appendAuditEntry(app.getPath("userData"), {
           category: "cleanup",
           action: "trash",
-          summary: `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동 삭제돼요.`,
+          summary: `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동으로 비워요.`,
           detail: {
             mode: safeRequest.mode,
             removedCount: result.removedItems.length,
@@ -1008,7 +1008,7 @@ function registerIpc() {
           action: "app-leftovers-trash",
           summary:
             summaryParts.length > 0
-              ? `${summaryParts.join(", ")}. 폴더와 백업은 30일 뒤 자동 삭제돼요.`
+              ? `${summaryParts.join(", ")}. 폴더와 백업은 30일 뒤 자동으로 비워요.`
               : "앱 잔여 정리를 실행했지만 정리된 항목은 없어요.",
           detail: {
             planId: result.planId,

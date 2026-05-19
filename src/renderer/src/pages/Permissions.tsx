@@ -123,7 +123,7 @@ const CATEGORIES: PermissionCategory[] = [
       {
         what: "선택한 파일을 포맷버디 복구함으로 이동",
         why: "안전 정리 후보 중 사용자가 직접 체크한 항목만 보내고, 30일 동안 앱 안에서 되돌릴 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash (30일 뒤 자동 삭제)"
+        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash (30일 뒤 자동으로 비워요)"
       },
       {
         what: "Windows 기본 제거 마법사 실행",
@@ -155,7 +155,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "blocklist.ts — Login Data / Cookies / NPKI 절대 차단"
       },
       {
-        what: "파일 자동 삭제",
+        what: "파일 몰래 정리",
         why: "정리는 항상 사용자 명시 선택 + 휴지통 이동이 기본이에요.",
         evidence: "cleanup/executor.ts requires confirmationToken + selectedItemIds"
       },

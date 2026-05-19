@@ -242,12 +242,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const expiryMessage = useMemo(() => {
     if (!snapshot || totalEntryCount === 0 || expirySummary.nextExpiryDays === null) return null;
     if (expirySummary.todayCount > 0) {
-      return `${expirySummary.todayCount}개가 오늘 자동 삭제돼요. 필요한 게 있으면 먼저 되돌려주세요.`;
+      return `${expirySummary.todayCount}개가 오늘 비워질 예정이에요. 필요한 게 있으면 먼저 되돌려주세요.`;
     }
     if (expirySummary.expiringSoonCount > 0) {
-      return `${expirySummary.expiringSoonCount}개가 3일 안에 자동 삭제돼요. 오래된 항목부터 확인해볼게요.`;
+      return `${expirySummary.expiringSoonCount}개가 3일 안에 비워질 예정이에요. 오래된 항목부터 확인해볼게요.`;
     }
-    return `가장 먼저 자동 삭제될 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
+    return `가장 먼저 비워질 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
   }, [totalEntryCount, expirySummary, snapshot]);
 
   return (

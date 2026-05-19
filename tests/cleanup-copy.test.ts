@@ -17,7 +17,9 @@ describe("Cleanup copy", () => {
 
     expect(source).not.toContain("CleanupExecuteMode");
     expect(source).not.toContain("영구 삭제");
+    expect(source).not.toContain("자동 삭제돼요");
     expect(source).toContain('mode: "trash"');
     expect(source).toContain("30일 동안 포맷버디 복구함에 보관해요");
+    expect(source).toContain("30일 뒤 자동으로 비워요");
   });
 });
