@@ -51,6 +51,11 @@ function registryBackupExpiry(now: Date): string {
   return expiresAt.toISOString();
 }
 
+function cappedRegistryBackupExpiry(createdAt: string, expiresAt: string): string {
+  const maxExpiry = registryBackupExpiry(new Date(createdAt));
+  return Date.parse(expiresAt) > Date.parse(maxExpiry) ? maxExpiry : expiresAt;
+}
+
 function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
@@ -258,7 +263,7 @@ async function readRegistryBackupEntryForRestore(
     keyPath: normalizeRegistryKeyPath(raw.keyPath),
     backupPath,
     createdAt: raw.createdAt,
-    expiresAt: raw.expiresAt
+    expiresAt: cappedRegistryBackupExpiry(raw.createdAt, raw.expiresAt)
   };
 
   try {
@@ -364,10 +369,15 @@ export async function purgeExpiredRegistryBackups(options: {
       const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
       if (linkedMeta) continue;
       const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as {
+        createdAt?: unknown;
         expiresAt?: unknown;
       };
       if (typeof meta.expiresAt !== "string") continue;
-      const expiresAt = Date.parse(meta.expiresAt);
+      const effectiveExpiresAt =
+        typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
+          ? cappedRegistryBackupExpiry(meta.createdAt, meta.expiresAt)
+          : meta.expiresAt;
+      const expiresAt = Date.parse(effectiveExpiresAt);
       if (!Number.isFinite(expiresAt) || expiresAt > now.getTime()) continue;
       await fs.rm(entryDir, { recursive: true, force: true });
       purgedIds.push(entry.name);

@@ -218,6 +218,46 @@ describe("registry leftover cleanup", () => {
     expect(snapshot.nextExpiryAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("caps edited registry backup expiry to the 30-day window", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const metaPath = join(
+      __testing.registryBackupItemsRoot(fx.userDataDir),
+      result.id,
+      "meta.json"
+    );
+    await writeFile(
+      metaPath,
+      JSON.stringify({ ...result, expiresAt: "2027-05-19T00:00:00.000Z" }, null, 2),
+      "utf8"
+    );
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+
+    const purge = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+    expect(purge).toMatchObject({ purgedCount: 1, purgedIds: [result.id] });
+    await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
+  });
+
   it("restores a registry backup and removes it from the 30-day bin", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const calls: string[] = [];

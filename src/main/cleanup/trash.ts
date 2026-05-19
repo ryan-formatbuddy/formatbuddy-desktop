@@ -89,6 +89,11 @@ function validIso(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function cappedExpiry(createdAt: string, expiresAt: string): string {
+  const maxExpiry = expiryFor(new Date(createdAt));
+  return Date.parse(expiresAt) > Date.parse(maxExpiry) ? maxExpiry : expiresAt;
+}
+
 function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CleanupTrashEntry>;
@@ -110,7 +115,7 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
     categoryId: raw.categoryId,
     sizeBytes: Math.max(0, Math.round(raw.sizeBytes)),
     createdAt: raw.createdAt,
-    expiresAt: raw.expiresAt
+    expiresAt: cappedExpiry(raw.createdAt, raw.expiresAt)
   } as CleanupTrashEntry;
 }
 
