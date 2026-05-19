@@ -198,6 +198,60 @@ describe("registry leftover cleanup", () => {
     });
   });
 
+  it("does not keep a registry backup entry when the key still exists after deletion", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      keyExists: vi.fn(async () => true)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/still exists|아직 남아/);
+
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("does not keep a registry backup entry when the startup value still exists after deletion", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_CONTENT}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      valueExists: vi.fn(async () => true)
+    };
+
+    await expect(
+      backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        valueName,
+        runner
+      })
+    ).rejects.toThrow(/still exists|아직 남아/);
+
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("does not delete a startup registry value when the value backup fails", async () => {
     const runner = {
       exportKey: vi.fn(async () => undefined),

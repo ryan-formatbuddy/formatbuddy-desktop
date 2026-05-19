@@ -19,8 +19,10 @@ export const REGISTRY_BACKUP_RETENTION_DAYS = 30;
 export interface RegistryCleanupRunner {
   exportKey: (keyPath: string, backupPath: string) => Promise<void>;
   deleteKey: (keyPath: string) => Promise<void>;
+  keyExists?: (keyPath: string) => Promise<boolean>;
   exportValue?: (keyPath: string, valueName: string, backupPath: string) => Promise<void>;
   deleteValue?: (keyPath: string, valueName: string) => Promise<void>;
+  valueExists?: (keyPath: string, valueName: string) => Promise<boolean>;
   importFile?: (backupPath: string) => Promise<void>;
 }
 
@@ -165,6 +167,33 @@ function runRegQuery(args: string[]): Promise<string> {
       reject(new Error(stderr.trim() || `reg.exe exited with code ${code ?? "unknown"}`));
     });
   });
+}
+
+function isRegistryMissingError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /unable to find|cannot find|not found|찾을 수|지정된.*찾|reg\.exe exited with code 1/i.test(
+    message
+  );
+}
+
+async function registryKeyExistsWithReg(keyPath: string): Promise<boolean> {
+  try {
+    await runRegQuery(["query", keyPath]);
+    return true;
+  } catch (err) {
+    if (isRegistryMissingError(err)) return false;
+    throw err;
+  }
+}
+
+async function registryValueExistsWithReg(keyPath: string, valueName: string): Promise<boolean> {
+  try {
+    await runRegQuery(["query", keyPath, "/v", valueName]);
+    return true;
+  } catch (err) {
+    if (isRegistryMissingError(err)) return false;
+    throw err;
+  }
 }
 
 function canonicalRegistryKeyForFile(keyPath: string): string {
@@ -358,9 +387,11 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
   return {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
     deleteKey: (keyPath) => runRegCommand(["delete", keyPath, "/f"]),
+    keyExists: (keyPath) => registryKeyExistsWithReg(keyPath),
     exportValue: (keyPath, valueName, backupPath) =>
       exportRegistryValueWithReg(keyPath, valueName, backupPath),
     deleteValue: (keyPath, valueName) => runRegCommand(["delete", keyPath, "/v", valueName, "/f"]),
+    valueExists: (keyPath, valueName) => registryValueExistsWithReg(keyPath, valueName),
     importFile: (backupPath) => runRegCommand(["import", backupPath])
   };
 }
@@ -409,6 +440,9 @@ export async function backupAndDeleteRegistryKey(options: {
       }
     );
     await runner.deleteKey(keyPath);
+    if (runner.keyExists && (await runner.keyExists(keyPath))) {
+      throw new Error("Registry key still exists after deletion");
+    }
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -485,6 +519,9 @@ export async function backupAndDeleteRegistryValue(options: {
       }
     );
     await deleteValue(keyPath, valueName);
+    if (runner.valueExists && (await runner.valueExists(keyPath, valueName))) {
+      throw new Error("Registry value still exists after deletion");
+    }
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
