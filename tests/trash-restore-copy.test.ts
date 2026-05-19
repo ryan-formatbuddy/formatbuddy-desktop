@@ -52,6 +52,14 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain("registryEntries.map((entry, idx)");
   });
 
+  it("keeps restore-all moving when one restore item fails", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("summarizeRestoreAllResults");
+    expect(source).toContain("restoreAllFailureCount");
+    expect(source).toContain("restoreAllFailureCount += 1");
+  });
+
   it("includes app deletion trace backup bytes in the restore bin total", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 

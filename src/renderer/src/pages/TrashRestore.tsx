@@ -6,8 +6,7 @@ import {
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
   sortTrashEntriesByExpiry,
-  summarizeRegistryBackupRestoreResults,
-  summarizeTrashRestoreResults,
+  summarizeRestoreAllResults,
   trashExpirySummary
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
@@ -227,25 +226,27 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     try {
       const results: CleanupTrashRestoreResult[] = [];
       const registryResults: RegistryBackupRestoreResult[] = [];
+      let restoreAllFailureCount = 0;
       for (const item of sortedRestoreItems) {
         if (item.kind === "file") {
           if (restoreCleanupTrash) {
-            results.push(await restoreCleanupTrash({ entryId: item.entry.id }));
+            try {
+              results.push(await restoreCleanupTrash({ entryId: item.entry.id }));
+            } catch {
+              restoreAllFailureCount += 1;
+            }
           }
           continue;
         }
         if (restoreRegistryBackup) {
-          registryResults.push(await restoreRegistryBackup({ backupId: item.entry.id }));
+          try {
+            registryResults.push(await restoreRegistryBackup({ backupId: item.entry.id }));
+          } catch {
+            restoreAllFailureCount += 1;
+          }
         }
       }
-      setToast(
-        [
-          results.length > 0 ? summarizeTrashRestoreResults(results) : "",
-          summarizeRegistryBackupRestoreResults(registryResults)
-        ]
-          .filter(Boolean)
-          .join(" ")
-      );
+      setToast(summarizeRestoreAllResults(results, registryResults, restoreAllFailureCount));
       await load();
     } catch (e) {
       setToast(friendlyErrorMessage(e as Error));

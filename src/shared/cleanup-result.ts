@@ -126,3 +126,19 @@ export function summarizeRegistryBackupRestoreResults(
 
   return parts.length > 0 ? parts.join(" ") : "";
 }
+
+export function summarizeRestoreAllResults(
+  trashResults: CleanupTrashRestoreResult[],
+  registryResults: RegistryBackupRestoreResult[],
+  unexpectedFailureCount = 0
+): string {
+  const parts = [
+    trashResults.length > 0 ? summarizeTrashRestoreResults(trashResults) : "",
+    summarizeRegistryBackupRestoreResults(registryResults),
+    unexpectedFailureCount > 0
+      ? `${unexpectedFailureCount}개는 연결 문제로 되돌리지 못했어요.`
+      : ""
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(" ") : "되돌린 항목이 없어요.";
+}

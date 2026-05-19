@@ -7,6 +7,7 @@ import {
   restorableTrashEntryIds,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
+  summarizeRestoreAllResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
 } from "../src/shared/cleanup-result";
@@ -132,6 +133,20 @@ describe("Cleanup result undo helper", () => {
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
       "앱 삭제 흔적 백업 1개를 되돌렸어요. 시작 항목 백업 1개를 되돌렸어요. 2개는 이미 없거나 확인이 필요해요."
+    );
+  });
+
+  it("summarizes mixed restore-all outcomes without hiding per-item failures", () => {
+    const trashResults: CleanupTrashRestoreResult[] = [
+      { entryId: "a", status: "restored", message: "ok" },
+      { entryId: "b", status: "target-exists", message: "blocked" }
+    ];
+    const registryResults: RegistryBackupRestoreResult[] = [
+      { backupId: "c", status: "restored", message: "ok", entry: registryBackupEntry({ backupKind: "startup-value" }) }
+    ];
+
+    expect(summarizeRestoreAllResults(trashResults, registryResults, 2)).toBe(
+      "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 시작 항목 백업 1개를 되돌렸어요. 2개는 연결 문제로 되돌리지 못했어요."
     );
   });
 
