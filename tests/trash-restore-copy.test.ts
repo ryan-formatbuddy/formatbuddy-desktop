@@ -74,4 +74,12 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("friendlyErrorMessage");
     expect(source).not.toContain("(e as Error).message");
   });
+
+  it("normalizes single restore result toasts through the shared friendly summaries", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("summarizeTrashRestoreResults([result])");
+    expect(source).toContain("summarizeRegistryBackupRestoreResults([result])");
+    expect(source).not.toContain("setToast(result.message)");
+  });
 });

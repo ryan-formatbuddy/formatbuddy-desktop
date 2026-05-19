@@ -6,7 +6,9 @@ import {
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
   sortTrashEntriesByExpiry,
+  summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
+  summarizeTrashRestoreResults,
   trashExpirySummary
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
@@ -180,7 +182,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         const result: CleanupTrashRestoreResult = await window.fb.restoreCleanupTrash({
           entryId: entry.id
         });
-        setToast(result.message);
+        setToast(summarizeTrashRestoreResults([result]));
         await load();
       } catch (e) {
         setToast(friendlyErrorMessage(e as Error));
@@ -200,7 +202,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         const result: RegistryBackupRestoreResult = await window.fb.restoreRegistryBackup({
           backupId: entry.id
         });
-        setToast(result.message);
+        setToast(summarizeRegistryBackupRestoreResults([result]));
         await load();
       } catch (e) {
         setToast(`${registryRestoreErrorLabel(entry)} 되돌리기 중 문제가 생겼어요. ${friendlyErrorMessage(e as Error)}`);
