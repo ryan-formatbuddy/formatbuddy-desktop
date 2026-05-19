@@ -701,13 +701,10 @@ function registerIpc() {
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         await appendAuditEntry(app.getPath("userData"), {
           category: "cleanup",
-          action: result.mode === "trash" ? "trash" : "permanent-delete",
-          summary:
-            result.mode === "trash"
-              ? `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동 삭제돼요.`
-              : `${result.removedItems.length}개 항목(약 ${freedMb} MB)을 영구 삭제했어요.`,
+          action: "trash",
+          summary: `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동 삭제돼요.`,
           detail: {
-            mode: result.mode,
+            mode: safeRequest.mode,
             removedCount: result.removedItems.length,
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
