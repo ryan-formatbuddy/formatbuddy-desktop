@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RENDERER_ROOT = join(__dirname, "..", "src", "renderer", "src");
+const PERMISSIONS_PAGE = join(RENDERER_ROOT, "pages", "Permissions.tsx");
 
 const USER_FACING_FILES = [
   "App.tsx",
@@ -46,5 +47,13 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("permanent-mode");
     expect(source).not.toContain("permanently delete");
     expect(source).toContain("30일 뒤 자동으로 비워요");
+  });
+
+  it("uses one user-facing name for Windows security on the permissions screen", () => {
+    const source = readFileSync(PERMISSIONS_PAGE, "utf8");
+
+    expect(source).not.toContain("Defender");
+    expect(source).toContain("Windows 보안 상태");
+    expect(source).toContain("Windows 보안 빠른 검사 시작");
   });
 });

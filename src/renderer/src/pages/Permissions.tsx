@@ -63,7 +63,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "바탕화면, 문서, 다운로드 같은 폴더의 이름과 크기만 확인해요."
       },
       {
-        what: "Windows 보안 (Defender) 상태",
+        what: "Windows 보안 상태",
         why: "실시간 보호가 켜져 있는지, 마지막 검사 날짜가 언제인지 보여드리기 위해서요.",
         evidence: "Windows 보안 화면에서 볼 수 있는 보호 상태만 확인해요."
       },
@@ -131,7 +131,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "Windows가 제공하는 기본 제거 화면으로 연결해요."
       },
       {
-        what: "Windows Defender 빠른 검사 시작",
+        what: "Windows 보안 빠른 검사 시작",
         why: "사용자가 보안 페이지에서 '검사 시작' 버튼을 눌렀을 때만요.",
         evidence: "Windows 보안의 빠른 검사 기능을 열어 실행해요."
       },
@@ -166,7 +166,7 @@ const CATEGORIES: PermissionCategory[] = [
       },
       {
         what: "백신처럼 위협 직접 치료",
-        why: "Windows Defender의 작업만 그대로 표시해요.",
+        why: "Windows 보안의 작업만 그대로 표시해요.",
         evidence: "Windows 보안에서 확인한 결과만 쉽게 보여줘요."
       },
       {
