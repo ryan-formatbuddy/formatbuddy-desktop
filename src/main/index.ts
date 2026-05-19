@@ -71,6 +71,7 @@ import {
 } from "./apps/registryCleanup";
 import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
+import { enforceAppUninstallRequestPolicy } from "./apps/uninstallRequestPolicy";
 import {
   forgetUninstallFollowup,
   listUninstallFollowups,
@@ -1037,19 +1038,20 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.appsUninstall,
     async (_e, request: AppUninstallRequest): Promise<AppUninstallResult> => {
+      const safeUninstallRequest = enforceAppUninstallRequestPolicy(request);
       const userDataDir = app.getPath("userData");
       if (!getLastScan()) {
         return {
           status: "no-scan-cache",
-          appName: request?.appName ?? "",
+          appName: safeUninstallRequest.appName,
           message: "최근 진단 결과가 없어요. 점검을 한 번 돌린 뒤 다시 시도해주세요."
         };
       }
-      const matchedApp = findInstalledApp(request.appName, request.publisher);
-      if (canLaunchUninstall(request, matchedApp)) {
-        await maybeCreateRestorePoint(`앱 제거 (${request.appName})`, "APPLICATION_UNINSTALL");
+      const matchedApp = findInstalledApp(safeUninstallRequest.appName, safeUninstallRequest.publisher);
+      if (canLaunchUninstall(safeUninstallRequest, matchedApp)) {
+        await maybeCreateRestorePoint(`앱 제거 (${safeUninstallRequest.appName})`, "APPLICATION_UNINSTALL");
       }
-      const result = await runUninstall(request, {
+      const result = await runUninstall(safeUninstallRequest, {
         findApp: () => matchedApp
       });
       if (result.status === "launched" && matchedApp) {
@@ -1059,22 +1061,22 @@ function registerIpc() {
         });
       }
       log.info(
-        `apps:uninstall app=${request.appName} status=${result.status} detail=${result.detail ?? ""}`
+        `apps:uninstall app=${safeUninstallRequest.appName} status=${result.status} detail=${result.detail ?? ""}`
       );
       await appendAuditEntry(userDataDir, {
         category: "uninstall",
         action: result.status,
         summary:
           result.status === "launched"
-            ? `Windows 제거 마법사로 "${request.appName}"을 열었어요.`
+            ? `Windows 제거 마법사로 "${safeUninstallRequest.appName}"을 열었어요.`
             : result.status === "app-not-found"
-              ? `"${request.appName}"의 제거 정보를 찾지 못했어요.`
+              ? `"${safeUninstallRequest.appName}"의 제거 정보를 찾지 못했어요.`
               : result.status === "blocked"
-                ? `"${request.appName}" 제거가 차단됐어요 (시스템 보호).`
+                ? `"${safeUninstallRequest.appName}" 제거가 차단됐어요 (시스템 보호).`
                 : result.status === "no-scan-cache"
                   ? "최근 진단 결과가 없어서 안내만 했어요."
-                  : `"${request.appName}" 제거 시도 결과: ${result.status}`,
-        detail: { appName: request.appName, status: result.status, detail: result.detail }
+                  : `"${safeUninstallRequest.appName}" 제거 시도 결과: ${result.status}`,
+        detail: { appName: safeUninstallRequest.appName, status: result.status, detail: result.detail }
       }).catch((e) => log.warn("audit append (uninstall) failed:", (e as Error).message));
       // v2.0 (D-34) — only invalidate the scan cache when the uninstaller
       // actually launched. For app-not-found / blocked / no-scan-cache
