@@ -49,7 +49,10 @@ export function isUnsafeUninstallCommand(command: string): boolean {
       inQuote = !inQuote;
       continue;
     }
-    if (!inQuote && (char === "&" || char === "|" || char === "<" || char === ">")) {
+    if (
+      !inQuote &&
+      (char === "&" || char === "|" || char === "<" || char === ">" || char === "(" || char === ")")
+    ) {
       return true;
     }
   }

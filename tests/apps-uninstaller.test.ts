@@ -182,6 +182,56 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
+  it("blocks uninstall strings with cmd grouping outside quotes", async () => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const command = '(MsiExec.exe /X{12345678-1234-1234-1234-123456789012})';
+
+    expect(
+      canLaunchUninstall(
+        { appName: "Sketchy" },
+        { ...baseApp, name: "Sketchy", uninstallString: command },
+        "win32"
+      )
+    ).toBe(false);
+
+    const result = await runUninstall(
+      { appName: "Sketchy" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Sketchy",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("allows parentheses inside a quoted uninstaller path", async () => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const quoted = '"C:\\Program Files (x86)\\Friendly Tool\\unins000.exe" /remove';
+    const result = await runUninstall(
+      { appName: "Friendly Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Friendly Tool",
+          uninstallString: quoted
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("launched");
+    expect(spawnCmd).toHaveBeenCalledWith(quoted);
+  });
+
   it("allows shell control characters inside a quoted uninstaller path", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const quoted = '"C:\\Program Files\\A&B Tool\\unins000.exe" /remove';
