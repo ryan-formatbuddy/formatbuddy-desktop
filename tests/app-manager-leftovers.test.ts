@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { summarizeLeftoverSnapshot } from "../src/shared/app-leftovers";
+import {
+  selectableLeftoverPathIds,
+  summarizeLeftoverSnapshot
+} from "../src/shared/app-leftovers";
 import type { AppLeftoversSnapshot } from "../src/shared/types";
 
 describe("AppManager leftover summary", () => {
@@ -44,5 +47,6 @@ describe("AppManager leftover summary", () => {
       missing: 1,
       installedLocked: 1
     });
+    expect(selectableLeftoverPathIds(snapshot)).toEqual(new Set(["selectable"]));
   });
 });

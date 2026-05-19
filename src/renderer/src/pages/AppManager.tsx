@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
-import { summarizeLeftoverSnapshot } from "@shared/app-leftovers";
+import { selectableLeftoverPathIds, summarizeLeftoverSnapshot } from "@shared/app-leftovers";
 import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   AppLeftoverGroup,
@@ -214,6 +214,8 @@ function LeftoverPanel({
     );
   }
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
+  const selectableIds = selectableLeftoverPathIds(state.snapshot);
+  const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
   return (
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 폴더 후보</h2>
@@ -231,14 +233,14 @@ function LeftoverPanel({
           <div>
             <strong>선택한 잔여 폴더</strong>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              {selected.size}개 · 보호됨/없는 폴더는 선택할 수 없어요.
+              {selectedValidCount}개 · 보호됨/없는 폴더는 선택할 수 없어요.
             </div>
           </div>
           <Button
             variant="primary"
             size="sm"
             onClick={onCleanup}
-            disabled={busy || selected.size === 0}
+            disabled={busy || selectedValidCount === 0}
           >
             {busy ? "복구함으로 보내는 중…" : "30일 복구함으로 보내기"}
           </Button>
@@ -427,8 +429,11 @@ export function AppManager({
     if (!window.fb?.cleanupAppLeftovers) return;
     const snapshot = leftovers.snapshot;
     if (!snapshot || selectedLeftovers.size === 0) return;
+    const selectableIds = selectableLeftoverPathIds(snapshot);
+    const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
+    if (selectedPathIds.length === 0) return;
     const confirmed = window.confirm(
-      `선택한 앱 잔여 폴더 ${selectedLeftovers.size}개를 포맷버디 복구함으로 보낼게요. 30일 안에는 되돌릴 수 있어요.`
+      `선택한 앱 잔여 폴더 ${selectedPathIds.length}개를 포맷버디 복구함으로 보낼게요. 30일 안에는 되돌릴 수 있어요.`
     );
     if (!confirmed) return;
     setCleanupBusy(true);
@@ -437,7 +442,7 @@ export function AppManager({
       const result = await window.fb.cleanupAppLeftovers({
         planId: snapshot.planId,
         confirmationToken: snapshot.confirmationToken,
-        selectedPathIds: Array.from(selectedLeftovers)
+        selectedPathIds
       });
       setCleanupResult(result);
       setSelectedLeftovers(new Set());

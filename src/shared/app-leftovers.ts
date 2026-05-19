@@ -1,5 +1,18 @@
 import type { AppLeftoversSnapshot } from "./types";
 
+export function selectableLeftoverPathIds(snapshot: AppLeftoversSnapshot): Set<string> {
+  const ids = new Set<string>();
+
+  for (const group of snapshot.groups) {
+    if (group.source !== "uninstall-launched") continue;
+    for (const path of group.paths) {
+      if (path.exists && !path.protectedBy) ids.add(path.id);
+    }
+  }
+
+  return ids;
+}
+
 export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
   total: number;
   selectable: number;
