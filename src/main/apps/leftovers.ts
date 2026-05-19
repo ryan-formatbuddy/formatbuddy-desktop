@@ -632,7 +632,10 @@ function consumeLeftoversPlan(
   pruneExpiredPlans(now);
   const cached = PLAN_CACHE.get(planId);
   if (!cached) return undefined;
-  if (cached.snapshot.confirmationToken !== confirmationToken) return undefined;
+  if (cached.snapshot.confirmationToken !== confirmationToken) {
+    PLAN_CACHE.delete(planId);
+    return undefined;
+  }
   PLAN_CACHE.delete(planId);
   return cached;
 }
