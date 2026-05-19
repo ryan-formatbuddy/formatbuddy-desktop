@@ -30,6 +30,7 @@ import type {
   ManifestExportResult,
   ScanError,
   ScanProgress,
+  ScanStartRequest,
   ScanResult
 } from "@shared/types";
 import { planCleanup } from "./cleanup/planner";
@@ -47,7 +48,7 @@ import { defaultStartupRunner, listStartupAuto } from "./startup/list";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
-import { findInstalledApp, getLastScan, setLastScan } from "./lastScan";
+import { findInstalledApp, getLastScan, getLastScanIfFresh, setLastScan } from "./lastScan";
 import {
   defaultPowerShellRunner,
   getDefenderStatus,
@@ -347,11 +348,29 @@ function registerIpc() {
     return "unknown";
   });
 
-  ipcMain.handle(IpcChannels.scanStart, async (event) => {
+  ipcMain.handle(IpcChannels.scanStart, async (event, request?: ScanStartRequest) => {
+    const sender = event.sender;
+
+    // v2.0 (D-33 / D4) — fast-path: if the renderer opted in AND we
+    // have a cached scan younger than 1 hour, return it without
+    // re-running PowerShell. The cached result picks up source="cache"
+    // so the UI (and audit log) can distinguish it from a fresh run.
+    if (request?.fast === true) {
+      const cached = getLastScanIfFresh();
+      if (cached) {
+        const result: ScanResult = { ...cached, source: "cache" };
+        log.info("scan:start fast-path hit (cached result returned)");
+        if (!sender.isDestroyed()) {
+          sender.send(IpcChannels.scanComplete, result);
+        }
+        return result;
+      }
+      log.info("scan:start fast-path requested but cache was missing or stale");
+    }
+
     if (activeAbort) activeAbort.abort();
     const controller = new AbortController();
     activeAbort = controller;
-    const sender = event.sender;
 
     const emit = (progress: ScanProgress) => {
       if (sender.isDestroyed() || controller.signal.aborted) return;
@@ -369,6 +388,7 @@ function registerIpc() {
         mock: isPreviewMode,
         enforceIntegrity: app.isPackaged
       });
+      result.source = "fresh";
       result.appState = await recordScanResult(app.getPath("userData"), result.report, result.recommendation);
       // Cache the result for app-manager IPC handlers — they need
       // installedApps with UninstallString, which only the scan has.
@@ -824,19 +844,21 @@ function registerIpc() {
     async (_e, patch: UpdateMonitorPreferencesRequest): Promise<MonitorPreferences> => {
       const next = await updateMonitorPrefs(app.getPath("userData"), patch);
       log.info(
-        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel}`
+        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel} theme=${next.themeMode} telemetry=${next.telemetryOptIn}`
       );
       await reconcileTray(next);
       setUpdaterChannel(next.updateChannel);
       await appendAuditEntry(app.getPath("userData"), {
         category: "monitor",
         action: "prefs-changed",
-        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}.`,
+        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}, 화면 ${next.themeMode}, 익명 통계 ${next.telemetryOptIn ? "허용" : "꺼짐"}.`,
         detail: {
           trayEnabled: next.trayEnabled,
           reminderEnabled: next.reminderEnabled,
           reminderDays: next.reminderDays,
-          updateChannel: next.updateChannel
+          updateChannel: next.updateChannel,
+          themeMode: next.themeMode,
+          telemetryOptIn: next.telemetryOptIn
         }
       }).catch((e) => log.warn("audit append (monitor) failed:", (e as Error).message));
       return next;

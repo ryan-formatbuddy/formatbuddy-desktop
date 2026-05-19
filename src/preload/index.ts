@@ -35,6 +35,7 @@ import type {
   ScanError,
   ScanProgress,
   ScanReport,
+  ScanStartRequest,
   ScanResult,
   UpdateDownloadProgress,
   UpdateErrorPayload,
@@ -59,7 +60,8 @@ const fb = {
   updateIgnoreList: (update: IgnoreListUpdate): Promise<IgnoreListState> =>
     ipcRenderer.invoke(IpcChannels.ignoreListUpdate, update),
 
-  startScan: (): Promise<ScanResult> => ipcRenderer.invoke(IpcChannels.scanStart),
+  startScan: (request: ScanStartRequest = {}): Promise<ScanResult> =>
+    ipcRenderer.invoke(IpcChannels.scanStart, request),
   cancelScan: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.scanCancel),
 
   onScanProgress(cb: ProgressListener): () => void {

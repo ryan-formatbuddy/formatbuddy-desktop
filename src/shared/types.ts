@@ -512,11 +512,36 @@ export interface ScanReport {
   checklist: ChecklistInfo;
 }
 
+/**
+ * v2.0 (Round D-33 / D4) — where this ScanResult came from.
+ *   "fresh" : PowerShell just ran and produced this report.
+ *   "cache" : main returned a previously-cached scan within TTL.
+ *
+ * The renderer treats both the same way for display; the field is
+ * useful for the audit log + a "캐시된 결과입니다" badge in a future UX.
+ */
+export type ScanResultSource = "fresh" | "cache";
+
 export interface ScanResult {
   report: ScanReport;
   recommendation: Recommendation;
   jsonPath: string;
   appState?: AppStateSnapshot;
+  /**
+   * v2.0 (Round D-33 / D4) — "fresh" when PowerShell just ran,
+   * "cache" when main returned a previously-cached scan within TTL.
+   * Optional for backwards compat with older serialized fixtures.
+   */
+  source?: ScanResultSource;
+}
+
+export interface ScanStartRequest {
+  /**
+   * v2.0 (D-33) — when true, allow main to return the in-memory
+   * cached scan if it's younger than 1 hour. Default false: every
+   * call re-runs PowerShell unless the caller explicitly opts in.
+   */
+  fast?: boolean;
 }
 
 export interface ScanError {
