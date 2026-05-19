@@ -603,7 +603,7 @@ export function Cleanup({
       if (!window.fb?.restoreCleanupTrash) return;
       try {
         const result = await window.fb.restoreCleanupTrash({ entryId });
-        setTrashMessage(result.message);
+        setTrashMessage(summarizeTrashRestoreResults([result]));
         await loadTrash();
       } catch (err) {
         setTrashMessage(friendlyErrorMessage(err));

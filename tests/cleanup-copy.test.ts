@@ -32,4 +32,11 @@ describe("Cleanup copy", () => {
     expect(source).toContain("friendlyErrorMessage");
     expect(source).not.toContain("(err as Error).message");
   });
+
+  it("normalizes single trash restore messages through the shared friendly summary", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("summarizeTrashRestoreResults([result])");
+    expect(source).not.toContain("setTrashMessage(result.message)");
+  });
 });
