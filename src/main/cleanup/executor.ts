@@ -283,6 +283,16 @@ async function attemptItem(
   let actualSize = item.sizeBytes;
   const measured = await deps.statSize(item.path);
   if (measured === null) {
+    if (await pathExists(item.path)) {
+      return {
+        skipped: {
+          itemId: item.id,
+          path: item.path,
+          reason: "blocked-path",
+          detail: "파일을 안전하게 확인하지 못해서 자동 정리하지 않았어요. 너무 깊은 폴더나 권한 문제가 있을 수 있어요."
+        }
+      };
+    }
     return {
       skipped: { itemId: item.id, path: item.path, reason: "not-found" }
     };

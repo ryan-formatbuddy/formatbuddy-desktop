@@ -371,6 +371,55 @@ describe("executeCleanup", () => {
     expect(size).toBeNull();
   });
 
+  it("reports an existing but unmeasurable selected folder as blocked instead of missing", async () => {
+    const folder = join(fx.home, "Documents", "deep-cache");
+    let leaf = folder;
+    for (let i = 0; i < 34; i += 1) {
+      leaf = join(leaf, `level-${i}`);
+    }
+    await fs.mkdir(leaf, { recursive: true });
+    await fs.writeFile(join(leaf, "deep.tmp"), "12345", "utf8");
+
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData,
+        largeFiles: [
+          {
+            name: "deep-cache",
+            path: folder,
+            folderName: "Documents",
+            kind: "other",
+            sizeGb: 1
+          }
+        ]
+      }
+    });
+    const item = plan.categories.find((c) => c.id === "large-files")!.items[0];
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps: defaultDeps(fx.userData), home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      path: folder,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/확인|안전|깊/);
+    await expect(fs.readFile(join(leaf, "deep.tmp"), "utf8")).resolves.toBe("12345");
+  });
+
   it("returns null for a selected symbolic link instead of counting it as zero-byte cleanup", async () => {
     if (process.platform === "win32") return;
     const target = join(fx.tempDir, "target.tmp");
