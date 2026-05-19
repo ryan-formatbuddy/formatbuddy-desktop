@@ -290,11 +290,24 @@ function ResultPanel({
           )}
         </pre>
       </details>
-      <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+      <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button variant="primary" onClick={onBack}>
           처음으로
         </Button>
+        {result.mode === "trash" && removedCount > 0 && (
+          <Button
+            variant="secondary"
+            onClick={() => void window.fb?.openRecycleBin?.()}
+          >
+            Windows 휴지통 열기 (되돌리기)
+          </Button>
+        )}
       </div>
+      {result.mode === "trash" && removedCount > 0 && (
+        <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
+          휴지통에서 항목을 우클릭 → "복원"으로 즉시 돌릴 수 있어요.
+        </p>
+      )}
     </article>
   );
 }

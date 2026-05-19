@@ -169,7 +169,10 @@ const fb = {
   },
 
   getAuditSnapshot: (): Promise<AuditSnapshot> =>
-    ipcRenderer.invoke(IpcChannels.auditList)
+    ipcRenderer.invoke(IpcChannels.auditList),
+
+  openRecycleBin: (): Promise<boolean> =>
+    ipcRenderer.invoke(IpcChannels.systemOpenRecycleBin)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);

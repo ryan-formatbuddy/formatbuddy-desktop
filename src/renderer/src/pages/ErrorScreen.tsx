@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Button } from "../components/Button";
 import { copy } from "@shared/copy";
@@ -11,10 +11,38 @@ interface ErrorScreenProps {
   onBack: () => void;
 }
 
+const SUPPORT_EMAIL = "support@formatbuddy.app";
+
+function buildMailto(error: ScanError): string {
+  const code = error.code ?? "UNKNOWN";
+  const subject = `FormatBuddy 오류 신고 - ${code}`;
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const stack = (error.detail ?? error.message ?? "").slice(0, 1200);
+  const lines = [
+    "[자동 채워진 정보. 그대로 보내주시면 큰 도움이 돼요]",
+    `시각: ${new Date().toLocaleString("ko-KR")}`,
+    `코드: ${code}`,
+    `UA: ${ua}`,
+    "",
+    "[추가로 적어주실 부분]",
+    "어떤 작업을 하다 발생했어요?:",
+    "재현 가능한가요? (네 / 아니오):",
+    "",
+    "[오류 내용]",
+    stack
+  ];
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(lines.join("\n"))}`;
+}
+
 export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
   const [showDetail, setShowDetail] = useState(false);
   const code = error.code ?? "UNKNOWN";
   const friendly = friendlyErrorMessage(error);
+
+  const onSendMail = useCallback(() => {
+    if (!window.fb?.runActionCommand) return;
+    void window.fb.runActionCommand(buildMailto(error));
+  }, [error]);
 
   return (
     <main className="fb-err-screen">
@@ -31,6 +59,9 @@ export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
           onClick={() => void window.fb?.openLogsFolder?.()}
         >
           {copy.errorOpenLogs}
+        </Button>
+        <Button variant="secondary" size="md" onClick={onSendMail}>
+          오류 메일 보내기
         </Button>
         <Button variant="ghost" size="md" onClick={onBack}>
           {copy.reportBackCta}

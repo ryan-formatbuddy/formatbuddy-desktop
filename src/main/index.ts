@@ -2,6 +2,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, Notification, shell } f
 import type { Tray } from "electron";
 import { electronApp, optimizer } from "@electron-toolkit/utils";
 import log from "electron-log/main";
+import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
@@ -63,7 +64,7 @@ import type {
  * surface. Anything else falls back to "copy to clipboard" so the user
  * can review and paste manually.
  */
-const SAFE_URL_SCHEMES = /^(ms-settings|windowsdefender|ms-store|ms-availablenetworks|https):/i;
+const SAFE_URL_SCHEMES = /^(ms-settings|windowsdefender|ms-store|ms-availablenetworks|https|mailto):/i;
 const DEEP_LINK_FROM_SHELL = /^start\s+(ms-settings:[\w-]+|windowsdefender:|ms-store:[^\s]+)$/i;
 
 async function runActionCommand(rawCommand: string): Promise<ActionRunResult> {
@@ -448,6 +449,31 @@ function registerIpc() {
       return true;
     } catch (err) {
       log.error("logs:open-folder threw:", err);
+      return false;
+    }
+  });
+
+  /**
+   * Open the Windows Recycle Bin so the user can restore something they
+   * just sent there. shell:RecycleBinFolder is the standard Explorer
+   * special namespace path; we spawn explorer.exe detached so the
+   * Electron main process doesn't block on the GUI.
+   */
+  ipcMain.handle(IpcChannels.systemOpenRecycleBin, async (): Promise<boolean> => {
+    if (process.platform !== "win32") {
+      log.info("system:open-recycle-bin called on non-Windows; ignoring");
+      return false;
+    }
+    try {
+      const child = spawn("explorer.exe", ["shell:RecycleBinFolder"], {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false
+      });
+      child.unref();
+      return true;
+    } catch (err) {
+      log.error("system:open-recycle-bin threw:", err);
       return false;
     }
   });

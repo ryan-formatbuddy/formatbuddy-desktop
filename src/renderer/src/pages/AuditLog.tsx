@@ -166,6 +166,23 @@ export function AuditLog({ onBack }: AuditLogProps) {
             </small>
           </header>
           <p style={{ fontSize: 14, margin: "4px 0" }}>{entry.summary}</p>
+          {entry.category === "cleanup" && entry.action === "trash" && (
+            <button
+              type="button"
+              onClick={() => void window.fb?.openRecycleBin?.()}
+              style={{
+                fontSize: 12,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: "1px solid rgba(0,0,0,0.15)",
+                background: "transparent",
+                cursor: "pointer",
+                marginTop: 4
+              }}
+            >
+              Windows 휴지통 열기 →
+            </button>
+          )}
           {entry.detail && (
             <details style={{ marginTop: 6 }}>
               <summary style={{ fontSize: 12, opacity: 0.65, cursor: "pointer" }}>

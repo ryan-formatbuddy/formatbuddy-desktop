@@ -38,7 +38,8 @@ export const IpcChannels = {
   monitorUpdatePrefs: "monitor:update-prefs",
   monitorReminderShown: "monitor:reminder-shown",
   monitorTriggerScan: "monitor:trigger-scan",
-  auditList: "audit:list"
+  auditList: "audit:list",
+  systemOpenRecycleBin: "system:open-recycle-bin"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];
