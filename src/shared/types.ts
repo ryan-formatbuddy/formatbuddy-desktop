@@ -1129,7 +1129,7 @@ export interface AppManagerSnapshot {
 
 export interface AppLeftoverPath {
   id: string;
-  kind?: "folder" | "registry";
+  kind?: "folder" | "registry" | "startup-folder" | "startup-entry";
   path: string;
   exists: boolean;
   sizeBytes?: number | null;

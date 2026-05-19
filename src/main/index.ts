@@ -999,9 +999,18 @@ function registerIpc() {
       log.warn("apps:leftovers uninstall followups unavailable:", (err as Error).message);
       return [];
     });
+    const startupEntries = await listStartupAuto({
+      runner: defaultStartupRunner()
+    })
+      .then((snapshot) => snapshot.entries)
+      .catch((err) => {
+        log.warn("apps:leftovers startup traces unavailable:", (err as Error).message);
+        return [];
+      });
     return planAppLeftovers(cached?.report.installedApps ?? [], {
       extraApps: mergeUninstallFollowupApps(getRecentlyUninstallLaunchedApps(), persistedFollowups),
-      installedAppsKnown: Boolean(cached)
+      installedAppsKnown: Boolean(cached),
+      startupEntries
     });
   });
 

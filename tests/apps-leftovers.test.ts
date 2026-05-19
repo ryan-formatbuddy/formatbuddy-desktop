@@ -9,7 +9,7 @@ import {
 } from "../src/main/apps/leftovers";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot } from "../src/main/cleanup/trash";
-import type { InstalledApp } from "../src/shared/types";
+import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 interface Fixture {
   root: string;
@@ -484,6 +484,110 @@ describe("planAppLeftovers", () => {
       appPublisher: "Acme Corp.",
       keyPath: registryKeyPath
     });
+  });
+
+  it("moves a selected startup-folder trace into the 30-day trash after uninstall follow-up", async () => {
+    const startupShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Startup",
+      "Acme Notes.lnk"
+    );
+    await fs.mkdir(dirname(startupShortcut), { recursive: true });
+    await fs.writeFile(startupShortcut, "shortcut", "utf8");
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "startup-folder|acme-notes",
+        kind: "startup-folder",
+        name: "Acme Notes.lnk",
+        path: startupShortcut,
+        publisher: "Acme Corp.",
+        origin: "시작 프로그램 폴더"
+      }
+    ];
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === startupShortcut)!;
+    expect(path).toMatchObject({
+      kind: "startup-folder",
+      exists: true
+    });
+    expect(path.protectedBy).toBeUndefined();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: startupShortcut,
+      categoryId: "app-leftovers",
+      mode: "trash",
+      succeeded: true,
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    await expect(fs.stat(startupShortcut)).rejects.toThrow();
+
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0]).toMatchObject({
+      originalPath: startupShortcut,
+      categoryId: "app-leftovers",
+      appName: "Acme Notes"
+    });
+  });
+
+  it("surfaces service and scheduled-task traces as protected app deletion leftovers", async () => {
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "service|acme-notes",
+        kind: "service",
+        name: "Acme Notes Helper",
+        publisher: "Acme Corp.",
+        origin: "Windows 서비스",
+        enabled: true
+      },
+      {
+        id: "scheduled-task|acme-notes",
+        kind: "scheduled-task",
+        name: "Acme Notes Update",
+        path: "\\Acme\\",
+        publisher: "Acme Corp.",
+        origin: "작업 스케줄러",
+        enabled: true
+      }
+    ];
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+
+    const traces = snapshot.groups[0].paths.filter((p) => p.kind === "startup-entry");
+    expect(traces).toHaveLength(2);
+    expect(traces.every((path) => path.exists)).toBe(true);
+    expect(traces.every((path) => path.protectedBy?.includes("시작 항목"))).toBe(true);
   });
 
   it("does not delete a registry key when backup export fails", async () => {

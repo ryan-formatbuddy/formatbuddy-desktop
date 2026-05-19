@@ -14,6 +14,7 @@ import {
 } from "@shared/cleanup-result";
 import type {
   AppLeftoverGroup,
+  AppLeftoverPath,
   AppLeftoversSnapshot,
   AppManagerItem,
   AppManagerSnapshot,
@@ -67,6 +68,20 @@ function availabilityBadge(item: AppManagerItem): { label: string; tone: string 
       return { label: "Windows 구성요소", tone: "warning" };
     case "blocked":
       return { label: "자동 실행 안 함", tone: "warning" };
+  }
+}
+
+function leftoverKindLabel(path: AppLeftoverPath): string {
+  switch (path.kind) {
+    case "registry":
+      return "앱 삭제 흔적";
+    case "startup-folder":
+      return "시작 항목";
+    case "startup-entry":
+      return "시작 흔적";
+    case "folder":
+    default:
+      return path.exists ? formatBytes(path.sizeBytes) : "없음";
   }
 }
 
@@ -373,11 +388,7 @@ function LeftoverGroupCard({
             />
             <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>{path.path}</code>
             <span style={{ fontSize: 12, opacity: 0.7 }}>
-              {path.kind === "registry"
-                ? "앱 삭제 흔적"
-                : path.exists
-                  ? formatBytes(path.sizeBytes)
-                  : "없음"}
+              {leftoverKindLabel(path)}
             </span>
             {path.protectedBy && (
               <span

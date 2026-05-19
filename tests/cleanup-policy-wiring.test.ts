@@ -57,4 +57,12 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("reconcileRetentionPurgeTimer()");
     expect(source).toContain("clearInterval(retentionPurgeTimer)");
   });
+
+  it("passes startup traces into app leftover planning", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("const startupEntries = await listStartupAuto");
+    expect(source).toContain("apps:leftovers startup traces unavailable");
+    expect(source).toContain("startupEntries");
+  });
 });

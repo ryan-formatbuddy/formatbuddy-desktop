@@ -26,7 +26,8 @@ import type {
   CleanupExecutedItem,
   CleanupItem,
   CleanupSkippedItem,
-  InstalledApp
+  InstalledApp,
+  StartupAutoEntry
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
@@ -78,6 +79,8 @@ const CHANGED_LEFTOVER_PROTECTION =
   "잔여 폴더가 점검 후 바뀌었어요. 다시 점검한 뒤 정리해주세요.";
 const PERSONAL_INSTALL_LOCATION_PROTECTION =
   "바탕화면·문서·다운로드·사진·영상·음악 같은 개인 폴더 안이라 자동 정리하지 않아요.";
+const STARTUP_TRACE_PROTECTION =
+  "서비스·예약 작업·레지스트리 시작 항목은 아직 자동 삭제하지 않아요. 시작 항목 화면에서 확인해주세요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -366,6 +369,12 @@ export interface PlanLeftoversOptions {
    * clean them until a fresh scan confirms the app disappeared.
    */
   installedAppsKnown?: boolean;
+  /**
+   * Optional deep startup inventory. When an uninstalled app left a
+   * startup shortcut / service / task behind, we surface it in the
+   * same leftover review so the user doesn't miss a launch trace.
+   */
+  startupEntries?: StartupAutoEntry[];
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -671,6 +680,50 @@ function registryLeftoverPaths(app: InstalledApp): AppLeftoverPath[] {
   ];
 }
 
+function startupTextMatchesApp(entry: StartupAutoEntry, app: InstalledApp): boolean {
+  const text = `${entry.name} ${entry.publisher ?? ""} ${entry.path ?? ""}`.toLowerCase();
+  const appNames = genericFolderNames(app).map((name) => name.toLowerCase());
+  if (appNames.some((name) => text.includes(name))) return true;
+
+  const publisherNames = genericPublisherFolderNames(app).map((name) => name.toLowerCase());
+  return publisherNames.some((name) => text.includes(name));
+}
+
+async function startupLeftoverPaths(
+  app: InstalledApp,
+  env: LeftoverEnv,
+  entries: StartupAutoEntry[] | undefined
+): Promise<AppLeftoverPath[]> {
+  if (!Array.isArray(entries) || entries.length === 0) return [];
+  const paths: AppLeftoverPath[] = [];
+
+  for (const entry of entries) {
+    if (!startupTextMatchesApp(entry, app)) continue;
+    if (entry.kind === "startup-folder" && entry.path) {
+      const info = await pathInfo(entry.path, env);
+      paths.push({
+        ...info,
+        id: makePathId(`startup-folder:${entry.id}:${entry.path}`),
+        kind: "startup-folder"
+      });
+      continue;
+    }
+
+    const label = `${entry.origin}: ${entry.name}`;
+    paths.push({
+      id: makePathId(`startup-entry:${entry.id}:${label}`),
+      kind: "startup-entry",
+      path: label,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null,
+      protectedBy: STARTUP_TRACE_PROTECTION
+    });
+  }
+
+  return paths;
+}
+
 function uniqueLeftoverPaths(paths: AppLeftoverPath[]): AppLeftoverPath[] {
   const seen = new Set<string>();
   const unique: AppLeftoverPath[] = [];
@@ -720,7 +773,8 @@ export async function planAppLeftovers(
       const paths = uniqueLeftoverPaths([
         ...(await genericLeftoverPaths(app, env)),
         ...(await installLocationLeftoverPaths(app, env)),
-        ...registryLeftoverPaths(app)
+        ...registryLeftoverPaths(app),
+        ...(await startupLeftoverPaths(app, env, options.startupEntries))
       ]);
       if (paths.length === 0) continue;
       seenLabels.add(app.name);
@@ -742,6 +796,7 @@ export async function planAppLeftovers(
     }
     paths.push(...(await installLocationLeftoverPaths(app, env)));
     paths.push(...registryLeftoverPaths(app));
+    paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
 
     groups.push({
       appName: rule.appLabel,
