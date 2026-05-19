@@ -2426,3 +2426,87 @@ button { font-family: inherit; }
   font-weight: 500;
   line-height: 18px;
 }
+
+/*
+ * v2.0 (Round D-29 / C7) -- system-follow dark mode baseline.
+ *
+ * Strategy: token overrides + targeted overrides for the components
+ * that hard-coded #ffffff backgrounds before the design system token
+ * sweep. We intentionally don't unify every inline style this round
+ * (some pages still embed background:#fff in JSX) -- those land in a
+ * follow-up round so this change stays reviewable.
+ *
+ * No user toggle yet. The OS-level preference is the source of truth
+ * so the first dark-mode user gets it without an opt-in click. A
+ * manual override toggle lives in the next round's plan.
+ *
+ * Honest limit: inline style={{ background: "#fff" }} in JSX (e.g.
+ * ConfirmDialog modal sheet, some toggle pills) is NOT covered here.
+ * Those render as white-on-dark and look wrong until D-30 sweeps them
+ * to tokens. Tests/typecheck don't catch this -- a screenshot pass on
+ * dark Windows is the verification.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-fb-ink-1: #f4f5f7;
+    --color-fb-ink-2: rgba(244, 245, 247, 0.88);
+    --color-fb-ink-3: rgba(244, 245, 247, 0.61);
+    --color-fb-ink-4: rgba(244, 245, 247, 0.28);
+    --color-fb-bg: #0e1116;
+    --color-fb-line: #2a2d33;
+    --color-fb-line-t: rgba(244, 245, 247, 0.16);
+    --color-fb-blue-tint: rgba(0, 102, 255, 0.22);
+    --fb-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --fb-shadow-2: 0 4px 14px rgba(0, 0, 0, 0.45);
+    --fb-shadow-3: 0 12px 32px rgba(0, 0, 0, 0.55);
+  }
+
+  html,
+  body,
+  .fb-app,
+  .fb-app-body {
+    background: var(--color-fb-bg);
+    color: var(--color-fb-ink-1);
+  }
+
+  /*
+   * Override the hard-coded #ffffff backgrounds that survived the
+   * design-token sweep. We use a single rule per selector instead of
+   * !important so a more-specific page rule can still win when the
+   * design system migration eventually catches up.
+   */
+  .fb-card,
+  .fb-home-monitor,
+  .fb-home-privacy,
+  .fb-update-banner,
+  .fb-topbar,
+  .fb-cap,
+  .fb-app-footer,
+  .fb-run-btn,
+  .fb-report-cta,
+  .fb-onboard,
+  .fb-err-screen {
+    background: #161a21;
+    color: var(--color-fb-ink-1);
+    border-color: var(--color-fb-line);
+  }
+
+  details summary {
+    color: var(--color-fb-ink-2);
+  }
+
+  code,
+  pre {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-fb-ink-1);
+  }
+
+  /*
+   * Selectors that were `background: #ffffff` in the light theme now
+   * pick up the elevated surface so the cards don't blend into the
+   * page background.
+   */
+  .fb-h1 em {
+    color: #4f8dff;
+  }
+}
