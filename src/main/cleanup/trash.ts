@@ -211,6 +211,15 @@ async function ensureSafeEntryDirForWrite(userDataDir: string, entryId: string):
   }
 }
 
+async function ensureSafeEntryManifestForWrite(userDataDir: string, entryId: string): Promise<void> {
+  const dir = entryDir(userDataDir, entryId);
+  const manifestPath = join(dir, "manifest.json");
+  const linkedManifest = await findLinkedPathPart(manifestPath, dir, true);
+  if (linkedManifest) {
+    throw new Error(`FormatBuddy restore bin manifest file is a link: ${linkedManifest}`);
+  }
+}
+
 async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrashEntry[]> {
   if (!(await isUsableItemsRoot(userDataDir))) return [];
 
@@ -434,7 +443,9 @@ export async function moveToFormatBuddyTrash(
   await mkdir(targetDir, { recursive: true });
   try {
     await ensureSafeEntryDirForWrite(options.userDataDir, entryId);
+    await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
     await writeFile(join(targetDir, "manifest.json"), JSON.stringify(entry, null, 2), "utf8");
+    await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
     await ensureSafeEntryDirForWrite(options.userDataDir, entryId);
     await movePath(options.item.path, storedPath);
   } catch (err) {

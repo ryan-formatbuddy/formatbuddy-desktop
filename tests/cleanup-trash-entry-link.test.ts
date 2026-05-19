@@ -79,4 +79,29 @@ describe("FormatBuddy Trash entry folder safety", () => {
     await expect(readdir(outsideEntry)).resolves.toEqual([]);
     expect(existsSync(entryDir)).toBe(true);
   });
+
+  it("refuses to move a cleanup item when the target manifest file is a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const entryDir = __testing.entryDir(fx.userData, "fixed-entry-id");
+    const outsideManifest = join(fx.root, "outside-manifest.json");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await mkdir(entryDir, { recursive: true });
+    await writeFile(outsideManifest, "outside-original", "utf8");
+    await symlink(outsideManifest, join(entryDir, "manifest.json"), "file");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 5,
+        home: fx.home
+      })
+    ).rejects.toThrow(/manifest|restore bin|복구함|link/i);
+
+    await expect(readFile(source, "utf8")).resolves.toBe("hello");
+    await expect(readFile(outsideManifest, "utf8")).resolves.toBe("outside-original");
+    expect(existsSync(entryDir)).toBe(false);
+  });
 });
