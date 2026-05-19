@@ -746,6 +746,59 @@ export interface AuditSnapshot {
 }
 
 /**
+ * v2.0 (Round D-5 / B4) -- Driver backup snapshot.
+ * Wraps `pnputil /export-driver` so the user has third-party drivers
+ * ready to re-install after a format. Plain JS result so the renderer
+ * can render a Korean summary without parsing PowerShell stdout.
+ */
+export type DriverBackupStatus =
+  | "ok"
+  | "windows-only"
+  | "user-cancelled"
+  | "pnputil-missing"
+  | "exec-failed";
+
+export interface DriverBackupResult {
+  status: DriverBackupStatus;
+  /** Folder we asked pnputil to write into. */
+  targetDir?: string;
+  /** Best-effort count of .inf packages exported, parsed from pnputil output. */
+  driverCount?: number;
+  /** Human-readable summary line for the audit log + Report status row. */
+  summary: string;
+  /** Truncated pnputil stderr when status is exec-failed. */
+  detail?: string;
+}
+
+/**
+ * v2.0 (Round D-5 / B5) -- Wi-Fi profile export.
+ * Wraps `netsh wlan export profile`. The plaintext-password option is
+ * intentionally separate so it requires an explicit user toggle.
+ */
+export type WifiExportStatus =
+  | "ok"
+  | "windows-only"
+  | "user-cancelled"
+  | "netsh-missing"
+  | "exec-failed";
+
+export interface WifiExportRequest {
+  /** When true, embed the WPA passphrase as cleartext in the XML. */
+  includePasswords?: boolean;
+}
+
+export interface WifiExportResult {
+  status: WifiExportStatus;
+  targetDir?: string;
+  /** Best-effort count of profile XML files written. */
+  profileCount?: number;
+  summary: string;
+  detail?: string;
+  /** Echo of the cleartext-password choice so audit log is unambiguous. */
+  includedPasswords: boolean;
+}
+
+/**
  * v1.3.x — App manager. Phase 2 of the professional-grade rollout.
  *
  * Two surfaces:

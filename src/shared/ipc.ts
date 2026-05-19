@@ -39,7 +39,9 @@ export const IpcChannels = {
   monitorReminderShown: "monitor:reminder-shown",
   monitorTriggerScan: "monitor:trigger-scan",
   auditList: "audit:list",
-  systemOpenRecycleBin: "system:open-recycle-bin"
+  systemOpenRecycleBin: "system:open-recycle-bin",
+  driverBackup: "driver:backup",
+  wifiExport: "wifi:export"
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

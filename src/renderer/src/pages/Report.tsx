@@ -737,6 +737,11 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [manifestStatus, setManifestStatus] = useState<string | null>(null);
   const [manifestRunning, setManifestRunning] = useState(false);
+  const [driverStatus, setDriverStatus] = useState<string | null>(null);
+  const [driverRunning, setDriverRunning] = useState(false);
+  const [wifiStatus, setWifiStatus] = useState<string | null>(null);
+  const [wifiRunning, setWifiRunning] = useState(false);
+  const [wifiIncludePasswords, setWifiIncludePasswords] = useState(false);
 
   const installedCount = report.installedApps.length;
   const driverCount = report.drivers.length;
@@ -819,6 +824,36 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       setManifestRunning(false);
     }
   }, []);
+
+  const onBackupDrivers = useCallback(async () => {
+    if (!window.fb?.backupDrivers) return;
+    setDriverStatus(null);
+    setDriverRunning(true);
+    try {
+      const r = await window.fb.backupDrivers();
+      setDriverStatus(r.summary);
+    } catch (e) {
+      setDriverStatus((e as Error).message);
+    } finally {
+      setDriverRunning(false);
+    }
+  }, []);
+
+  const onExportWifi = useCallback(async () => {
+    if (!window.fb?.exportWifiProfiles) return;
+    setWifiStatus(null);
+    setWifiRunning(true);
+    try {
+      const r = await window.fb.exportWifiProfiles({
+        includePasswords: wifiIncludePasswords
+      });
+      setWifiStatus(r.summary);
+    } catch (e) {
+      setWifiStatus((e as Error).message);
+    } finally {
+      setWifiRunning(false);
+    }
+  }, [wifiIncludePasswords]);
 
   return (
     <main className="fb-report">
@@ -1213,6 +1248,85 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
           </Button>
           {!isWindows && <p className="fb-report-cta-status">{copy.macReportPreviewNote}</p>}
           {manifestStatus && <p className="fb-report-cta-status">{manifestStatus}</p>}
+        </div>
+      </section>
+
+      <section className="fb-report-manifest" aria-labelledby="format-prep-title">
+        <h2 id="format-prep-title" className="fb-h2">
+          포맷 전에 같이 챙길 백업
+        </h2>
+        <p className="fb-lede">
+          드라이버는 pnputil, Wi-Fi 프로필은 netsh로 사용자가 고른 폴더에만 저장해요. Windows 외에는
+          준비만 보여드려요.
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+            gap: 12
+          }}
+        >
+          <article className="fb-card">
+            <h3 style={{ marginTop: 0 }}>드라이버 백업</h3>
+            <p style={{ fontSize: 13 }}>
+              네트워크·프린터·지문인식 같은 제3자 드라이버를 사용자가 고른 폴더에 모아둬요. 포맷
+              후 같은 폴더로 다시 설치할 수 있어요.
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={onBackupDrivers}
+              disabled={!isWindows || driverRunning}
+            >
+              {!isWindows
+                ? "Windows 전용"
+                : driverRunning
+                  ? "백업 중이에요..."
+                  : "드라이버 백업"}
+            </Button>
+            {driverStatus && (
+              <p style={{ fontSize: 13, marginTop: 8 }}>{driverStatus}</p>
+            )}
+          </article>
+
+          <article className="fb-card">
+            <h3 style={{ marginTop: 0 }}>Wi-Fi 프로필 백업</h3>
+            <p style={{ fontSize: 13 }}>
+              저장된 Wi-Fi 프로필을 XML로 내보내요. 비밀번호는 기본으로 빼고, 필요할 때만 평문 포함해요.
+            </p>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                marginBottom: 8
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={wifiIncludePasswords}
+                onChange={(e) => setWifiIncludePasswords(e.target.checked)}
+                disabled={wifiRunning}
+              />
+              <span>비밀번호 평문 포함 (위험 — 파일이 새면 회선이 노출됨)</span>
+            </label>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={onExportWifi}
+              disabled={!isWindows || wifiRunning}
+            >
+              {!isWindows
+                ? "Windows 전용"
+                : wifiRunning
+                  ? "백업 중이에요..."
+                  : wifiIncludePasswords
+                    ? "Wi-Fi 프로필 백업 (비밀번호 포함)"
+                    : "Wi-Fi 프로필 백업"}
+            </Button>
+            {wifiStatus && <p style={{ fontSize: 13, marginTop: 8 }}>{wifiStatus}</p>}
+          </article>
         </div>
       </section>
 

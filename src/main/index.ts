@@ -15,6 +15,9 @@ import type {
   CleanupExecuteResult,
   CleanupHistorySnapshot,
   CleanupPlan,
+  DriverBackupResult,
+  WifiExportRequest,
+  WifiExportResult,
   ExportOptions,
   ExportResult,
   IgnoreListUpdate,
@@ -32,6 +35,8 @@ import {
   defaultRestorePointRunner
 } from "./cleanup/restorePoint";
 import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
+import { defaultDriverBackupRunner, exportDrivers } from "./driver/backup";
+import { defaultWifiExportRunner, exportWifiProfiles } from "./wifi/export";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { planAppLeftovers } from "./apps/leftovers";
 import { runUninstall } from "./apps/uninstaller";
@@ -519,6 +524,81 @@ function registerIpc() {
       return false;
     }
   });
+
+  /**
+   * Driver backup. Ask the user where to save, then shell out to
+   * pnputil. We never write outside the user-chosen folder.
+   */
+  ipcMain.handle(IpcChannels.driverBackup, async (): Promise<DriverBackupResult> => {
+    const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const defaultPath = join(app.getPath("documents"), "포맷버디_드라이버백업");
+    const dialogResult = await dialog.showOpenDialog(win!, {
+      title: "드라이버 백업 위치 고르기",
+      defaultPath,
+      properties: ["openDirectory", "createDirectory"]
+    });
+    if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+      return {
+        status: "user-cancelled",
+        summary: "드라이버 백업 위치 고르기를 취소했어요."
+      };
+    }
+    const targetDir = dialogResult.filePaths[0];
+    const result = await exportDrivers({
+      targetDir,
+      runner: defaultDriverBackupRunner()
+    });
+    log.info(
+      `driver:backup status=${result.status} count=${result.driverCount ?? "?"} target=${result.targetDir ?? "?"}`
+    );
+    await appendAuditEntry(app.getPath("userData"), {
+      category: "system",
+      action: `driver-backup-${result.status}`,
+      summary: result.summary,
+      detail: { ...result }
+    }).catch((e) => log.warn("audit append (driver-backup) failed:", (e as Error).message));
+    return result;
+  });
+
+  /**
+   * Wi-Fi profile export. includePasswords requires an explicit toggle
+   * in the renderer -- main treats omitting/false the same way.
+   */
+  ipcMain.handle(
+    IpcChannels.wifiExport,
+    async (_e, request?: WifiExportRequest): Promise<WifiExportResult> => {
+      const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
+      const defaultPath = join(app.getPath("documents"), "포맷버디_와이파이백업");
+      const dialogResult = await dialog.showOpenDialog(win!, {
+        title: "Wi-Fi 프로필 저장 위치 고르기",
+        defaultPath,
+        properties: ["openDirectory", "createDirectory"]
+      });
+      if (dialogResult.canceled || dialogResult.filePaths.length === 0) {
+        return {
+          status: "user-cancelled",
+          summary: "Wi-Fi 프로필 저장 위치 고르기를 취소했어요.",
+          includedPasswords: Boolean(request?.includePasswords)
+        };
+      }
+      const targetDir = dialogResult.filePaths[0];
+      const result = await exportWifiProfiles({
+        targetDir,
+        includePasswords: Boolean(request?.includePasswords),
+        runner: defaultWifiExportRunner()
+      });
+      log.info(
+        `wifi:export status=${result.status} count=${result.profileCount ?? "?"} passwords=${result.includedPasswords}`
+      );
+      await appendAuditEntry(app.getPath("userData"), {
+        category: "system",
+        action: `wifi-export-${result.status}`,
+        summary: result.summary,
+        detail: { ...result }
+      }).catch((e) => log.warn("audit append (wifi-export) failed:", (e as Error).message));
+      return result;
+    }
+  );
 
   ipcMain.handle(
     IpcChannels.cleanupPlan,

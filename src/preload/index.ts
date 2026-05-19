@@ -13,6 +13,9 @@ import type {
   CleanupHistorySnapshot,
   CleanupPlan,
   DefenderLiveStatus,
+  DriverBackupResult,
+  WifiExportRequest,
+  WifiExportResult,
   DefenderQuickScanResult,
   DefenderThreatSnapshot,
   ExportOptions,
@@ -172,7 +175,13 @@ const fb = {
     ipcRenderer.invoke(IpcChannels.auditList),
 
   openRecycleBin: (): Promise<boolean> =>
-    ipcRenderer.invoke(IpcChannels.systemOpenRecycleBin)
+    ipcRenderer.invoke(IpcChannels.systemOpenRecycleBin),
+
+  backupDrivers: (): Promise<DriverBackupResult> =>
+    ipcRenderer.invoke(IpcChannels.driverBackup),
+
+  exportWifiProfiles: (request: WifiExportRequest = {}): Promise<WifiExportResult> =>
+    ipcRenderer.invoke(IpcChannels.wifiExport, request)
 };
 
 contextBridge.exposeInMainWorld("fb", fb);
