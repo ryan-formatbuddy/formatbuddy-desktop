@@ -1,5 +1,13 @@
 # Launch Readiness Checklist — FormatBuddy Desktop
 
+> **Round D 진척 (2026-05-19)**: v1.3 → v2 ascent의 Week 1-6 분량을
+> 18개 commit으로 처리했어요. 신뢰 인프라(코드 사인 제외) + 한국 PC
+> 특화 기능 핵심 + 디자인 시스템 토큰까지 들어갔습니다. 자세한 항목별
+> 진척은 본 체크리스트 각 섹션 옆에 ✅/⏳ 표시로 따로 추적되어 있지
+> 않아요 — 다음 출시 readiness 패스에서 본 문서를 한 번 더 업데이트해야
+> 해요. 최신 commit 사이클은
+> `~/.hermes/handovers/2026-05-19-formatbuddy-v2-roundd.md`.
+
 완성형 프로그램으로 다듬기 위한 전체 체크리스트. 분야별 + 우선순위(P0~P3) + 자율 가능 여부.
 
 - **P0**: 출시 직전 필수 (사용자 노출 전에 반드시)
