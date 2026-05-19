@@ -209,6 +209,8 @@ function LeftoverPanel({
   busy,
   result,
   onToggle,
+  onSelectAllSelectable,
+  onClearSelection,
   onCleanup,
   onRescan,
   onRestoreRecent,
@@ -222,6 +224,8 @@ function LeftoverPanel({
   busy: boolean;
   result?: CleanupExecuteResult;
   onToggle: (pathId: string, checked: boolean) => void;
+  onSelectAllSelectable: () => void;
+  onClearSelection: () => void;
   onCleanup: () => void;
   onRescan: () => void;
   onRestoreRecent: (result: CleanupExecuteResult) => void;
@@ -307,14 +311,32 @@ function LeftoverPanel({
               {selectedValidCount}개 · 보호됨/없는 항목은 선택할 수 없어요.
             </div>
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={onCleanup}
-            disabled={busy || selectedValidCount === 0}
-          >
-            {busy ? "정리하는 중…" : "선택 항목 정리하기"}
-          </Button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onSelectAllSelectable}
+              disabled={busy || selectableIds.size === 0}
+            >
+              정리 가능 항목 전체 선택
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearSelection}
+              disabled={busy || selected.size === 0}
+            >
+              선택 해제
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onCleanup}
+              disabled={busy || selectedValidCount === 0}
+            >
+              {busy ? "정리하는 중…" : "선택 항목 정리하기"}
+            </Button>
+          </div>
         </header>
         {result && (
           <div style={{ marginTop: 10 }}>
@@ -533,6 +555,12 @@ export function AppManager({
       return next;
     });
   }, []);
+
+  const selectAllSelectableLeftovers = useCallback(() => {
+    const snapshot = leftovers.snapshot;
+    if (!snapshot) return;
+    setSelectedLeftovers(selectableLeftoverPathIds(snapshot));
+  }, [leftovers.snapshot]);
 
   const cleanupSelectedLeftovers = useCallback(async () => {
     if (!window.fb?.cleanupAppLeftovers) {
@@ -838,6 +866,8 @@ export function AppManager({
         busy={cleanupBusy}
         result={cleanupResult}
         onToggle={toggleLeftover}
+        onSelectAllSelectable={selectAllSelectableLeftovers}
+        onClearSelection={() => setSelectedLeftovers(new Set())}
         onCleanup={cleanupSelectedLeftovers}
         onRescan={onRescan}
         onRestoreRecent={(result) => void restoreRecentLeftovers(result)}

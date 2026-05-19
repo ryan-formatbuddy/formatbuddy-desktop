@@ -123,6 +123,15 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (state.loading && !result)");
   });
 
+  it("lets users select every safe app leftover candidate in one action", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("정리 가능 항목 전체 선택");
+    expect(source).toContain("선택 해제");
+    expect(source).toContain("onSelectAllSelectable");
+    expect(source).toContain("setSelectedLeftovers(selectableLeftoverPathIds(snapshot))");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
