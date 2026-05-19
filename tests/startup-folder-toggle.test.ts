@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,6 +26,13 @@ function startupEntry(path: string, origin: string, name = "KakaoTalk.lnk"): Sta
     path,
     origin
   };
+}
+
+function disabledIdFor(entry: StartupAutoEntry, now: Date): string {
+  return createHash("sha1")
+    .update(`${entry.id}|${now.toISOString()}`)
+    .digest("hex")
+    .slice(0, 24);
 }
 
 describe("startup folder toggle", () => {
@@ -90,6 +98,34 @@ describe("startup folder toggle", () => {
     expect(existsSync(source)).toBe(true);
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(true);
+  });
+
+  it("does not write startup holding metadata through a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    const entry = startupEntry(source, fx.startupDir);
+    const now = new Date("2026-05-20T10:00:00.000Z");
+    const disabledId = disabledIdFor(entry, now);
+    const entryDir = join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabledId);
+    const outsideMeta = join(fx.root, "outside-meta.json");
+    writeFileSync(source, "shortcut");
+    await mkdir(entryDir, { recursive: true });
+    writeFileSync(outsideMeta, "outside stays put");
+    symlinkSync(outsideMeta, join(entryDir, "meta.json"));
+
+    const result = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry,
+      now: () => now
+    });
+
+    expect(result.status).toBe("failed");
+    expect(readFileSync(outsideMeta, "utf8")).toBe("outside stays put");
+    expect(existsSync(source)).toBe(true);
+    expect(readFileSync(source, "utf8")).toBe("shortcut");
   });
 
   it("blocks entries whose source is outside the startup folder origin", async () => {

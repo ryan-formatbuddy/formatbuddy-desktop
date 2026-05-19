@@ -134,6 +134,14 @@ async function ensureSafeEntryWritePath(userDataDir: string, disabledId: string)
   }
 }
 
+async function ensureSafeMetaWritePath(userDataDir: string, disabledId: string): Promise<void> {
+  const dir = entryDir(userDataDir, disabledId);
+  const linkedMeta = await findLinkedPathPart(metaPath(userDataDir, disabledId), dir, true);
+  if (linkedMeta) {
+    throw new Error(`FormatBuddy startup holding metadata is a link: ${linkedMeta}`);
+  }
+}
+
 async function safeMove(source: string, target: string): Promise<void> {
   try {
     await rename(source, target);
@@ -273,7 +281,19 @@ export async function disableStartupFolderEntry(
     }
     await safeMove(source, storedPath);
     movedToHoldingArea = true;
+    await ensureSafeMetaWritePath(userDataDir, disabledId);
     await writeFile(metaPath(userDataDir, disabledId), JSON.stringify(disabledEntry, null, 2), "utf8");
+    await ensureSafeMetaWritePath(userDataDir, disabledId);
+    const readableEntry = await readDisabledEntry(userDataDir, disabledId);
+    if (!readableEntry || readableEntry.id !== disabledId) {
+      throw new Error("Startup holding metadata was not created");
+    }
+    if (await pathExists(source)) {
+      throw new Error("Startup source still exists after disable");
+    }
+    if (!(await pathExists(storedPath))) {
+      throw new Error("Startup holding file was not created");
+    }
     return {
       status: "disabled",
       message: "이제 PC 켤 때 자동으로 같이 뜨지 않게 보관했어요. 필요하면 언제든 되돌릴 수 있어요.",
