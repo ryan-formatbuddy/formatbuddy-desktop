@@ -225,7 +225,7 @@ export async function runUninstall(
       appName: request.appName,
       message:
         mode === "quiet"
-          ? "조용한 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
+          ? "자동 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
           : "Windows 제거 명령이 없어요. Windows 설정에서 직접 제거해주세요."
     };
   }
@@ -246,7 +246,7 @@ export async function runUninstall(
       appName: request.appName,
       message:
         mode === "quiet"
-          ? "조용한 제거를 시작했어요. 진행 상태는 Windows 알림에서 확인해주세요."
+          ? "자동 제거를 시작했어요. 진행 상태는 Windows 알림에서 확인해주세요."
           : "Windows 제거 마법사를 띄웠어요. 진행 여부는 마법사에서 직접 결정해주세요.",
       detail: result.pid ? `pid=${result.pid}` : undefined
     };

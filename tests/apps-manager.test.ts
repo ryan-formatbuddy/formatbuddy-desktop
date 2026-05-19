@@ -61,6 +61,24 @@ describe("buildAppManagerSnapshot", () => {
     expect(item.availabilityNote).toMatch(/제거 명령/);
   });
 
+  it("does not advertise unsafe automatic uninstall commands", () => {
+    const snapshot = buildAppManagerSnapshot([
+      app({
+        name: "Friendly Tool",
+        publisher: "Friendly Co.",
+        uninstallString: '"C:\\Program Files\\Friendly Tool\\unins000.exe"',
+        quietUninstallString: "powershell.exe -NoProfile -File uninstall.ps1"
+      })
+    ]);
+
+    const item = snapshot.groups.flatMap((g) => g.items)[0];
+    expect(item.uninstallAvailability).toBe("ready");
+    expect(item.availabilityNote).toMatch(/Windows 제거 마법사/);
+    expect(item.availabilityNote).toMatch(/자동 제거 명령/);
+    expect(item.availabilityNote).toMatch(/PowerShell|명령 프롬프트/);
+    expect(item.availabilityNote).not.toMatch(/선택할 수/);
+  });
+
   it("flags systemComponent apps as not-removable", () => {
     const snapshot = buildAppManagerSnapshot([
       app({
