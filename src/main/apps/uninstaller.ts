@@ -59,6 +59,13 @@ const BLOCKED_UNINSTALL_TARGET_EXTENSIONS = new Set([
   ".wsf"
 ]);
 
+export type UnsafeUninstallCommandKind =
+  | "shell-host"
+  | "script-file"
+  | "unquoted-spaced-path"
+  | "cmd-syntax"
+  | "unclosed-quote";
+
 function firstCommandPart(command: string): string {
   const trimmed = command.trim();
   if (!trimmed) return "";
@@ -93,15 +100,19 @@ function startsWithUnquotedSpacedExecutablePath(command: string): boolean {
 }
 
 export function isUnsafeUninstallCommand(command: string): boolean {
+  return unsafeUninstallCommandKind(command) !== null;
+}
+
+export function unsafeUninstallCommandKind(command: string): UnsafeUninstallCommandKind | null {
   let inQuote = false;
 
-  if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return true;
-  if (targetsBlockedScriptFile(command)) return true;
-  if (startsWithUnquotedSpacedExecutablePath(command)) return true;
+  if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return "shell-host";
+  if (targetsBlockedScriptFile(command)) return "script-file";
+  if (startsWithUnquotedSpacedExecutablePath(command)) return "unquoted-spaced-path";
 
   for (const char of command) {
-    if (char === "\n" || char === "\r" || char === "\0") return true;
-    if (char === "%" || char === "!" || char === "^") return true;
+    if (char === "\n" || char === "\r" || char === "\0") return "cmd-syntax";
+    if (char === "%" || char === "!" || char === "^") return "cmd-syntax";
     if (char === "\"") {
       inQuote = !inQuote;
       continue;
@@ -110,11 +121,11 @@ export function isUnsafeUninstallCommand(command: string): boolean {
       !inQuote &&
       (char === "&" || char === "|" || char === "<" || char === ">" || char === "(" || char === ")")
     ) {
-      return true;
+      return "cmd-syntax";
     }
   }
 
-  return inQuote;
+  return inQuote ? "unclosed-quote" : null;
 }
 
 export function canLaunchUninstall(
@@ -234,5 +245,6 @@ export async function runUninstall(
 export const __testing = {
   defaultSpawn,
   hasUnsafeShellControl: isUnsafeUninstallCommand,
-  isUnsafeUninstallCommand
+  isUnsafeUninstallCommand,
+  unsafeUninstallCommandKind
 };

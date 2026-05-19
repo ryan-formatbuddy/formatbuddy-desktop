@@ -17,7 +17,7 @@ import type {
   InstalledApp
 } from "@shared/types";
 import { classifyInstalledApp } from "../appInventory";
-import { isUnsafeUninstallCommand } from "./uninstaller";
+import { isUnsafeUninstallCommand, unsafeUninstallCommandKind } from "./uninstaller";
 
 const CATEGORY_ORDER: AppManagerCategory[] = [
   "work",
@@ -65,6 +65,24 @@ function appNameKey(app: Pick<InstalledApp, "name">): string {
   return norm(app.name);
 }
 
+function blockedUninstallNote(command: string): string {
+  const kind = unsafeUninstallCommandKind(command);
+
+  switch (kind) {
+    case "shell-host":
+      return "PowerShell이나 명령 프롬프트를 거쳐 실행되는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "script-file":
+      return "스크립트 파일을 실행하는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "unquoted-spaced-path":
+      return "경로에 공백이 있는데 따옴표가 없어 Windows가 다르게 해석할 수 있어요. Windows 설정에서 직접 제거해주세요.";
+    case "unclosed-quote":
+      return "제거 명령의 따옴표가 닫혀 있지 않아 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "cmd-syntax":
+    default:
+      return "Windows가 다르게 해석할 수 있는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+  }
+}
+
 function evaluateAvailability(app: InstalledApp): {
   availability: AppUninstallAvailability;
   note: string;
@@ -91,7 +109,7 @@ function evaluateAvailability(app: InstalledApp): {
   if (isUnsafeUninstallCommand(app.uninstallString)) {
     return {
       availability: "blocked",
-      note: "Windows가 다르게 해석할 수 있는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요."
+      note: blockedUninstallNote(app.uninstallString)
     };
   }
   if (app.quietUninstallString && app.quietUninstallString.trim()) {

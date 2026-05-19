@@ -88,6 +88,36 @@ describe("buildAppManagerSnapshot", () => {
     expect(item.availabilityNote).toMatch(/Windows 설정/);
   });
 
+  it.each([
+    [
+      "shell host",
+      "powershell.exe -NoProfile -File uninstall.ps1",
+      /PowerShell|명령 프롬프트/
+    ],
+    [
+      "script target",
+      '"C:\\Program Files\\Sketchy Tool\\uninstall.ps1"',
+      /스크립트/
+    ],
+    [
+      "unquoted spaced path",
+      "C:\\Program Files\\Sketchy Tool\\unins000.exe /remove",
+      /공백|따옴표/
+    ]
+  ] as const)("explains blocked uninstall reason for %s", (_label, uninstallString, expected) => {
+    const snapshot = buildAppManagerSnapshot([
+      app({
+        name: "Sketchy Tool",
+        publisher: "Unknown",
+        uninstallString
+      })
+    ]);
+    const item = snapshot.groups.flatMap((g) => g.items)[0];
+    expect(item.uninstallAvailability).toBe("blocked");
+    expect(item.availabilityNote).toMatch(expected);
+    expect(item.availabilityNote).toMatch(/Windows 설정/);
+  });
+
   it("filters out KB/hotfix noise but still counts in hiddenSystemCount=0", () => {
     const snapshot = buildAppManagerSnapshot([
       app({ name: "Security Update for Windows (KB1234567)", publisher: "Microsoft" }),
