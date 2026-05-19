@@ -182,6 +182,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isValidIsoDateString(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
@@ -286,6 +290,9 @@ async function attemptItem(
     const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;
     if (mode === "trash" && !trashEntry?.id) {
       throw new Error("FormatBuddy restore entry was not created");
+    }
+    if (mode === "trash" && !isValidIsoDateString(trashEntry?.expiresAt)) {
+      throw new Error("FormatBuddy restore expiry was not created");
     }
     if (mode === "permanent") await deps.permanentRemove(item.path);
     if (await pathExists(item.path)) {

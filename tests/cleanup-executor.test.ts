@@ -467,6 +467,33 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/restore entry/i);
   });
 
+  it("does not count trash mode as successful without a valid restore expiry", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return { id: "trash-without-expiry", expiresAt: "not-a-date" };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/restore expiry/i);
+  });
+
   it("does not count trash mode as successful when the original path still exists", async () => {
     const targetFile = join(fx.tempDir, "old.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
