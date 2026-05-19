@@ -126,6 +126,29 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
   await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
 }
 
+async function pruneMissingStoredEntries(
+  userDataDir: string,
+  index: PersistedTrashIndex
+): Promise<PersistedTrashIndex> {
+  const entries: CleanupTrashEntry[] = [];
+  let changed = false;
+
+  for (const entry of index.entries) {
+    if (await exists(entry.storedPath)) {
+      entries.push(entry);
+      continue;
+    }
+
+    changed = true;
+    await rm(entryDir(userDataDir, entry.id), { recursive: true, force: true }).catch(() => {});
+  }
+
+  if (!changed) return index;
+  const next = { ...index, entries };
+  await saveIndex(userDataDir, next);
+  return next;
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
@@ -186,7 +209,10 @@ export async function getTrashSnapshot(
   options: TrashRuntimeOptions
 ): Promise<CleanupTrashSnapshot> {
   await purgeExpiredTrash(options);
-  const index = await loadIndex(options.userDataDir);
+  const index = await pruneMissingStoredEntries(
+    options.userDataDir,
+    await loadIndex(options.userDataDir)
+  );
   const entries = index.entries.slice().sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
   const totalBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
   return {
@@ -301,6 +327,7 @@ export async function measureStoredPath(path: string): Promise<number> {
 export const __testing = {
   coerceIndex,
   coerceEntry,
+  pruneMissingStoredEntries,
   trashRoot,
   itemsRoot,
   indexPath,

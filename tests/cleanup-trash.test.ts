@@ -142,4 +142,22 @@ describe("FormatBuddy Trash", () => {
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
   });
+
+  it("prunes broken entries when the stored item is already missing", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+
+    rmSync(entry.storedPath, { recursive: true, force: true });
+
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(snapshot.totalBytes).toBe(0);
+  });
 });
