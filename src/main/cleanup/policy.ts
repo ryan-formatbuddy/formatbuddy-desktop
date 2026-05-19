@@ -4,6 +4,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isTrimmedString(value: string): boolean {
+  return value.trim() === value;
+}
+
 function hasDuplicates(values: string[]): boolean {
   return new Set(values).size !== values.length;
 }
@@ -14,12 +18,18 @@ export function enforceProductCleanupPolicy(
   if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("정리 계획을 확인하지 못했어요. 다시 점검한 뒤 정리해주세요.");
   }
+  if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
+    throw new Error("정리 계획 값에 공백이 있어요. 다시 점검한 뒤 정리해주세요.");
+  }
   if (
     !Array.isArray(request.selectedItemIds) ||
     request.selectedItemIds.length === 0 ||
     !request.selectedItemIds.every(isNonEmptyString)
   ) {
     throw new Error("선택한 항목을 확인하지 못했어요. 정리할 항목을 다시 선택해주세요.");
+  }
+  if (!request.selectedItemIds.every(isTrimmedString)) {
+    throw new Error("선택한 항목 값에 공백이 있어요. 정리할 항목을 다시 선택해주세요.");
   }
   if (hasDuplicates(request.selectedItemIds)) {
     throw new Error("선택한 항목에 중복이 있어요. 정리할 항목을 다시 선택해주세요.");
@@ -42,12 +52,18 @@ export function enforceAppLeftoversCleanupPolicy(
   if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("앱 잔여 정리 계획을 확인하지 못했어요. 다시 점검한 뒤 정리해주세요.");
   }
+  if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
+    throw new Error("앱 잔여 정리 계획 값에 공백이 있어요. 다시 점검한 뒤 정리해주세요.");
+  }
   if (
     !Array.isArray(request.selectedPathIds) ||
     request.selectedPathIds.length === 0 ||
     !request.selectedPathIds.every(isNonEmptyString)
   ) {
     throw new Error("선택한 앱 잔여 항목을 확인하지 못했어요. 정리할 항목을 다시 선택해주세요.");
+  }
+  if (!request.selectedPathIds.every(isTrimmedString)) {
+    throw new Error("선택한 앱 잔여 항목 값에 공백이 있어요. 정리할 항목을 다시 선택해주세요.");
   }
   if (hasDuplicates(request.selectedPathIds)) {
     throw new Error("선택한 앱 잔여 항목에 중복이 있어요. 정리할 항목을 다시 선택해주세요.");
