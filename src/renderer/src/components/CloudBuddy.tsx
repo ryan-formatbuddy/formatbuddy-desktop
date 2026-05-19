@@ -4,7 +4,18 @@
 import type { Ref } from "react";
 
 type Variant = "primary" | "on-blue";
-type Expression = "smile" | "calm" | "wink";
+// v2.0 (Round D-6 / C2) — expression palette extended for in-progress
+// states (scanning, cleaning) and outcome moments (success, worried).
+// Every new state still composes the same eye + mouth primitives so a
+// future re-skin only has to touch the colors.
+type Expression =
+  | "smile"
+  | "calm"
+  | "wink"
+  | "scanning"
+  | "cleaning"
+  | "success"
+  | "worried";
 
 const FB_BLUE = "#0066FF";
 const FB_WHITE = "#FFFFFF";
@@ -85,24 +96,64 @@ export function CloudBuddy({
         <rect x="56" y="146" width="128" height="42" rx="10" />
       </g>
 
-      {expression !== "wink" && (
+      {/* Left eye -- closed when winking or cleaning (cleaning is wink+smile) */}
+      {expression !== "wink" && expression !== "cleaning" && expression !== "success" && (
         <g className="cb-eye cb-eye-l">
           <ellipse cx="104" cy="140" rx="5.5" ry="6.8" fill={c.face} />
         </g>
       )}
-      <g className="cb-eye cb-eye-r">
-        <ellipse cx="136" cy="140" rx="5.5" ry="6.8" fill={c.face} />
-      </g>
+      {/* Right eye -- closed in success state for the "^^" look */}
+      {expression !== "success" && (
+        <g className="cb-eye cb-eye-r">
+          <ellipse cx="136" cy="140" rx="5.5" ry="6.8" fill={c.face} />
+        </g>
+      )}
 
-      {expression === "smile" && (
+      {/* Closed-eye decorations */}
+      {(expression === "wink" || expression === "cleaning") && (
+        <path d="M98 141 Q104 135 110 141" stroke={c.face} strokeWidth="4.5" strokeLinecap="round" fill="none" />
+      )}
+      {expression === "success" && (
+        <>
+          <path d="M98 142 Q104 134 110 142" stroke={c.face} strokeWidth="4.5" strokeLinecap="round" fill="none" />
+          <path d="M130 142 Q136 134 142 142" stroke={c.face} strokeWidth="4.5" strokeLinecap="round" fill="none" />
+        </>
+      )}
+
+      {/* Worried brows -- drawn above the eyes when worried */}
+      {expression === "worried" && (
+        <>
+          <path d="M96 128 Q104 124 112 128" stroke={c.face} strokeWidth="3" strokeLinecap="round" fill="none" />
+          <path d="M128 128 Q136 124 144 128" stroke={c.face} strokeWidth="3" strokeLinecap="round" fill="none" />
+        </>
+      )}
+
+      {/* Mouth */}
+      {(expression === "smile" || expression === "wink") && (
         <path d="M106 162 Q120 174 134 162" stroke={c.face} strokeWidth="6" strokeLinecap="round" fill="none" />
       )}
-      {expression === "calm" && <rect x="113" y="164" width="14" height="4" rx="2" fill={c.face} />}
-      {expression === "wink" && (
-        <>
-          <path d="M98 141 Q104 135 110 141" stroke={c.face} strokeWidth="4.5" strokeLinecap="round" fill="none" />
-          <path d="M106 162 Q120 174 134 162" stroke={c.face} strokeWidth="6" strokeLinecap="round" fill="none" />
-        </>
+      {expression === "calm" && (
+        <rect x="113" y="164" width="14" height="4" rx="2" fill={c.face} />
+      )}
+      {expression === "scanning" && (
+        // Slightly open "..." mouth -- three tiny dots suggesting active read
+        <g fill={c.face}>
+          <circle cx="110" cy="166" r="2.2" />
+          <circle cx="120" cy="166" r="2.2" />
+          <circle cx="130" cy="166" r="2.2" />
+        </g>
+      )}
+      {expression === "cleaning" && (
+        // Bigger smile to pair with the wink -- "신나서 정리 중"
+        <path d="M102 162 Q120 178 138 162" stroke={c.face} strokeWidth="6" strokeLinecap="round" fill="none" />
+      )}
+      {expression === "success" && (
+        // Open-mouth grin matched to the ^^ eyes
+        <path d="M100 162 Q120 182 140 162 Q120 170 100 162 Z" fill={c.face} />
+      )}
+      {expression === "worried" && (
+        // Frown (inverted curve)
+        <path d="M106 170 Q120 158 134 170" stroke={c.face} strokeWidth="5" strokeLinecap="round" fill="none" />
       )}
     </svg>
   );
