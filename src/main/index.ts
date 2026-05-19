@@ -36,7 +36,8 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { getCleanupHistory } from "./cleanup/log";
-import { getTrashSnapshot, purgeExpiredTrash, restoreTrashEntry } from "./cleanup/trash";
+import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
+import { purgeExpiredTrashWithAudit } from "./cleanup/trashAudit";
 import {
   createRestorePoint,
   defaultRestorePointRunner
@@ -651,7 +652,10 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.cleanupPlan,
     async (_e, payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> => {
-      await purgeExpiredTrash({ userDataDir: app.getPath("userData") }).catch((err) => {
+      await purgeExpiredTrashWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: "cleanup-plan"
+      }).catch((err) => {
         log.warn("cleanup-trash:purge-before-plan failed:", (err as Error).message);
       });
       return planCleanup({ env: { largeFiles: payload?.largeFiles ?? [] } });
@@ -711,12 +715,24 @@ function registerIpc() {
   });
 
   ipcMain.handle(IpcChannels.cleanupTrashList, async (): Promise<CleanupTrashSnapshot> => {
+    await purgeExpiredTrashWithAudit({
+      userDataDir: app.getPath("userData"),
+      trigger: "trash-list"
+    }).catch((err) => {
+      log.warn("cleanup-trash:purge-before-list failed:", (err as Error).message);
+    });
     return getTrashSnapshot({ userDataDir: app.getPath("userData") });
   });
 
   ipcMain.handle(
     IpcChannels.cleanupTrashRestore,
     async (_e, request: CleanupTrashRestoreRequest): Promise<CleanupTrashRestoreResult> => {
+      await purgeExpiredTrashWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: "restore"
+      }).catch((err) => {
+        log.warn("cleanup-trash:purge-before-restore failed:", (err as Error).message);
+      });
       const result = await restoreTrashEntry({
         userDataDir: app.getPath("userData"),
         entryId: request.entryId,
@@ -740,16 +756,10 @@ function registerIpc() {
   );
 
   ipcMain.handle(IpcChannels.cleanupTrashPurgeExpired, async (): Promise<CleanupTrashPurgeResult> => {
-    const result = await purgeExpiredTrash({ userDataDir: app.getPath("userData") });
-    if (result.purgedCount > 0) {
-      await appendAuditEntry(app.getPath("userData"), {
-        category: "cleanup",
-        action: "trash-expired-purge",
-        summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 영구 정리했어요.`,
-        detail: { ...result }
-      }).catch((e) => log.warn("audit append (cleanup-trash-purge) failed:", (e as Error).message));
-    }
-    return result;
+    return purgeExpiredTrashWithAudit({
+      userDataDir: app.getPath("userData"),
+      trigger: "manual"
+    });
   });
 
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
@@ -956,7 +966,10 @@ app.whenReady().then(() => {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
       await reconcileReminderTimer();
-      await purgeExpiredTrash({ userDataDir: app.getPath("userData") }).then((result) => {
+      await purgeExpiredTrashWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: "startup"
+      }).then((result) => {
         if (result.purgedCount > 0) {
           log.info(`cleanup-trash:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
         }
