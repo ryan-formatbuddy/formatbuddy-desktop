@@ -76,6 +76,11 @@ const CATEGORIES: PermissionCategory[] = [
         what: "브라우저 설치 여부 / 북마크 파일 존재 여부",
         why: "포맷 전에 챙길 브라우저를 표시하기 위해서요.",
         evidence: "Test-Path Chrome / Edge / Whale / Firefox 폴더"
+      },
+      {
+        what: "1시간 이내 같은 점검 결과 (메모리 캐시)",
+        why: "사용자가 '빠른 다시 점검'을 누르면 PowerShell을 다시 돌리지 않고 메모리에 둔 결과를 그대로 보여주기 위해서요.",
+        evidence: "main/lastScan.ts (in-memory, 1시간 TTL, 앱 재시작 시 사라짐)"
       }
     ]
   },
@@ -87,19 +92,24 @@ const CATEGORIES: PermissionCategory[] = [
     badgeColor: "#0ea5e9",
     items: [
       {
-        what: "점검 기록 / 정리 후보 무시 목록 / 모니터 설정",
-        why: "이전 결과와 비교하고 다음 점검을 빠르게 하기 위해서요.",
+        what: "점검 기록 / 정리 후보 무시 목록 / 모니터 설정 (테마/알림/텔레메트리 옵션)",
+        why: "이전 결과와 비교하고, 켜둔 알림·테마 선택을 다음 실행에 그대로 이어가기 위해서요.",
         evidence: "%APPDATA%/FormatBuddy/formatbuddy-state.json + formatbuddy-monitor-prefs.json"
       },
       {
         what: "정리/제거 실행 기록 (감사 로그)",
         why: "내가 뭘 정리했는지 나중에 확인할 수 있게 하기 위해서요.",
-        evidence: "%APPDATA%/FormatBuddy/formatbuddy-cleanup-log.json"
+        evidence: "%APPDATA%/FormatBuddy/formatbuddy-cleanup-log.json + formatbuddy-audit-log.json"
       },
       {
-        what: "사용자가 선택한 위치에 진단 리포트(HTML/JSON) 저장",
+        what: "포맷버디 복구함 (30일 보관 후 자동 영구 삭제)",
+        why: "안전 정리에서 보낸 파일을 30일 안에 한 번에 되돌릴 수 있게 하기 위해서요.",
+        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash/items/<entryId>/files/… + trash-index.json"
+      },
+      {
+        what: "사용자가 선택한 위치에 진단 리포트(HTML/JSON) 또는 드라이버/Wi-Fi 백업 저장",
         why: "공유하거나 따로 보관하기 위해서요. 저장은 Ryan이 직접 위치를 골라야 진행해요.",
-        evidence: "dialog.showSaveDialog → fs.writeFile"
+        evidence: "dialog.showSaveDialog / showOpenDialog → fs.writeFile / pnputil / netsh"
       }
     ]
   },
@@ -151,8 +161,8 @@ const CATEGORIES: PermissionCategory[] = [
       },
       {
         what: "결과·로그 외부 서버 전송",
-        why: "모든 처리가 로컬이에요. 사용자가 직접 저장한 리포트만 공유돼요.",
-        evidence: "텔레메트리 옵션 OFF 기본 (출시 후 사용자 동의 시에만 익명만)"
+        why: "현재 외부로 보내는 코드 자체가 없어요. 모든 처리가 로컬이고, 사용자가 직접 저장한 리포트만 공유돼요.",
+        evidence: "텔레메트리 옵션은 기본 OFF + 현재 transport 미구현 (켜도 보낼 곳 없음). 향후 도입 시에도 익명 합계만, 파일/경로/앱 이름 X."
       },
       {
         what: "백신처럼 위협 직접 치료",
