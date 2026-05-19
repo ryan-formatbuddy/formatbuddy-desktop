@@ -35,9 +35,19 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("앱 삭제 흔적은 백업 후 처리해요");
     expect(source).toContain("앱 삭제 흔적도 30일 안에 되돌릴 수 있게 챙겨요");
     expect(source).toContain("앱 삭제 흔적도 30일 동안");
-    expect(source).toContain("폴더와 앱 삭제 흔적은 30일 안에 되돌릴 수 있게");
+    expect(source).toContain("폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("시작 항목");
     expect(source).not.toContain("시작 레지스트리");
     expect(source).toContain("시작 흔적");
+  });
+
+  it("shows the startup item name beside the startup location", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("leftoverDisplayPath");
+    expect(source).toContain("path.registryValueName");
+    expect(source).toContain('path.kind === "startup-registry"');
+    expect(source).toContain("${path.path}\\\\${valueName}");
+    expect(source).toContain("leftoverDisplayPath(path)} 선택");
   });
 });

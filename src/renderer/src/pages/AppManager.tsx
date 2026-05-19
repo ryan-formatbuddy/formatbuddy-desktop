@@ -87,6 +87,14 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
   }
 }
 
+function leftoverDisplayPath(path: AppLeftoverPath): string {
+  if (path.kind === "startup-registry") {
+    const valueName = path.registryValueName?.trim();
+    return valueName ? `${path.path}\\${valueName}` : path.path;
+  }
+  return path.path;
+}
+
 interface LeftoverState {
   loading: boolean;
   snapshot?: AppLeftoversSnapshot;
@@ -386,9 +394,11 @@ function LeftoverGroupCard({
               checked={selected.has(path.id)}
               disabled={!cleanupAllowed || !path.exists || Boolean(path.protectedBy)}
               onChange={(e) => onToggle(path.id, e.target.checked)}
-              aria-label={`${path.path} 선택`}
+              aria-label={`${leftoverDisplayPath(path)} 선택`}
             />
-            <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>{path.path}</code>
+            <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>
+              {leftoverDisplayPath(path)}
+            </code>
             <span style={{ fontSize: 12, opacity: 0.7 }}>
               {leftoverKindLabel(path)}
             </span>
@@ -489,7 +499,7 @@ export function AppManager({
     const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
     if (selectedPathIds.length === 0) return;
     const confirmed = window.confirm(
-      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더와 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요.`
+      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요.`
     );
     if (!confirmed) return;
     setCleanupBusy(true);
