@@ -17,7 +17,8 @@ export async function purgeExpiredRegistryBackupsWithAudit(options: {
   const now = options.now?.() ?? new Date();
   const result = await purgeExpiredRegistryBackups({
     userDataDir: options.userDataDir,
-    now: () => now
+    now: () => now,
+    pruneNonRestorable: true
   });
 
   if (result.purgedCount === 0) return result;

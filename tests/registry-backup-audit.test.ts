@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { getAuditSnapshot } from "../src/main/audit/log";
-import { backupAndDeleteRegistryKey } from "../src/main/apps/registryCleanup";
+import { backupAndDeleteRegistryKey, __testing } from "../src/main/apps/registryCleanup";
 import { purgeExpiredRegistryBackupsWithAudit } from "../src/main/apps/registryBackupAudit";
 
 interface Fixture {
@@ -80,6 +80,31 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
 
     expect(result.purgedCount).toBe(0);
     const audit = await getAuditSnapshot(fx.userData, new Date("2026-05-19T00:00:01.000Z"));
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("cleans non-restorable registry backup store items during startup purge without an audit entry", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userData);
+    const outside = join(fx.root, "outside-registry-startup.reg");
+    const looseFile = join(root, "loose.reg");
+    const linkedFile = join(root, "linked-outside");
+    await mkdir(root, { recursive: true });
+    await writeFile(outside, "outside stays put", "utf8");
+    await writeFile(looseFile, "loose", "utf8");
+    await symlink(outside, linkedFile);
+
+    const result = await purgeExpiredRegistryBackupsWithAudit({
+      userDataDir: fx.userData,
+      trigger: "startup",
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(result.purgedCount).toBe(0);
+    expect(existsSync(looseFile)).toBe(false);
+    expect(existsSync(linkedFile)).toBe(false);
+    expect(await readFile(outside, "utf8")).toBe("outside stays put");
+    const audit = await getAuditSnapshot(fx.userData, new Date("2026-05-20T00:00:01.000Z"));
     expect(audit.entries).toEqual([]);
   });
 });
