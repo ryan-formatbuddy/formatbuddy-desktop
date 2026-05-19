@@ -65,6 +65,22 @@ function appMemoryKey(app: InstalledApp): string {
   return `${norm(app.name)}|${norm(app.publisher)}`;
 }
 
+function sameRecentUninstallApp(a: InstalledApp, b: InstalledApp): boolean {
+  if (norm(a.name) !== norm(b.name)) return false;
+  const aPublisher = norm(a.publisher);
+  const bPublisher = norm(b.publisher);
+  return !aPublisher || !bPublisher || aPublisher === bPublisher;
+}
+
+function mergeRecentUninstallApp(base: InstalledApp, incoming: InstalledApp): InstalledApp {
+  return {
+    name: base.name || incoming.name,
+    publisher: incoming.publisher ?? base.publisher ?? null,
+    installLocation: incoming.installLocation ?? base.installLocation,
+    registryKeyPath: incoming.registryKeyPath ?? base.registryKeyPath
+  };
+}
+
 function pruneRecentlyUninstallLaunched(now: number): void {
   for (const [key, entry] of recentlyUninstallLaunched.entries()) {
     if (now - entry.rememberedAt > RECENT_UNINSTALL_TTL_MS) {
@@ -98,6 +114,15 @@ export function rememberRecentlyUninstallLaunchedApp(
     installLocation: app.installLocation?.trim() || undefined,
     registryKeyPath: app.registryKeyPath?.trim() || undefined
   };
+  for (const [key, entry] of recentlyUninstallLaunched.entries()) {
+    if (!sameRecentUninstallApp(entry.app, minimal)) continue;
+    recentlyUninstallLaunched.delete(key);
+    recentlyUninstallLaunched.set(appMemoryKey(mergeRecentUninstallApp(entry.app, minimal)), {
+      app: mergeRecentUninstallApp(entry.app, minimal),
+      rememberedAt: t
+    });
+    return;
+  }
   recentlyUninstallLaunched.set(appMemoryKey(minimal), { app: minimal, rememberedAt: t });
 }
 
@@ -109,7 +134,13 @@ export function getRecentlyUninstallLaunchedApps(now: () => number = Date.now): 
 
 export function forgetRecentlyUninstallLaunchedApp(app: InstalledApp): boolean {
   if (!app.name?.trim()) return false;
-  return recentlyUninstallLaunched.delete(appMemoryKey(app));
+  let removed = false;
+  for (const [key, entry] of Array.from(recentlyUninstallLaunched.entries())) {
+    if (!sameRecentUninstallApp(entry.app, app)) continue;
+    recentlyUninstallLaunched.delete(key);
+    removed = true;
+  }
+  return removed;
 }
 
 export function clearRecentlyUninstallLaunchedApps(): void {

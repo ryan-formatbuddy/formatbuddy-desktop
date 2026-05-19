@@ -194,4 +194,39 @@ describe("recently opened uninstall wizard memory", () => {
       { name: "Notion", publisher: "Notion Labs" }
     ]);
   });
+
+  it("forgets a publisher-missing memory follow-up when cleanup reports the same app with publisher", () => {
+    const t0 = 1_000_000;
+    rememberRecentlyUninstallLaunchedApp({ name: "Slack", publisher: null }, () => t0);
+
+    expect(
+      forgetRecentlyUninstallLaunchedApp({ name: "Slack", publisher: "Slack Technologies" })
+    ).toBe(true);
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + 1000)).toEqual([]);
+  });
+
+  it("merges publisher-missing and publisher-known memory follow-ups as one app", () => {
+    const t0 = 1_000_000;
+    rememberRecentlyUninstallLaunchedApp(
+      { name: "Slack", publisher: null, registryKeyPath: "HKCU\\Software\\Slack" },
+      () => t0
+    );
+    rememberRecentlyUninstallLaunchedApp(
+      {
+        name: "Slack",
+        publisher: "Slack Technologies",
+        installLocation: "C:\\Program Files\\Slack"
+      },
+      () => t0 + 1000
+    );
+
+    expect(getRecentlyUninstallLaunchedApps(() => t0 + 2000)).toEqual([
+      {
+        name: "Slack",
+        publisher: "Slack Technologies",
+        installLocation: "C:\\Program Files\\Slack",
+        registryKeyPath: "HKCU\\Software\\Slack"
+      }
+    ]);
+  });
 });
