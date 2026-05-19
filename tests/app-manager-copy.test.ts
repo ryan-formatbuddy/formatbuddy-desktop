@@ -70,6 +70,14 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("{result.skippedItems.filter((s) => s.reason !== \"not-selected\").length}개");
   });
 
+  it("keeps cleanup result actions visible even when no leftover groups remain", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("state.snapshot.groups.length === 0 ? (");
+    expect(source).toContain("정리 후 남은 잔여 항목 후보가 없어요.");
+    expect(source).not.toContain("if (state.snapshot.groups.length === 0) {\n    return (");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

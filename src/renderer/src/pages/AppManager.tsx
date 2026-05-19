@@ -257,13 +257,6 @@ function LeftoverPanel({
   const skippedCount = result
     ? result.skippedItems.filter((item) => item.reason !== "not-selected").length
     : 0;
-  if (state.snapshot.groups.length === 0) {
-    return (
-      <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>알려진 잔여 항목 후보가 보이지 않아요.</p>
-      </article>
-    );
-  }
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
   const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
@@ -334,14 +327,20 @@ function LeftoverPanel({
           </div>
         )}
       </article>
-      {state.snapshot.groups.map((group) => (
-        <LeftoverGroupCard
-          key={group.appName}
-          group={group}
-          selected={selected}
-          onToggle={onToggle}
-        />
-      ))}
+      {state.snapshot.groups.length === 0 ? (
+        <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
+          <p>정리 후 남은 잔여 항목 후보가 없어요.</p>
+        </article>
+      ) : (
+        state.snapshot.groups.map((group) => (
+          <LeftoverGroupCard
+            key={group.appName}
+            group={group}
+            selected={selected}
+            onToggle={onToggle}
+          />
+        ))
+      )}
     </section>
   );
 }
