@@ -348,6 +348,9 @@ export function App() {
             isWindows={appPlatform === "win32"}
             onBack={goHome}
             onComplete={goHome}
+            onRescan={() => void startScan()}
+            onOpenTrashRestore={() => setPhase({ kind: "trash" })}
+            onOpenAuditLog={() => setPhase({ kind: "audit" })}
           />
         );
       case "apps":
@@ -356,6 +359,9 @@ export function App() {
             isWindows={appPlatform === "win32"}
             onBack={goHome}
             onOpenCleanup={() => setPhase({ kind: "cleanup" })}
+            onRescan={() => void startScan()}
+            onOpenTrashRestore={() => setPhase({ kind: "trash" })}
+            onOpenAuditLog={() => setPhase({ kind: "audit" })}
           />
         );
       case "security":
