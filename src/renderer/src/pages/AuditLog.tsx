@@ -171,21 +171,9 @@ export function AuditLog({ onBack }: AuditLogProps) {
           </header>
           <p style={{ fontSize: 14, margin: "4px 0" }}>{entry.summary}</p>
           {entry.category === "cleanup" && entry.action === "trash" && (
-            <button
-              type="button"
-              onClick={() => void window.fb?.openRecycleBin?.()}
-              style={{
-                fontSize: 12,
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: "1px solid rgba(0,0,0,0.15)",
-                background: "transparent",
-                cursor: "pointer",
-                marginTop: 4
-              }}
-            >
-              Windows 휴지통 열기 →
-            </button>
+            <small style={{ display: "block", opacity: 0.65, marginTop: 4 }}>
+              되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.
+            </small>
           )}
           {entry.detail && (
             <details style={{ marginTop: 6 }}>

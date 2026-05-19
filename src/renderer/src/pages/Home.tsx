@@ -12,6 +12,7 @@ interface HomeProps {
   monitor?: StatusMonitorSnapshot;
   onOpenPermissions?: () => void;
   onOpenAuditLog?: () => void;
+  onOpenTrashRestore?: () => void;
 }
 
 function MonitorPrefsCard() {
@@ -141,7 +142,7 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
-export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog }: HomeProps) {
+export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monitor, onOpenPermissions, onOpenAuditLog, onOpenTrashRestore }: HomeProps) {
   const bullets = isMacPreview ? copy.macPreviewBullets : copy.privacyBullets;
 
   return (
@@ -221,6 +222,22 @@ export function Home({ onStartScan, onOpenWebReport, isMacPreview = false, monit
               }}
             >
               지금까지 한 일 보기 (활동 기록) →
+            </button>
+          )}
+          {onOpenTrashRestore && (
+            <button
+              type="button"
+              onClick={onOpenTrashRestore}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "transparent",
+                cursor: "pointer",
+                fontSize: 13
+              }}
+            >
+              복구함 열기 (30일 보관) →
             </button>
           )}
         </div>

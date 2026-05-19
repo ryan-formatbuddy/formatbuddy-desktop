@@ -34,10 +34,15 @@ import type {
 import { evaluatePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { consumePlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
+import { moveToFormatBuddyTrash } from "./trash";
 
 export interface ExecutorDeps {
-  /** Move a path into the OS recycle bin. Wrap electron.shell.trashItem. */
-  trashItem: (path: string) => Promise<void>;
+  /** Move a path into FormatBuddy's app-managed 30-day restore bin. */
+  trashItem: (
+    item: CleanupItem,
+    sizeBytes: number,
+    context: { userDataDir: string; now?: () => Date }
+  ) => Promise<{ id: string; expiresAt: string } | undefined>;
   /** Permanently delete a file or directory tree. */
   permanentRemove: (path: string) => Promise<void>;
   /** Stat a path on disk; returns null if missing. */
@@ -63,9 +68,15 @@ export interface ExecuteCleanupOptions {
  * factory in this module (not at the call site) so tests can swap in mocks
  * by constructing their own deps object instead of monkey-patching electron.
  */
-export function defaultDeps(trashItemImpl: (path: string) => Promise<void>): ExecutorDeps {
+export function defaultDeps(userDataDir: string): ExecutorDeps {
   return {
-    trashItem: trashItemImpl,
+    trashItem: (item, sizeBytes, context) =>
+      moveToFormatBuddyTrash({
+        userDataDir: context.userDataDir || userDataDir,
+        item,
+        sizeBytes,
+        now: context.now
+      }),
     permanentRemove: async (path) => {
       await fs.rm(path, { recursive: true, force: true });
     },
@@ -145,7 +156,8 @@ async function attemptItem(
   item: CleanupItem,
   mode: CleanupExecuteMode,
   deps: ExecutorDeps,
-  home: string
+  home: string,
+  context: { userDataDir: string; now?: () => Date }
 ): Promise<AttemptOutcome> {
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
   // real filesystem path, so the blocklist whitelist check would
@@ -206,8 +218,20 @@ async function attemptItem(
   if (measured > 0) actualSize = measured;
 
   try {
-    if (mode === "trash") await deps.trashItem(item.path);
-    else await deps.permanentRemove(item.path);
+    const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;
+    if (mode === "permanent") await deps.permanentRemove(item.path);
+    return {
+      removed: {
+        itemId: item.id,
+        path: item.path,
+        sizeBytes: actualSize,
+        categoryId: item.categoryId,
+        mode,
+        succeeded: true,
+        trashEntryId: trashEntry?.id,
+        expiresAt: trashEntry?.expiresAt
+      }
+    };
   } catch (err) {
     return {
       skipped: {
@@ -219,16 +243,6 @@ async function attemptItem(
     };
   }
 
-  return {
-    removed: {
-      itemId: item.id,
-      path: item.path,
-      sizeBytes: actualSize,
-      categoryId: item.categoryId,
-      mode,
-      succeeded: true
-    }
-  };
 }
 
 export async function executeCleanup(
@@ -269,7 +283,10 @@ export async function executeCleanup(
       unknownSelectionIds.push(id);
       continue;
     }
-    const outcome = await attemptItem(item, request.mode, options.deps, home);
+    const outcome = await attemptItem(item, request.mode, options.deps, home, {
+      userDataDir: options.userDataDir,
+      now: options.now
+    });
     if (outcome.removed) removedItems.push(outcome.removed);
     if (outcome.skipped) skippedItems.push(outcome.skipped);
   }

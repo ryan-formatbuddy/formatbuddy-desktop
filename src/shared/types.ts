@@ -672,6 +672,10 @@ export interface CleanupExecutedItem {
   categoryId: CleanupCategoryId;
   mode: CleanupExecuteMode;
   succeeded: boolean;
+  /** Present when mode === "trash" and the item is restorable from FormatBuddy's 30-day bin. */
+  trashEntryId?: string;
+  /** ISO-8601 UTC. FormatBuddy auto-deletes the trashed copy after this time. */
+  expiresAt?: string;
   error?: string;
 }
 
@@ -710,6 +714,61 @@ export interface CleanupExecuteResult {
 
 export interface CleanupHistorySnapshot {
   entries: CleanupLogEntry[];
+}
+
+/**
+ * FormatBuddy Trash — a local 30-day restore bin.
+ *
+ * Unlike the Windows Recycle Bin, this bin is app-managed:
+ *   - files are moved under userData/formatbuddy-trash/items/<entryId>
+ *   - index stores the original path for one-click restore
+ *   - expired entries are permanently removed after 30 days
+ *
+ * This is the product-level safety layer behind "깔끔 삭제".
+ */
+export interface CleanupTrashEntry {
+  id: string;
+  itemId: string;
+  originalPath: string;
+  storedPath: string;
+  label: string;
+  categoryId: CleanupCategoryId;
+  sizeBytes: number;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface CleanupTrashSnapshot {
+  entries: CleanupTrashEntry[];
+  totalBytes: number;
+  retentionDays: number;
+  nextExpiryAt?: string;
+}
+
+export interface CleanupTrashRestoreRequest {
+  entryId: string;
+}
+
+export type CleanupTrashRestoreStatus =
+  | "restored"
+  | "not-found"
+  | "target-exists"
+  | "missing-stored-item"
+  | "restore-failed";
+
+export interface CleanupTrashRestoreResult {
+  entryId: string;
+  status: CleanupTrashRestoreStatus;
+  message: string;
+  originalPath?: string;
+  entry?: CleanupTrashEntry;
+}
+
+export interface CleanupTrashPurgeResult {
+  purgedCount: number;
+  purgedBytes: number;
+  purgedEntryIds: string[];
+  retentionDays: number;
 }
 
 /**

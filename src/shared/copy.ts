@@ -164,7 +164,7 @@ export const copy = {
   nextStepsTitle: "이 결과로 바로 할 수 있는 일",
   nextStepsLede: "점검 끝났다고 손에서 떼지 마세요. 다음 행동 한 가지만 골라도 좋아요.",
   nextStepsCleanup: "안전 정리 시작",
-  nextStepsCleanupHint: "Windows 휴지통으로 보낼 후보를 사용자가 직접 골라요.",
+  nextStepsCleanupHint: "30일 복구함으로 보낼 후보를 사용자가 직접 골라요.",
   nextStepsApps: "앱 정리 시작",
   nextStepsAppsHint: "카테고리별로 보고 Windows 기본 제거를 띄워드려요.",
   nextStepsSecurity: "보안 점검 열기",

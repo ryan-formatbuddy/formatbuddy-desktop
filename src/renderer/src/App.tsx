@@ -7,6 +7,7 @@ import { AppManager } from "./pages/AppManager";
 import { SecurityCenter } from "./pages/SecurityCenter";
 import { Permissions } from "./pages/Permissions";
 import { AuditLog } from "./pages/AuditLog";
+import { TrashRestore } from "./pages/TrashRestore";
 import { Onboarding } from "./pages/Onboarding";
 import { ErrorScreen } from "./pages/ErrorScreen";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -33,6 +34,7 @@ type Phase =
   | { kind: "security" }
   | { kind: "permissions" }
   | { kind: "audit" }
+  | { kind: "trash" }
   | { kind: "error"; error: ScanError };
 
 function readOnboardingSeen(): boolean {
@@ -269,6 +271,15 @@ export function App() {
           onBack={goHome}
         />
       );
+    if (phase.kind === "trash")
+      return (
+        <TopBar
+          here="복구함 (30일)"
+          meta="삭제 전에 되돌릴 수 있어요"
+          version={versionLabel}
+          onBack={goHome}
+        />
+      );
     if (phase.kind === "error")
       return <TopBar here="잠시 멈췄어요" version={versionLabel} onBack={goHome} />;
     return null;
@@ -287,6 +298,7 @@ export function App() {
             monitor={appState?.monitor}
             onOpenPermissions={() => setPhase({ kind: "permissions" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
+            onOpenTrashRestore={() => setPhase({ kind: "trash" })}
           />
         );
       case "scanning":
@@ -327,6 +339,8 @@ export function App() {
         return <Permissions onBack={goHome} />;
       case "audit":
         return <AuditLog onBack={goHome} />;
+      case "trash":
+        return <TrashRestore onBack={goHome} />;
       case "error":
         return <ErrorScreen error={phase.error} onRetry={startScan} onBack={goHome} />;
     }

@@ -15,6 +15,10 @@ import type {
   CleanupExecuteResult,
   CleanupHistorySnapshot,
   CleanupPlan,
+  CleanupTrashPurgeResult,
+  CleanupTrashRestoreRequest,
+  CleanupTrashRestoreResult,
+  CleanupTrashSnapshot,
   DriverBackupResult,
   WifiExportRequest,
   WifiExportResult,
@@ -30,6 +34,7 @@ import type {
 import { planCleanup } from "./cleanup/planner";
 import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { getCleanupHistory } from "./cleanup/log";
+import { getTrashSnapshot, purgeExpiredTrash, restoreTrashEntry } from "./cleanup/trash";
 import {
   createRestorePoint,
   defaultRestorePointRunner
@@ -603,6 +608,9 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.cleanupPlan,
     async (_e, payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> => {
+      await purgeExpiredTrash({ userDataDir: app.getPath("userData") }).catch((err) => {
+        log.warn("cleanup-trash:purge-before-plan failed:", (err as Error).message);
+      });
       return planCleanup({ env: { largeFiles: payload?.largeFiles ?? [] } });
     }
   );
@@ -610,14 +618,15 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.cleanupExecute,
     async (_e, request: CleanupExecuteRequest): Promise<CleanupExecuteResult> => {
-      const deps = defaultDeps((path: string) => shell.trashItem(path));
+      const userDataDir = app.getPath("userData");
+      const deps = defaultDeps(userDataDir);
       try {
         // Safety net first. If the prefs disabled this, the helper
         // logs + returns silently. We never block cleanup on the
         // restore point succeeding.
         await maybeCreateRestorePoint(`정리 실행 (${request.mode})`);
         const result = await executeCleanup(request, {
-          userDataDir: app.getPath("userData"),
+          userDataDir,
           deps
         });
         log.info(
@@ -629,13 +638,16 @@ function registerIpc() {
           action: result.mode === "trash" ? "trash" : "permanent-delete",
           summary:
             result.mode === "trash"
-              ? `휴지통으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요.`
+              ? `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동 삭제돼요.`
               : `${result.removedItems.length}개 항목(약 ${freedMb} MB)을 영구 삭제했어요.`,
           detail: {
             mode: result.mode,
             removedCount: result.removedItems.length,
             skippedCount: result.skippedItems.length,
-            totalFreedBytes: result.totalFreedBytes
+            totalFreedBytes: result.totalFreedBytes,
+            trashEntryIds: result.removedItems
+              .map((item) => item.trashEntryId)
+              .filter((id): id is string => typeof id === "string")
           }
         }).catch((e) => log.warn("audit append (cleanup) failed:", (e as Error).message));
         return result;
@@ -648,6 +660,47 @@ function registerIpc() {
 
   ipcMain.handle(IpcChannels.cleanupHistory, async (): Promise<CleanupHistorySnapshot> => {
     return getCleanupHistory(app.getPath("userData"));
+  });
+
+  ipcMain.handle(IpcChannels.cleanupTrashList, async (): Promise<CleanupTrashSnapshot> => {
+    return getTrashSnapshot({ userDataDir: app.getPath("userData") });
+  });
+
+  ipcMain.handle(
+    IpcChannels.cleanupTrashRestore,
+    async (_e, request: CleanupTrashRestoreRequest): Promise<CleanupTrashRestoreResult> => {
+      const result = await restoreTrashEntry({
+        userDataDir: app.getPath("userData"),
+        entryId: request.entryId
+      });
+      await appendAuditEntry(app.getPath("userData"), {
+        category: "cleanup",
+        action: `trash-restore-${result.status}`,
+        summary:
+          result.status === "restored"
+            ? `"${result.entry?.label ?? result.entryId}"을 원래 위치로 되돌렸어요.`
+            : `복구함 되돌리기 결과: ${result.message}`,
+        detail: {
+          entryId: request.entryId,
+          status: result.status,
+          originalPath: result.originalPath
+        }
+      }).catch((e) => log.warn("audit append (cleanup-trash-restore) failed:", (e as Error).message));
+      return result;
+    }
+  );
+
+  ipcMain.handle(IpcChannels.cleanupTrashPurgeExpired, async (): Promise<CleanupTrashPurgeResult> => {
+    const result = await purgeExpiredTrash({ userDataDir: app.getPath("userData") });
+    if (result.purgedCount > 0) {
+      await appendAuditEntry(app.getPath("userData"), {
+        category: "cleanup",
+        action: "trash-auto-purge",
+        summary: `30일이 지난 복구함 항목 ${result.purgedCount}개를 자동 삭제했어요.`,
+        detail: { ...result }
+      }).catch((e) => log.warn("audit append (cleanup-trash-purge) failed:", (e as Error).message));
+    }
+    return result;
   });
 
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
@@ -806,6 +859,11 @@ app.whenReady().then(() => {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
       await reconcileReminderTimer();
+      await purgeExpiredTrash({ userDataDir: app.getPath("userData") }).then((result) => {
+        if (result.purgedCount > 0) {
+          log.info(`cleanup-trash:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
+        }
+      });
       // Push the persisted update channel onto electron-updater. Initial
       // init() above used the default (stable) so this catches the case
       // where the user previously opted into beta.

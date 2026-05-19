@@ -63,14 +63,17 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   trashed: string[];
   permanently: string[];
   recycleBinEmptyCount: { value: number };
+  trashExpiresAt: string;
 } {
   const trashed: string[] = [];
   const permanently: string[] = [];
   const recycleBinEmptyCount = { value: 0 };
+  const trashExpiresAt = "2026-06-18T00:00:00.000Z";
   const deps: ExecutorDeps = {
-    trashItem: async (p) => {
-      trashed.push(p);
-      await fs.rm(p, { recursive: true, force: true });
+    trashItem: async (item) => {
+      trashed.push(item.path);
+      await fs.rm(item.path, { recursive: true, force: true });
+      return { id: `trash-${item.id}`, expiresAt: trashExpiresAt };
     },
     permanentRemove: async (p) => {
       permanently.push(p);
@@ -89,7 +92,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
     },
     ...overrides
   };
-  return { deps, trashed, permanently, recycleBinEmptyCount };
+  return { deps, trashed, permanently, recycleBinEmptyCount, trashExpiresAt };
 }
 
 describe("executeCleanup", () => {
@@ -124,7 +127,7 @@ describe("executeCleanup", () => {
     const chosen = tempUser.items.find((i) => i.path === targetFile)!;
     const other = tempUser.items.find((i) => i.path === otherFile)!;
 
-    const { deps, trashed } = makeSpyDeps();
+    const { deps, trashed, trashExpiresAt } = makeSpyDeps();
     const result = await executeCleanup(
       {
         planId: plan.planId,
@@ -137,6 +140,8 @@ describe("executeCleanup", () => {
 
     expect(trashed).toEqual([targetFile]);
     expect(result.removedItems.map((i) => i.path)).toEqual([targetFile]);
+    expect(result.removedItems[0].trashEntryId).toBe(`trash-${chosen.id}`);
+    expect(result.removedItems[0].expiresAt).toBe(trashExpiresAt);
     expect(result.skippedItems.find((s) => s.itemId === other.id)?.reason).toBe("not-selected");
     expect(result.totalFreedBytes).toBeGreaterThan(0);
   });

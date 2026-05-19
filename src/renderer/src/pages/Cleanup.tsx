@@ -9,6 +9,8 @@ import type {
   CleanupItem,
   CleanupPlan,
   CleanupRiskLevel,
+  CleanupTrashEntry,
+  CleanupTrashSnapshot,
   LargeFileCandidate,
   ScanReport
 } from "@shared/types";
@@ -45,6 +47,11 @@ function riskLabel(level: CleanupRiskLevel): string {
     case "restricted":
       return "보호됨";
   }
+}
+
+function daysLeft(expiresAt: string): number {
+  const diff = Date.parse(expiresAt) - Date.now();
+  return Math.max(0, Math.ceil(diff / 86_400_000));
 }
 
 function defaultSelectionFor(plan: CleanupPlan): Set<string> {
@@ -203,10 +210,10 @@ function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const modeLabel = mode === "trash" ? "휴지통으로 보내기" : "영구 삭제";
+  const modeLabel = mode === "trash" ? "포맷버디 복구함으로 보내기" : "영구 삭제";
   const modeDescription =
     mode === "trash"
-      ? "Windows 휴지통으로 보내요. 마음이 바뀌면 휴지통에서 복원할 수 있어요."
+      ? "30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동 삭제돼요."
       : "영구 삭제는 되돌릴 수 없어요. 정말 확신할 때만 사용해주세요.";
 
   return (
@@ -300,19 +307,84 @@ function ResultPanel({
         <Button variant="primary" onClick={onBack}>
           처음으로
         </Button>
-        {result.mode === "trash" && removedCount > 0 && (
-          <Button
-            variant="secondary"
-            onClick={() => void window.fb?.openRecycleBin?.()}
-          >
-            Windows 휴지통 열기 (되돌리기)
-          </Button>
-        )}
       </div>
       {result.mode === "trash" && removedCount > 0 && (
         <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
-          휴지통에서 항목을 우클릭 → "복원"으로 즉시 돌릴 수 있어요.
+          정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요. 마음이 바뀌면 이 화면에서 되돌릴 수 있어요.
         </p>
+      )}
+    </article>
+  );
+}
+
+function TrashEntryRow({
+  entry,
+  onRestore
+}: {
+  entry: CleanupTrashEntry;
+  onRestore: (entryId: string) => void;
+}) {
+  return (
+    <li
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr auto",
+        gap: 12,
+        alignItems: "center",
+        padding: "10px 0",
+        borderTop: "1px solid rgba(0,0,0,0.06)"
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {entry.label}
+        </div>
+        <small style={{ opacity: 0.7 }}>
+          {formatBytes(entry.sizeBytes)} · {daysLeft(entry.expiresAt)}일 뒤 자동 삭제
+        </small>
+        <div style={{ fontSize: 11, opacity: 0.55, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {entry.originalPath}
+        </div>
+      </div>
+      <Button variant="secondary" size="sm" onClick={() => onRestore(entry.id)}>
+        되돌리기
+      </Button>
+    </li>
+  );
+}
+
+function TrashPanel({
+  snapshot,
+  onRestore
+}: {
+  snapshot?: CleanupTrashSnapshot;
+  onRestore: (entryId: string) => void;
+}) {
+  if (!snapshot || snapshot.entries.length === 0) return null;
+  const sample = snapshot.entries.slice(0, 4);
+  const hidden = snapshot.entries.length - sample.length;
+  return (
+    <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
+      <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+        <div>
+          <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
+          <small>
+            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {snapshot.retentionDays}일 뒤 자동 삭제
+          </small>
+        </div>
+      </header>
+      <p style={{ fontSize: 13, opacity: 0.75, margin: "8px 0 0" }}>
+        정리한 파일은 바로 사라지지 않아요. 30일 동안 여기서 되돌릴 수 있고, 기간이 지나면 포맷버디가 자동으로 비워요.
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
+        {sample.map((entry) => (
+          <TrashEntryRow key={entry.id} entry={entry} onRestore={onRestore} />
+        ))}
+      </ul>
+      {hidden > 0 && (
+        <small style={{ opacity: 0.6 }}>
+          나머지 {hidden}개는 다음 업데이트에서 전체 복구함 화면으로 보여드릴게요.
+        </small>
       )}
     </article>
   );
@@ -321,9 +393,20 @@ function ResultPanel({
 export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps) {
   const [phase, setPhase] = useState<Phase>({ kind: "planning" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [permanentMode, setPermanentMode] = useState(false);
+  const [trashSnapshot, setTrashSnapshot] = useState<CleanupTrashSnapshot | undefined>();
+  const [trashMessage, setTrashMessage] = useState<string | undefined>();
 
   const largeFiles = useMemo<LargeFileCandidate[]>(() => report?.largeFiles ?? [], [report]);
+
+  const loadTrash = useCallback(async () => {
+    if (!window.fb?.getCleanupTrash) return;
+    try {
+      const snapshot = await window.fb.getCleanupTrash();
+      setTrashSnapshot(snapshot);
+    } catch {
+      // 복구함은 보조 기능이므로 정리 흐름을 막지 않아요.
+    }
+  }, []);
 
   const startPlanning = useCallback(async () => {
     if (!window.fb?.planCleanup) {
@@ -335,10 +418,11 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
       const plan = await window.fb.planCleanup({ largeFiles });
       setSelected(defaultSelectionFor(plan));
       setPhase({ kind: "preview", plan });
+      await loadTrash();
     } catch (err) {
       setPhase({ kind: "error", message: (err as Error).message });
     }
-  }, [largeFiles]);
+  }, [largeFiles, loadTrash]);
 
   useEffect(() => {
     if (!isWindows) {
@@ -410,10 +494,21 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
         mode
       });
       setPhase({ kind: "result", plan, result });
+      await loadTrash();
     } catch (err) {
       setPhase({ kind: "error", message: (err as Error).message });
     }
-  }, [phase, selected]);
+  }, [loadTrash, phase, selected]);
+
+  const restoreFromTrash = useCallback(
+    async (entryId: string) => {
+      if (!window.fb?.restoreCleanupTrash) return;
+      const result = await window.fb.restoreCleanupTrash({ entryId });
+      setTrashMessage(result.message);
+      await loadTrash();
+    },
+    [loadTrash]
+  );
 
   return (
     <main className="fb-report">
@@ -429,9 +524,17 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">안전 정리 센터</h1>
         <p className="fb-lede">
-          정리하기 전에 후보를 다시 한 번 보여드릴게요. 선택한 항목만 휴지통으로 보내고, 보호 경로는 자동으로 빠져요.
+          정리하기 전에 후보를 다시 한 번 보여드릴게요. 선택한 항목만 포맷버디 복구함으로 보내고, 보호 경로는 자동으로 빠져요.
         </p>
       </section>
+
+      {trashMessage && (
+        <article className="fb-card fb-anim-pop" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0 }}>{trashMessage}</p>
+        </article>
+      )}
+
+      <TrashPanel snapshot={trashSnapshot} onRestore={restoreFromTrash} />
 
       {phase.kind === "planning" && (
         <article className="fb-card fb-card-hover">
@@ -464,23 +567,14 @@ export function Cleanup({ report, isWindows, onBack, onComplete }: CleanupProps)
                   {selected.size}개 · 약 {formatBytes(selectedBytes)} · 전체 후보 약 {formatBytes(phase.plan.totalReclaimableBytes)}
                 </small>
               </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={permanentMode}
-                  onChange={(e) => setPermanentMode(e.target.checked)}
-                  disabled={phase.kind !== "preview"}
-                />
-                <span>휴지통 없이 영구 삭제 (위험)</span>
-              </label>
             </header>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <Button
                 variant="primary"
-                onClick={() => requestConfirm(permanentMode ? "permanent" : "trash")}
+                onClick={() => requestConfirm("trash")}
                 disabled={phase.kind !== "preview" || selected.size === 0}
               >
-                {permanentMode ? "영구 삭제 진행" : "휴지통으로 보내기"}
+                포맷버디 복구함으로 보내기
               </Button>
               <Button variant="ghost" onClick={onBack}>
                 정리하지 않고 나가기

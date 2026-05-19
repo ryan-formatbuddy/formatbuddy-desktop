@@ -111,9 +111,9 @@ const CATEGORIES: PermissionCategory[] = [
     badgeColor: "#9333ea",
     items: [
       {
-        what: "선택한 파일을 Windows 휴지통으로 이동",
-        why: "안전 정리 후보 중 사용자가 직접 체크한 항목만 보내요.",
-        evidence: "Electron shell.trashItem (휴지통에서 복원 가능)"
+        what: "선택한 파일을 포맷버디 복구함으로 이동",
+        why: "안전 정리 후보 중 사용자가 직접 체크한 항목만 보내고, 30일 동안 앱 안에서 되돌릴 수 있게 하기 위해서요.",
+        evidence: "%APPDATA%/FormatBuddy/formatbuddy-trash (30일 뒤 자동 삭제)"
       },
       {
         what: "Windows 기본 제거 마법사 실행",

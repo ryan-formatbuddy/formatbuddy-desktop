@@ -12,6 +12,10 @@ import type {
   CleanupExecuteResult,
   CleanupHistorySnapshot,
   CleanupPlan,
+  CleanupTrashPurgeResult,
+  CleanupTrashRestoreRequest,
+  CleanupTrashRestoreResult,
+  CleanupTrashSnapshot,
   DefenderLiveStatus,
   DriverBackupResult,
   WifiExportRequest,
@@ -139,6 +143,17 @@ const fb = {
 
   getCleanupHistory: (): Promise<CleanupHistorySnapshot> =>
     ipcRenderer.invoke(IpcChannels.cleanupHistory),
+
+  getCleanupTrash: (): Promise<CleanupTrashSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.cleanupTrashList),
+
+  restoreCleanupTrash: (
+    request: CleanupTrashRestoreRequest
+  ): Promise<CleanupTrashRestoreResult> =>
+    ipcRenderer.invoke(IpcChannels.cleanupTrashRestore, request),
+
+  purgeExpiredCleanupTrash: (): Promise<CleanupTrashPurgeResult> =>
+    ipcRenderer.invoke(IpcChannels.cleanupTrashPurgeExpired),
 
   listApps: (): Promise<AppManagerSnapshot> => ipcRenderer.invoke(IpcChannels.appsList),
 
