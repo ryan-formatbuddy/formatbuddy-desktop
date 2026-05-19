@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, promises as fs } from "node:fs";
+import { promises as fs } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { ScanProgress, ScanReport, ScanResult, ScanStepView } from "@shared/types";
 import { EXPECTED_PS_SCRIPT_HASH } from "@shared/ps-script-hash";
 import { generateRecommendation } from "./recommend";
+import { findLinkedPathPart } from "./cleanup/pathSafety";
 
 const STDERR_MAX_BYTES = 64 * 1024;
 
@@ -105,6 +106,28 @@ async function readAndDelete(path: string): Promise<string> {
   return raw;
 }
 
+async function ensureScanOutputDir(outputDir: string): Promise<string> {
+  const parent = dirname(outputDir);
+  const linkedBefore = await findLinkedPathPart(outputDir, parent, true);
+  if (linkedBefore) {
+    throw new Error(`Scan output folder is behind a link: ${linkedBefore}`);
+  }
+
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const linkedAfter = await findLinkedPathPart(outputDir, parent, true);
+  if (linkedAfter) {
+    throw new Error(`Scan output folder is behind a link: ${linkedAfter}`);
+  }
+
+  const stat = await fs.lstat(outputDir);
+  if (!stat.isDirectory()) {
+    throw new Error(`Scan output path is not a folder: ${outputDir}`);
+  }
+
+  return outputDir;
+}
+
 export interface RunScanOptions {
   scriptPath: string;
   outputDir: string;
@@ -188,9 +211,8 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   }
   const effectiveScriptPath = stagedPath ?? options.scriptPath;
 
-  const tmpDir = join(tmpdir(), "formatbuddy-scans");
-  ensureDir(tmpDir);
-  const outPath = join(tmpDir, `report-${randomUUID()}.json`);
+  const outDir = await ensureScanOutputDir(options.outputDir);
+  const outPath = join(outDir, `report-${randomUUID()}.json`);
 
   onProgress?.(progressFor(0, startedAt, "버디가 살펴볼 준비 중이에요"));
 
@@ -224,10 +246,6 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
   }
 }
 
-function ensureDir(dir: string) {
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-}
-
 interface InternalRunArgs {
   outPath: string;
   startedAt: number;
@@ -246,8 +264,7 @@ async function runMockScan(args: InternalRunArgs): Promise<ScanResult> {
   }
 
   const report: ScanReport = buildMockReport({ demoPlatform });
-  ensureDir(dirname(outPath));
-  await fs.writeFile(outPath, JSON.stringify(report, null, 2), "utf8");
+  await fs.writeFile(outPath, JSON.stringify(report, null, 2), { encoding: "utf8", flag: "wx" });
 
   // Mock pipeline echoes the on-disk path for parity but the file is ephemeral.
   return { report, recommendation: generateRecommendation(report), jsonPath: outPath };
@@ -625,5 +642,6 @@ export const __testing = {
   progressFor,
   progressForFinalizing,
   verifyAndStageScript,
+  ensureScanOutputDir,
   shouldUseMockPipeline
 };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -47,11 +47,33 @@ describe("scanner mock pipeline", () => {
       expect(events.length).toBeGreaterThanOrEqual(__testing.TOTAL_STEPS);
       expect(res.report.schemaVersion).toMatch(/^0\./);
       expect(res.report.privacy.localOnly).toBe(true);
+      expect(res.jsonPath.startsWith(dir)).toBe(true);
       const fileText = readFileSync(res.jsonPath, "utf8");
       const parsed = JSON.parse(fileText) as ScanReport;
       expect(parsed.system.osCaption).toContain("Windows");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to write scan output through a symbolic-link output folder", async () => {
+    if (process.platform === "win32") return;
+    const root = mkdtempSync(join(tmpdir(), "fb-scan-link-test-"));
+    const outside = join(root, "outside-scans");
+    const outputDir = join(root, "scans");
+    try {
+      writeFileSync(join(root, "marker.txt"), "marker", "utf8");
+      symlinkSync(outside, outputDir, "dir");
+
+      await expect(
+        runScan({
+          scriptPath: "ignored.ps1",
+          outputDir,
+          mock: true
+        })
+      ).rejects.toThrow(/output|scan|link/i);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
