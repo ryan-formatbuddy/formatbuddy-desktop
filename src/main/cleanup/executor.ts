@@ -352,6 +352,7 @@ async function attemptItem(
         entryId: trashEntry.id,
         itemId: item.id,
         categoryId: item.categoryId,
+        sizeBytes: actualSize,
         originalPath: item.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt

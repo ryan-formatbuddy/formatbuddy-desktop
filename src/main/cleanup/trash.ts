@@ -336,6 +336,7 @@ export async function assertManagedTrashEntryManifest(options: {
   entryId: string;
   itemId: string;
   categoryId: string;
+  sizeBytes: number;
   originalPath: string;
   storedPath: string;
   expiresAt: string;
@@ -370,6 +371,9 @@ export async function assertManagedTrashEntryManifest(options: {
   }
   if (entry.categoryId !== options.categoryId) {
     throw new Error("FormatBuddy restore manifest category does not match the cleanup item");
+  }
+  if (entry.sizeBytes !== Math.max(0, Math.round(options.sizeBytes))) {
+    throw new Error("FormatBuddy restore manifest size does not match the cleanup item");
   }
   if (
     normalizePath(resolve(entry.originalPath)) !==

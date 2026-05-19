@@ -75,7 +75,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   const recycleBinEmptyCount = { value: 0 };
   const trashExpiresAt = "2026-06-18T00:00:00.000Z";
   const deps: ExecutorDeps = {
-    trashItem: async (item, _sizeBytes, context) => {
+    trashItem: async (item, sizeBytes, context) => {
       trashed.push(item.path);
       const entryId = `trash-${item.id}`;
       const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", entryId, "files", "stored");
@@ -91,7 +91,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
             storedPath,
             label: item.label,
             categoryId: item.categoryId,
-            sizeBytes: item.sizeBytes,
+            sizeBytes,
             createdAt: "2026-05-19T00:00:00.000Z",
             expiresAt: trashExpiresAt
           },
@@ -801,6 +801,61 @@ describe("executeCleanup", () => {
     expect(result.totalFreedBytes).toBe(0);
     const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
     expect(failure?.detail).toMatch(/manifest.*item|cleanup item/i);
+  });
+
+  it("does not count trash mode as successful when the restore manifest records a different size", async () => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const entryId = "trash-wrong-size";
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", entryId, "files", "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem) => {
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.writeFile(storedPath, "stored with wrong size", "utf8");
+        await fs.writeFile(
+          join(fx.userData, "formatbuddy-trash", "items", entryId, "manifest.json"),
+          JSON.stringify(
+            {
+              id: entryId,
+              itemId: cleanupItem.id,
+              originalPath: cleanupItem.path,
+              storedPath,
+              label: cleanupItem.label,
+              categoryId: cleanupItem.categoryId,
+              sizeBytes: cleanupItem.sizeBytes + 1,
+              createdAt: "2026-05-19T00:00:00.000Z",
+              expiresAt: "2026-06-18T00:00:00.000Z"
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return { id: entryId, expiresAt: "2026-06-18T00:00:00.000Z", storedPath };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/manifest.*size|size/i);
   });
 
   it("does not count trash mode as successful when the stored path is outside the managed restore bin", async () => {

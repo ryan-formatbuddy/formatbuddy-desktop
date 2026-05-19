@@ -1087,6 +1087,7 @@ export async function cleanupAppLeftovers(
         entryId: trashEntry.id,
         itemId: cleanupItem.id,
         categoryId: cleanupItem.categoryId,
+        sizeBytes: cleanupItem.sizeBytes,
         originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt
