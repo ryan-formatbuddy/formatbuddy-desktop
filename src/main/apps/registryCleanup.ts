@@ -106,23 +106,28 @@ export async function backupAndDeleteRegistryKey(options: {
   const metaPath = join(entryDir, "meta.json");
   const runner = options.runner ?? defaultRegistryCleanupRunner();
 
-  await runner.exportKey(keyPath, backupPath);
-  await fs.writeFile(
-    metaPath,
-    JSON.stringify(
-      {
-        id,
-        keyPath,
-        backupPath,
-        createdAt,
-        expiresAt
-      },
-      null,
-      2
-    ),
-    "utf8"
-  );
-  await runner.deleteKey(keyPath);
+  try {
+    await runner.exportKey(keyPath, backupPath);
+    await fs.writeFile(
+      metaPath,
+      JSON.stringify(
+        {
+          id,
+          keyPath,
+          backupPath,
+          createdAt,
+          expiresAt
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await runner.deleteKey(keyPath);
+  } catch (err) {
+    await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
 
   return {
     id,

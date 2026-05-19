@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -8,7 +8,8 @@ import {
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
   purgeExpiredRegistryBackups,
-  restoreRegistryBackup
+  restoreRegistryBackup,
+  __testing
 } from "../src/main/apps/registryCleanup";
 
 interface Fixture {
@@ -122,6 +123,36 @@ describe("registry leftover cleanup", () => {
     ).rejects.toThrow("export failed");
 
     expect(runner.deleteKey).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("removes the temporary backup when registry deletion fails after export", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    let exportedBackupPath = "";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        exportedBackupPath = backupPath;
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        throw new Error("delete failed");
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow("delete failed");
+
+    expect(runner.exportKey).toHaveBeenCalled();
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    await expect(readFile(exportedBackupPath, "utf8")).rejects.toThrow();
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toEqual([]);
   });
 
   it("purges registry backups after the 30-day window", async () => {
