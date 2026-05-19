@@ -177,14 +177,24 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
     throw new Error(`FormatBuddy restore bin folder is a link: ${linkedRoot}`);
   }
   await mkdir(trashRoot(userDataDir), { recursive: true });
-  const linkedIndex = await findLinkedPathPart(indexPath(userDataDir), userDataDir, true);
+  const targetIndexPath = indexPath(userDataDir);
+  const linkedIndex = await findLinkedPathPart(targetIndexPath, userDataDir, true);
   if (linkedIndex) {
-    if (normalizePath(resolve(linkedIndex)) !== normalizePath(resolve(indexPath(userDataDir)))) {
+    if (normalizePath(resolve(linkedIndex)) !== normalizePath(resolve(targetIndexPath))) {
       throw new Error(`FormatBuddy restore bin index path is behind a link: ${linkedIndex}`);
     }
-    await rm(indexPath(userDataDir), { force: true });
+    await rm(targetIndexPath, { force: true });
   }
-  await writeFile(indexPath(userDataDir), JSON.stringify(index, null, 2), "utf8");
+  try {
+    const indexStat = await lstat(targetIndexPath);
+    if (!indexStat.isFile()) {
+      await rm(targetIndexPath, { recursive: true, force: true });
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
+  }
+  await writeFile(targetIndexPath, JSON.stringify(index, null, 2), "utf8");
 }
 
 async function isUsableItemsRoot(userDataDir: string): Promise<boolean> {

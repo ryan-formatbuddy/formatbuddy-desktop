@@ -384,6 +384,33 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries.map((item) => item.id)).toEqual([entry.id]);
   });
 
+  it("replaces a non-file restore-bin index path before recording a moved item", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    const indexAsFolder = __testing.indexPath(fx.userData);
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await mkdir(indexAsFolder, { recursive: true });
+    await writeFile(join(indexAsFolder, "stale-child.txt"), "stale", "utf8");
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(true);
+    const indexStat = await lstat(indexAsFolder);
+    expect(indexStat.isFile()).toBe(true);
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries.map((item) => item.id)).toEqual([entry.id]);
+  });
+
   it("removes a prewritten trash entry folder when the source disappears before move", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
     await mkdir(join(source, ".."), { recursive: true });
