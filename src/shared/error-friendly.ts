@@ -8,24 +8,25 @@
  * Pure function, no I/O — safe to call from both main and renderer.
  */
 
-interface FriendlyInput {
-  message?: string;
-  code?: string;
-  detail?: string;
-}
-
 const DEFAULT = "진단 도중 알 수 없는 문제가 있었어요. '자세한 내용 보기'에서 원인을 확인할 수 있어요.";
 
-export function friendlyErrorMessage(input: FriendlyInput | Error | string | null | undefined): string {
+function valueToString(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function friendlyErrorMessage(input: unknown): string {
   if (!input) return DEFAULT;
 
   const message =
     typeof input === "string"
       ? input
-      : "message" in input
-        ? input.message ?? ""
+      : typeof input === "object" && input !== null && "message" in input
+        ? valueToString(input.message)
         : "";
-  const code = typeof input === "object" && input !== null && "code" in input ? input.code ?? "" : "";
+  const code =
+    typeof input === "object" && input !== null && "code" in input
+      ? valueToString(input.code)
+      : "";
 
   const haystack = `${code} ${message}`.toLowerCase();
 

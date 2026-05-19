@@ -25,4 +25,11 @@ describe("Cleanup copy", () => {
     expect(source).toContain("30일 뒤 자동으로 비워요");
     expect(source).not.toContain("{snapshot.retentionDays}일 뒤 자동으로 비워요");
   });
+
+  it("does not show raw IPC errors in cleanup screen messages", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("friendlyErrorMessage");
+    expect(source).not.toContain("(err as Error).message");
+  });
 });

@@ -7,6 +7,7 @@ import {
   restorableTrashEntryIds,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteResult,
@@ -490,7 +491,7 @@ export function Cleanup({
       setPhase({ kind: "preview", plan });
       await loadTrash();
     } catch (err) {
-      setPhase({ kind: "error", message: (err as Error).message });
+      setPhase({ kind: "error", message: friendlyErrorMessage(err) });
     }
   }, [largeFiles, loadTrash]);
 
@@ -566,7 +567,7 @@ export function Cleanup({
       setPhase({ kind: "result", plan, result });
       await loadTrash();
     } catch (err) {
-      setPhase({ kind: "error", message: (err as Error).message });
+      setPhase({ kind: "error", message: friendlyErrorMessage(err) });
     }
   }, [loadTrash, phase, selected]);
 
@@ -589,7 +590,7 @@ export function Cleanup({
         setRecentRestoreMessage(summarizeTrashRestoreResults(results));
         await loadTrash();
       } catch (err) {
-        setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);
+        setRecentRestoreMessage(friendlyErrorMessage(err));
       } finally {
         setRecentRestoreBusy(false);
       }
@@ -600,9 +601,13 @@ export function Cleanup({
   const restoreFromTrash = useCallback(
     async (entryId: string) => {
       if (!window.fb?.restoreCleanupTrash) return;
-      const result = await window.fb.restoreCleanupTrash({ entryId });
-      setTrashMessage(result.message);
-      await loadTrash();
+      try {
+        const result = await window.fb.restoreCleanupTrash({ entryId });
+        setTrashMessage(result.message);
+        await loadTrash();
+      } catch (err) {
+        setTrashMessage(friendlyErrorMessage(err));
+      }
     },
     [loadTrash]
   );

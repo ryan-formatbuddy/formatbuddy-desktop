@@ -50,4 +50,11 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("${path.path}\\\\${valueName}");
     expect(source).toContain("leftoverDisplayPath(path)} 선택");
   });
+
+  it("does not show raw IPC errors in app cleanup messages", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("friendlyErrorMessage");
+    expect(source).not.toContain("(err as Error).message");
+  });
 });

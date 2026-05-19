@@ -12,6 +12,7 @@ import {
   summarizeRegistryBackupRestoreResults,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   AppLeftoverGroup,
   AppLeftoverPath,
@@ -456,7 +457,7 @@ export function AppManager({
         setLoad({ kind: "ready", snapshot });
       }
     } catch (err) {
-      setLoad({ kind: "error", message: (err as Error).message });
+      setLoad({ kind: "error", message: friendlyErrorMessage(err) });
     }
   }, []);
 
@@ -472,7 +473,7 @@ export function AppManager({
       setLeftovers({ loading: false, snapshot });
       setSelectedLeftovers(new Set());
     } catch (err) {
-      setLeftovers({ loading: false, error: (err as Error).message });
+      setLeftovers({ loading: false, error: friendlyErrorMessage(err) });
     }
   }, []);
 
@@ -514,7 +515,7 @@ export function AppManager({
       setSelectedLeftovers(new Set());
       await loadLeftovers();
     } catch (err) {
-      setLeftovers((prev) => ({ ...prev, loading: false, error: (err as Error).message }));
+      setLeftovers((prev) => ({ ...prev, loading: false, error: friendlyErrorMessage(err) }));
     } finally {
       setCleanupBusy(false);
     }
@@ -552,7 +553,7 @@ export function AppManager({
         );
         await loadLeftovers();
       } catch (err) {
-        setRecentRestoreMessage(`되돌리기 중 문제가 생겼어요: ${(err as Error).message}`);
+        setRecentRestoreMessage(friendlyErrorMessage(err));
       } finally {
         setRecentRestoreBusy(false);
       }
@@ -583,7 +584,7 @@ export function AppManager({
         [item.id]: {
           status: "spawn-failed",
           appName: item.name,
-          message: (err as Error).message
+          message: friendlyErrorMessage(err)
         }
       }));
     } finally {
