@@ -44,6 +44,7 @@ export interface MoveToTrashOptions {
 
 export interface TrashRuntimeOptions {
   userDataDir: string;
+  home?: string;
   now?: () => Date;
 }
 
@@ -314,7 +315,10 @@ export async function restoreTrashEntry(
     };
   }
 
-  const restoreDecision = evaluatePath(entry.originalPath, { allowRoots: [entry.originalPath] });
+  const restoreDecision = evaluatePath(entry.originalPath, {
+    allowRoots: [entry.originalPath],
+    home: options.home
+  });
   if (!restoreDecision.allowed) {
     return {
       entryId: entry.id,

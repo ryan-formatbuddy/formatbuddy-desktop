@@ -719,7 +719,8 @@ function registerIpc() {
     async (_e, request: CleanupTrashRestoreRequest): Promise<CleanupTrashRestoreResult> => {
       const result = await restoreTrashEntry({
         userDataDir: app.getPath("userData"),
-        entryId: request.entryId
+        entryId: request.entryId,
+        home: app.getPath("home")
       });
       await appendAuditEntry(app.getPath("userData"), {
         category: "cleanup",
