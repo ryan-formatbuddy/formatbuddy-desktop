@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { summarizeLeftoverSnapshot } from "@shared/app-leftovers";
 import { restorableTrashEntryIds, summarizeTrashRestoreResults } from "@shared/cleanup-result";
 import type {
   AppLeftoverGroup,
@@ -212,12 +213,18 @@ function LeftoverPanel({
       </article>
     );
   }
+  const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   return (
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 폴더 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         Windows가 앱을 제거해도 남는 경우가 있는 폴더예요. 지울 항목을 직접 고르면 포맷버디
         복구함에 30일 동안 보관한 뒤 자동 삭제해요.
+      </p>
+      <p style={{ fontSize: 13, opacity: 0.75 }}>
+        총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
+        보호 경로 {leftoverSummary.protected}개, 지금 없는 폴더 {leftoverSummary.missing}개는
+        자동으로 빠져요.
       </p>
       <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
