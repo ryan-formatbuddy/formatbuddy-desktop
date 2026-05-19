@@ -4,7 +4,9 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+  backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
+  isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
   purgeExpiredRegistryBackups,
@@ -64,6 +66,33 @@ describe("registry leftover cleanup", () => {
     ).toBe(false);
   });
 
+  it("only allows Run and RunOnce startup registry values", () => {
+    expect(
+      isSafeStartupRegistryValuePath(
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeStartupRegistryValuePath(
+        "HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce",
+        "Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeStartupRegistryValuePath(
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Acme Notes",
+        "Acme Notes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeStartupRegistryValuePath(
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "Acme\nNotes"
+      )
+    ).toBe(false);
+  });
+
   it("exports a backup before deleting the selected registry key", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const calls: string[] = [];
@@ -107,6 +136,89 @@ describe("registry leftover cleanup", () => {
       createdAt: "2026-05-19T00:00:00.000Z",
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
+  });
+
+  it("exports a value-only backup before deleting a startup registry value", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        calls.push("export-value");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_CONTENT}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        calls.push("delete-value");
+      })
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export-value", "delete-value"]);
+    expect(runner.exportValue).toHaveBeenCalledWith(keyPath, valueName, result.backupPath);
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const metaPath = join(
+      fx.userDataDir,
+      "formatbuddy-registry-backups",
+      "items",
+      result.id,
+      "meta.json"
+    );
+    const meta = JSON.parse(await readFile(metaPath, "utf8"));
+    expect(meta).toMatchObject({
+      id: result.id,
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      createdAt: "2026-05-19T00:00:00.000Z",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+  });
+
+  it("does not delete a startup registry value when the value backup fails", async () => {
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async () => {
+        throw new Error("value export failed");
+      }),
+      deleteValue: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        valueName: "Acme Notes",
+        runner
+      })
+    ).rejects.toThrow("value export failed");
+
+    expect(runner.deleteValue).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
   it("does not delete when the registry backup export fails", async () => {

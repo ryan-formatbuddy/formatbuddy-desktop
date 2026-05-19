@@ -77,6 +77,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "앱 삭제 흔적";
     case "startup-folder":
       return "시작 항목";
+    case "startup-registry":
+      return "시작 레지스트리";
     case "startup-entry":
       return "시작 흔적";
     case "folder":

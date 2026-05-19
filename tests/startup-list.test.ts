@@ -10,7 +10,16 @@ describe("parseStartupPayload", () => {
   it("collapses the four shapes into one StartupAutoEntry array", () => {
     const entries = parseStartupPayload(
       JSON.stringify({
-        registry: [{ name: "KakaoTalk", path: "C:\\K\\KakaoTalk.exe", origin: "HKCU Run", user: "Ryan" }],
+        registry: [
+          {
+            name: "KakaoTalk",
+            path: "C:\\K\\KakaoTalk.exe",
+            origin: "HKCU Run",
+            registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            registryValueName: "KakaoTalk",
+            user: "Ryan"
+          }
+        ],
         tasks: [{ name: "Update", path: "\\Microsoft\\", enabled: true, author: "Microsoft" }],
         services: [
           { name: "Spooler", displayName: "Print Spooler", enabled: true, status: "Running" }
@@ -21,6 +30,10 @@ describe("parseStartupPayload", () => {
       })
     );
     expect(entries).toHaveLength(4);
+    expect(entries.find((e) => e.kind === "registry")).toMatchObject({
+      registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      registryValueName: "KakaoTalk"
+    });
     expect(entries.map((e) => e.kind).sort()).toEqual([
       "registry",
       "scheduled-task",

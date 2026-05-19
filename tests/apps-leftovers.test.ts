@@ -590,6 +590,88 @@ describe("planAppLeftovers", () => {
     expect(traces.every((path) => path.protectedBy?.includes("시작 항목"))).toBe(true);
   });
 
+  it("backs up and deletes a selected startup registry value after uninstall follow-up", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "registry|acme-notes",
+        kind: "registry",
+        name: valueName,
+        path: "C:\\Acme\\Acme.exe",
+        registryKeyPath: keyPath,
+        registryValueName: valueName,
+        publisher: "Acme Corp.",
+        origin: "HKCU Run"
+      }
+    ];
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.kind === "startup-registry")!;
+    expect(path).toMatchObject({
+      path: keyPath,
+      registryValueName: valueName,
+      exists: true
+    });
+    expect(path.protectedBy).toBeUndefined();
+
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined)
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportValue).toHaveBeenCalledWith(
+      keyPath,
+      valueName,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: `${keyPath}\\${valueName}`,
+      categoryId: "app-leftovers",
+      mode: "trash",
+      succeeded: true,
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath,
+      valueName,
+      backupKind: "startup-value"
+    });
+  });
+
   it("does not delete a registry key when backup export fails", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";

@@ -34,8 +34,10 @@ import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
 import {
+  backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
+  isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   type RegistryCleanupRunner
 } from "./registryCleanup";
@@ -708,6 +710,24 @@ async function startupLeftoverPaths(
       });
       continue;
     }
+    if (entry.kind === "registry" && entry.registryKeyPath && entry.registryValueName) {
+      const keyPath = entry.registryKeyPath;
+      const valueName = entry.registryValueName;
+      const protectedBy = isSafeStartupRegistryValuePath(keyPath, valueName)
+        ? undefined
+        : STARTUP_TRACE_PROTECTION;
+      paths.push({
+        id: makePathId(`startup-registry:${entry.id}:${keyPath}:${valueName}`),
+        kind: "startup-registry",
+        path: keyPath,
+        registryValueName: valueName,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null,
+        protectedBy
+      });
+      continue;
+    }
 
     const label = `${entry.origin}: ${entry.name}`;
     paths.push({
@@ -1067,6 +1087,47 @@ export async function cleanupAppLeftovers(
           itemId: path.id,
           path: path.path,
           reason: /지원하는 앱 제거 레지스트리 위치|registry location/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: message
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "startup-registry") {
+      try {
+        const valueName = path.registryValueName?.trim();
+        if (!valueName) {
+          throw new Error("시작 항목 레지스트리 값 이름을 확인하지 못했어요.");
+        }
+        const backup = await backupAndDeleteRegistryValue({
+          userDataDir: options.userDataDir,
+          keyPath: path.path,
+          valueName,
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group
+            ? { name: group.appName, publisher: group.publisher ?? null }
+            : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: `${path.path}\\${valueName}`,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+      } catch (err) {
+        const message = (err as Error).message;
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
           detail: message

@@ -810,6 +810,10 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values. */
+  backupKind?: "key" | "startup-value";
+  /** Present when backupKind === "startup-value". */
+  valueName?: string | null;
   backupPath: string;
   sizeBytes: number;
   appName?: string | null;
@@ -961,6 +965,10 @@ export interface StartupAutoEntry {
   name: string;
   /** Best-effort path / command line. May be empty for services. */
   path?: string;
+  /** Registry key when kind === "registry" and we can identify the Run/RunOnce value. */
+  registryKeyPath?: string;
+  /** Registry value name when kind === "registry". */
+  registryValueName?: string;
   /** Vendor / publisher when we can read it. */
   publisher?: string;
   /** Free-form Korean note: 어디서 켜지는지 한 줄 (e.g. "HKCU Run", "TaskScheduler"). */
@@ -1129,8 +1137,9 @@ export interface AppManagerSnapshot {
 
 export interface AppLeftoverPath {
   id: string;
-  kind?: "folder" | "registry" | "startup-folder" | "startup-entry";
+  kind?: "folder" | "registry" | "startup-folder" | "startup-registry" | "startup-entry";
   path: string;
+  registryValueName?: string | null;
   exists: boolean;
   sizeBytes?: number | null;
   lastModifiedAt?: string | null;

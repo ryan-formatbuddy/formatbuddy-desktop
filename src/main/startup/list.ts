@@ -101,6 +101,8 @@ try {
       name = $_.Name
       path = $_.Command
       origin = $_.Location
+      registryKeyPath = $_.Location
+      registryValueName = $_.Name
       user = $_.User
     }
   }
@@ -170,6 +172,8 @@ interface RegistryRow {
   name?: string;
   path?: string;
   origin?: string;
+  registryKeyPath?: string;
+  registryValueName?: string;
   user?: string;
 }
 interface TaskRow {
@@ -209,6 +213,8 @@ function entriesFromRegistry(rows: RegistryRow[] | undefined): StartupAutoEntry[
       kind: "registry" as const,
       name: r.name as string,
       path: typeof r.path === "string" ? r.path : undefined,
+      registryKeyPath: typeof r.registryKeyPath === "string" ? r.registryKeyPath : undefined,
+      registryValueName: typeof r.registryValueName === "string" ? r.registryValueName : undefined,
       origin: r.origin || (r.user ? `${r.user}` : "HKCU/HKLM Run")
     }));
 }
