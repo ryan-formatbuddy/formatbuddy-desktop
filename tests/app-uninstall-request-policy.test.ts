@@ -55,4 +55,13 @@ describe("enforceAppUninstallRequestPolicy", () => {
       } as unknown as AppUninstallRequest)
     ).toThrow(/앱 제거 방식/);
   });
+
+  it("blocks quiet uninstall requests at the product IPC boundary", () => {
+    expect(() =>
+      enforceAppUninstallRequestPolicy({
+        ...request(),
+        mode: "quiet"
+      })
+    ).toThrow(/Windows 제거 마법사|직접 확인/);
+  });
 });

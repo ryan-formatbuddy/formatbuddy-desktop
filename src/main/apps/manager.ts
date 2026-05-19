@@ -113,7 +113,7 @@ function evaluateAvailability(app: InstalledApp): {
   if (quietUninstallString) {
     return {
       availability: "ready",
-      note: "Windows 제거 마법사 또는 자동 제거 중 선택할 수 있어요.",
+      note: "Windows 제거 마법사만 띄워요. 자동 제거 명령은 숨겨요.",
       mode: "interactive"
     };
   }

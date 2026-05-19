@@ -206,7 +206,7 @@ describe("buildAppManagerSnapshot", () => {
 });
 
 describe("availability evaluator", () => {
-  it("recognizes ready apps with both interactive and quiet strings", () => {
+  it("hides quiet uninstall choices and keeps the Windows wizard as the only launch path", () => {
     const result = __testing.evaluateAvailability({
       name: "Foo",
       uninstallString: "uninstall.exe",
@@ -214,6 +214,9 @@ describe("availability evaluator", () => {
     });
     expect(result.availability).toBe("ready");
     expect(result.mode).toBe("interactive");
+    expect(result.note).toContain("Windows 제거 마법사");
+    expect(result.note).toContain("자동 제거 명령은 숨겨요");
+    expect(result.note).not.toContain("선택할 수 있어요");
   });
 
   it("treats install-location-only entries as registry-only", () => {
