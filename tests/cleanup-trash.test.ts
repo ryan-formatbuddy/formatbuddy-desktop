@@ -190,6 +190,41 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(source, "utf8")).toBe("hello");
   });
 
+  it("restores to the manifest original path when the index originalPath was changed", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const hijackPath = join(fx.root, "hijack.tmp");
+    await writeFile(
+      __testing.indexPath(fx.userData),
+      JSON.stringify(
+        {
+          version: 1,
+          retentionDays: 30,
+          entries: [{ ...entry, originalPath: hijackPath }]
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const restored = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(await readFile(source, "utf8")).toBe("hello");
+    expect(existsSync(hijackPath)).toBe(false);
+  });
+
   it("ignores recovered manifests that point outside their trash entry folder", async () => {
     const orphanDir = __testing.entryDir(fx.userData, "orphan");
     const folder = join(orphanDir, "files");

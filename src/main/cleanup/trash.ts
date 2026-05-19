@@ -189,7 +189,8 @@ async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashI
   }
 
   for (const entry of recovered) {
-    if (byId.has(entry.id)) continue;
+    const current = byId.get(entry.id);
+    if (current && JSON.stringify(current) === JSON.stringify(entry)) continue;
     byId.set(entry.id, entry);
     changed = true;
   }
