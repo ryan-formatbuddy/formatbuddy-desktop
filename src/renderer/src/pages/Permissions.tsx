@@ -188,11 +188,14 @@ export function Permissions({ onBack }: PermissionsProps) {
         </p>
       </section>
 
-      {CATEGORIES.map((cat) => (
+      {CATEGORIES.map((cat, idx) => (
         <section
           key={cat.id}
-          className="fb-card"
-          style={{ marginBottom: 16 }}
+          className="fb-card fb-anim-slide"
+          style={{
+            marginBottom: 16,
+            animationDelay: `${idx * 40}ms`
+          }}
           aria-labelledby={`perm-${cat.id}-title`}
         >
           <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
