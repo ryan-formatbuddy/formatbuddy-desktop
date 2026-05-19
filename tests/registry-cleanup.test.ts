@@ -378,6 +378,46 @@ describe("registry leftover cleanup", () => {
     expect(await readFile(outsideFile, "utf8")).toBe("outside stays put");
   });
 
+  it("purges a registry backup entry with linked metadata without touching the target", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const entryId = "expired-linked-meta";
+    const entryDir = join(root, entryId);
+    const backupPath = join(entryDir, "backup.reg");
+    const outsideMeta = join(fx.root, "outside-expired-meta.json");
+    await mkdir(entryDir, { recursive: true });
+    await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+    await writeFile(
+      outsideMeta,
+      JSON.stringify(
+        {
+          id: entryId,
+          keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes",
+          backupPath,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+    await symlink(outsideMeta, join(entryDir, "meta.json"));
+
+    const result = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 1,
+      purgedIds: [entryId],
+      retentionDays: 30
+    });
+    expect(existsSync(entryDir)).toBe(false);
+    expect(await readFile(outsideMeta, "utf8")).toContain(entryId);
+  });
+
   it("prunes registry backup folders that cannot be restored", async () => {
     const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
     await mkdir(brokenDir, { recursive: true });

@@ -68,9 +68,10 @@ function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
 
-async function removeRegistryBackupStoreItem(root: string, name: string): Promise<void> {
-  if (!isSafeRegistryBackupId(name)) return;
+async function removeRegistryBackupStoreItem(root: string, name: string): Promise<boolean> {
+  if (!isSafeRegistryBackupId(name)) return false;
   await fs.rm(join(root, name), { recursive: true, force: true }).catch(() => {});
+  return true;
 }
 
 async function removeLinkedRegistryBackupRootIfManaged(
@@ -492,7 +493,12 @@ export async function purgeExpiredRegistryBackups(options: {
     try {
       const metaPath = join(entryDir, "meta.json");
       const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
-      if (linkedMeta) continue;
+      if (linkedMeta) {
+        if (await removeRegistryBackupStoreItem(root, entry.name)) {
+          purgedIds.push(entry.name);
+        }
+        continue;
+      }
       const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as {
         createdAt?: unknown;
         expiresAt?: unknown;
