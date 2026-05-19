@@ -248,6 +248,9 @@ function LeftoverPanel({
   const restorableCount = result
     ? restorableTrashEntryIds(result).length + restorableRegistryBackupIds(result).length
     : 0;
+  const cleanedCount = result
+    ? result.removedItems.filter((item) => item.succeeded).length
+    : 0;
   if (state.snapshot.groups.length === 0) {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
@@ -291,14 +294,14 @@ function LeftoverPanel({
         {result && (
           <div style={{ marginTop: 10 }}>
             <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
-              {result.removedItems.length}개를 정리했어요. 실패/건너뜀{" "}
+              {cleanedCount}개를 정리했어요. 실패/건너뜀{" "}
               {result.skippedItems.filter((s) => s.reason !== "not-selected").length}개.
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <Button variant="primary" size="sm" onClick={onRescan}>
                 다시 점검해서 효과 보기
               </Button>
-              {result.mode === "trash" && result.removedItems.length > 0 && (
+              {result.mode === "trash" && cleanedCount > 0 && (
                 <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
                   복구함 보기
                 </Button>

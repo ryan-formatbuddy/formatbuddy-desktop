@@ -50,6 +50,16 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
+  it("counts only successful app-leftover cleanup items as cleaned", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("const cleanedCount = result");
+    expect(source).toContain(".filter((item) => item.succeeded).length");
+    expect(source).toContain("{cleanedCount}개를 정리했어요");
+    expect(source).toContain("result.mode === \"trash\" && cleanedCount > 0");
+    expect(source).not.toContain("{result.removedItems.length}개를 정리했어요");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
