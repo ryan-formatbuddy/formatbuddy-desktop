@@ -74,7 +74,7 @@ function CategorySection({
   const remaining = category.items.length - sampleItems.length;
 
   return (
-    <article className="fb-card" style={{ marginBottom: 16 }}>
+    <article className="fb-card fb-anim-slide fb-card-hover" style={{ marginBottom: 16 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
         <div>
           <h3 style={{ margin: 0 }}>{category.label}</h3>
