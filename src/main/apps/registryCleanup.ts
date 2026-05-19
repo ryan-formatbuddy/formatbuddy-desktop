@@ -24,6 +24,14 @@ export interface RegistryCleanupRunner {
   importFile?: (backupPath: string) => Promise<void>;
 }
 
+type RegistryBackupRestoredApp = {
+  name: string;
+  publisher?: string | null;
+  backupKind: "key" | "startup-value";
+  registryKeyPath?: string;
+  valueName?: string;
+};
+
 const SAFE_UNINSTALL_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+)$/i;
 const SAFE_STARTUP_VALUE_KEY_PATTERN =
@@ -861,9 +869,7 @@ export async function restoreRegistryBackup(options: {
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   beforeImport?: () => Promise<void>;
-  onAppRegistryBackupRestored?: (
-    app: { name: string; publisher?: string | null; registryKeyPath: string }
-  ) => void | Promise<void>;
+  onAppRegistryBackupRestored?: (app: RegistryBackupRestoredApp) => void | Promise<void>;
 }): Promise<RegistryBackupRestoreResult> {
   if (!isSafeRegistryBackupId(options.backupId)) {
     return {
@@ -903,12 +909,23 @@ export async function restoreRegistryBackup(options: {
     });
     const appName = cleanOptionalString(entry.appName);
     if (appName) {
+      const backupKind = entry.backupKind === "startup-value" ? "startup-value" : "key";
+      const restoredApp: RegistryBackupRestoredApp =
+        backupKind === "startup-value"
+          ? {
+              name: appName,
+              publisher: entry.appPublisher ?? null,
+              backupKind,
+              ...(entry.valueName ? { valueName: entry.valueName } : {})
+            }
+          : {
+              name: appName,
+              publisher: entry.appPublisher ?? null,
+              backupKind,
+              registryKeyPath: entry.keyPath
+            };
       await Promise.resolve(
-        options.onAppRegistryBackupRestored?.({
-          name: appName,
-          publisher: entry.appPublisher ?? null,
-          registryKeyPath: entry.keyPath
-        })
+        options.onAppRegistryBackupRestored?.(restoredApp)
       ).catch(() => {});
     }
     const label = registryBackupKindLabel(entry);

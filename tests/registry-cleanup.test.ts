@@ -755,6 +755,7 @@ describe("registry leftover cleanup", () => {
     expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
       name: "Acme Notes",
       publisher: "Acme Corp.",
+      backupKind: "key",
       registryKeyPath: keyPath
     });
     const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
@@ -791,10 +792,12 @@ describe("registry leftover cleanup", () => {
       app: { name: "Acme Notes", publisher: "Acme Corp." }
     });
 
+    const onAppRegistryBackupRestored = vi.fn();
     const restored = await restoreRegistryBackup({
       userDataDir: fx.userDataDir,
       backupId: result.id,
-      runner
+      runner,
+      onAppRegistryBackupRestored
     });
 
     expect(restored).toMatchObject({
@@ -809,6 +812,16 @@ describe("registry leftover cleanup", () => {
       appName: "Acme Notes",
       appPublisher: "Acme Corp."
     });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "startup-value",
+      valueName
+    });
+    expect(onAppRegistryBackupRestored.mock.calls[0][0]).not.toHaveProperty(
+      "registryKeyPath",
+      keyPath
+    );
   });
 
   it("runs the safety hook before importing a registry backup", async () => {

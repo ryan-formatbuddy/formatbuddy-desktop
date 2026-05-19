@@ -23,4 +23,13 @@ describe("app leftovers audit copy", () => {
     expect(source).toContain("${registryBackupAuditLabel} 되돌리기 결과: ${result.message}");
     expect(source).not.toContain("? \"앱 삭제 흔적 백업을 복구함에서 되돌렸어요.\"");
   });
+
+  it("does not persist a startup Run key as an app uninstall follow-up key", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("restoredRegistryBackupFollowupApp");
+    expect(source).toContain('restoredApp.backupKind === "key"');
+    expect(source).toContain("registryKeyPath: restoredApp.registryKeyPath");
+    expect(source).not.toContain("rememberRecentlyUninstallLaunchedApp({\n            name: restoredApp.name");
+  });
 });

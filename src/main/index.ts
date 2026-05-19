@@ -31,6 +31,7 @@ import type {
   ExportOptions,
   ExportResult,
   IgnoreListUpdate,
+  InstalledApp,
   LargeFileCandidate,
   ManifestExportResult,
   RegistryBackupRestoreRequest,
@@ -319,6 +320,21 @@ async function maybeCreateRestorePoint(
   } catch (err) {
     log.warn("restore-point trigger failed:", (err as Error).message);
   }
+}
+
+function restoredRegistryBackupFollowupApp(restoredApp: {
+  name: string;
+  publisher?: string | null;
+  backupKind?: "key" | "startup-value";
+  registryKeyPath?: string;
+}): InstalledApp {
+  return {
+    name: restoredApp.name,
+    publisher: restoredApp.publisher ?? null,
+    ...(restoredApp.backupKind === "key" && restoredApp.registryKeyPath
+      ? { registryKeyPath: restoredApp.registryKeyPath }
+      : {})
+  };
 }
 
 async function runReminderTick(): Promise<void> {
@@ -947,16 +963,9 @@ function registerIpc() {
         backupId: safeRequest.backupId,
         beforeImport: () => maybeCreateRestorePoint("앱 삭제 흔적 백업 되돌리기"),
         onAppRegistryBackupRestored: async (restoredApp) => {
-          rememberRecentlyUninstallLaunchedApp({
-            name: restoredApp.name,
-            publisher: restoredApp.publisher ?? null,
-            registryKeyPath: restoredApp.registryKeyPath
-          });
-          await rememberUninstallFollowup(userDataDir, {
-            name: restoredApp.name,
-            publisher: restoredApp.publisher ?? null,
-            registryKeyPath: restoredApp.registryKeyPath
-          }).catch((err) => {
+          const followupApp = restoredRegistryBackupFollowupApp(restoredApp);
+          rememberRecentlyUninstallLaunchedApp(followupApp);
+          await rememberUninstallFollowup(userDataDir, followupApp).catch((err) => {
             log.warn("registry-backup restore followup remember failed:", (err as Error).message);
           });
         }
