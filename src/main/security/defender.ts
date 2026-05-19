@@ -27,6 +27,8 @@ import type {
 } from "@shared/types";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const MAX_THREAT_RECORDS = 50;
+const MAX_THREAT_RESOURCES = 10;
 
 export interface PowerShellRunResult {
   stdout: string;
@@ -267,8 +269,21 @@ function severityFromDefender(raw: unknown): DefenderThreatRecord["severity"] {
   return "unknown";
 }
 
+function resourceListFrom(raw: unknown): string[] | undefined {
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
+  const resources = list
+    .filter((r): r is string => typeof r === "string")
+    .map((r) => r.trim())
+    .filter(Boolean)
+    .slice(0, MAX_THREAT_RESOURCES);
+  return resources.length > 0 ? resources : undefined;
+}
+
 function recordsFrom(parsed: unknown): DefenderThreatRecord[] {
-  const list = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+  const list = (Array.isArray(parsed) ? parsed : parsed ? [parsed] : []).slice(
+    0,
+    MAX_THREAT_RECORDS
+  );
   const out: DefenderThreatRecord[] = [];
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
@@ -282,9 +297,7 @@ function recordsFrom(parsed: unknown): DefenderThreatRecord[] {
         parsePsDate(obj.LastThreatStatusChangeTime),
       severity: severityFromDefender(obj.SeverityID ?? obj.Severity),
       actionStatus: action.status,
-      resources: Array.isArray(obj.Resources)
-        ? (obj.Resources as unknown[]).filter((r): r is string => typeof r === "string")
-        : undefined,
+      resources: resourceListFrom(obj.Resources),
       rawStatus: action.rawStatus
     });
   }
@@ -302,7 +315,8 @@ export async function getThreatHistory(deps: DefenderDeps): Promise<DefenderThre
     };
   }
   const command =
-    "Get-MpThreatDetection | Select-Object ThreatID,ThreatName,InitialDetectionTime," +
+    "Get-MpThreatDetection | Sort-Object -Property InitialDetectionTime -Descending | " +
+    `Select-Object -First ${MAX_THREAT_RECORDS} -Property ThreatID,ThreatName,InitialDetectionTime,` +
     "LastThreatStatusChangeTime,Resources,SeverityID,InitialDetectionAction,MostRecentDetectionAction" +
     " | ConvertTo-Json -Depth 4 -Compress";
   const result = await deps.shell.run(command, { timeoutMs: 10_000 });
@@ -351,6 +365,9 @@ export async function getThreatHistory(deps: DefenderDeps): Promise<DefenderThre
 export const __testing = {
   parsePsDate,
   daysBetween,
+  MAX_THREAT_RECORDS,
+  MAX_THREAT_RESOURCES,
+  resourceListFrom,
   recordsFrom,
   actionFromDefender,
   severityFromDefender

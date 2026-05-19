@@ -203,6 +203,38 @@ describe("getThreatHistory", () => {
     expect(result.records[1].severity).toBe("severe");
   });
 
+  it("caps threat records and related resources before sending them to the UI", async () => {
+    const detections = Array.from({ length: __testing.MAX_THREAT_RECORDS + 7 }, (_, index) => ({
+      ThreatID: index + 1,
+      ThreatName: `Threat ${index + 1}`,
+      SeverityID: 4,
+      MostRecentDetectionAction: 2,
+      Resources: Array.from(
+        { length: __testing.MAX_THREAT_RESOURCES + 4 },
+        (_unused, resourceIndex) => `file:c:\\users\\ryan\\downloads\\bad-${index}-${resourceIndex}.exe`
+      )
+    }));
+    const run = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify(detections),
+      stderr: "",
+      code: 0,
+      timedOut: false
+    });
+    const shell = makeRunner({ run });
+    const result = await getThreatHistory({ shell, platform: "win32", now: fixedNow });
+    expect(run).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Select-Object -First ${__testing.MAX_THREAT_RECORDS} -Property`
+      ),
+      { timeoutMs: 10_000 }
+    );
+    expect(result.records).toHaveLength(__testing.MAX_THREAT_RECORDS);
+    expect(result.records[0].resources).toHaveLength(__testing.MAX_THREAT_RESOURCES);
+    expect(result.records.at(-1)?.threatName).toBe(
+      `Threat ${__testing.MAX_THREAT_RECORDS}`
+    );
+  });
+
   it("returns unavailable on non-Windows", async () => {
     const shell = makeRunner();
     const result = await getThreatHistory({ shell, platform: "darwin", now: fixedNow });
