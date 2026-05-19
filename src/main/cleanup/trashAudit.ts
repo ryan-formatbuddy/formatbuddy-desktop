@@ -4,6 +4,7 @@ import { purgeExpiredTrash, type TrashRuntimeOptions } from "./trash";
 
 export type TrashPurgeAuditTrigger =
   | "startup"
+  | "scheduled"
   | "cleanup-plan"
   | "trash-list"
   | "restore"

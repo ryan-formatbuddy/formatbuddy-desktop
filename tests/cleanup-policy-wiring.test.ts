@@ -47,4 +47,14 @@ describe("cleanup policy wiring", () => {
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(policyIndex).toBeLessThan(restoreIndex);
   });
+
+  it("runs the 30-day restore-bin purge on startup and on a scheduled loop", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("RETENTION_PURGE_INTERVAL_MS");
+    expect(source).toContain("runAppRetentionPurgeTick(\"startup\")");
+    expect(source).toContain("runAppRetentionPurgeTick(\"scheduled\")");
+    expect(source).toContain("reconcileRetentionPurgeTimer()");
+    expect(source).toContain("clearInterval(retentionPurgeTimer)");
+  });
 });

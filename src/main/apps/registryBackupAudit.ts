@@ -4,6 +4,7 @@ import { purgeExpiredRegistryBackups } from "./registryCleanup";
 
 export type RegistryBackupPurgeAuditTrigger =
   | "startup"
+  | "scheduled"
   | "app-leftovers"
   | "registry-list"
   | "registry-restore"

@@ -51,6 +51,11 @@ import { getCleanupHistory } from "./cleanup/log";
 import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
 import { purgeExpiredTrashWithAudit } from "./cleanup/trashAudit";
 import {
+  RETENTION_PURGE_INTERVAL_MS,
+  runRetentionPurgeTick,
+  type RetentionPurgeTrigger
+} from "./retentionPurge";
+import {
   createRestorePoint,
   defaultRestorePointRunner
 } from "./cleanup/restorePoint";
@@ -194,6 +199,7 @@ let mainWindow: BrowserWindow | null = null;
 let activeAbort: AbortController | null = null;
 let trayInstance: Tray | null = null;
 let reminderTimer: NodeJS.Timeout | null = null;
+let retentionPurgeTimer: NodeJS.Timeout | null = null;
 const REMINDER_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 function focusMainWindow(): void {
@@ -245,6 +251,31 @@ async function reconcileReminderTimer(): Promise<void> {
   // Run once on startup so users who enable reminders right after
   // install don't wait an hour for the first check.
   setTimeout(() => void runReminderTick(), 30_000);
+}
+
+async function runAppRetentionPurgeTick(trigger: RetentionPurgeTrigger): Promise<void> {
+  await runRetentionPurgeTick({
+    trigger,
+    purgeTrash: (purgeTrigger) =>
+      purgeExpiredTrashWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: purgeTrigger
+      }),
+    purgeRegistryBackups: (purgeTrigger) =>
+      purgeExpiredRegistryBackupsWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: purgeTrigger
+      }),
+    logInfo: (message) => log.info(`retention:${message}`),
+    logWarn: (message) => log.warn(`retention:${message}`)
+  });
+}
+
+function reconcileRetentionPurgeTimer(): void {
+  if (retentionPurgeTimer) return;
+  retentionPurgeTimer = setInterval(() => {
+    void runAppRetentionPurgeTick("scheduled");
+  }, RETENTION_PURGE_INTERVAL_MS);
 }
 
 /**
@@ -1203,22 +1234,8 @@ app.whenReady().then(() => {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
       await reconcileReminderTimer();
-      await purgeExpiredTrashWithAudit({
-        userDataDir: app.getPath("userData"),
-        trigger: "startup"
-      }).then((result) => {
-        if (result.purgedCount > 0) {
-          log.info(`cleanup-trash:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
-        }
-      });
-      await purgeExpiredRegistryBackupsWithAudit({
-        userDataDir: app.getPath("userData"),
-        trigger: "startup"
-      }).then((result) => {
-        if (result.purgedCount > 0) {
-          log.info(`registry-backup:startup purged=${result.purgedCount} bytes=${result.purgedBytes}`);
-        }
-      });
+      await runAppRetentionPurgeTick("startup");
+      reconcileRetentionPurgeTimer();
       // Push the persisted update channel onto electron-updater. Initial
       // init() above used the default (stable) so this catches the case
       // where the user previously opted into beta.
@@ -1242,6 +1259,10 @@ app.on("before-quit", () => {
   if (reminderTimer) {
     clearInterval(reminderTimer);
     reminderTimer = null;
+  }
+  if (retentionPurgeTimer) {
+    clearInterval(retentionPurgeTimer);
+    retentionPurgeTimer = null;
   }
   destroyTray(trayInstance);
   trayInstance = null;
