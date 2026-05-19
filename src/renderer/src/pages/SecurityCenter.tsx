@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   DefenderLiveStatus,
   DefenderQuickScanResult,
@@ -289,7 +290,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       const data = await window.fb.getDefenderStatus();
       setStatus({ loading: false, data });
     } catch (err) {
-      setStatus({ loading: false, error: (err as Error).message });
+      setStatus({ loading: false, error: friendlyErrorMessage(err) });
     }
   }, []);
 
@@ -300,7 +301,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       const data = await window.fb.getDefenderThreats();
       setThreats({ loading: false, data });
     } catch (err) {
-      setThreats({ loading: false, error: (err as Error).message });
+      setThreats({ loading: false, error: friendlyErrorMessage(err) });
     }
   }, []);
 
@@ -315,7 +316,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       setScanResult({
         status: "spawn-failed",
         startedAt: new Date().toISOString(),
-        message: (err as Error).message
+        message: friendlyErrorMessage(err)
       });
     } finally {
       setScanBusy(false);

@@ -4,6 +4,7 @@ import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { TooltipDetail } from "../components/TooltipDetail";
 import { copy } from "@shared/copy";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   ActionItem,
   AppInventoryGroup,
@@ -825,8 +826,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
         setManifestStatus(copy.manifestExportCancelled);
       }
     } catch (e) {
-      const err = e as Error;
-      setManifestStatus(`${copy.manifestExportErrorPrefix}${err.message}`);
+      setManifestStatus(`${copy.manifestExportErrorPrefix}${friendlyErrorMessage(e)}`);
     } finally {
       setManifestRunning(false);
     }
@@ -840,7 +840,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       const r = await window.fb.backupDrivers();
       setDriverStatus(r.summary);
     } catch (e) {
-      setDriverStatus((e as Error).message);
+      setDriverStatus(friendlyErrorMessage(e));
     } finally {
       setDriverRunning(false);
     }
@@ -856,7 +856,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       });
       setWifiStatus(r.summary);
     } catch (e) {
-      setWifiStatus((e as Error).message);
+      setWifiStatus(friendlyErrorMessage(e));
     } finally {
       setWifiRunning(false);
     }

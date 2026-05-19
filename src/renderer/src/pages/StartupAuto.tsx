@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   StartupAutoDisabledEntry,
   StartupAutoDisabledSnapshot,
@@ -105,7 +106,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
       setSnapshot(auto);
       setDisabledSnapshot(disabled);
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -151,7 +152,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
         setMessage(result.message);
         await load();
       } catch (e) {
-        setMessage((e as Error).message);
+        setMessage(friendlyErrorMessage(e));
       } finally {
         setBusyId(null);
       }
@@ -172,7 +173,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
         setMessage(result.message);
         await load();
       } catch (e) {
-        setMessage((e as Error).message);
+        setMessage(friendlyErrorMessage(e));
       } finally {
         setBusyId(null);
       }

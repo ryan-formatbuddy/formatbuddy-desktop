@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { copy } from "@shared/copy";
+import { friendlyErrorMessage } from "@shared/error-friendly";
 import type { AuditCategory, AuditEntry, AuditSnapshot } from "@shared/types";
 
 interface AuditLogProps {
@@ -46,7 +47,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
       const result = await window.fb.getAuditSnapshot();
       setSnapshot(result);
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyErrorMessage(e));
     }
   }, []);
 

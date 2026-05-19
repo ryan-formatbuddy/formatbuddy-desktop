@@ -58,4 +58,15 @@ describe("product copy friendliness", () => {
     expect(source).toContain("Windows 보안 상태");
     expect(source).toContain("Windows 보안 빠른 검사 시작");
   });
+
+  it("keeps raw caught error messages out of user-facing screens", () => {
+    const source = USER_FACING_FILES.map((file) =>
+      readFileSync(join(RENDERER_ROOT, file), "utf8")
+    ).join("\n");
+
+    expect(source).toContain("friendlyErrorMessage");
+    expect(source).not.toContain("(e as Error).message");
+    expect(source).not.toContain("(err as Error).message");
+    expect(source).not.toContain("err.message");
+  });
 });
