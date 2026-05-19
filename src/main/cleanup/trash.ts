@@ -777,7 +777,11 @@ export async function purgeExpiredTrash(
       const entryBytes = linkedStoredPath
         ? 0
         : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
-      await removeEntryDir(entryDir(options.userDataDir, entry.id), entry);
+      const dir = entryDir(options.userDataDir, entry.id);
+      await removeEntryDir(dir, entry);
+      if (await exists(dir)) {
+        throw new Error("Expired trash entry still exists after purge");
+      }
       purgedBytes += entryBytes;
       purgedEntryIds.push(entry.id);
     } catch {

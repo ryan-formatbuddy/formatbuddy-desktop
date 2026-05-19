@@ -674,6 +674,32 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("does not count an expired entry as purged when its trash folder still exists", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async () => undefined
+    });
+
+    expect(purged.purgedCount).toBe(0);
+    expect(purged.purgedBytes).toBe(0);
+    expect(purged.purgedEntryIds).toEqual([]);
+    expect(purged.failedEntryIds).toEqual([entry.id]);
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(true);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries.map((trashEntry) => trashEntry.id)).toEqual([entry.id]);
+  });
+
   it("keeps other expired entries purgeable when one expired entry cannot be removed", async () => {
     const blockedSource = join(fx.home, "AppData", "Local", "Temp", "blocked.tmp");
     const okSource = join(fx.home, "AppData", "Local", "Temp", "ok.tmp");
