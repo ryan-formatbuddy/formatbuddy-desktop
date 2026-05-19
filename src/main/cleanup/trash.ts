@@ -20,6 +20,7 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot
 } from "@shared/types";
+import { normalizePath } from "./blocklist";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
 
@@ -141,6 +142,7 @@ async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrash
       const raw = await readFile(join(entryDir(userDataDir, entry.name), "manifest.json"), "utf8");
       const coerced = coerceEntry(JSON.parse(raw));
       if (!coerced) continue;
+      if (!isManifestEntrySelfContained(userDataDir, entry.name, coerced)) continue;
       if (!(await exists(coerced.storedPath))) continue;
       recovered.push(coerced);
     } catch {
@@ -148,6 +150,17 @@ async function recoverManifestEntries(userDataDir: string): Promise<CleanupTrash
     }
   }
   return recovered;
+}
+
+function isManifestEntrySelfContained(
+  userDataDir: string,
+  entryFolderName: string,
+  entry: CleanupTrashEntry
+): boolean {
+  if (entry.id !== entryFolderName) return false;
+  const filesRoot = normalizePath(join(entryDir(userDataDir, entryFolderName), "files"));
+  const stored = normalizePath(entry.storedPath);
+  return stored === filesRoot || stored.startsWith(`${filesRoot}\\`);
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {

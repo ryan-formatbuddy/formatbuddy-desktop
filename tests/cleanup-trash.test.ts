@@ -189,4 +189,38 @@ describe("FormatBuddy Trash", () => {
     expect(restored.status).toBe("restored");
     expect(await readFile(source, "utf8")).toBe("hello");
   });
+
+  it("ignores recovered manifests that point outside their trash entry folder", async () => {
+    const folder = join(__testing.itemsRoot(fx.userData), "orphan", "files");
+    await mkdir(folder, { recursive: true });
+    const outside = join(fx.root, "outside.txt");
+    await writeFile(outside, "do not move", "utf8");
+    await writeFile(
+      join(__testing.entryDir(fx.userData, "orphan"), "manifest.json"),
+      JSON.stringify(
+        {
+          id: "orphan",
+          itemId: "item-evil",
+          originalPath: join(fx.home, "restored.txt"),
+          storedPath: outside,
+          label: "outside.txt",
+          categoryId: "temp-user",
+          sizeBytes: 11,
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(0);
+    expect(await readFile(outside, "utf8")).toBe("do not move");
+  });
 });
