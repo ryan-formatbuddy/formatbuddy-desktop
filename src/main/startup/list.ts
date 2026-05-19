@@ -29,6 +29,8 @@ import type {
 } from "@shared/types";
 
 const PS_TIMEOUT_MS = 15_000;
+const STARTUP_LOOKUP_FAILED_NOTE =
+  "시작 항목 조회를 끝내지 못했어요. 잠시 후 다시 조회해주세요.";
 
 export interface PowerShellRunner {
   invoke: (
@@ -305,7 +307,7 @@ export async function listStartupAuto(
   }
   const runner = opts.runner ?? defaultStartupRunner();
   try {
-    const { exitCode, stdout, stderr } = await runner.invoke(
+    const { exitCode, stdout } = await runner.invoke(
       [
         "-NoProfile",
         "-NonInteractive",
@@ -319,7 +321,7 @@ export async function listStartupAuto(
     if (exitCode !== 0) {
       return emptySnapshot(
         "powershell-failed",
-        `PowerShell 종료 코드 ${exitCode}: ${stderr.slice(0, 200)}`,
+        STARTUP_LOOKUP_FAILED_NOTE,
         now
       );
     }
@@ -334,7 +336,7 @@ export async function listStartupAuto(
     const msg = (err as Error).message;
     return emptySnapshot(
       "powershell-failed",
-      msg === "timeout" ? "조회 시간이 너무 길어 멈췄어요." : msg,
+      msg === "timeout" ? "조회 시간이 너무 길어 멈췄어요." : STARTUP_LOOKUP_FAILED_NOTE,
       now
     );
   }

@@ -104,15 +104,26 @@ describe("listStartupAuto", () => {
     expect(snapshot.entries.map((e) => e.name)).toEqual(["KakaoTalk"]);
   });
 
-  it("returns powershell-failed when exit code is non-zero", async () => {
+  it("keeps startup query failures friendly when the Windows lookup fails", async () => {
     const invoke = vi.fn(async () => ({
       exitCode: 1,
       stdout: "",
-      stderr: "Access denied"
+      stderr: "Access denied from PowerShell"
     }));
     const snapshot = await listStartupAuto({ platform: "win32", runner: { invoke } });
     expect(snapshot.status).toBe("powershell-failed");
-    expect(snapshot.notes[0]).toMatch(/Access denied/);
+    expect(snapshot.notes[0]).toContain("시작 항목");
+    expect(snapshot.notes[0]).not.toMatch(/PowerShell|Access denied|종료 코드/i);
+  });
+
+  it("keeps unexpected startup lookup errors out of user-facing notes", async () => {
+    const invoke = vi.fn(async () => {
+      throw new Error("powershell.exe ENOENT");
+    });
+    const snapshot = await listStartupAuto({ platform: "win32", runner: { invoke } });
+    expect(snapshot.status).toBe("powershell-failed");
+    expect(snapshot.notes[0]).toContain("시작 항목");
+    expect(snapshot.notes[0]).not.toMatch(/PowerShell|powershell|ENOENT/i);
   });
 
   it("classifies a timeout cleanly", async () => {
