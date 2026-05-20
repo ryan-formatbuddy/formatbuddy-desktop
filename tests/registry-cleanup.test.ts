@@ -1053,6 +1053,52 @@ describe("registry leftover cleanup", () => {
     expect(existsSync(join(__testing.registryBackupItemsRoot(fx.userDataDir), backup.id))).toBe(true);
   });
 
+  it("blocks registry backup purge preflight when an expired backup folder is behind a link", async () => {
+    if (process.platform === "win32") return;
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const backupId = "expired-linked-backup";
+    const outsideEntryDir = join(fx.root, "outside-registry-backup-entry");
+
+    await mkdir(root, { recursive: true });
+    await mkdir(outsideEntryDir, { recursive: true });
+    await symlink(outsideEntryDir, join(root, backupId), "dir");
+
+    await expect(
+      __testing.assertSafeRegistryBackupEntryDirForPurge(fx.userDataDir, backupId)
+    ).rejects.toThrow(/link|backup/i);
+  });
+
+  it("does not expose unsafe registry backup folder names in purge results", async () => {
+    const root = __testing.registryBackupItemsRoot(fx.userDataDir);
+    const unsafeBackupId = "expired backup";
+    const entryDir = join(root, unsafeBackupId);
+    await mkdir(entryDir, { recursive: true });
+    await writeFile(
+      join(entryDir, "meta.json"),
+      JSON.stringify({
+        id: unsafeBackupId,
+        keyPath: ACME_UNINSTALL_KEY_PATH,
+        backupPath: join(entryDir, "backup.reg"),
+        createdAt: "2026-05-19T00:00:00.000Z",
+        expiresAt: "2026-06-18T00:00:00.000Z"
+      }),
+      "utf8"
+    );
+
+    const result = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    });
+    expect(existsSync(entryDir)).toBe(true);
+  });
+
   it("prunes registry backup folders that cannot be restored", async () => {
     const brokenDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), "broken-meta");
     await mkdir(brokenDir, { recursive: true });

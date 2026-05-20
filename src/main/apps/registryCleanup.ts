@@ -915,6 +915,35 @@ async function measureRegistryBackupPurgeBytes(entryDir: string): Promise<number
   }
 }
 
+async function assertSafeRegistryBackupEntryDirForPurge(
+  userDataDir: string,
+  backupId: string
+): Promise<string> {
+  if (!isSafeRegistryBackupId(backupId)) {
+    throw new Error("FormatBuddy registry backup purge id is not safe");
+  }
+
+  const root = registryBackupItemsRoot(userDataDir);
+  const normalizedRoot = normalizePath(resolve(root));
+  const entryDir = join(root, backupId);
+  const normalizedEntryDir = normalizePath(resolve(entryDir));
+  if (!normalizedEntryDir.startsWith(`${normalizedRoot}\\`)) {
+    throw new Error("FormatBuddy registry backup purge folder is outside the backup bin");
+  }
+
+  const linkedEntryDir = await findLinkedPathPart(entryDir, userDataDir, true);
+  if (linkedEntryDir) {
+    throw new Error(`FormatBuddy registry backup purge folder is a link: ${linkedEntryDir}`);
+  }
+
+  const stat = await fs.lstat(entryDir);
+  if (!stat.isDirectory()) {
+    throw new Error("FormatBuddy registry backup purge folder is not a folder");
+  }
+
+  return entryDir;
+}
+
 export async function listRegistryBackups(options: {
   userDataDir: string;
   now?: () => Date;
@@ -994,8 +1023,11 @@ export async function purgeExpiredRegistryBackups(options: {
     ((dir: string) => fs.rm(dir, { recursive: true, force: true }));
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const entryDir = join(root, entry.name);
     try {
+      const entryDir = await assertSafeRegistryBackupEntryDirForPurge(
+        options.userDataDir,
+        entry.name
+      );
       const metaPath = join(entryDir, "meta.json");
       const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
       if (linkedMeta) {
@@ -1035,7 +1067,7 @@ export async function purgeExpiredRegistryBackups(options: {
       purgedBytes += entryBytes;
       purgedIds.push(entry.name);
     } catch {
-      failedIds.push(entry.name);
+      if (isSafeRegistryBackupId(entry.name)) failedIds.push(entry.name);
       continue;
     }
   }
@@ -1174,5 +1206,6 @@ async function assertRegistryBackupRestored(
 export const __testing = {
   normalizeRegistryKeyPath,
   registryBackupExpiry,
-  registryBackupItemsRoot
+  registryBackupItemsRoot,
+  assertSafeRegistryBackupEntryDirForPurge
 };
