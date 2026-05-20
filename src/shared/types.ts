@@ -884,6 +884,15 @@ export interface StartupDisabledPurgeResult {
   retentionDays: number;
 }
 
+export type RestoreBinPurgeKind = "trash" | "registry-backups" | "startup-disabled";
+
+export interface RestoreBinPurgeResult {
+  trash?: CleanupTrashPurgeResult;
+  registryBackups?: RegistryBackupPurgeResult;
+  startupDisabled?: StartupDisabledPurgeResult;
+  failed: Array<{ kind: RestoreBinPurgeKind; message: string }>;
+}
+
 /**
  * v2.0 — Unified audit log. Cleanup, uninstall, Defender quick scan,
  * monitor toggles all funnel into the same append-only timeline so a

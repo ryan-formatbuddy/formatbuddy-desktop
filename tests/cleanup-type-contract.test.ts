@@ -13,4 +13,14 @@ describe("cleanup type contract", () => {
     expect(source).toContain("mode: CleanupProductExecuteMode");
     expect(source).toContain("Product cleanup always routes through FormatBuddy's 30-day restore bin.");
   });
+
+  it("exposes one purge result shape for every 30-day restore-bin bucket", () => {
+    const source = readFileSync(SHARED_TYPES, "utf8");
+
+    expect(source).toContain("export interface RestoreBinPurgeResult");
+    expect(source).toContain("trash?: CleanupTrashPurgeResult");
+    expect(source).toContain("registryBackups?: RegistryBackupPurgeResult");
+    expect(source).toContain("startupDisabled?: StartupDisabledPurgeResult");
+    expect(source).toContain('export type RestoreBinPurgeKind = "trash" | "registry-backups" | "startup-disabled"');
+  });
 });

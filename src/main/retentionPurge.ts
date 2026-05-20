@@ -1,12 +1,13 @@
 import type {
   CleanupTrashPurgeResult,
   RegistryBackupPurgeResult,
+  RestoreBinPurgeResult,
   StartupDisabledPurgeResult
 } from "@shared/types";
 
 export const RETENTION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
-export type RetentionPurgeTrigger = "startup" | "scheduled";
+export type RetentionPurgeTrigger = "startup" | "scheduled" | "manual";
 
 export interface RetentionPurgeTickDeps {
   trigger: RetentionPurgeTrigger;
@@ -17,12 +18,7 @@ export interface RetentionPurgeTickDeps {
   logWarn?: (message: string) => void;
 }
 
-export interface RetentionPurgeTickResult {
-  trash?: CleanupTrashPurgeResult;
-  registryBackups?: RegistryBackupPurgeResult;
-  startupDisabled?: StartupDisabledPurgeResult;
-  failed: Array<{ kind: "trash" | "registry-backups" | "startup-disabled"; message: string }>;
-}
+export type RetentionPurgeTickResult = RestoreBinPurgeResult;
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);

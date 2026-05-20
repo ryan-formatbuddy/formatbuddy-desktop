@@ -21,7 +21,6 @@ import type {
   CleanupExecuteResult,
   CleanupHistorySnapshot,
   CleanupPlan,
-  CleanupTrashPurgeResult,
   CleanupTrashRestoreRequest,
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
@@ -42,6 +41,7 @@ import type {
   RegistryBackupRestoreRequest,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
+  RestoreBinPurgeResult,
   ScanError,
   ScanProgress,
   ScanStartRequest,
@@ -263,8 +263,10 @@ async function reconcileReminderTimer(): Promise<void> {
   setTimeout(() => void runReminderTick(), 30_000);
 }
 
-async function runAppRetentionPurgeTick(trigger: RetentionPurgeTrigger): Promise<void> {
-  await runRetentionPurgeTick({
+async function runAppRetentionPurgeTick(
+  trigger: RetentionPurgeTrigger
+): Promise<RestoreBinPurgeResult> {
+  return runRetentionPurgeTick({
     trigger,
     purgeTrash: (purgeTrigger) =>
       purgeExpiredTrashWithAudit({
@@ -985,11 +987,8 @@ function registerIpc() {
     }
   );
 
-  ipcMain.handle(IpcChannels.cleanupTrashPurgeExpired, async (): Promise<CleanupTrashPurgeResult> => {
-    return purgeExpiredTrashWithAudit({
-      userDataDir: app.getPath("userData"),
-      trigger: "manual"
-    });
+  ipcMain.handle(IpcChannels.cleanupTrashPurgeExpired, async (): Promise<RestoreBinPurgeResult> => {
+    return runAppRetentionPurgeTick("manual");
   });
 
   ipcMain.handle(IpcChannels.registryBackupsList, async (): Promise<RegistryBackupSnapshot> => {
