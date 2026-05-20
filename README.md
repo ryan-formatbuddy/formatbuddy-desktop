@@ -59,6 +59,10 @@ It does not touch user files or existing startup values. It creates only
 `FormatBuddyFieldE2E_*` registry values, `FormatBuddy Field E2E *` scheduled
 tasks, and temporary files, then removes them.
 
+On Windows, the runner writes a machine-readable evidence report to
+`dist/field-e2e/`. Set `FORMATBUDDY_FIELD_E2E_REPORT_DIR` to save the report
+somewhere else.
+
 ## 검증 한계
 
 | 항목 | macOS에서 가능 | Windows 실기 필요 |
