@@ -87,16 +87,16 @@ function coerceEntry(value: unknown): CleanupLogEntry | null {
   if (typeof raw.id !== "string") return null;
   if (!validIso(raw.executedAt)) return null;
   if (!isPersistedCleanupMode(raw.mode)) return null;
-  const removedCount = coerceNonNegativeInteger(raw.removedCount);
   const skippedCount = coerceNonNegativeInteger(raw.skippedCount);
   const notSelectedCount = coerceNonNegativeInteger(raw.notSelectedCount) ?? 0;
-  if (removedCount === null || skippedCount === null) return null;
+  if (skippedCount === null) return null;
   if (!Array.isArray(raw.categories)) return null;
 
   const categories = raw.categories
     .map(coerceCategoryBreakdown)
     .filter((entry): entry is CleanupCategoryBreakdown => entry !== null);
   const totalFreedBytes = categories.reduce((sum, category) => sum + category.bytesFreed, 0);
+  const removedCount = categories.reduce((sum, category) => sum + category.itemCount, 0);
 
   return {
     id: raw.id,

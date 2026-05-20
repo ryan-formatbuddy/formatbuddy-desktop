@@ -97,6 +97,29 @@ describe("cleanup execution log coercion", () => {
     });
   });
 
+  it("recalculates persisted removed counts from category breakdowns", () => {
+    const [entry] = __testing.coerceLog({
+      version: 1,
+      entries: [
+        {
+          id: "inflated-count",
+          executedAt: "2026-05-19T00:00:00.000Z",
+          mode: "trash",
+          totalFreedBytes: 999_999,
+          removedCount: 99,
+          skippedCount: 0,
+          categories: [
+            { categoryId: "temp-user", bytesFreed: 12, itemCount: 1 },
+            { categoryId: "app-leftovers", bytesFreed: 0, itemCount: 2 }
+          ]
+        }
+      ]
+    }).entries;
+
+    expect(entry.removedCount).toBe(3);
+    expect(entry.totalFreedBytes).toBe(12);
+  });
+
   it("keeps persisted not-selected counts while preserving legacy entries", () => {
     expect(
       __testing.coerceLog({
