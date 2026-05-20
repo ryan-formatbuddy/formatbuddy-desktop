@@ -343,6 +343,7 @@ async function assertRestorableRegistryBackupFile(
 
 function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath: string): boolean {
   const expected = canonicalRegistryKeyForComparison(expectedKeyPath);
+  let foundSection = false;
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line.startsWith("[")) continue;
@@ -352,8 +353,9 @@ function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath
     if (sectionKey !== expected && !sectionKey.startsWith(`${expected}\\`)) {
       return false;
     }
+    foundSection = true;
   }
-  return true;
+  return foundSection;
 }
 
 function registryBackupContainsOnlyValue(content: string, expectedValueName: string): boolean {

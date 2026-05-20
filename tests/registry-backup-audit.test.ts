@@ -7,6 +7,17 @@ import { getAuditSnapshot } from "../src/main/audit/log";
 import { backupAndDeleteRegistryKey, __testing } from "../src/main/apps/registryCleanup";
 import { purgeExpiredRegistryBackupsWithAudit } from "../src/main/apps/registryBackupAudit";
 
+const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
+
+function registryBackupContentFor(keyPath: string): string {
+  const canonicalKeyPath = keyPath
+    .replace(/^HKCU\\/i, "HKEY_CURRENT_USER\\")
+    .replace(/^HKLM\\/i, "HKEY_LOCAL_MACHINE\\");
+  return [REGISTRY_BACKUP_HEADER, "", `[${canonicalKeyPath}]`, '"DisplayName"="Acme Notes"', ""].join(
+    "\r\n"
+  );
+}
+
 interface Fixture {
   root: string;
   userData: string;
@@ -38,10 +49,11 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
+    const backupBytes = Buffer.byteLength(registryBackupContentFor(keyPath), "utf8");
     const backup = await backupAndDeleteRegistryKey({
       userDataDir: fx.userData,
       keyPath,
@@ -56,7 +68,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(1);
-    expect(result.purgedBytes).toBe(Buffer.byteLength("Windows Registry Editor Version 5.00", "utf8"));
+    expect(result.purgedBytes).toBe(backupBytes);
     expect(existsSync(backup.backupPath)).toBe(false);
     const audit = await getAuditSnapshot(fx.userData, new Date("2026-06-18T00:00:02.000Z"));
     expect(audit.entries).toHaveLength(1);
@@ -68,7 +80,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     expect(audit.entries[0].summary).not.toContain("영구");
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
-      purgedBytes: Buffer.byteLength("Windows Registry Editor Version 5.00", "utf8"),
+      purgedBytes: backupBytes,
       purgedIds: [backup.id],
       trigger: "startup"
     });
@@ -92,7 +104,7 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };

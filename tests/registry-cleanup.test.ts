@@ -14,7 +14,23 @@ import {
   __testing
 } from "../src/main/apps/registryCleanup";
 
-const REGISTRY_BACKUP_CONTENT = "Windows Registry Editor Version 5.00";
+const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
+const ACME_UNINSTALL_KEY_PATH = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+
+function registryBackupContentFor(keyPath: string): string {
+  const canonicalKeyPath = keyPath
+    .replace(/^HKCU\\/i, "HKEY_CURRENT_USER\\")
+    .replace(/^HKLM\\/i, "HKEY_LOCAL_MACHINE\\");
+  return [
+    REGISTRY_BACKUP_HEADER,
+    "",
+    `[${canonicalKeyPath}]`,
+    '"DisplayName"="Acme Notes"',
+    ""
+  ].join("\r\n");
+}
+
+const REGISTRY_BACKUP_CONTENT = registryBackupContentFor(ACME_UNINSTALL_KEY_PATH);
 
 interface Fixture {
   root: string;
@@ -100,7 +116,7 @@ describe("registry leftover cleanup", () => {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         calls.push("export");
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => {
         calls.push("delete");
@@ -143,7 +159,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -186,7 +202,7 @@ describe("registry leftover cleanup", () => {
         await mkdir(dirname(backupPath), { recursive: true });
         await writeFile(
           backupPath,
-          `${REGISTRY_BACKUP_CONTENT}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
           "utf8"
         );
       }),
@@ -239,7 +255,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       keyExists: vi.fn(async () => true)
@@ -267,7 +283,7 @@ describe("registry leftover cleanup", () => {
         await mkdir(dirname(backupPath), { recursive: true });
         await writeFile(
           backupPath,
-          `${REGISTRY_BACKUP_CONTENT}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
           "utf8"
         );
       }),
@@ -373,6 +389,28 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not delete when the registry backup export has no registry section to restore", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, "Windows Registry Editor Version 5.00\r\n\r\n", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/레지스트리 백업|registry backup|위치/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("does not delete when the registry backup export writes through a symbolic link", async () => {
     if (process.platform === "win32") return;
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
@@ -406,7 +444,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
         await writeFile(outsideMeta, "outside stays put", "utf8");
         await symlink(outsideMeta, join(dirname(backupPath), "meta.json"));
       }),
@@ -433,7 +471,7 @@ describe("registry leftover cleanup", () => {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         exportedBackupPath = backupPath;
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => {
         throw new Error("delete failed");
@@ -460,7 +498,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -489,7 +527,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -527,7 +565,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -670,7 +708,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -716,7 +754,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -743,7 +781,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -787,7 +825,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -828,7 +866,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => undefined)
@@ -875,7 +913,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => undefined)
@@ -909,7 +947,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => {
@@ -959,7 +997,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       keyExists: vi.fn(async () => false),
@@ -990,7 +1028,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       keyExists: vi.fn()
@@ -1130,7 +1168,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => {
@@ -1160,7 +1198,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => undefined)
@@ -1189,7 +1227,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => undefined)
@@ -1220,7 +1258,7 @@ describe("registry leftover cleanup", () => {
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await mkdir(dirname(backupPath), { recursive: true });
-        await writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined),
       importFile: vi.fn(async () => undefined)

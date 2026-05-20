@@ -11,6 +11,17 @@ import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot } from "../src/main/cleanup/trash";
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
+const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
+
+function registryBackupContentFor(keyPath: string): string {
+  const canonicalKeyPath = keyPath
+    .replace(/^HKCU\\/i, "HKEY_CURRENT_USER\\")
+    .replace(/^HKLM\\/i, "HKEY_LOCAL_MACHINE\\");
+  return [REGISTRY_BACKUP_HEADER, "", `[${canonicalKeyPath}]`, '"DisplayName"="Acme Notes"', ""].join(
+    "\r\n"
+  );
+}
+
 interface Fixture {
   root: string;
   home: string;
@@ -488,7 +499,7 @@ describe("planAppLeftovers", () => {
     const registryRunner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await fs.mkdir(dirname(backupPath), { recursive: true });
-        await fs.writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
@@ -551,7 +562,7 @@ describe("planAppLeftovers", () => {
     const registryRunner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
         await fs.mkdir(dirname(backupPath), { recursive: true });
-        await fs.writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
       }),
       deleteKey: vi.fn(async () => undefined)
     };
