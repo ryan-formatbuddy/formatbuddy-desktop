@@ -1,12 +1,14 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CleanupItem, StartupAutoEntry } from "../src/shared/types";
 import { defaultPrefs } from "../src/main/monitor";
+import { defaultDeps, executeCleanup } from "../src/main/cleanup/executor";
+import { planCleanup, __resetPlanCacheForTests } from "../src/main/cleanup/planner";
 import {
   moveToFormatBuddyTrash,
   purgeExpiredTrash,
@@ -124,11 +126,75 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
   let home = "";
 
   afterEach(async () => {
+    __resetPlanCacheForTests();
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
     await runReg(["delete", UNINSTALL_KEY, "/f"]).catch(() => {});
     await runSchtasks(["/Delete", "/TN", FIELD_TASK_NAME, "/F"]).catch(() => {});
     if (root) rmSync(root, { recursive: true, force: true });
   });
+
+  it("routes the real cleanup executor path into the 30-day restore bin", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-executor-"));
+    userDataDir = join(root, "userdata");
+    home = join(root, "home");
+    const localAppData = join(home, "AppData", "Local");
+    const tempDir = join(localAppData, "Temp");
+    const cleanupSource = join(tempDir, "field-executor-cleanup.tmp");
+    const firstAt = new Date("2026-05-20T09:00:00.000Z");
+    const restoredAt = new Date("2026-05-20T09:05:00.000Z");
+    const oldMtime = new Date("2026-05-01T09:00:00.000Z");
+
+    await mkdir(dirname(cleanupSource), { recursive: true });
+    await writeFile(cleanupSource, "field-executor-cleanup", "utf8");
+    await utimes(cleanupSource, oldMtime, oldMtime);
+
+    const plan = await planCleanup({
+      env: {
+        home,
+        tempDir,
+        localAppData,
+        systemRoot: join(root, "Windows"),
+        systemDrive: root,
+        now: () => firstAt
+      }
+    });
+    const selected = plan.categories
+      .flatMap((category) => category.items)
+      .find((item) => item.path === cleanupSource);
+
+    expect(selected?.categoryId).toBe("temp-user");
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        mode: "trash",
+        selectedItemIds: [selected!.id]
+      },
+      {
+        userDataDir,
+        deps: defaultDeps(userDataDir),
+        home,
+        now: () => firstAt
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].trashEntryId).toBeTruthy();
+    expect(result.removedItems[0].expiresAt).toBe("2026-06-19T09:00:00.000Z");
+    expect(result.skippedItems.filter((item) => item.reason !== "not-selected")).toEqual([]);
+    expect(existsSync(cleanupSource)).toBe(false);
+
+    const restoredTrash = await restoreTrashEntry({
+      userDataDir,
+      home,
+      entryId: result.removedItems[0].trashEntryId!,
+      now: () => restoredAt
+    });
+
+    expect(restoredTrash.status).toBe("restored");
+    await expect(readFile(cleanupSource, "utf8")).resolves.toBe("field-executor-cleanup");
+  }, 45_000);
 
   it("runs the real Windows smoke path for 30-day restore bin and startup changes", async () => {
     root = mkdtempSync(join(tmpdir(), "fb-windows-field-"));

@@ -11,6 +11,7 @@ describe("Windows field E2E runner", () => {
     expect(source).toContain('kind: "formatbuddy-windows-field-e2e"');
     expect(source).toContain('join(projectRoot, "dist", "field-e2e")');
     expect(source).toContain("FORMATBUDDY_FIELD_E2E_REPORT_DIR");
+    expect(source).toContain("cleanup executor consumes a confirmation-token plan");
     expect(source).toContain("unified 30-day retention tick");
     expect(source).toContain("requirementResults");
     expect(source).toContain("capturedLog");

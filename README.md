@@ -49,6 +49,7 @@ npm run field:e2e:win
 This command intentionally runs only on Windows. It creates FormatBuddy-named
 temporary items, then verifies:
 
+- the real cleanup executor accepts a confirmed plan and sends the selected file to the 30-day restore bin
 - a cleanup file moves into the 30-day restore bin, restores, and auto-purges after expiry
 - a startup-folder item can be held for 30 days and restored
 - a dedicated HKCU Run value can be backed up, turned off, and restored

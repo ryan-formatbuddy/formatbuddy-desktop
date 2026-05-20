@@ -10,6 +10,7 @@ const startedAt = new Date().toISOString();
 const maxCapturedLogChars = 120_000;
 const vitestCommand = [process.execPath, vitestPath, "run", testFile];
 const evidenceRequirements = [
+  "cleanup executor consumes a confirmation-token plan and sends the selected item to the 30-day restore bin",
   "cleanup file enters the 30-day restore bin, restores, and auto-purges after expiry",
   "startup-folder item is held for 30 days and restored",
   "HKCU Run value is backed up, disabled, and restored",
