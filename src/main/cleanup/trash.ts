@@ -107,7 +107,30 @@ function isAtOrInside(rawPath: string, rawRoot: string): boolean {
   const path = normalizePath(rawPath);
   const root = normalizePath(rawRoot);
   if (!path || !root) return false;
-  return path === root || path.startsWith(`${root}\\`);
+  const childPrefix = root.endsWith("\\") ? root : `${root}\\`;
+  return path === root || path.startsWith(childPrefix);
+}
+
+function sourceLinkBoundaryForPath(
+  rawPath: string,
+  userDataDir: string,
+  home?: string
+): string | undefined {
+  if (home && isAtOrInside(rawPath, home)) return home;
+
+  const commonRoot = commonAncestorPath(userDataDir, rawPath);
+  if (commonRoot) return commonRoot;
+
+  const normalized = normalizePath(rawPath);
+  const driveRoot = normalized.match(/^([a-z]:\\)/i)?.[1];
+  if (driveRoot) return driveRoot;
+
+  if (normalized.startsWith("\\\\")) {
+    const parts = normalized.slice(2).split("\\").filter(Boolean);
+    if (parts.length >= 2) return `\\\\${parts[0]}\\${parts[1]}`;
+  }
+
+  return undefined;
 }
 
 function trustedSourceAllows(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): boolean {
@@ -878,7 +901,8 @@ export async function moveToFormatBuddyTrash(
 
   const linkedSource = await findLinkedPathPart(
     options.item.path,
-    trustedSourceBoundary(options.item.path, options.trustedSource) ?? options.home ?? options.item.path,
+    trustedSourceBoundary(options.item.path, options.trustedSource) ??
+      sourceLinkBoundaryForPath(options.item.path, options.userDataDir, options.home),
     true
   );
   if (linkedSource) {

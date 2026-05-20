@@ -105,6 +105,31 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
+  it("refuses an untrusted non-home source behind a linked parent", async () => {
+    if (process.platform === "win32") return;
+    const systemRootLink = join(fx.root, "WindowsSystemRoot");
+    const outsideSystemRoot = join(fx.root, "outside-system-root");
+    const source = join(systemRootLink, "Temp", "old-system.tmp");
+    const realSource = join(outsideSystemRoot, "Temp", "old-system.tmp");
+    await mkdir(dirname(realSource), { recursive: true });
+    await writeFile(realSource, "outside system temp", "utf8");
+    await symlink(outsideSystemRoot, systemRootLink, "dir");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        home: fx.home,
+        item: {
+          ...makeItem(source),
+          categoryId: "temp-windows"
+        },
+        sizeBytes: 19,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/link|링크/i);
+    expect(await readFile(realSource, "utf8")).toBe("outside system temp");
+  });
+
   it("cleans restore-bin display labels before writing metadata", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });
