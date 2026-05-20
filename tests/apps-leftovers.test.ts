@@ -490,6 +490,31 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("keeps nested Program Files-looking install folders protected", async () => {
+    const installFolder = join(fx.root, "Backups", "Program Files", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "user-note.txt"), "private", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder);
+    expect(path?.kind).toBe("folder");
+    expect(path?.protectedBy).toMatch(/Program Files|설치|루트|넓은|자동 정리/);
+    await expect(fs.readFile(join(installFolder, "user-note.txt"), "utf8")).resolves.toBe(
+      "private"
+    );
+  });
+
   it("keeps Program Files install folders protected when the Program Files parent is a link", async () => {
     if (process.platform === "win32") return;
     const programFilesLink = join(fx.root, "Program Files");
@@ -711,6 +736,56 @@ describe("planAppLeftovers", () => {
     });
     expect(trash.entries[0].originalPath).toBe(installFolder);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("blocks a stale install-folder plan if the path is changed to a nested Program Files alias", async () => {
+    const installFolder = join(fx.root, "Program Files", "Acme Notes");
+    const aliasFolder = join(fx.root, "Backups", "Program Files", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.mkdir(aliasFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+    await fs.writeFile(join(aliasFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder)!;
+    expect(path.kind).toBe("install-folder");
+    const plannedTime = new Date(path.lastModifiedAt!);
+    await fs.utimes(join(aliasFolder, "AcmeNotes.exe"), plannedTime, plannedTime);
+    await fs.utimes(aliasFolder, plannedTime, plannedTime);
+    path.path = aliasFolder;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: aliasFolder,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/Program Files|설치|안전/);
+    await expect(fs.readFile(join(aliasFolder, "AcmeNotes.exe"), "utf8")).resolves.toBe(
+      "binary"
+    );
   });
 
   it("refuses shortcut-folder cleanup when the folder was replaced with a file after the plan", async () => {

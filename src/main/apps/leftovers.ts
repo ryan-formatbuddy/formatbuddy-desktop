@@ -636,9 +636,26 @@ function genericFolderNames(app: InstalledApp): string[] {
   return Array.from(new Set(candidates));
 }
 
-function isUnderProgramFiles(raw: string): boolean {
+function isRootProgramFilesPath(raw: string, env: LeftoverEnv): boolean {
   const normalized = normalizePath(raw);
-  return normalized.includes("\\program files\\") || normalized.includes("\\program files (x86)\\");
+  if (/^[a-z]:\\program files(?: \(x86\))?(?:\\|$)/i.test(normalized)) return true;
+
+  const simulatedWindowsRoot = normalizePath(dirname(env.programData));
+  if (!simulatedWindowsRoot) return false;
+  return (
+    normalized === `${simulatedWindowsRoot}\\program files` ||
+    normalized.startsWith(`${simulatedWindowsRoot}\\program files\\`) ||
+    normalized === `${simulatedWindowsRoot}\\program files (x86)` ||
+    normalized.startsWith(`${simulatedWindowsRoot}\\program files (x86)\\`)
+  );
+}
+
+function hasProgramFilesSegment(raw: string): boolean {
+  const normalized = normalizePath(raw);
+  return (
+    normalized.includes("\\program files\\") ||
+    normalized.includes("\\program files (x86)\\")
+  );
 }
 
 function installFolderNameMatchesApp(raw: string, app: InstalledApp): boolean {
@@ -654,8 +671,8 @@ function installFolderNameMatchesApp(raw: string, app: InstalledApp): boolean {
     });
 }
 
-function isTrustedInstallFolderPath(raw: string, app: InstalledApp): boolean {
-  if (!isUnderProgramFiles(raw)) return false;
+function isTrustedInstallFolderPath(raw: string, app: InstalledApp, env: LeftoverEnv): boolean {
+  if (!isRootProgramFilesPath(raw, env)) return false;
   return installFolderNameMatchesApp(raw, app);
 }
 
@@ -943,7 +960,7 @@ async function installLocationLeftoverPaths(
   const linkedInstallPath = await findLinkedInstallFolderPathPart(installLocation);
   const trustedInstallFolder =
     !personalProtection &&
-    isTrustedInstallFolderPath(installLocation, app) &&
+    isTrustedInstallFolderPath(installLocation, app, env) &&
     Boolean(installStat?.isDirectory()) &&
     !linkedInstallPath;
   const measured = trustedInstallFolder ? await measurePath(installLocation) : undefined;
@@ -985,7 +1002,7 @@ function userHomeProgramFilesAliasProtection(
   app: InstalledApp,
   env: LeftoverEnv
 ): string | undefined {
-  return isTrustedInstallFolderPath(raw, app) && isAtOrInside(raw, env.home)
+  return hasProgramFilesSegment(raw) && installFolderNameMatchesApp(raw, app) && isAtOrInside(raw, env.home)
     ? "사용자 폴더 안의 Program Files처럼 보이는 경로라 자동 정리하지 않아요."
     : undefined;
 }
@@ -1656,7 +1673,7 @@ export async function cleanupAppLeftovers(
     const trustedAppFolder = path.kind === "install-folder" && isTrustedInstallFolderPath(path.path, {
       name: group?.appName ?? "",
       publisher: group?.publisher ?? null
-    });
+    }, cached.env);
     const shortcutAllowed =
       (path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env)) ||
       (path.kind === "shortcut-folder" && isShortcutFolderPathAllowed(path.path, cached.env));
