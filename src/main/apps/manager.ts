@@ -115,7 +115,7 @@ function evaluateAvailability(app: InstalledApp): {
   }
   return {
     availability: "ready",
-    note: "Windows 제거 마법사가 떠요. 진행 여부는 Ryan이 직접 결정해요.",
+    note: "Windows 제거 마법사가 떠요. 진행 여부는 직접 결정해요.",
     mode: "interactive"
   };
 }

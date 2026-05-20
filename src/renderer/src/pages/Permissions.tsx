@@ -87,7 +87,7 @@ const CATEGORIES: PermissionCategory[] = [
   {
     id: "write",
     title: "쓰는 것",
-    intro: "Ryan의 PC 안에만 저장해요. 모두 로컬 파일이에요.",
+    intro: "이 PC 안에만 저장해요. 모두 로컬 파일이에요.",
     badge: "쓰기",
     badgeColor: "#0ea5e9",
     items: [
@@ -108,8 +108,8 @@ const CATEGORIES: PermissionCategory[] = [
       },
       {
         what: "사용자가 선택한 위치에 리포트 또는 드라이버/Wi-Fi 백업 저장",
-        why: "공유하거나 따로 보관하기 위해서요. 저장은 Ryan이 직접 위치를 골라야 진행해요.",
-        evidence: "Ryan이 고른 저장 위치에만 파일을 만들어요."
+        why: "공유하거나 따로 보관하기 위해서요. 저장은 직접 위치를 골라야 진행해요.",
+        evidence: "선택한 저장 위치에만 파일을 만들어요."
       }
     ]
   },

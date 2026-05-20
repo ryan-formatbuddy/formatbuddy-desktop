@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const RENDERER_ROOT = join(__dirname, "..", "src", "renderer", "src");
 const PERMISSIONS_PAGE = join(RENDERER_ROOT, "pages", "Permissions.tsx");
+const SRC_ROOT = join(__dirname, "..", "src");
 
 const USER_FACING_FILES = [
   "App.tsx",
@@ -15,6 +16,16 @@ const USER_FACING_FILES = [
   "pages/SecurityCenter.tsx",
   "pages/StartupAuto.tsx",
   "pages/TrashRestore.tsx"
+];
+
+const PRODUCT_COPY_FILES = [
+  "shared/copy.ts",
+  "renderer/src/pages/Permissions.tsx",
+  "main/appInventory.ts",
+  "main/buddyChecklist.ts",
+  "main/recommend.ts",
+  "main/apps/manager.ts",
+  "main/apps/uninstallRequestPolicy.ts"
 ];
 
 describe("product copy friendliness", () => {
@@ -82,5 +93,13 @@ describe("product copy friendliness", () => {
 
     expect(source).toContain("friendlyErrorMessage(res.message)");
     expect(source).not.toContain("${copy.manifestExportErrorPrefix}${res.message}");
+  });
+
+  it("keeps personal Ryan-only wording out of product-facing copy", () => {
+    const source = PRODUCT_COPY_FILES.map((file) => readFileSync(join(SRC_ROOT, file), "utf8")).join(
+      "\n"
+    );
+
+    expect(source).not.toContain("Ryan");
   });
 });

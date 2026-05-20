@@ -232,7 +232,7 @@ function buildTryFirst(report: ScanReport, reasons: ReasonItem[]): ActionItem[] 
   if (signals.has("disk-free")) {
     actions.push({
       title: "저장 공간 정리 화면 열기",
-      description: "큰 파일과 오래된 임시 파일을 확인해요. 지울지 말지는 Ryan이 직접 고르면 돼요.",
+      description: "큰 파일과 오래된 임시 파일을 확인해요. 지울지 말지는 직접 고르면 돼요.",
       command: "start ms-settings:storagesense"
     });
   }
@@ -318,7 +318,7 @@ function buildCareActions(report: ScanReport, scores: {
         cleanupGb >= 1
           ? `임시 파일과 이전 Windows 파일 후보가 약 ${formatSmallGb(cleanupGb)} 보여요.`
           : "지금은 크게 지울 만한 찌꺼기가 많아 보이지 않아요.",
-      description: "Windows 저장 공간 정리 화면을 열어, 지워도 될 항목을 Ryan이 직접 고르게 해요.",
+      description: "Windows 저장 공간 정리 화면을 열어, 지워도 될 항목을 직접 고르게 해요.",
       safetyNote: "포맷버디가 파일을 자동 삭제하지 않아요.",
       cta: "정리 화면 열기",
       command: "start ms-settings:storagesense"
@@ -329,7 +329,7 @@ function buildCareActions(report: ScanReport, scores: {
       title: "앱 삭제 후보 확인",
       status: installedCount >= 80 ? "check" : "ready",
       evidence: `${installedCount}개 앱을 기록했어요. 오래 안 쓰는 앱은 직접 보고 정리할 수 있어요.`,
-      description: "앱 삭제 화면을 열어 설치된 앱을 확인해요. 삭제 버튼은 Ryan이 직접 누릅니다.",
+      description: "앱 삭제 화면을 열어 설치된 앱을 확인해요. 삭제 버튼은 직접 누릅니다.",
       safetyNote: "사용자 승인 없는 삭제는 하지 않아요.",
       cta: "앱 목록 열기",
       command: "start ms-settings:appsfeatures"
@@ -391,7 +391,7 @@ function buildCareActions(report: ScanReport, scores: {
           ? "마지막 업데이트 날짜를 확실히 확인하지 못했어요."
           : `마지막 Windows 업데이트가 ${report.windowsUpdate.daysSinceLatestHotfix}일 전으로 보여요.`,
       description: "Windows 업데이트 화면을 열어 밀린 보안 업데이트가 있는지 확인해요.",
-      safetyNote: "업데이트 설치 여부는 Ryan이 직접 선택해요.",
+      safetyNote: "업데이트 설치 여부는 직접 선택해요.",
       cta: "업데이트 열기",
       command: "start ms-settings:windowsupdate"
     }
@@ -516,7 +516,7 @@ function buildHealthPillars(report: ScanReport, scores: {
             ? "가벼운 정리만 해도 체감이 좋아질 수 있어요."
             : "지금은 크게 지울 만한 찌꺼기가 많아 보이지 않아요.",
       detail:
-        "자동 삭제는 하지 않아요. 임시 파일, 이전 Windows 파일, 시작 앱처럼 비교적 안전한 후보를 먼저 보여주고 Ryan이 직접 고르게 하는 방식이 좋아요.",
+        "자동 삭제는 하지 않아요. 임시 파일, 이전 Windows 파일, 시작 앱처럼 비교적 안전한 후보를 먼저 보여주고 직접 고르게 하는 방식이 좋아요.",
       actions: [
         {
           title: "저장 공간 정리 열기",
@@ -525,7 +525,7 @@ function buildHealthPillars(report: ScanReport, scores: {
         },
         {
           title: "앱 삭제 화면 열기",
-          description: "오래 안 쓰는 앱을 Ryan이 직접 보고 지울 수 있어요.",
+          description: "오래 안 쓰는 앱을 직접 보고 지울 수 있어요.",
           command: "start ms-settings:appsfeatures"
         }
       ]

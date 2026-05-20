@@ -213,7 +213,7 @@ export function classifyInstalledApp(app: InstalledApp): AppInventoryItem {
     confidence: "low",
     attention: "reinstall",
     attentionLabel: ATTENTION_LABEL.reinstall,
-    reason: "자동 분류 근거가 약해요. 포맷 후 다시 필요한 앱인지 Ryan이 직접 판단해야 해요."
+    reason: "자동 분류 근거가 약해요. 포맷 후 다시 필요한 앱인지 직접 판단해야 해요."
   };
 }
 

@@ -45,11 +45,11 @@ export const copy = {
   reportHtmlCancelled: "공유용 리포트 저장을 취소했어요.",
   reportHtmlError: "공유용 리포트를 저장하지 못했어요.",
 
-  privacyHeadline: "Ryan의 PC 안에서만 동작해요",
+  privacyHeadline: "이 PC 안에서만 동작해요",
   privacyBullets: [
     "서버로 어떤 파일도 보내지 않아요",
     "인증서 개인키·비밀번호는 수집하지 않아요",
-    "진단 결과 파일은 Ryan이 직접 저장하고 공유해요"
+    "진단 결과 파일은 직접 저장하고 공유해요"
   ],
 
   errorHeadline: "지금 진단을 마치지 못했어요",
@@ -211,7 +211,7 @@ export const copy = {
   } as const,
   careActionsTitle: "바로 해볼 수 있는 관리 기능",
   careActionsLede:
-    "삭제와 보안 검사는 Windows 기본 화면으로 연결하고, 중요한 선택은 Ryan이 직접 하게 할게요.",
+    "삭제와 보안 검사는 Windows 기본 화면으로 연결하고, 중요한 선택은 직접 확인하게 할게요.",
   careActionBadge: {
     ready: "준비됨",
     check: "확인 추천",
@@ -220,7 +220,7 @@ export const copy = {
   } as const,
   cleanupCenterTitle: "정리 후보 센터",
   cleanupCenterLede:
-    "바로 지우는 기능이 아니라, Ryan이 보고 고를 수 있게 정리 후보만 먼저 모았어요.",
+    "바로 지우는 기능이 아니라, 직접 보고 고를 수 있게 정리 후보만 먼저 모았어요.",
   cleanupCenterCoverageNote:
     "개인 파일은 자동 삭제하지 않아요. 큰 파일과 중복 의심 파일은 직접 열어보고 결정해주세요.",
   cleanupCenterSummary: (gb: number, reviewCount: number) =>

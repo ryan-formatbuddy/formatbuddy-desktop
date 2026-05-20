@@ -185,7 +185,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       guide: [
         "은행·증권·홈택스 인증서를 쓰는지 먼저 떠올려보세요.",
         "쓰고 있다면 NPKI 폴더를 통째로 외장 저장소에 옮겨두세요.",
-        "비밀번호는 앱이 확인하지 않으니 Ryan이 직접 기억해두셔야 해요."
+        "비밀번호는 앱이 확인하지 않으니 직접 기억해두셔야 해요."
       ]
     }),
     item({
@@ -220,7 +220,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
         ? `${report.bitlocker[0]?.MountPoint ?? "드라이브"}에 BitLocker가 켜져 있어요. 복구 키 위치를 직접 확인해주세요.`
         : "BitLocker가 켜진 드라이브는 보이지 않아요.",
       helperText: hasBitlockerOn(report)
-        ? "복구 키 자체는 앱이 읽지 않아요. 저장 위치만 Ryan이 확인해주세요."
+        ? "복구 키 자체는 앱이 읽지 않아요. 저장 위치만 직접 확인해주세요."
         : "암호화 드라이브 신호가 없어 이 항목은 가볍게 넘어가도 돼요.",
       guide: [
         "Microsoft 계정의 복구 키 페이지를 확인하세요.",
@@ -242,7 +242,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       helperText: "카카오톡 백업 비밀번호나 대화 내용은 포맷버디가 보지 않아요.",
       guide: [
         "카카오톡 설정에서 대화 백업 상태를 확인하세요.",
-        "백업 비밀번호와 로그인 계정을 Ryan이 직접 챙겨주세요.",
+        "백업 비밀번호와 로그인 계정을 직접 챙겨주세요.",
         "사진·파일은 별도로 저장되어 있는지도 확인하면 좋아요."
       ]
     }),
@@ -260,7 +260,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
             : browsers.length > 0
               ? `${browsers[0]} 사용 흔적이 있어요. 즐겨찾기와 로그인 계정을 확인해주세요.`
             : "브라우저 프로필 후보가 보이지 않아요.",
-      helperText: "브라우저 비밀번호는 읽지 않아요. 동기화 상태만 Ryan이 직접 확인하면 됩니다.",
+      helperText: "브라우저 비밀번호는 읽지 않아요. 동기화 상태만 직접 확인하면 됩니다.",
       guide: [
         "Chrome, Edge, Whale 중 실제로 쓰는 브라우저를 확인하세요.",
         "즐겨찾기와 비밀번호 동기화가 켜져 있는지 보세요.",
@@ -316,7 +316,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       helperText: "Wi‑Fi 비밀번호는 읽지 않아요. 프로필 이름과 장치 목록만 기록해요.",
       guide: [
         "프린터가 여러 대라면 모델명을 사진으로 남겨두세요.",
-        "Wi‑Fi 이름은 기록했지만 비밀번호는 Ryan이 직접 챙겨야 해요.",
+        "Wi‑Fi 이름은 기록했지만 비밀번호는 직접 챙겨야 해요.",
         "그래픽·오디오·네트워크 드라이버는 포맷 후 Windows Update도 확인하세요."
       ]
     }),
@@ -345,7 +345,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       evidence: cloudFolders.some((c) => /onedrive/i.test(c.provider))
         ? "OneDrive 폴더가 보여요. Windows 백업 설정은 한 번 더 확인해주세요."
         : "Microsoft 계정/Windows 백업 상태는 아직 앱이 확정하지 못했어요.",
-      helperText: "계정 비밀번호는 확인하지 않아요. 백업 설정 화면에서 Ryan이 직접 확인해주세요.",
+      helperText: "계정 비밀번호는 확인하지 않아요. 백업 설정 화면에서 직접 확인해주세요.",
       guide: [
         "Windows 설정의 계정 메뉴를 열어 로그인 계정을 확인하세요.",
         "바탕화면·문서·사진 백업이 켜져 있는지 보세요.",
@@ -421,7 +421,7 @@ export function buildBuddyChecklist(report: ScanReport): BuddyChecklistItem[] {
       evidence: accountSignals.length > 0
         ? `${Array.from(new Set(accountSignals)).slice(0, 3).join(", ")} 사용 흔적이 있어요. 복구 이메일과 2단계 인증을 확인해주세요.`
         : "주요 계정 앱이나 브라우저 사용 흔적이 크게 보이지 않아요.",
-      helperText: "비밀번호와 2단계 인증 상태는 앱이 볼 수 없어서 Ryan 확인이 필요해요.",
+      helperText: "비밀번호와 2단계 인증 상태는 앱이 볼 수 없어서 직접 확인이 필요해요.",
       guide: [
         "Google, Microsoft, Apple, 카카오 계정에 다시 로그인 가능한지 확인하세요.",
         "복구 이메일과 휴대폰 번호가 지금도 맞는지 보세요.",
