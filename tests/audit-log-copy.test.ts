@@ -108,6 +108,7 @@ describe("AuditLog copy", () => {
     expect(source).toContain("비운 항목");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목");
     expect(source).toContain("아직 남아 있는 항목");
+    expect(source).toContain("선택하지 않은 후보");
     expect(source).toContain("확보한 공간");
     expect(source).not.toContain("JSON.stringify(entry.detail");
     expect(source).not.toContain("<pre");
@@ -130,6 +131,7 @@ describe("AuditLog copy", () => {
     expect(source).toContain(
       'const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems")'
     );
+    expect(source).toContain('const notSelectedCount = numberDetail(detail, "notSelectedCount")');
   });
 
   it("does not show zero-count audit detail lines as if they mattered", () => {

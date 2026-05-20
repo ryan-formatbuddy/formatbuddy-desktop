@@ -132,7 +132,20 @@ describe("cleanup policy wiring", () => {
         appLeftoversIndex
       )
     ).toBeGreaterThan(appLeftoversIndex);
+    expect(
+      source.indexOf(
+        'const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length',
+        appLeftoversIndex
+      )
+    ).toBeGreaterThan(appLeftoversIndex);
+    expect(
+      source.indexOf(
+        'const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length',
+        appLeftoversIndex
+      )
+    ).toBeGreaterThan(appLeftoversIndex);
     expect(source.indexOf("removedCount,", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
+    expect(source.indexOf("notSelectedCount,", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
     expect(source.indexOf("startupDisabledIds", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
   });
 

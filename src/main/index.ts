@@ -1079,6 +1079,8 @@ function registerIpc() {
         const registryBackupIds = restorableRegistryBackupIds(result);
         const startupDisabledIds = restorableStartupDisabledIds(result);
         const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length;
+        const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+        const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
         const summaryParts = [
           trashEntryIds.length > 0
             ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`
@@ -1100,7 +1102,8 @@ function registerIpc() {
           detail: {
             planId: result.planId,
             removedCount,
-            skippedCount: result.skippedItems.length,
+            skippedCount,
+            notSelectedCount,
             totalFreedBytes: result.totalFreedBytes,
             trashEntryIds,
             registryBackupIds,
