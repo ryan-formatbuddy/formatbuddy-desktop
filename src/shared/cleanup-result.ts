@@ -7,6 +7,7 @@ import type {
 } from "./types";
 
 const MS_PER_DAY = 86_400_000;
+const RESTORE_WINDOW_MS = 30 * MS_PER_DAY;
 
 export interface TrashExpirySummary {
   nextExpiryDays: number | null;
@@ -78,8 +79,29 @@ export function trashExpirySummary(
   };
 }
 
-function executedItemStillWithinRestoreWindow(expiresAt: string | undefined, now: number): boolean {
-  return Boolean(expiresAt) && !isTrashEntryExpired(expiresAt ?? "", now);
+function isSafeRestorableResultId(value: string | undefined): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    value !== "." &&
+    value !== ".." &&
+    !/\s/.test(value) &&
+    !/[\/\\\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function executedItemStillWithinRestoreWindow(
+  expiresAt: string | undefined,
+  executedAt: string,
+  now: number
+): boolean {
+  if (!expiresAt) return false;
+  const expiryTime = Date.parse(expiresAt);
+  const executedTime = Date.parse(executedAt);
+  if (!Number.isFinite(expiryTime) || !Number.isFinite(executedTime)) return false;
+  if (expiryTime <= now || expiryTime <= executedTime) return false;
+  return expiryTime - executedTime <= RESTORE_WINDOW_MS;
 }
 
 export function restorableTrashEntryIds(result: CleanupExecuteResult, now = Date.now()): string[] {
@@ -88,8 +110,8 @@ export function restorableTrashEntryIds(result: CleanupExecuteResult, now = Date
       (item) =>
         item.succeeded &&
         item.mode === "trash" &&
-        Boolean(item.trashEntryId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, now)
+        isSafeRestorableResultId(item.trashEntryId) &&
+        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
     )
     .map((item) => item.trashEntryId)
     .filter((id): id is string => typeof id === "string");
@@ -101,8 +123,8 @@ export function restorableRegistryBackupIds(result: CleanupExecuteResult, now = 
       (item) =>
         item.succeeded &&
         item.mode === "trash" &&
-        Boolean(item.registryBackupId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, now)
+        isSafeRestorableResultId(item.registryBackupId) &&
+        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
     )
     .map((item) => item.registryBackupId)
     .filter((id): id is string => typeof id === "string");

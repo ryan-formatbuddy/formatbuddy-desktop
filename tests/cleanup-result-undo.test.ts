@@ -347,13 +347,13 @@ describe("Cleanup result undo helper", () => {
     const now = Date.parse("2026-06-18T00:00:01.000Z");
     const result: CleanupExecuteResult = {
       planId: "plan-expiry",
-      executedAt: "2026-05-19T00:00:00.000Z",
+      executedAt: "2026-05-20T00:00:00.000Z",
       mode: "trash",
       totalFreedBytes: 4,
       skippedItems: [],
       logEntry: {
         id: "log-expiry",
-        executedAt: "2026-05-19T00:00:00.000Z",
+        executedAt: "2026-05-20T00:00:00.000Z",
         mode: "trash",
         totalFreedBytes: 4,
         removedCount: 4,
@@ -406,6 +406,91 @@ describe("Cleanup result undo helper", () => {
 
     expect(restorableTrashEntryIds(result, now)).toEqual(["fresh-file"]);
     expect(restorableRegistryBackupIds(result, now)).toEqual(["fresh-registry"]);
+  });
+
+  it("omits recent restore ids with unsafe ids or expiry outside the 30-day window", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      planId: "plan-boundary",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      mode: "trash",
+      totalFreedBytes: 4,
+      skippedItems: [],
+      logEntry: {
+        id: "log-boundary",
+        executedAt: "2026-05-19T00:00:00.000Z",
+        mode: "trash",
+        totalFreedBytes: 4,
+        removedCount: 4,
+        skippedCount: 0,
+        categories: []
+      },
+      removedItems: [
+        {
+          itemId: "safe-file",
+          path: "C:\\Temp\\safe.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "safe-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-file-id",
+          path: "C:\\Temp\\unsafe.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "../unsafe-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "too-long-file",
+          path: "C:\\Temp\\too-long.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "too-long-trash-id",
+          expiresAt: "2026-06-19T00:00:00.000Z"
+        },
+        {
+          itemId: "safe-registry",
+          path: "HKCU\\Software\\SafeApp",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "safe-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-registry-id",
+          path: "HKCU\\Software\\UnsafeApp",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "unsafe registry id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "too-long-registry",
+          path: "HKCU\\Software\\TooLongApp",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "too-long-registry-id",
+          expiresAt: "2026-06-19T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(restorableTrashEntryIds(result, now)).toEqual(["safe-trash-id"]);
+    expect(restorableRegistryBackupIds(result, now)).toEqual(["safe-registry-id"]);
   });
 
   it("omits recent restore ids when a successful trash result is missing expiry data", () => {
