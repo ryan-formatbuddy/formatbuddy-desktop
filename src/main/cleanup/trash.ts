@@ -483,6 +483,17 @@ export async function assertManagedTrashEntryManifest(options: {
   if (!isManagedTrashEntryStoredPath(options.userDataDir, options.entryId, entry.storedPath)) {
     throw new Error("FormatBuddy restore manifest stored path is outside the restore entry folder");
   }
+  if (!(await exists(entry.storedPath))) {
+    throw new Error("FormatBuddy restore manifest stored item was not created");
+  }
+  const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+    options.userDataDir,
+    options.entryId,
+    entry.storedPath
+  );
+  if (linkedStoredPath) {
+    throw new Error(`FormatBuddy restore manifest stored item is a link: ${linkedStoredPath}`);
+  }
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
