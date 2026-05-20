@@ -128,6 +128,20 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   return lines;
 }
 
+function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
+  const cleanedCount = result.removedItems.filter((item) => item.succeeded).length;
+  const restorableCount =
+    restorableTrashEntryIds(result).length +
+    restorableRegistryBackupIds(result).length +
+    restorableStartupDisabledIds(result).length;
+
+  if (cleanedCount > 0 && restorableCount > 0) {
+    return `${cleanedCount}개를 정리했고, ${restorableCount}개는 30일 안에 되돌릴 수 있어요.`;
+  }
+  if (cleanedCount > 0) return `${cleanedCount}개를 정리했어요.`;
+  return "이번 정리에서 처리된 항목은 없어요.";
+}
+
 function uninstallStatusDetailLabel(result: AppUninstallResult): string {
   const detail = result.detail?.toLowerCase() ?? "";
 
@@ -310,6 +324,7 @@ function LeftoverPanel({
   const skippedCount = result
     ? result.skippedItems.filter((item) => item.reason !== "not-selected").length
     : 0;
+  const needsCheckCount = failedRemovedCount + skippedCount;
   const resultLines = result ? appLeftoverResultLines(result) : [];
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
@@ -391,9 +406,13 @@ function LeftoverPanel({
         {result && (
           <div style={{ marginTop: 10 }}>
             <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
-              {cleanedCount}개를 정리했어요. 실패/건너뜀{" "}
-              {failedRemovedCount + skippedCount}개.
+              {appLeftoverResultHeadline(result)}
             </p>
+            {needsCheckCount > 0 && (
+              <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
+                확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요.
+              </p>
+            )}
             {resultLines.length > 0 && (
               <ul style={{ fontSize: 12, opacity: 0.78, margin: "0 0 8px", paddingLeft: 18 }}>
                 {resultLines.map((line) => (

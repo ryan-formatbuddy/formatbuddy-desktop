@@ -97,11 +97,14 @@ describe("AppManager uninstall copy", () => {
   it("counts only successful app-leftover cleanup items as cleaned", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
+    expect(source).toContain("appLeftoverResultHeadline");
     expect(source).toContain("const cleanedCount = result");
     expect(source).toContain(".filter((item) => item.succeeded).length");
-    expect(source).toContain("{cleanedCount}개를 정리했어요");
+    expect(source).toContain("30일 안에 되돌릴 수 있어요");
+    expect(source).toContain("이번 정리에서 처리된 항목은 없어요.");
     expect(source).toContain("result.mode === \"trash\" && cleanedCount > 0");
     expect(source).not.toContain("{result.removedItems.length}개를 정리했어요");
+    expect(source).not.toContain("실패/건너뜀");
   });
 
   it("explains app-leftover cleanup results by restorable folders and backups", () => {
@@ -126,7 +129,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("const failedRemovedCount = result");
     expect(source).toContain(".filter((item) => !item.succeeded).length");
     expect(source).toContain("const skippedCount = result");
-    expect(source).toContain("failedRemovedCount + skippedCount");
+    expect(source).toContain("const needsCheckCount = failedRemovedCount + skippedCount");
+    expect(source).toContain("확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요");
     expect(source).not.toContain("{result.skippedItems.filter((s) => s.reason !== \"not-selected\").length}개");
   });
 
