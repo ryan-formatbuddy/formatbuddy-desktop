@@ -7,6 +7,8 @@ const projectRoot = process.cwd();
 const vitestPath = join(projectRoot, "node_modules", "vitest", "vitest.mjs");
 const testFile = "tests/windows-field-e2e.test.ts";
 const startedAt = new Date().toISOString();
+const maxCapturedLogChars = 120_000;
+const vitestCommand = [process.execPath, vitestPath, "run", testFile];
 const evidenceRequirements = [
   "cleanup file enters the 30-day restore bin, restores, and auto-purges after expiry",
   "startup-folder item is held for 30 days and restored",
@@ -15,6 +17,28 @@ const evidenceRequirements = [
   "uninstall registry key is backed up, removed, and restored",
   "unified 30-day retention tick empties file, app-deletion, and startup holding bins"
 ];
+let stdoutTail = "";
+let stderrTail = "";
+let stdoutTruncated = false;
+let stderrTruncated = false;
+
+function appendCapturedOutput(current, chunk) {
+  const next = current + String(chunk);
+  if (next.length <= maxCapturedLogChars) {
+    return { text: next, truncated: false };
+  }
+  return {
+    text: next.slice(next.length - maxCapturedLogChars),
+    truncated: true
+  };
+}
+
+function requirementResults(status) {
+  return evidenceRequirements.map((description) => ({
+    description,
+    status: status === "passed" ? "passed" : "not-proven"
+  }));
+}
 
 function evidenceReportPath(finishedAt) {
   const safeTimestamp = finishedAt.replace(/[:.]/g, "-");
@@ -35,6 +59,14 @@ function writeEvidenceReport(payload) {
     node: process.version,
     testFile,
     requirements: evidenceRequirements,
+    requirementResults: requirementResults(payload.status),
+    capturedLog: {
+      maxCharsPerStream: maxCapturedLogChars,
+      stdoutTail,
+      stderrTail,
+      stdoutTruncated,
+      stderrTruncated
+    },
     ...payload
   };
   try {
@@ -53,18 +85,32 @@ if (process.platform !== "win32") {
 }
 
 const child = spawn(
-  process.execPath,
-  [vitestPath, "run", testFile],
+  vitestCommand[0],
+  vitestCommand.slice(1),
   {
     cwd: projectRoot,
     env: {
       ...process.env,
       FORMATBUDDY_WINDOWS_FIELD_E2E: "1"
     },
-    stdio: "inherit",
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
   }
 );
+
+child.stdout?.on("data", (chunk) => {
+  process.stdout.write(chunk);
+  const captured = appendCapturedOutput(stdoutTail, chunk);
+  stdoutTail = captured.text;
+  stdoutTruncated ||= captured.truncated;
+});
+
+child.stderr?.on("data", (chunk) => {
+  process.stderr.write(chunk);
+  const captured = appendCapturedOutput(stderrTail, chunk);
+  stderrTail = captured.text;
+  stderrTruncated ||= captured.truncated;
+});
 
 child.on("exit", (code, signal) => {
   if (signal) {
@@ -73,14 +119,14 @@ child.on("exit", (code, signal) => {
       status: "stopped",
       signal,
       exitCode: code ?? null,
-      command: [process.execPath, vitestPath, "run", testFile]
+      command: vitestCommand
     });
     process.exit(1);
   }
   writeEvidenceReport({
     status: code === 0 ? "passed" : "failed",
     exitCode: code ?? 1,
-    command: [process.execPath, vitestPath, "run", testFile]
+    command: vitestCommand
   });
   process.exit(code ?? 1);
 });
@@ -91,7 +137,7 @@ child.on("error", (err) => {
     status: "spawn-error",
     exitCode: 1,
     error: err.message,
-    command: [process.execPath, vitestPath, "run", testFile]
+    command: vitestCommand
   });
   process.exit(1);
 });

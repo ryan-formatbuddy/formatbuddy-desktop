@@ -12,6 +12,11 @@ describe("Windows field E2E runner", () => {
     expect(source).toContain('join(projectRoot, "dist", "field-e2e")');
     expect(source).toContain("FORMATBUDDY_FIELD_E2E_REPORT_DIR");
     expect(source).toContain("unified 30-day retention tick");
+    expect(source).toContain("requirementResults");
+    expect(source).toContain("capturedLog");
+    expect(source).toContain("stdoutTail");
+    expect(source).toContain("stderrTail");
+    expect(source).toContain("maxCapturedLogChars");
     expect(source).toContain("evidence report failed");
     expect(source).toContain('status: code === 0 ? "passed" : "failed"');
     expect(source).toContain('status: "spawn-error"');
