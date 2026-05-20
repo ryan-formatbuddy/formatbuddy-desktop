@@ -626,7 +626,9 @@ async function readRegistryBackupEntry(
   userDataDir: string,
   backupId: string
 ): Promise<RegistryBackupEntry | null> {
-  const result = await readRegistryBackupEntryForRestore(userDataDir, backupId);
+  const result = await readRegistryBackupEntryForRestore(userDataDir, backupId, {
+    allowChangedContent: true
+  });
   return result.kind === "entry" ? result.entry : null;
 }
 
@@ -643,9 +645,14 @@ type RegistryBackupReadResult =
   | { kind: "entry"; entry: RegistryBackupEntry }
   | { kind: "restore-result"; result: RegistryBackupRestoreResult };
 
+type RegistryBackupReadOptions = {
+  allowChangedContent?: boolean;
+};
+
 async function readRegistryBackupEntryForRestore(
   userDataDir: string,
-  backupId: string
+  backupId: string,
+  options: RegistryBackupReadOptions = {}
 ): Promise<RegistryBackupReadResult> {
   if (!isSafeRegistryBackupId(backupId)) {
     return {
@@ -756,6 +763,7 @@ async function readRegistryBackupEntryForRestore(
     backupPath,
     sizeBytes: 0,
     contentHash: isValidRegistryBackupContentHash(raw.contentHash) ? raw.contentHash : null,
+    integrityStatus: isValidRegistryBackupContentHash(raw.contentHash) ? "verified" : "legacy",
     createdAt: raw.createdAt,
     expiresAt: canonicalRegistryBackupExpiry(raw.createdAt)
   };
@@ -816,6 +824,10 @@ async function readRegistryBackupEntryForRestore(
     if (entry.contentHash) {
       const actualHash = await hashFile(backupPath);
       if (actualHash !== entry.contentHash.value) {
+        entry.integrityStatus = "changed";
+        if (options.allowChangedContent) {
+          return { kind: "entry", entry };
+        }
         return {
           kind: "restore-result",
           result: {
@@ -827,6 +839,7 @@ async function readRegistryBackupEntryForRestore(
           }
         };
       }
+      entry.integrityStatus = "verified";
     }
     return { kind: "entry", entry };
   } catch {
@@ -864,7 +877,9 @@ async function pruneNonRestorableRegistryBackupItems(userDataDir: string): Promi
       continue;
     }
 
-    const result = await readRegistryBackupEntryForRestore(userDataDir, dir.name);
+    const result = await readRegistryBackupEntryForRestore(userDataDir, dir.name, {
+      allowChangedContent: true
+    });
     if (result.kind === "restore-result") {
       await removeRegistryBackupStoreItem(root, dir.name);
     }

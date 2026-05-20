@@ -831,6 +831,7 @@ export interface RegistryBackupEntry {
     algorithm: "sha256";
     value: string;
   } | null;
+  integrityStatus?: "verified" | "changed" | "legacy";
   appName?: string | null;
   appPublisher?: string | null;
   createdAt: string;

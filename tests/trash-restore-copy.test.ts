@@ -111,6 +111,15 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("!isChangedTrashEntry(item.entry)");
   });
 
+  it("shows changed app deletion trace backups as check-needed instead of restorable", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("isChangedRegistryBackupEntry");
+    expect(source).toContain("!isChangedRegistryBackupEntry(item.entry)");
+    expect(source).toContain("앱 삭제 흔적 백업 파일이 바뀐 것 같아요");
+    expect(source).toContain("앱 삭제 흔적 확인 필요");
+  });
+
   it("does not promise that every restore-bin item can be restored when expired items may remain", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 

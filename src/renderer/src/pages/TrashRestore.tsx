@@ -120,6 +120,10 @@ function isChangedTrashEntry(entry: CleanupTrashEntry): boolean {
   return entry.integrityStatus === "changed";
 }
 
+function isChangedRegistryBackupEntry(entry: RegistryBackupEntry): boolean {
+  return entry.integrityStatus === "changed";
+}
+
 export function TrashRestore({ onBack }: TrashRestoreProps) {
   const [snapshot, setSnapshot] = useState<CleanupTrashSnapshot | null>(null);
   const [registrySnapshot, setRegistrySnapshot] = useState<RegistryBackupSnapshot | null>(null);
@@ -182,7 +186,9 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     () =>
       sortedRestoreItems.filter((item) => {
         if (isTrashEntryExpired(item.expiresAt)) return false;
-        return item.kind === "registry" || !isChangedTrashEntry(item.entry);
+        return item.kind === "registry"
+          ? !isChangedRegistryBackupEntry(item.entry)
+          : !isChangedTrashEntry(item.entry);
       }),
     [sortedRestoreItems]
   );
@@ -506,6 +512,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           );
         }
         const entry = item.entry;
+        const isChanged = isChangedRegistryBackupEntry(entry);
         return (
           <article
             key={item.id}
@@ -557,16 +564,33 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
               {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.createdAt)}
             </div>
+            {isChanged && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: "9px 10px",
+                  borderRadius: 12,
+                  background: "rgba(37, 99, 235, 0.08)",
+                  color: "#1d4ed8",
+                  fontSize: 12,
+                  fontWeight: 650
+                }}
+              >
+                앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.
+              </div>
+            )}
             <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
               <Button
                 variant="primary"
                 size="sm"
                 onClick={() => void onRestoreRegistry(entry)}
-                disabled={Boolean(busy) || isExpired}
+                disabled={Boolean(busy) || isExpired || isChanged}
               >
                 {isExpired
                   ? "보관 기간이 지나 되돌릴 수 없어요"
-                  : busy === `registry:${entry.id}`
+                  : isChanged
+                    ? "앱 삭제 흔적 확인 필요"
+                    : busy === `registry:${entry.id}`
                     ? "되돌리는 중..."
                     : registryBackupRestoreButtonLabel(entry)}
               </Button>

@@ -901,6 +901,7 @@ describe("registry leftover cleanup", () => {
         backupPath: result.backupPath,
         sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
         contentHash: result.contentHash,
+        integrityStatus: "verified",
         createdAt: "2026-05-19T00:00:00.000Z",
         expiresAt: "2026-06-18T00:00:00.000Z"
       }
@@ -1633,6 +1634,40 @@ describe("registry leftover cleanup", () => {
     expect(restored.status).toBe("blocked-path");
     expect(restored.message).toMatch(/백업 파일이 바뀐 것 같아요|changed/i);
     expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps a changed registry backup visible as check-needed until the 30-day window ends", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(
+      result.backupPath,
+      registryBackupContentFor(keyPath).replace('"Acme Notes"', '"Acme Notes Edited"'),
+      "utf8"
+    );
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0]).toMatchObject({
+      id: result.id,
+      keyPath,
+      integrityStatus: "changed"
+    });
   });
 
   it("does not import a registry backup when the reg file contains a delete section", async () => {
