@@ -68,6 +68,40 @@ describe("retention purge scheduler", () => {
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 실패: trash unavailable");
   });
 
+  it("sanitizes thrown purge errors before returning warning messages", async () => {
+    const purgeTrash = vi.fn(async () => {
+      throw new Error("trash\nunavailable\0");
+    });
+    const purgeRegistryBackups = vi.fn(async () => {
+      throw new Error("registry\tbad\rmessage");
+    });
+    const purgeStartupDisabled = vi.fn(async () => {
+      throw new Error("startup\nbad");
+    });
+    const logWarn = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled,
+      logWarn
+    });
+
+    expect(result.failed).toEqual([
+      { kind: "trash", message: "trash unavailable" },
+      { kind: "registry-backups", message: "registry bad message" },
+      { kind: "startup-disabled", message: "startup bad" }
+    ]);
+    expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 실패: trash unavailable");
+    expect(logWarn).toHaveBeenCalledWith(
+      "30일 자동 비움 앱 삭제 흔적 백업 실패: registry bad message"
+    );
+    expect(logWarn).toHaveBeenCalledWith(
+      "30일 자동 비움 잠시 꺼둔 시작 항목 실패: startup bad"
+    );
+  });
+
   it("records a warning when only some expired restore-bin items could not be emptied", async () => {
     const purgeTrash = vi.fn(async () => ({
       purgedCount: 1,

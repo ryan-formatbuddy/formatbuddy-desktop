@@ -22,7 +22,12 @@ export interface RetentionPurgeTickDeps {
 export type RetentionPurgeTickResult = RestoreBinPurgeResult;
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const sanitized = raw
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return sanitized || "알 수 없는 문제";
 }
 
 function coerceNonNegativeInteger(value: unknown): number {
