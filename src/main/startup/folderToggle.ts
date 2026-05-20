@@ -67,6 +67,15 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+function isStrictMetadataString(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
 export function isSafeStartupDisabledId(disabledId: unknown): disabledId is string {
   return (
     typeof disabledId === "string" &&
@@ -131,11 +140,11 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<StartupAutoDisabledEntry>;
   if (!isNonEmptyString(raw.id) || !isSafeStartupDisabledId(raw.id)) return null;
-  if (!isNonEmptyString(raw.entryId)) return null;
-  if (!isNonEmptyString(raw.name)) return null;
-  if (!isNonEmptyString(raw.originalPath)) return null;
-  if (!isNonEmptyString(raw.storedPath)) return null;
-  if (!isNonEmptyString(raw.origin)) return null;
+  if (!isStrictMetadataString(raw.entryId)) return null;
+  if (!isStrictMetadataString(raw.name)) return null;
+  if (!isStrictMetadataString(raw.originalPath)) return null;
+  if (!isStrictMetadataString(raw.storedPath)) return null;
+  if (!isStrictMetadataString(raw.origin)) return null;
   if (!validIso(raw.disabledAt)) return null;
   return {
     id: raw.id,
@@ -393,10 +402,15 @@ export async function disableStartupFolderEntry(
       message: "이 항목은 아직 앱에서 끌 수 없어요. 시작 프로그램 폴더 항목부터 안전하게 지원해요."
     };
   }
-  if (!isNonEmptyString(entry.path) || !isNonEmptyString(entry.origin)) {
+  if (
+    !isStrictMetadataString(entry.id) ||
+    !isStrictMetadataString(entry.name) ||
+    !isStrictMetadataString(entry.path) ||
+    !isStrictMetadataString(entry.origin)
+  ) {
     return {
       status: "blocked-path",
-      message: "원래 위치를 확인하지 못해서 건드리지 않았어요."
+      message: "시작 항목 정보가 안전하지 않아 건드리지 않았어요."
     };
   }
 

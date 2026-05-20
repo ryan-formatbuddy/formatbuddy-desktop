@@ -368,6 +368,52 @@ describe("startup folder toggle", () => {
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
   });
 
+  it("does not move a startup item when entry metadata contains control characters", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    writeFileSync(source, "shortcut");
+
+    const result = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: {
+        ...startupEntry(source, fx.startupDir),
+        name: "KakaoTalk\n.lnk"
+      }
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(existsSync(source)).toBe(true);
+    expect(readFileSync(source, "utf8")).toBe("shortcut");
+    expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("does not coerce disabled startup metadata with padded or control-character fields", () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    const valid = {
+      id: "safe-startup-id",
+      entryId: "startup-folder|app",
+      name: "App.lnk",
+      originalPath: join(fx.startupDir, "App.lnk"),
+      storedPath: join(fx.userDataDir, "formatbuddy-startup-disabled", "items", "safe-startup-id", "files", "App.lnk"),
+      origin: fx.startupDir,
+      disabledAt: "2026-05-20T10:00:00.000Z",
+      expiresAt: "2026-06-19T10:00:00.000Z"
+    };
+
+    for (const patch of [
+      { entryId: " startup-folder|app" },
+      { name: "App.lnk " },
+      { originalPath: `${join(fx.startupDir, "App.lnk")}\n` },
+      { storedPath: ` ${valid.storedPath}` },
+      { origin: `${fx.startupDir}\u0000` }
+    ]) {
+      expect(__testing.coerceDisabledEntry({ ...valid, ...patch })).toBeNull();
+    }
+  });
+
   it("only supports startup-folder entries", async () => {
     const fx = makeFixture();
     roots.push(fx.root);
