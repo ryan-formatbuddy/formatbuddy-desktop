@@ -272,7 +272,38 @@ describe("planCleanup", () => {
     expect(large).toBeDefined();
     expect(large!.items).toHaveLength(1);
     expect(large!.items[0].path).toBe(downloadFile);
+    expect(large!.items[0].pathKind).toBe("file");
+    expect(large!.items[0].sizeBytes).toBe(6);
+    expect(large!.items[0].fingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(large!.items[0].riskLevel).toBe("review");
+  });
+
+  it("does not surface directory large-file candidates as selectable cleanup items", async () => {
+    const folder = join(fx.home, "Downloads", "video-folder");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.writeFile(join(folder, "clip.mp4"), "binary", "utf8");
+
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData,
+        largeFiles: [
+          {
+            name: "video-folder",
+            path: folder,
+            folderName: "Downloads",
+            kind: "video",
+            sizeGb: 3.5
+          }
+        ]
+      }
+    });
+
+    const large = plan.categories.find((c) => c.id === "large-files");
+    expect(large?.items).toEqual([]);
   });
 });
 

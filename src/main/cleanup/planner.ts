@@ -464,14 +464,21 @@ function planRecycleBinCategory(): CandidateAccumulator {
   return acc;
 }
 
-function planLargeFilesCategory(args: {
+async function planLargeFilesCategory(args: {
   home: string;
   largeFiles: LargeFileCandidate[];
-}): CandidateAccumulator {
+}): Promise<CandidateAccumulator> {
   const acc = emptyAccumulator();
   for (const candidate of args.largeFiles) {
     if (!candidate.path || !(candidate.sizeGb > 0)) continue;
-    const sizeBytes = Math.round(candidate.sizeGb * 1024 ** 3);
+    let stat: Stats;
+    try {
+      stat = await fs.lstat(candidate.path);
+    } catch {
+      continue;
+    }
+    if (stat.isSymbolicLink() || !stat.isFile()) continue;
+
     // For large-files we trust the user's own folders only — Desktop,
     // Documents, Pictures, Music, Videos, Downloads under their home.
     const allowRoots = [args.home];
@@ -479,9 +486,11 @@ function planLargeFilesCategory(args: {
       acc,
       {
         path: candidate.path,
+        pathKind: "file",
         label: candidate.name,
-        sizeBytes,
-        modifiedAt: candidate.modifiedAt ?? undefined,
+        sizeBytes: stat.size,
+        modifiedAt: stat.mtime.toISOString(),
+        fingerprint: pathMetadataFingerprint("file", candidate.path, stat.size, stat.mtime),
         categoryId: "large-files",
         riskLevel: "review",
         reason: `사용자 폴더의 큰 파일 (${candidate.folderName})`
@@ -614,7 +623,7 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
   const browserCache = await planBrowserCacheCategory({ home, signal, env });
   const windowsOld = await planWindowsOldCategory({ systemDrive, home, signal });
   const downloadsInstallers = await planDownloadsInstallersCategory({ home, signal, env });
-  const largeFiles = planLargeFilesCategory({
+  const largeFiles = await planLargeFilesCategory({
     home,
     largeFiles: env?.largeFiles ?? []
   });

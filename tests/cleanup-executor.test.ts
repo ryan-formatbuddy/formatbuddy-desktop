@@ -781,8 +781,9 @@ describe("executeCleanup", () => {
     expect(size).toBeNull();
   });
 
-  it("reports an existing but unmeasurable selected folder as blocked instead of missing", async () => {
-    const folder = join(fx.home, "Documents", "deep-cache");
+  it("reports an existing but unmeasurable selected Windows.old folder as blocked instead of missing", async () => {
+    const systemDrive = join(fx.home, "Drive");
+    const folder = join(systemDrive, "Windows.old");
     let leaf = folder;
     for (let i = 0; i < 34; i += 1) {
       leaf = join(leaf, `level-${i}`);
@@ -795,20 +796,11 @@ describe("executeCleanup", () => {
         home: fx.home,
         tempDir: fx.tempDir,
         systemRoot: fx.systemRoot,
-        systemDrive: fx.systemDrive,
-        localAppData: fx.localAppData,
-        largeFiles: [
-          {
-            name: "deep-cache",
-            path: folder,
-            folderName: "Documents",
-            kind: "other",
-            sizeGb: 1
-          }
-        ]
+        systemDrive,
+        localAppData: fx.localAppData
       }
     });
-    const item = plan.categories.find((c) => c.id === "large-files")!.items[0];
+    const item = plan.categories.find((c) => c.id === "windows-old")!.items[0];
 
     const result = await executeCleanup(
       {

@@ -56,6 +56,7 @@ const PATH_KIND_REQUIRED_CATEGORIES = new Set<CleanupCategoryId>([
   "browser-cache",
   "windows-old",
   "downloads-installers",
+  "large-files",
   "app-leftovers"
 ]);
 
