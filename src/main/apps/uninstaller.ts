@@ -459,12 +459,12 @@ export async function runUninstall(
       message: "Windows 제거 창을 열었어요. 진행 여부는 그 안에서 직접 결정해주세요.",
       detail: result.pid ? `pid=${result.pid}` : undefined
     };
-  } catch (err) {
+  } catch {
     return {
       status: "spawn-failed",
       appName: request.appName,
       message: "Windows 제거를 시작하지 못했어요.",
-      detail: (err as Error).message
+      detail: "spawn-failed"
     };
   }
 }

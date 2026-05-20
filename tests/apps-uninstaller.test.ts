@@ -224,17 +224,19 @@ describe("runUninstall", () => {
     expect(result.message).toMatch(/Windows/);
   });
 
-  it("returns spawn-failed when cmd.exe rejects", async () => {
+  it("returns spawn-failed without exposing raw process errors when cmd.exe rejects", async () => {
     const result = await runUninstall(
       { appName: "Slack" },
       {
         findApp: () => baseApp,
-        spawnCmd: vi.fn().mockRejectedValue(new Error("ENOENT")),
+        spawnCmd: vi.fn().mockRejectedValue(new Error("ENOENT C:\\Users\\Ryan\\Temp\\uninstall.log")),
         platform: "win32"
       }
     );
     expect(result.status).toBe("spawn-failed");
-    expect(result.detail).toMatch(/ENOENT/);
+    expect(result.detail).toBe("spawn-failed");
+    expect(result.detail).not.toContain("ENOENT");
+    expect(result.detail).not.toContain("C:\\Users");
   });
 
   it("blocks uninstall strings with unquoted shell control operators", async () => {

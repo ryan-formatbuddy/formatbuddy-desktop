@@ -99,6 +99,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("Windows 구성요소라 자동으로 실행하지 않아요");
     expect(source).toContain("Windows 제거 창을 열지 못했어요");
     expect(source).not.toContain('{lastStatus.detail ? ` (${lastStatus.detail})` : ""}');
+    expect(source).not.toContain("enoent");
   });
 
   it("counts only successful app-leftover cleanup items as cleaned", () => {

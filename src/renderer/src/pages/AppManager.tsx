@@ -249,7 +249,7 @@ function uninstallStatusDetailLabel(result: AppUninstallResult): string {
   if (detail.includes("unsafe-uninstall-command")) return "제거 명령을 안전하게 확인하지 못했어요";
   if (detail.includes("quiet-uninstall-blocked")) return "조용히 지우는 명령은 실행하지 않아요";
   if (detail.includes("systemcomponent=true")) return "Windows 구성요소라 자동으로 실행하지 않아요";
-  if (detail.includes("enoent") || result.status === "spawn-failed") return "Windows 제거 창을 열지 못했어요";
+  if (result.status === "spawn-failed") return "Windows 제거 창을 열지 못했어요";
   if (result.status === "blocked") return "안전 확인이 필요해 멈췄어요";
   if (result.status === "app-not-found") return "최근 앱 목록에서 찾지 못했어요";
   if (result.status === "no-scan-cache") return "최근 점검 결과가 필요해요";
