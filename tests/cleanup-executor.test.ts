@@ -284,6 +284,52 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(join(outside, "old1.tmp"), "utf8")).resolves.toBe("outside");
   });
 
+  it("trash mode refuses a non-home cleanup path that now goes through a symbolic-link parent", async () => {
+    if (process.platform === "win32") return;
+    const targetFile = join(fx.systemRoot, "Temp", "old-system.tmp");
+    await writeAged(targetFile, 4096, TEN_DAYS_MS);
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+    const tempWindows = plan.categories.find((c) => c.id === "temp-windows")!;
+    const item = tempWindows.items.find((candidate) => candidate.path === targetFile)!;
+
+    const outsideRoot = join(fx.root, "outside-system-root");
+    const outsideTarget = join(outsideRoot, "Temp", "old-system.tmp");
+    await fs.rm(fx.systemRoot, { recursive: true, force: true });
+    await fs.mkdir(join(outsideRoot, "Temp"), { recursive: true });
+    await fs.writeFile(outsideTarget, "outside system temp", "utf8");
+    await fs.symlink(outsideRoot, fx.systemRoot, "dir");
+
+    const { deps, trashed, permanently } = makeSpyDeps();
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      path: targetFile,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/링크/);
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    await expect(fs.readFile(outsideTarget, "utf8")).resolves.toBe("outside system temp");
+  });
+
   it("permanent mode rechecks the path after measurement before deleting", async () => {
     if (process.platform === "win32") return;
     const targetFile = join(fx.tempDir, "old1.tmp");

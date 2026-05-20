@@ -283,6 +283,28 @@ function overlapsManagedUserData(userDataDir: string, candidatePath: string): bo
   );
 }
 
+function isAtOrInside(rawPath: string, rawRoot: string): boolean {
+  const path = normalizePath(rawPath);
+  const root = normalizePath(rawRoot);
+  const childPrefix = root.endsWith("\\") ? root : `${root}\\`;
+  return path === root || path.startsWith(childPrefix);
+}
+
+function cleanupLinkBoundaryForPath(rawPath: string, home: string): string | undefined {
+  if (isAtOrInside(rawPath, home)) return home;
+
+  const normalized = normalizePath(rawPath);
+  const driveRoot = normalized.match(/^([a-z]:\\)/i)?.[1];
+  if (driveRoot) return driveRoot;
+
+  if (normalized.startsWith("\\\\")) {
+    const parts = normalized.slice(2).split("\\").filter(Boolean);
+    if (parts.length >= 2) return `\\\\${parts[0]}\\${parts[1]}`;
+  }
+
+  return undefined;
+}
+
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
@@ -391,7 +413,11 @@ async function validateLivePath(
     };
   }
 
-  const linkedSource = await findLinkedPathPart(item.path, home, true);
+  const linkedSource = await findLinkedPathPart(
+    item.path,
+    cleanupLinkBoundaryForPath(item.path, home),
+    true
+  );
   if (linkedSource) {
     return {
       itemId: item.id,

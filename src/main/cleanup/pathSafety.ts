@@ -15,9 +15,12 @@ export async function findLinkedPathPart(
   while (current) {
     const normalizedCurrent = normalizePath(current);
     if (normalizedBoundary) {
+      const boundaryChildPrefix = normalizedBoundary.endsWith("\\")
+        ? normalizedBoundary
+        : `${normalizedBoundary}\\`;
       const insideBoundary =
         normalizedCurrent === normalizedBoundary ||
-        normalizedCurrent.startsWith(`${normalizedBoundary}\\`);
+        normalizedCurrent.startsWith(boundaryChildPrefix);
       if (!insideBoundary) break;
     }
 
