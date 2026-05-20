@@ -421,8 +421,16 @@ function isUsablePlanString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && !hasControlCharacters(value);
 }
 
+function isStrictPlanString(value: unknown): value is string {
+  return isUsablePlanString(value) && isTrimmedString(value);
+}
+
 function isOptionalUsablePlanString(value: unknown): value is string | null | undefined {
   return value === undefined || value === null || value === "" || isUsablePlanString(value);
+}
+
+function isOptionalStrictPlanString(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || value === "" || isStrictPlanString(value);
 }
 
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
@@ -1020,14 +1028,14 @@ function assertSelectedLeftoverPlanMetadataUsable(
     const group = groupForPath(snapshot, selectedId);
     const invalid: string[] = [];
 
-    if (!isUsablePlanString(path.id)) invalid.push("path id");
-    if (!isUsablePlanString(path.path)) invalid.push("path");
+    if (!isStrictPlanString(path.id)) invalid.push("path id");
+    if (!isStrictPlanString(path.path)) invalid.push("path");
     if (!isSafeLeftoverPathKind(path.kind)) invalid.push("kind");
     if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
     if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
     if (group && !isSafeLeftoverGroupSource(group.source)) invalid.push("source");
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
-    if (!isOptionalUsablePlanString(path.registryValueName)) invalid.push("registry value name");
+    if (!isOptionalStrictPlanString(path.registryValueName)) invalid.push("registry value name");
     if (!isOptionalUsablePlanString(path.protectedBy)) invalid.push("protection reason");
     if (
       path.kind === "startup-registry" &&
@@ -1042,7 +1050,7 @@ function assertSelectedLeftoverPlanMetadataUsable(
 
     if (invalid.length > 0) {
       throw new Error(
-        `apps:leftovers-cleanup leftover plan metadata contains control characters or empty fields: ${invalid.join(", ")}`
+        `apps:leftovers-cleanup leftover plan metadata contains unsafe, padded, or empty fields: ${invalid.join(", ")}`
       );
     }
   }
