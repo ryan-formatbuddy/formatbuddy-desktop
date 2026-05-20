@@ -53,6 +53,7 @@ interface LeftoverEnv {
   home: string;
   roaming: string;
   localAppData: string;
+  localLow: string;
   programData: string;
 }
 
@@ -393,6 +394,10 @@ function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv 
     override?.localAppData ??
     process.env.LOCALAPPDATA ??
     join(home, "AppData", "Local");
+  const localLow =
+    override?.localLow ??
+    process.env.LOCALLOW ??
+    join(home, "AppData", "LocalLow");
   const programData =
     override?.programData ??
     process.env.ProgramData ??
@@ -401,6 +406,7 @@ function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv 
     home: override?.home ?? home,
     roaming,
     localAppData,
+    localLow,
     programData
   };
 }
@@ -660,7 +666,7 @@ async function genericLeftoverPaths(
 ): Promise<AppLeftoverPath[]> {
   const names = genericFolderNames(app);
   const publisherNames = genericPublisherFolderNames(app);
-  const roots = [env.roaming, env.localAppData, env.programData];
+  const roots = [env.roaming, env.localAppData, env.localLow, env.programData];
   const paths: AppLeftoverPath[] = [];
   const seen = new Set<string>();
 

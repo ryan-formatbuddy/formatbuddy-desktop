@@ -28,6 +28,7 @@ interface Fixture {
   home: string;
   roaming: string;
   localAppData: string;
+  localLow: string;
   programData: string;
   cleanup: () => void;
 }
@@ -39,6 +40,7 @@ function makeFixture(): Fixture {
     home: join(root, "home"),
     roaming: join(root, "home", "AppData", "Roaming"),
     localAppData: join(root, "home", "AppData", "Local"),
+    localLow: join(root, "home", "AppData", "LocalLow"),
     programData: join(root, "ProgramData"),
     cleanup: () => rmSync(root, { recursive: true, force: true })
   };
@@ -225,24 +227,73 @@ describe("planAppLeftovers", () => {
   it("finds existing AppData leftovers for apps outside the built-in dictionary", async () => {
     const notionRoaming = join(fx.roaming, "Notion");
     const notionLocal = join(fx.localAppData, "Notion");
+    const notionLocalLow = join(fx.localLow, "Notion");
     await fs.mkdir(notionRoaming, { recursive: true });
     await fs.mkdir(notionLocal, { recursive: true });
+    await fs.mkdir(notionLocalLow, { recursive: true });
     await fs.writeFile(join(notionRoaming, "settings.json"), "{}", "utf8");
     await fs.writeFile(join(notionLocal, "cache.bin"), "abc", "utf8");
+    await fs.writeFile(join(notionLocalLow, "renderer-cache.bin"), "abc", "utf8");
 
     const snapshot = await planAppLeftovers(
       [{ name: "Notion", publisher: "Notion Labs, Inc." }],
       {
         home: fx.home,
-        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData }
+        env: {
+          roaming: fx.roaming,
+          localAppData: fx.localAppData,
+          localLow: fx.localLow,
+          programData: fx.programData
+        }
       }
     );
 
     expect(snapshot.groups).toHaveLength(1);
     expect(snapshot.groups[0].appName).toBe("Notion");
     expect(snapshot.groups[0].paths.map((p) => p.path).sort()).toEqual(
-      [notionLocal, notionRoaming].sort()
+      [notionLocal, notionLocalLow, notionRoaming].sort()
     );
+  });
+
+  it("moves a selected LocalLow leftover into the 30-day trash after uninstall follow-up", async () => {
+    const localLowFolder = join(fx.localLow, "Acme Notes");
+    await fs.mkdir(localLowFolder, { recursive: true });
+    await fs.writeFile(join(localLowFolder, "unity-cache.bin"), "cache", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: {
+        roaming: fx.roaming,
+        localAppData: fx.localAppData,
+        localLow: fx.localLow,
+        programData: fx.programData
+      },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === localLowFolder)!;
+    expect(path).toMatchObject({ kind: "folder", exists: true });
+    expect(path.protectedBy).toBeUndefined();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    await expect(fs.stat(localLowFolder)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0].originalPath).toBe(localLowFolder);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
   it("finds nested publisher/app folders for apps outside the built-in dictionary", async () => {
@@ -516,6 +567,7 @@ describe("planAppLeftovers", () => {
   it.each([
     ["user home", (fx: Fixture) => fx.home],
     ["AppData Local", (fx: Fixture) => fx.localAppData],
+    ["AppData LocalLow", (fx: Fixture) => fx.localLow],
     ["AppData Roaming", (fx: Fixture) => fx.roaming],
     ["ProgramData", (fx: Fixture) => fx.programData]
   ] as const)("marks broad installLocation roots as protected: %s", async (_label, folderFor) => {
