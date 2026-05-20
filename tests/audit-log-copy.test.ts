@@ -24,6 +24,15 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("{entry.action}</strong>");
   });
 
+  it("marks entries with failed detail ids as check-needed even if the summary changes", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("function auditFailureDetailCount(detail: AuditEntry[\"detail\"]): number");
+    expect(source).toContain('arrayCountDetail(detail, "failedEntryIds")');
+    expect(source).toContain('arrayCountDetail(detail, "failedIds")');
+    expect(source).toContain("auditFailureDetailCount(entry.detail) > 0");
+  });
+
   it("labels app leftover cleanup records clearly", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 

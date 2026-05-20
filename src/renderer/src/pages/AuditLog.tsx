@@ -42,7 +42,11 @@ function formatBytes(value: number): string {
 }
 
 function isAuditWarning(entry: AuditEntry): boolean {
-  return entry.action.includes("-failed-") || entry.summary.includes("못했어요");
+  return (
+    entry.action.includes("-failed-") ||
+    entry.summary.includes("못했어요") ||
+    auditFailureDetailCount(entry.detail) > 0
+  );
 }
 
 function isRestoreBinAuditEntry(entry: AuditEntry): boolean {
@@ -72,13 +76,17 @@ function arrayCountDetail(detail: Record<string, unknown>, key: string): number 
   return Array.isArray(value) ? value.length : 0;
 }
 
+function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
+  if (!detail) return 0;
+  return arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
+}
+
 function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   if (!detail) return [];
   const lines: string[] = [];
   const purgedCount = numberDetail(detail, "purgedCount");
   const removedCount = numberDetail(detail, "removedCount") ?? arrayCountDetail(detail, "removedItems");
-  const failedCount =
-    arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
+  const failedCount = auditFailureDetailCount(detail);
   const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
