@@ -87,6 +87,11 @@ function arrayCountDetail(detail: Record<string, unknown>, key: string): number 
   return Array.isArray(value) ? value.length : 0;
 }
 
+function stringArrayDetail(detail: Record<string, unknown>, key: string): string[] {
+  const value = detail[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 function isActualRestoreAuditEntry(entry: AuditEntry): boolean {
   return (
     entry.action.startsWith("trash-restore-") ||
@@ -104,12 +109,20 @@ function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
   return arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
 }
 
+function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number {
+  const recoverableCount = arrayCountDetail(detail, "recoverableRegistryBackupIds");
+  if (recoverableCount > 0) return recoverableCount;
+  return new Set([
+    ...stringArrayDetail(detail, "registryBackupIds"),
+    ...stringArrayDetail(detail, "preservedRegistryBackupIds")
+  ]).size;
+}
+
 function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
   if (!detail) return 0;
   return (
     arrayCountDetail(detail, "trashEntryIds") +
-    arrayCountDetail(detail, "registryBackupIds") +
-    arrayCountDetail(detail, "preservedRegistryBackupIds") +
+    auditRegistryBackupDetailCount(detail) +
     arrayCountDetail(detail, "startupDisabledIds")
   );
 }

@@ -95,10 +95,13 @@ describe("AuditLog copy", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
     expect(source).toContain("function auditRestorableDetailCount(detail: AuditEntry[\"detail\"]): number");
+    expect(source).toContain("function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number");
+    expect(source).toContain('arrayCountDetail(detail, "recoverableRegistryBackupIds")');
     expect(source).toContain('arrayCountDetail(detail, "trashEntryIds")');
-    expect(source).toContain('arrayCountDetail(detail, "registryBackupIds")');
-    expect(source).toContain('arrayCountDetail(detail, "preservedRegistryBackupIds")');
+    expect(source).toContain('stringArrayDetail(detail, "registryBackupIds")');
+    expect(source).toContain('stringArrayDetail(detail, "preservedRegistryBackupIds")');
     expect(source).toContain('arrayCountDetail(detail, "startupDisabledIds")');
+    expect(source).toContain("new Set([");
     expect(source).toContain("auditRestorableDetailCount(entry.detail) > 0");
   });
 

@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import {
   preservedRegistryBackupIds,
+  recoverableRegistryBackupIds,
   registryBackupKindLabel,
   restorableRegistryBackupIds,
   restorableStartupDisabledIds,
@@ -1118,6 +1119,7 @@ function registerIpc() {
         const trashEntryIds = restorableTrashEntryIds(result);
         const registryBackupIds = restorableRegistryBackupIds(result);
         const preservedBackupIds = preservedRegistryBackupIds(result);
+        const recoverableBackupIds = recoverableRegistryBackupIds(result);
         const startupDisabledIds = restorableStartupDisabledIds(result);
         const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length;
         const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
@@ -1152,6 +1154,7 @@ function registerIpc() {
             trashEntryIds,
             registryBackupIds,
             preservedRegistryBackupIds: preservedBackupIds,
+            recoverableRegistryBackupIds: recoverableBackupIds,
             startupDisabledIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
