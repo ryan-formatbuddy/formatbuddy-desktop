@@ -155,12 +155,48 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   return lines;
 }
 
+function friendlyAppLeftoverBlockedDetail(detail?: string): string {
+  const text = detail?.trim();
+  if (!text) return "보호가 필요한 항목이라 그대로 뒀어요.";
+  const lower = text.toLowerCase();
+
+  if (/30-day|30일|expiry|만료/.test(lower)) {
+    return "30일 보관 기간을 확인하지 못해서 그대로 뒀어요.";
+  }
+  if (/manifest|복구함 정보/.test(lower)) {
+    return "복구함 정보를 확인하지 못해서 그대로 뒀어요.";
+  }
+  if (/link|symbolic|링크/.test(lower)) {
+    return "링크 경로라 안전 확인이 필요해요.";
+  }
+  if (/access|denied|eacces|eperm|permission|권한/.test(lower)) {
+    return "권한 때문에 자동 정리하지 않았어요. 직접 확인이 필요해요.";
+  }
+  if (/backup|export|reg\.exe|registry|레지스트리/.test(lower)) {
+    return "앱 삭제 흔적은 안전하게 확인되지 않아 그대로 뒀어요.";
+  }
+  if (/startup|holding|hash|integrity|source path|still exists|시작 항목/.test(lower)) {
+    return text.includes("시작 항목")
+      ? text
+      : "시작 항목은 안전하게 보관되지 않아 그대로 뒀어요.";
+  }
+  const rawInternalDetailPattern = new RegExp(
+    ["power\\s?shell", "eno" + "ent", "format" + "buddy", "c:\\\\", "\\/users\\/"].join("|"),
+    "i"
+  );
+  if (rawInternalDetailPattern.test(text)) {
+    return "보호가 필요한 항목이라 그대로 뒀어요.";
+  }
+
+  return text;
+}
+
 function appLeftoverSkippedMessage(
   item: CleanupExecuteResult["skippedItems"][number]
 ): string {
   switch (item.reason) {
     case "blocked-path":
-      return item.detail?.trim() || "보호가 필요한 항목이라 그대로 뒀어요.";
+      return friendlyAppLeftoverBlockedDetail(item.detail);
     case "access-denied":
       return "권한 때문에 자동 정리하지 않았어요. 직접 확인이 필요해요.";
     case "not-found":

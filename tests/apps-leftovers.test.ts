@@ -1547,7 +1547,8 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems).toHaveLength(0);
     const skipped = result.skippedItems.find((item) => item.itemId === path.id);
     expect(skipped).toMatchObject({ reason: "execute-failed" });
-    expect(skipped?.detail).toMatch(/source|원본|still exists/i);
+    expect(skipped?.detail).toBe("시작 항목 원래 위치가 아직 남아 있어서 완료로 보지 않았어요.");
+    expect(skipped?.detail).not.toMatch(/source|still exists/i);
     await expect(fs.readFile(startupShortcut, "utf8")).resolves.toBe("shortcut");
   });
 
@@ -1712,7 +1713,8 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems).toHaveLength(0);
     const skipped = result.skippedItems.find((item) => item.itemId === path.id);
     expect(skipped).toMatchObject({ reason: "execute-failed" });
-    expect(skipped?.detail).toMatch(/hash|integrity|무결성|changed/i);
+    expect(skipped?.detail).toBe("시작 항목 보관 파일이 바뀐 것 같아 정리하지 않았어요.");
+    expect(skipped?.detail).not.toMatch(/hash|integrity|changed/i);
   });
 
   it("surfaces service and scheduled-task traces as protected app deletion leftovers", async () => {
@@ -2146,7 +2148,10 @@ describe("planAppLeftovers", () => {
       path: registryKeyPath,
       reason: "execute-failed"
     });
-    expect(result.skippedItems[0].detail).toMatch(/export failed/);
+    expect(result.skippedItems[0].detail).toBe(
+      "앱 삭제 흔적 백업을 만들지 못해서 정리하지 않았어요."
+    );
+    expect(result.skippedItems[0].detail).not.toMatch(/export failed/i);
   });
 
   it("does not count a registry leftover as successful when the backup disappears after deletion", async () => {

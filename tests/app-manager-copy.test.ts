@@ -155,13 +155,18 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("appLeftoverSkippedPreviewLines");
+    expect(source).toContain("friendlyAppLeftoverBlockedDetail");
     expect(source).toContain("그대로 둔 이유");
     expect(source).toContain("보호가 필요한 항목이라 그대로 뒀어요");
+    expect(source).toContain("앱 삭제 흔적은 안전하게 확인되지 않아 그대로 뒀어요");
+    expect(source).toContain("시작 항목은 안전하게 보관되지 않아 그대로 뒀어요");
+    expect(source).toContain("rawInternalDetailPattern");
     expect(source).toContain("item.registryBackupId");
     expect(source).toContain("백업은 30일 복구함에 남겨뒀어요");
     expect(source).toContain("정리 중 문제가 생겨서 그대로 뒀어요");
     expect(source).toContain("활동 기록에서 이어서 볼 수 있어요");
     expect(source).not.toContain("item.detail ||");
+    expect(source).not.toContain("return item.detail?.trim()");
   });
 
   it("keeps cleanup result actions visible even when no leftover groups remain", () => {

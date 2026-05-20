@@ -1465,6 +1465,66 @@ function preservedRegistryBackupSkipFields(err: unknown): Pick<
   };
 }
 
+function friendlyRegistryLeftoverFailureDetail(message: string): string {
+  if (/지원하는 앱 제거 레지스트리 위치|지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)) {
+    return "지원하는 앱 삭제 흔적 위치가 아니라 자동 정리하지 않았어요.";
+  }
+  if (/export|backup|백업|reg\.exe|access|denied|eacces|eperm|permission/i.test(message)) {
+    return "앱 삭제 흔적 백업을 만들지 못해서 정리하지 않았어요.";
+  }
+  if (/missing|not found|보이지|찾지|disappear/i.test(message)) {
+    return "앱 삭제 흔적 백업을 확인하지 못해서 정리하지 않았어요.";
+  }
+  return "앱 삭제 흔적 정리 중 문제가 생겨서 그대로 뒀어요.";
+}
+
+function friendlyStartupHoldingFailureDetail(message: string): string {
+  if (/source path still exists|source|원본/i.test(message)) {
+    return "시작 항목 원래 위치가 아직 남아 있어서 완료로 보지 않았어요.";
+  }
+  if (/hash|integrity|무결성|changed/i.test(message)) {
+    return "시작 항목 보관 파일이 바뀐 것 같아 정리하지 않았어요.";
+  }
+  if (/stored file|stored path|holding stored|보관|holding/i.test(message)) {
+    return "시작 항목 보관 파일을 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/30-day|30일|expiry|expires/i.test(message)) {
+    return "30일 보관 기간을 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/link|symbolic|링크/i.test(message)) {
+    return LINKED_LEFTOVER_PROTECTION;
+  }
+  if (/access|denied|eacces|eperm|permission/i.test(message)) {
+    return "권한 때문에 시작 항목을 보관하지 못했어요.";
+  }
+  return "시작 항목 보관 중 문제가 생겨서 그대로 뒀어요.";
+}
+
+function friendlyTrashFailureDetail(message: string): string {
+  if (/30-day|30일|expiry|expires|window/i.test(message)) {
+    return "30일 보관 기간을 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/manifest|복구함 정보/i.test(message)) {
+    return "복구함 정보를 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/stored trash path|restore entry|managed restore bin|restore bin|stored path/i.test(message)) {
+    return "복구함 저장 위치를 안전하게 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/source path still exists|still exists|아직 남아/i.test(message)) {
+    return "정리 후에도 원래 항목이 남아 있어서 완료로 보지 않았어요.";
+  }
+  if (/link|symbolic|링크|protected source path|cleanup-trash refuses/i.test(message)) {
+    return LINKED_LEFTOVER_PROTECTION;
+  }
+  if (/access|denied|eacces|eperm|permission|권한/i.test(message)) {
+    return "권한 때문에 복구함으로 옮기지 못했어요.";
+  }
+  if (/locked|busy|사용 중|잠금/i.test(message)) {
+    return "다른 프로그램이 사용 중이라 복구함으로 옮기지 못했어요.";
+  }
+  return "복구함으로 옮기는 중 문제가 생겨서 그대로 뒀어요.";
+}
+
 async function movePathBestEffort(
   source: string,
   destination: string,
@@ -1878,7 +1938,7 @@ export async function cleanupAppLeftovers(
           reason: /지원하는 앱 제거 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
-          detail: preservedBackup?.detail ?? message,
+          detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),
           ...(preservedBackup
             ? {
                 registryBackupId: preservedBackup.registryBackupId,
@@ -1926,7 +1986,7 @@ export async function cleanupAppLeftovers(
           reason: /지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
-          detail: preservedBackup?.detail ?? message,
+          detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),
           ...(preservedBackup
             ? {
                 registryBackupId: preservedBackup.registryBackupId,
@@ -2029,7 +2089,7 @@ export async function cleanupAppLeftovers(
           itemId: path.id,
           path: path.path,
           reason: skipReasonFromTrashError(message),
-          detail: message
+          detail: friendlyStartupHoldingFailureDetail(message)
         });
       }
       continue;
@@ -2187,7 +2247,7 @@ export async function cleanupAppLeftovers(
         itemId: cleanupItem.id,
         path: cleanupItem.path,
         reason: skipReasonFromTrashError(message),
-        detail: message
+        detail: friendlyTrashFailureDetail(message)
       });
     }
   }
@@ -2256,5 +2316,8 @@ export const __testing = {
   cleanupUnverifiedTrashMove,
   movePathBestEffort,
   programFilesRootForPath,
-  rollbackBoundaryForPath
+  rollbackBoundaryForPath,
+  friendlyRegistryLeftoverFailureDetail,
+  friendlyStartupHoldingFailureDetail,
+  friendlyTrashFailureDetail
 };
