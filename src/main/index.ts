@@ -855,16 +855,18 @@ function registerIpc() {
           `cleanup:execute mode=${result.mode} removed=${result.removedItems.length} freedBytes=${result.totalFreedBytes}`
         );
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
+        const trashEntryIds = restorableTrashEntryIds(result);
+        const removedCount = trashEntryIds.length;
         await appendAuditEntry(app.getPath("userData"), {
           category: "cleanup",
           action: "trash",
-          summary: `포맷버디 복구함으로 ${result.removedItems.length}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동으로 비워요.`,
+          summary: `포맷버디 복구함으로 ${removedCount}개 항목(약 ${freedMb} MB)을 보냈어요. 30일 뒤 자동으로 비워요.`,
           detail: {
             mode: safeRequest.mode,
-            removedCount: result.removedItems.length,
+            removedCount,
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
-            trashEntryIds: restorableTrashEntryIds(result)
+            trashEntryIds
           }
         }).catch((e) => log.warn("audit append (cleanup) failed:", (e as Error).message));
         // v2.0 (D-34) — invalidate the scan cache so a follow-up
@@ -1052,6 +1054,7 @@ function registerIpc() {
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         const trashEntryIds = restorableTrashEntryIds(result);
         const registryBackupIds = restorableRegistryBackupIds(result);
+        const removedCount = trashEntryIds.length + registryBackupIds.length;
         const summaryParts = [
           trashEntryIds.length > 0
             ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`
@@ -1069,7 +1072,7 @@ function registerIpc() {
               : "앱 잔여 정리를 실행했지만 정리된 항목은 없어요.",
           detail: {
             planId: result.planId,
-            removedCount: result.removedItems.length,
+            removedCount,
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
             trashEntryIds,
