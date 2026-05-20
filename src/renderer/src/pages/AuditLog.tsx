@@ -48,6 +48,7 @@ function isAuditWarning(entry: AuditEntry): boolean {
 function auditActionLabel(entry: AuditEntry): string {
   if (entry.action.includes("expired-purge-failed")) return "30일 자동 비움 확인";
   if (entry.action.includes("expired-purge")) return "30일 자동 비움";
+  if (entry.action === "app-leftovers-trash") return "앱 잔여 정리";
   if (entry.action === "trash") return "복구함으로 이동";
   if (entry.action.includes("restore")) return "되돌리기";
   if (entry.action.includes("defender")) return "Windows 보안 확인";

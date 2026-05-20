@@ -24,6 +24,12 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("{entry.action}</strong>");
   });
 
+  it("labels app leftover cleanup records clearly", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain('if (entry.action === "app-leftovers-trash") return "앱 잔여 정리"');
+  });
+
   it("renders audit details as friendly lines instead of raw JSON", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
