@@ -188,6 +188,7 @@ async function planAgeBasedTempCategory(args: {
       acc,
       {
         path: file.path,
+        pathKind: "file",
         label: basename(file.path),
         sizeBytes: file.size,
         modifiedAt: file.modified.toISOString(),
@@ -239,6 +240,7 @@ async function planBrowserCacheCategory(args: {
           acc,
           {
             path: file.path,
+            pathKind: "file",
             label: `${profile.name} / ${sub} / ${basename(file.path)}`,
             sizeBytes: file.size,
             modifiedAt: file.modified.toISOString(),
@@ -283,6 +285,7 @@ async function planWindowsOldCategory(args: {
     acc,
     {
       path: winOldRoot,
+      pathKind: "directory",
       label: "이전 Windows 파일 전체",
       sizeBytes: totalBytes,
       categoryId: "windows-old",
@@ -320,6 +323,7 @@ async function planDownloadsInstallersCategory(args: {
       acc,
       {
         path: file.path,
+        pathKind: "file",
         label: basename(file.path),
         sizeBytes: file.size,
         modifiedAt: file.modified.toISOString(),

@@ -1304,9 +1304,16 @@ function rememberResolvedFollowupGroup(
 
 function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
   const group = groupForPath(snapshot, path.id);
+  const pathKind =
+    path.kind === "folder" || path.kind === "install-folder" || path.kind === "shortcut-folder"
+      ? "directory"
+      : path.kind === "shortcut" || path.kind === "startup-folder"
+        ? "file"
+        : undefined;
   return {
     id: path.id,
     path: path.path,
+    pathKind,
     label: group?.appName ?? "앱 잔여 폴더",
     sizeBytes: Math.max(0, Math.round(path.sizeBytes ?? 0)),
     modifiedAt: path.lastModifiedAt ?? undefined,

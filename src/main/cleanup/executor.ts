@@ -28,6 +28,7 @@ import type {
   CleanupExecuteResult,
   CleanupExecutedItem,
   CleanupItem,
+  CleanupPathKind,
   CleanupPlan,
   CleanupSkipReason,
   CleanupSkippedItem
@@ -220,6 +221,10 @@ function isValidIsoDateString(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function isCleanupPathKind(value: unknown): value is CleanupPathKind {
+  return value === "file" || value === "directory" || value === "other";
+}
+
 function overlapsManagedUserData(userDataDir: string, candidatePath: string): boolean {
   const managed = normalizePath(resolve(userDataDir));
   const candidate = normalizePath(resolve(candidatePath));
@@ -267,6 +272,14 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
       path: item.path,
       reason: "blocked-path",
       detail: "정리 항목 용량 정보가 안전하지 않아 자동 정리하지 않았어요."
+    };
+  }
+  if (item.pathKind !== undefined && !isCleanupPathKind(item.pathKind)) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "정리 항목 종류 정보가 안전하지 않아 자동 정리하지 않았어요."
     };
   }
   return undefined;
@@ -328,6 +341,41 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+async function readLivePathKind(path: string): Promise<CleanupPathKind | null> {
+  try {
+    const stat = await fs.lstat(path);
+    if (stat.isFile()) return "file";
+    if (stat.isDirectory()) return "directory";
+    return "other";
+  } catch {
+    return null;
+  }
+}
+
+async function validateLivePathKind(item: CleanupItem): Promise<CleanupSkippedItem | undefined> {
+  if (!item.pathKind) return undefined;
+
+  const actualKind = await readLivePathKind(item.path);
+  if (!actualKind) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "not-found"
+    };
+  }
+
+  if (actualKind !== item.pathKind) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "점검했던 항목 종류가 바뀌었어요. 다시 점검한 뒤 정리해주세요."
+    };
+  }
+
+  return undefined;
+}
+
 async function attemptItem(
   item: CleanupItem,
   mode: CleanupExecuteMode,
@@ -369,6 +417,8 @@ async function attemptItem(
 
   const preMeasureSkip = await validateLivePath(item, home);
   if (preMeasureSkip) return { skipped: preMeasureSkip };
+  const kindSkip = await validateLivePathKind(item);
+  if (kindSkip) return { skipped: kindSkip };
 
   let actualSize = item.sizeBytes;
   const measured = await deps.statSize(item.path);

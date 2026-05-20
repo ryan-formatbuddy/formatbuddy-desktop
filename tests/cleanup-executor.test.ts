@@ -324,6 +324,7 @@ describe("executeCleanup", () => {
     const plan = await planWithOneTempFile(fx, targetFile);
     const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
     const item = tempUser.items[0];
+    expect(item.pathKind).toBe("file");
     await fs.writeFile(targetFile, "", "utf8");
 
     const { deps } = makeSpyDeps();
@@ -339,6 +340,38 @@ describe("executeCleanup", () => {
 
     expect(result.removedItems[0].sizeBytes).toBe(0);
     expect(result.totalFreedBytes).toBe(0);
+  });
+
+  it("skips a selected file when the live path became a folder before cleanup", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    expect(item.pathKind).toBe("file");
+    await fs.rm(targetFile, { force: true });
+    await fs.mkdir(targetFile, { recursive: true });
+    await fs.writeFile(join(targetFile, "private-note.txt"), "keep me", "utf8");
+
+    const { deps, trashed } = makeSpyDeps();
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      path: targetFile,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/종류|type|다시 점검/);
+    expect(trashed).toEqual([]);
+    await expect(fs.readFile(join(targetFile, "private-note.txt"), "utf8")).resolves.toBe("keep me");
   });
 
   it("blocks unusable cleanup item metadata inside an individual cleanup attempt", async () => {

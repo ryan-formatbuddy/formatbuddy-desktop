@@ -629,6 +629,7 @@ export type CleanupCategoryId =
   | "app-leftovers";
 
 export type CleanupRiskLevel = "safe" | "review" | "restricted";
+export type CleanupPathKind = "file" | "directory" | "other";
 
 export type CleanupProductExecuteMode = "trash";
 export type CleanupExecuteMode = CleanupProductExecuteMode | "permanent";
@@ -646,6 +647,8 @@ export interface CleanupItem {
   id: string;
   /** Absolute path on disk. Always normalized to the host's native separator. */
   path: string;
+  /** Path kind observed during planning; executor re-checks this before cleanup. */
+  pathKind?: CleanupPathKind;
   /** Display label — usually the basename of the path. */
   label: string;
   sizeBytes: number;
