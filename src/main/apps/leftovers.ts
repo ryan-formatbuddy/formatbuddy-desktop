@@ -425,6 +425,29 @@ function isOptionalUsablePlanString(value: unknown): value is string | null | un
   return value === undefined || value === null || value === "" || isUsablePlanString(value);
 }
 
+function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
+  return (
+    value === "folder" ||
+    value === "registry" ||
+    value === "startup-folder" ||
+    value === "startup-registry" ||
+    value === "startup-entry"
+  );
+}
+
+function isSafeLeftoverGroupSource(value: unknown): value is NonNullable<AppLeftoverGroup["source"]> {
+  return value === undefined || value === "installed" || value === "uninstall-launched";
+}
+
+function isSafeLeftoverCleanupState(value: unknown): value is AppLeftoverCleanupState | undefined {
+  return (
+    value === undefined ||
+    value === "removed-confirmed" ||
+    value === "still-installed" ||
+    value === "not-checked"
+  );
+}
+
 function hasDuplicates(values: string[]): boolean {
   return new Set(values).size !== values.length;
 }
@@ -999,8 +1022,11 @@ function assertSelectedLeftoverPlanMetadataUsable(
 
     if (!isUsablePlanString(path.id)) invalid.push("path id");
     if (!isUsablePlanString(path.path)) invalid.push("path");
+    if (!isSafeLeftoverPathKind(path.kind)) invalid.push("kind");
     if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
     if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
+    if (group && !isSafeLeftoverGroupSource(group.source)) invalid.push("source");
+    if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalUsablePlanString(path.registryValueName)) invalid.push("registry value name");
     if (!isOptionalUsablePlanString(path.protectedBy)) invalid.push("protection reason");
 

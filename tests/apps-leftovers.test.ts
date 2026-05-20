@@ -1510,6 +1510,91 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems).toHaveLength(1);
   });
 
+  it("rejects corrupted leftover plan path kind before consuming the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const originalKind = path.kind;
+    path.kind = "registry\n" as unknown as typeof path.kind;
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/leftover plan metadata|kind/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    path.kind = originalKind;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
+  it("rejects corrupted leftover plan group state before consuming the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const originalSource = snapshot.groups[0].source;
+    const originalCleanupState = snapshot.groups[0].cleanupState;
+    const mutableGroup = snapshot.groups[0] as unknown as {
+      source: string;
+      cleanupState: string;
+    };
+    mutableGroup.source = "uninstall-launched\n";
+    mutableGroup.cleanupState = "removed-confirmed\n";
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/leftover plan metadata|source|cleanup state/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    snapshot.groups[0].source = originalSource;
+    snapshot.groups[0].cleanupState = originalCleanupState;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
   it("refuses protected leftover cleanup even with a valid plan", async () => {
     const kakaoRoaming = join(fx.roaming, "KakaoTalk");
     await fs.mkdir(kakaoRoaming, { recursive: true });
