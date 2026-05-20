@@ -146,6 +146,79 @@ describe("planCleanup", () => {
     expect(cachePaths.some((p) => p.endsWith("Cookies"))).toBe(false);
   });
 
+  it("includes multi-profile and Korean-market browser cache without touching profile secrets", async () => {
+    const chromeProfileCache = join(
+      fx.localAppData,
+      "Google",
+      "Chrome",
+      "User Data",
+      "Profile 1",
+      "Cache"
+    );
+    const braveCache = join(
+      fx.localAppData,
+      "BraveSoftware",
+      "Brave-Browser",
+      "User Data",
+      "Default",
+      "GPUCache"
+    );
+    const firefoxCache = join(
+      fx.localAppData,
+      "Mozilla",
+      "Firefox",
+      "Profiles",
+      "abc.default-release",
+      "cache2",
+      "entries"
+    );
+    const operaCache = join(
+      fx.localAppData,
+      "Opera Software",
+      "Opera Stable",
+      "Cache"
+    );
+
+    await fs.mkdir(chromeProfileCache, { recursive: true });
+    await fs.mkdir(braveCache, { recursive: true });
+    await fs.mkdir(firefoxCache, { recursive: true });
+    await fs.mkdir(operaCache, { recursive: true });
+    await fs.writeFile(join(chromeProfileCache, "chrome-profile-cache.bin"), "cache", "utf8");
+    await fs.writeFile(join(braveCache, "brave-cache.bin"), "cache", "utf8");
+    await fs.writeFile(join(firefoxCache, "firefox-cache.bin"), "cache", "utf8");
+    await fs.writeFile(join(operaCache, "opera-cache.bin"), "cache", "utf8");
+    await fs.writeFile(
+      join(fx.localAppData, "Google", "Chrome", "User Data", "Profile 1", "Login Data"),
+      "do-not-read-this",
+      "utf8"
+    );
+    await fs.writeFile(
+      join(fx.localAppData, "Mozilla", "Firefox", "Profiles", "abc.default-release", "logins.json"),
+      "do-not-read-this",
+      "utf8"
+    );
+
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+
+    const cache = plan.categories.find((c) => c.id === "browser-cache");
+    expect(cache).toBeDefined();
+    const cachePaths = cache!.items.map((i) => i.path);
+    expect(cachePaths.some((p) => p.endsWith("chrome-profile-cache.bin"))).toBe(true);
+    expect(cachePaths.some((p) => p.endsWith("brave-cache.bin"))).toBe(true);
+    expect(cachePaths.some((p) => p.endsWith("firefox-cache.bin"))).toBe(true);
+    expect(cachePaths.some((p) => p.endsWith("opera-cache.bin"))).toBe(true);
+    expect(cachePaths.some((p) => p.endsWith("Login Data"))).toBe(false);
+    expect(cachePaths.some((p) => p.endsWith("logins.json"))).toBe(false);
+  });
+
   it("flags Windows.old as a single review item with the folder total size", async () => {
     const winOld = join(fx.systemDrive, "Windows.old");
     await fs.mkdir(winOld, { recursive: true });

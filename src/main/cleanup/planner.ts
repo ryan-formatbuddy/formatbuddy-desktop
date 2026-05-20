@@ -210,22 +210,75 @@ async function planBrowserCacheCategory(args: {
 }): Promise<CandidateAccumulator> {
   const acc = emptyAccumulator();
   const localAppData = args.env?.localAppData ?? join(args.home, "AppData", "Local");
-  const profiles: { name: string; cacheRoot: string }[] = [
+  const chromiumRoots: { name: string; userDataRoot: string }[] = [
     {
       name: "Chrome",
-      cacheRoot: join(localAppData, "Google", "Chrome", "User Data", "Default")
+      userDataRoot: join(localAppData, "Google", "Chrome", "User Data")
     },
     {
       name: "Edge",
-      cacheRoot: join(localAppData, "Microsoft", "Edge", "User Data", "Default")
+      userDataRoot: join(localAppData, "Microsoft", "Edge", "User Data")
     },
     {
       name: "Whale",
-      cacheRoot: join(localAppData, "Naver", "Naver Whale", "User Data", "Default")
+      userDataRoot: join(localAppData, "Naver", "Naver Whale", "User Data")
+    },
+    {
+      name: "Brave",
+      userDataRoot: join(localAppData, "BraveSoftware", "Brave-Browser", "User Data")
+    },
+    {
+      name: "Vivaldi",
+      userDataRoot: join(localAppData, "Vivaldi", "User Data")
     }
   ];
 
   const CACHE_SUBDIRS = ["Cache", "Code Cache", "GPUCache", "ShaderCache"];
+  const profiles: { name: string; cacheRoot: string }[] = [];
+  const chromiumProfileLabel = (browserName: string, profileDirName: string): string => {
+    const numbered = profileDirName.match(/^Profile (\d+)$/i);
+    if (numbered) return `${browserName} 프로필 ${numbered[1]}`;
+    return browserName;
+  };
+
+  for (const browser of chromiumRoots) {
+    let entries: Dirent[];
+    try {
+      entries = await fs.readdir(browser.userDataRoot, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      if (entry.name !== "Default" && !/^Profile \d+$/i.test(entry.name)) continue;
+      profiles.push({
+        name: chromiumProfileLabel(browser.name, entry.name),
+        cacheRoot: join(browser.userDataRoot, entry.name)
+      });
+    }
+  }
+
+  const operaProfiles = [
+    { name: "Opera", cacheRoot: join(localAppData, "Opera Software", "Opera Stable") },
+    { name: "Opera GX", cacheRoot: join(localAppData, "Opera Software", "Opera GX Stable") }
+  ];
+  profiles.push(...operaProfiles);
+
+  let firefoxProfileDirs: Dirent[];
+  const firefoxRoot = join(localAppData, "Mozilla", "Firefox", "Profiles");
+  try {
+    firefoxProfileDirs = await fs.readdir(firefoxRoot, { withFileTypes: true });
+  } catch {
+    firefoxProfileDirs = [];
+  }
+  for (const entry of firefoxProfileDirs) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+    profiles.push({
+      name: "Firefox 프로필",
+      cacheRoot: join(firefoxRoot, entry.name, "cache2")
+    });
+  }
+
   for (const profile of profiles) {
     for (const sub of CACHE_SUBDIRS) {
       const cacheDir = join(profile.cacheRoot, sub);
@@ -252,6 +305,33 @@ async function planBrowserCacheCategory(args: {
           args.home
         );
       }
+    }
+  }
+
+  for (const profile of profiles.filter((profile) => profile.name === "Firefox 프로필")) {
+    const entriesDir = join(profile.cacheRoot, "entries");
+    try {
+      await fs.access(entriesDir);
+    } catch {
+      continue;
+    }
+    for await (const file of walkFiles(entriesDir, args.signal)) {
+      if (file.size <= 0) continue;
+      pushCandidate(
+        acc,
+        {
+          path: file.path,
+          pathKind: "file",
+          label: `${profile.name} / cache2 / ${basename(file.path)}`,
+          sizeBytes: file.size,
+          modifiedAt: file.modified.toISOString(),
+          categoryId: "browser-cache",
+          riskLevel: "safe",
+          reason: "Firefox 브라우저 임시 캐시"
+        },
+        [entriesDir],
+        args.home
+      );
     }
   }
   return acc;
@@ -423,7 +503,7 @@ const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
   "browser-cache": {
     id: "browser-cache",
     label: "브라우저 캐시",
-    description: "Chrome · Edge · Whale의 임시 캐시만 봐요. 비밀번호·쿠키는 보지 않아요.",
+    description: "Chrome · Edge · Whale · Brave · Firefox 등의 임시 캐시만 봐요. 비밀번호·쿠키는 보지 않아요.",
     safetyNote: "다음 방문 시 자동으로 다시 만들어져요.",
     riskLevel: "safe"
   },
