@@ -25,4 +25,11 @@ describe("app uninstall request policy wiring", () => {
     expect(policyIndex).toBeLessThan(cacheIndex);
     expect(policyIndex).toBeLessThan(restoreIndex);
   });
+
+  it("uses friendly app uninstall audit summaries instead of raw status text", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("appUninstallAuditSummary(result, safeUninstallRequest.appName)");
+    expect(source).not.toContain("제거 시도 결과: ${result.status}");
+  });
 });

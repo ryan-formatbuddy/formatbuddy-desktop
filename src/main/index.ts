@@ -89,6 +89,7 @@ import {
 } from "./apps/registryCleanup";
 import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
+import { appUninstallAuditSummary } from "./apps/uninstallAudit";
 import { enforceAppUninstallRequestPolicy } from "./apps/uninstallRequestPolicy";
 import {
   forgetUninstallFollowup,
@@ -1211,16 +1212,7 @@ function registerIpc() {
       await appendAuditEntry(userDataDir, {
         category: "uninstall",
         action: result.status,
-        summary:
-          result.status === "launched"
-            ? `Windows 제거 창으로 "${safeUninstallRequest.appName}"을 열었어요.`
-            : result.status === "app-not-found"
-              ? `"${safeUninstallRequest.appName}"의 제거 정보를 찾지 못했어요.`
-              : result.status === "blocked"
-                ? `"${safeUninstallRequest.appName}" 제거가 차단됐어요 (시스템 보호).`
-                : result.status === "no-scan-cache"
-                  ? "최근 진단 결과가 없어서 안내만 했어요."
-                  : `"${safeUninstallRequest.appName}" 제거 시도 결과: ${result.status}`,
+        summary: appUninstallAuditSummary(result, safeUninstallRequest.appName),
         detail: { appName: safeUninstallRequest.appName, status: result.status, detail: result.detail }
       }).catch((e) => log.warn("audit append (uninstall) failed:", (e as Error).message));
       // v2.0 (D-34) — only invalidate the scan cache when the uninstaller
