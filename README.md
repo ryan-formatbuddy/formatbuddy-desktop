@@ -2,7 +2,7 @@
 
 Windows-only PC 케어 + 포맷 동행 데스크탑 앱. Electron + React + TypeScript.
 
-진단 PowerShell + 안전 정리 엔진 + 앱 매니저 + Windows Defender 브리지를
+Windows 점검 엔진 + 안전 정리 엔진 + 앱 관리 + Windows 보안 연결을
 한 화면 안에서 묶고, 사용자 명시 동의 없는 파일 / 시스템 변경은 절대 하지
 않는 안전 가드를 빌드 시점 테스트로 잠가둡니다. 디자인은
 `design_handoff_format_buddy/`를 기준으로 적용했습니다.
@@ -44,7 +44,7 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 | 코드 컴파일 / lint / test | O | — |
 | Electron UI 렌더링 (mock scan) | O | — |
 | `.exe` 패키지 생성 (cross-build) | O | — |
-| 실제 PowerShell 진단 실행 | X | O |
+| 실제 Windows 점검 실행 | X | O |
 | UAC 권한 흐름 | X | O |
 | Windows 폰트 렌더링 정확도 | X | O |
 
@@ -56,7 +56,7 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 
 ## Structure
 
-- `src/main/` — Electron 메인 프로세스, PowerShell 호출
+- `src/main/` — Electron 메인 프로세스, Windows 점검 실행
 - `src/preload/` — contextBridge로 안전한 IPC 노출
 - `src/renderer/` — React UI (Home / Scanning / Report 3페이지)
 - `src/shared/` — 메인/렌더러 공유 타입 + IPC 채널 상수
@@ -67,7 +67,7 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 
 ## 문서
 
-- [사용 가이드 (한국어)](docs/USER_GUIDE.md) — 다운로드부터 백업 manifest까지 step-by-step
+- [사용 가이드 (한국어)](docs/USER_GUIDE.md) — 다운로드부터 복원 준비 목록까지 step-by-step
 - [자주 묻는 질문 (FAQ)](docs/FAQ.md) — SmartScreen 안내, 무엇을 수집/안 함, 트러블슈팅
 - [개인정보 처리방침 (초안)](docs/PRIVACY_POLICY.md) — 100% 로컬 동작 명문화
 - [이용약관 (초안)](docs/TERMS_OF_SERVICE.md) — 한국 약관규제법 기본 원칙
@@ -79,15 +79,15 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 
 - [ ] **Windows 코드 사이닝 결정** (EV $500/yr / OV $300/yr / MS Store $19 / unsigned + 가이드). 현재 deferred — 사용자 100+ 시점 검토
 - [ ] **LICENSE 결정** (현재 UNLICENSED)
-- [ ] **Windows 실기 검증** (Ryan): 인스톨러 → quick scan → 백업 manifest → 자동 업데이트
+- [ ] **Windows 실기 검증** (Ryan): 인스톨러 → PC 점검 → 복원 준비 목록 → 자동 업데이트
 - [ ] **앱 스크린샷 5장** (Ryan, Windows 실기)
 - [x] 개인정보 처리방침 / 이용약관 초안 (`docs/` 안)
 - [x] FAQ + 사용 가이드 한국어 (`docs/` 안)
 - [x] CI 자동화 (PR/push마다 npm audit/typecheck/lint/test/build)
 - [x] GitHub Issue 템플릿 (`.github/ISSUE_TEMPLATE/`)
 - [x] Codex 5사이클 22개 findings 모두 fix
-- [x] PowerShell 무결성 (app.asar-anchored hash + TOCTOU-safe staging + ReparsePoint 필터)
+- [x] Windows 점검 스크립트 무결성 (app.asar-anchored hash + TOCTOU-safe staging + ReparsePoint 필터)
 - [x] Auto-update 인프라 (repo public 전환 완료)
-- [x] 백업 manifest + winget export
+- [x] 복원 준비 목록 + 앱 다시 설치 준비
 - [x] CSP / sandbox / IPC 보안 baseline
 - [x] 디자인 핸드오프 적용
