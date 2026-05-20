@@ -937,17 +937,21 @@ async function installLocationLeftoverPaths(
 
   const info = await pathInfo(installLocation, env);
   const installStat = await fs.lstat(installLocation).catch(() => null);
+  const personalProtection = personalInstallLocationProtection(installLocation, env);
   const linkedInstallPath = await findLinkedInstallFolderPathPart(installLocation);
   const trustedInstallFolder =
+    !personalProtection &&
     isTrustedInstallFolderPath(installLocation, app) &&
     Boolean(installStat?.isDirectory()) &&
     !linkedInstallPath;
   const measured = trustedInstallFolder ? await measurePath(installLocation) : undefined;
-  const protectedBy = linkedInstallPath
-    ? LINKED_LEFTOVER_PROTECTION
-    : trustedInstallFolder
-      ? measured?.protectedBy
-      : info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
+  const protectedBy = personalProtection
+    ? personalProtection
+    : linkedInstallPath
+      ? LINKED_LEFTOVER_PROTECTION
+      : trustedInstallFolder
+        ? measured?.protectedBy
+        : info.protectedBy;
   return info.exists
     ? [{ ...info, protectedBy, kind: trustedInstallFolder ? "install-folder" : "folder" }]
     : [];

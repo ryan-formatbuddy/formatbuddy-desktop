@@ -166,6 +166,24 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(join(realSource, "AcmeNotes.exe"), "utf8")).toBe("binary");
   });
 
+  it("refuses an app-install-folder trusted source under a personal folder", async () => {
+    const source = join(fx.home, "Downloads", "Program Files", "Acme Notes");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "user-note.txt"), "private", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 7,
+        home: fx.home,
+        trustedSource: { kind: "app-install-folder", allowRoots: [source] },
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/personal|개인|Downloads|다운로드|protected/i);
+    expect(await readFile(join(source, "user-note.txt"), "utf8")).toBe("private");
+  });
+
   it("recovers a moved item when the trash index was blocked by a link", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

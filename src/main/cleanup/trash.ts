@@ -126,6 +126,20 @@ function trustedSourceBoundary(rawPath: string, trusted?: MoveToTrashOptions["tr
   return trusted?.allowRoots.find((root) => isAtOrInside(rawPath, root));
 }
 
+function personalInstallFolderProtection(rawPath: string, home?: string): string | undefined {
+  if (!home) return undefined;
+  const personalRoots = [
+    join(home, "Desktop"),
+    join(home, "Documents"),
+    join(home, "Downloads"),
+    join(home, "Pictures"),
+    join(home, "Videos"),
+    join(home, "Music")
+  ];
+  const root = personalRoots.find((candidate) => isAtOrInside(rawPath, candidate));
+  return root ? `개인 폴더 안의 앱 설치 폴더는 자동 정리하지 않아요: ${root}` : undefined;
+}
+
 function commonAncestorPath(leftPath: string, rightPath: string): string | undefined {
   const left = resolve(leftPath);
   const right = resolve(rightPath);
@@ -814,6 +828,10 @@ export async function moveToFormatBuddyTrash(
     const sourceStat = await lstat(options.item.path).catch(() => null);
     if (!sourceStat?.isDirectory()) {
       throw new Error("cleanup-trash refuses app install folder source that is not a folder");
+    }
+    const personalProtection = personalInstallFolderProtection(options.item.path, options.home);
+    if (personalProtection) {
+      throw new Error(`cleanup-trash refuses personal app install folder source: ${personalProtection}`);
     }
     const linkedInstallPath = await findLinkedInstallFolderPathPart(options.item.path);
     if (linkedInstallPath) {
