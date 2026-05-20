@@ -331,6 +331,9 @@ async function assertRestorableRegistryBackupFile(
   if (!/^Windows Registry Editor Version\s+\d+(?:\.\d+)?/i.test(head) && !/^REGEDIT4\b/i.test(head)) {
     throw new Error("앱 삭제 흔적 백업 파일이 레지스트리 백업 형식이 아니라 정리하지 않았어요.");
   }
+  if (registryBackupContainsValueDeleteLine(content)) {
+    throw new Error("앱 삭제 흔적 백업 파일에 값 삭제 항목이 있어 되돌리지 않았어요.");
+  }
   if (expectedKeyPath && !registryBackupSectionsMatchExpectedKey(content, expectedKeyPath)) {
     throw new Error("앱 삭제 흔적 백업 파일의 레지스트리 위치가 달라 되돌리지 않았어요.");
   }
@@ -357,6 +360,13 @@ function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath
     foundSection = true;
   }
   return foundSection;
+}
+
+function registryBackupContainsValueDeleteLine(content: string): boolean {
+  return content.split(/\r?\n/).some((rawLine) => {
+    const line = rawLine.trim();
+    return /^@=-$/.test(line) || /^"((?:\\"|[^"])*)"\s*=\s*-$/.test(line);
+  });
 }
 
 function registryBackupContainsOnlyValue(content: string, expectedValueName: string): boolean {
