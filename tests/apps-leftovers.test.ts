@@ -1438,6 +1438,42 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("keeps the uninstall follow-up open when only part of an app's leftovers were cleaned", async () => {
+    const roamingSlack = join(fx.roaming, "Slack");
+    const localSlack = join(fx.localAppData, "slack");
+    await fs.mkdir(roamingSlack, { recursive: true });
+    await fs.mkdir(localSlack, { recursive: true });
+    await fs.writeFile(join(roamingSlack, "cache.bin"), "abc", "utf8");
+    await fs.writeFile(join(localSlack, "state.bin"), "still here", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const selectedPath = snapshot.groups[0].paths.find((p) => p.path === roamingSlack)!;
+    expect(snapshot.groups[0].paths.filter((p) => p.exists)).toHaveLength(2);
+    const onFollowupCleaned = vi.fn();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [selectedPath.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        onFollowupCleaned
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(onFollowupCleaned).not.toHaveBeenCalled();
+    await expect(fs.stat(roamingSlack)).rejects.toThrow();
+    await expect(fs.stat(localSlack)).resolves.toBeTruthy();
+  });
+
   it("keeps app leftover cleanup results when the uninstall follow-up update fails", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });

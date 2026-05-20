@@ -973,12 +973,25 @@ function isStillInstalled(
   return installedAppKeys.has(appIdentityKey(app)) || installedAppNames.has(appNameKey(app));
 }
 
-function rememberCleanedFollowupGroup(
+function followupGroupIsFullyResolved(
+  group: AppLeftoverGroup,
+  selectedIds: Set<string>,
+  resolvedPathIds: Set<string>
+): boolean {
+  if (!group || group.source !== "uninstall-launched") return false;
+  if (group.cleanupState !== "removed-confirmed") return false;
+  const existingPaths = group.paths.filter((path) => path.exists);
+  if (existingPaths.length === 0) return false;
+  return existingPaths.every((path) => selectedIds.has(path.id) && resolvedPathIds.has(path.id));
+}
+
+function rememberResolvedFollowupGroup(
   groups: Map<string, Pick<InstalledApp, "name" | "publisher">>,
-  group: AppLeftoverGroup | undefined
+  group: AppLeftoverGroup,
+  selectedIds: Set<string>,
+  resolvedPathIds: Set<string>
 ): void {
-  if (!group || group.source !== "uninstall-launched") return;
-  if (group.cleanupState !== "removed-confirmed") return;
+  if (!followupGroupIsFullyResolved(group, selectedIds, resolvedPathIds)) return;
   const name = group.appName?.trim();
   if (!name) return;
   groups.set(groupIdentityKey(group), {
@@ -1131,6 +1144,7 @@ export async function cleanupAppLeftovers(
   const removedItems: CleanupExecutedItem[] = [];
   const skippedItems: CleanupSkippedItem[] = [];
   const cleanedFollowupGroups = new Map<string, Pick<InstalledApp, "name" | "publisher">>();
+  const resolvedPathIds = new Set<string>();
 
   for (const selectedId of selectedIds) {
     const path = index.get(selectedId);
@@ -1200,7 +1214,7 @@ export async function cleanupAppLeftovers(
           registryBackupId: backup.id,
           expiresAt: backup.expiresAt
         });
-        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+        resolvedPathIds.add(path.id);
       } catch (err) {
         const message = (err as Error).message;
         skippedItems.push({
@@ -1241,7 +1255,7 @@ export async function cleanupAppLeftovers(
           registryBackupId: backup.id,
           expiresAt: backup.expiresAt
         });
-        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+        resolvedPathIds.add(path.id);
       } catch (err) {
         const message = (err as Error).message;
         skippedItems.push({
@@ -1275,6 +1289,7 @@ export async function cleanupAppLeftovers(
       }
       const measured = await measurePath(path.path);
       if (!measured.exists) {
+        resolvedPathIds.add(path.id);
         skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
         continue;
       }
@@ -1329,7 +1344,7 @@ export async function cleanupAppLeftovers(
           startupDisabledId: disabled.entry.id,
           expiresAt: disabled.entry.expiresAt
         });
-        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+        resolvedPathIds.add(path.id);
       } catch (err) {
         const message = (err as Error).message;
         skippedItems.push({
@@ -1366,6 +1381,7 @@ export async function cleanupAppLeftovers(
 
     const measured = await measurePath(path.path);
     if (!measured.exists) {
+      resolvedPathIds.add(path.id);
       skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
       continue;
     }
@@ -1428,7 +1444,7 @@ export async function cleanupAppLeftovers(
         trashEntryId: trashEntry.id,
         expiresAt: trashEntry.expiresAt
       });
-      rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+      resolvedPathIds.add(path.id);
     } catch (err) {
       const message = (err as Error).message;
       skippedItems.push({
@@ -1457,6 +1473,9 @@ export async function cleanupAppLeftovers(
   }
   let followupPersistenceWarning: string | undefined;
   if (options.onFollowupCleaned) {
+    for (const group of cached.snapshot.groups) {
+      rememberResolvedFollowupGroup(cleanedFollowupGroups, group, selectedIds, resolvedPathIds);
+    }
     for (const cleanedApp of cleanedFollowupGroups.values()) {
       try {
         await options.onFollowupCleaned(cleanedApp);
