@@ -317,7 +317,7 @@ describe("executeCleanup", () => {
     expect(result.totalFreedBytes).toBe(0);
   });
 
-  it("blocks unusable cleanup item metadata before measuring or moving files", async () => {
+  it("blocks unusable cleanup item metadata inside an individual cleanup attempt", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
@@ -337,26 +337,61 @@ describe("executeCleanup", () => {
       }
     });
 
-    const result = await executeCleanup(
-      {
-        planId: plan.planId,
-        confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "trash"
-      },
-      { userDataDir: fx.userData, deps, home: fx.home }
-    );
+    const result = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
 
-    expect(result.removedItems).toHaveLength(0);
-    expect(result.skippedItems[0]).toMatchObject({
+    expect(result.removed).toBeUndefined();
+    expect(result.skipped).toMatchObject({
       itemId: item.id,
       path: targetFile,
       reason: "blocked-path"
     });
-    expect(result.skippedItems[0].detail).toMatch(/정리 항목 정보|metadata/i);
+    expect(result.skipped?.detail).toMatch(/정리 항목 정보|metadata/i);
     expect(statCalls.value).toBe(0);
     expect(trashCalls.value).toBe(0);
     await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+  });
+
+  it("refuses corrupted selected cleanup item metadata before consuming the plan", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    item.label = "old.tmp\nmore";
+
+    const statCalls = { value: 0 };
+    const trashCalls = { value: 0 };
+    const { deps, trashed, permanently } = makeSpyDeps({
+      statSize: async () => {
+        statCalls.value += 1;
+        return 4096;
+      },
+      trashItem: async () => {
+        trashCalls.value += 1;
+        throw new Error("trash should not be called");
+      }
+    });
+
+    await expect(
+      executeCleanup(
+        {
+          planId: plan.planId,
+          confirmationToken: plan.confirmationToken,
+          selectedItemIds: [item.id],
+          mode: "trash"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/정리 항목 정보|metadata/i);
+
+    expect(statCalls.value).toBe(0);
+    expect(trashCalls.value).toBe(0);
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
   });
 
   it("measures selected folders by their file contents, not directory metadata", async () => {

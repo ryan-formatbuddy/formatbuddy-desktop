@@ -248,6 +248,22 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
   return undefined;
 }
 
+function assertSelectedCleanupItemsUsable(
+  itemIndex: Map<string, CleanupItem>,
+  selectedIds: Set<string>
+): void {
+  for (const id of selectedIds) {
+    const item = itemIndex.get(id);
+    if (!item) continue;
+    const metadataSkip = validateCleanupItemMetadata(item);
+    if (metadataSkip) {
+      throw new Error(
+        `cleanup:execute selected cleanup item metadata is unsafe: ${metadataSkip.detail ?? "정리 항목 정보"}`
+      );
+    }
+  }
+}
+
 async function validateLivePath(
   item: CleanupItem,
   home: string
@@ -461,6 +477,7 @@ export async function executeCleanup(
       `cleanup:execute selectedItemIds not present in the plan: ${unknownSelectionIds.join(", ")}`
     );
   }
+  assertSelectedCleanupItemsUsable(currentItemIndex, selectedIds);
 
   const plan = consumePlan(request.planId, request.confirmationToken, options.now);
   if (!plan) {
