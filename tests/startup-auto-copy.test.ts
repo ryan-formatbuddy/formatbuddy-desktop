@@ -28,4 +28,15 @@ describe("StartupAuto copy", () => {
     expect(source).toContain("확인 필요");
     expect(source).not.toContain("Promise.resolve<StartupAutoDisabledSnapshot>({");
   });
+
+  it("uses an in-app confirmation before disabling startup folder items", () => {
+    const source = readFileSync(STARTUP_AUTO_PAGE, "utf8");
+
+    expect(source).toContain("StartupDisableConfirmDialog");
+    expect(source).toContain("PC 켤 때 같이 뜨지 않게 할까요?");
+    expect(source).toContain("30일 보관하고 잠시 끄기");
+    expect(source).toContain("setDisableConfirm(entry)");
+    expect(source).toContain("runConfirmedDisable");
+    expect(source).not.toContain("window.confirm(");
+  });
 });

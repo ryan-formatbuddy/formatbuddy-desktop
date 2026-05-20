@@ -102,6 +102,69 @@ function PathLine({ path }: { path?: string }) {
   );
 }
 
+function StartupDisableConfirmDialog({
+  entry,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  entry: StartupAutoEntry;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="startup-disable-confirm-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+        padding: 16
+      }}
+    >
+      <div
+        style={{
+          width: 520,
+          maxWidth: "100%",
+          borderRadius: 12,
+          background: "var(--color-fb-bg-elev)",
+          color: "var(--color-fb-ink-1)",
+          boxShadow: "var(--fb-shadow-3)",
+          padding: 24
+        }}
+      >
+        <h2 id="startup-disable-confirm-title" style={{ marginTop: 0 }}>
+          PC 켤 때 같이 뜨지 않게 할까요?
+        </h2>
+        <p>
+          <strong>{entry.name}</strong>을 잠시 꺼둘게요.
+          {entry.publisher ? ` ${entry.publisher} 항목이에요.` : ""}
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.8 }}>
+          파일은 포맷버디 안에 30일 동안 보관해요. 마음이 바뀌면 복구함이나 이 화면에서 다시
+          PC 켤 때 같이 뜨게 되돌릴 수 있어요.
+        </p>
+        <PathLine path={entry.path} />
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 16 }}>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            취소
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={busy}>
+            {busy ? "보관하는 중..." : "30일 보관하고 잠시 끄기"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StartupAuto({ onBack }: StartupAutoProps) {
   const [snapshot, setSnapshot] = useState<StartupAutoSnapshot | null>(null);
   const [disabledSnapshot, setDisabledSnapshot] = useState<StartupAutoDisabledSnapshot | null>(null);
@@ -109,6 +172,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [disableConfirm, setDisableConfirm] = useState<StartupAutoEntry | null>(null);
 
   const load = useCallback(async () => {
     if (!window.fb?.listStartupAuto) {
@@ -159,29 +223,35 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
   const disabledNotes = disabledSnapshot?.notes ?? [];
   const summary = shortStatus(snapshot);
 
-  const handleDisable = useCallback(
-    async (entry: StartupAutoEntry) => {
+  const handleDisable = useCallback((entry: StartupAutoEntry) => {
+    if (!canDisable(entry)) return;
+    setDisableConfirm(entry);
+  }, []);
+
+  const runConfirmedDisable = useCallback(
+    async () => {
+      const entry = disableConfirm;
+      if (!entry) return;
       if (!window.fb?.disableStartupAuto) {
+        setDisableConfirm(null);
         setMessage("앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요.");
         return;
       }
-      const ok = window.confirm(
-        `"${entry.name}"을 PC 켤 때 자동으로 뜨지 않게 잠시 보관할까요?\n\n파일은 포맷버디 안에 30일 동안 보관해서 다시 되돌릴 수 있어요.`
-      );
-      if (!ok) return;
       setBusyId(entry.id);
       setMessage(null);
       try {
         const result = await window.fb.disableStartupAuto({ entryId: entry.id });
         setMessage(result.message);
+        setDisableConfirm(null);
         await load();
       } catch (e) {
         setMessage(friendlyErrorMessage(e));
+        setDisableConfirm(null);
       } finally {
         setBusyId(null);
       }
     },
-    [load]
+    [disableConfirm, load]
   );
 
   const handleRestore = useCallback(
@@ -471,6 +541,14 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
             조회 시각: {new Date(snapshot.capturedAt).toLocaleString("ko-KR")}
           </p>
         </section>
+      )}
+      {disableConfirm && (
+        <StartupDisableConfirmDialog
+          entry={disableConfirm}
+          busy={busyId === disableConfirm.id}
+          onCancel={() => setDisableConfirm(null)}
+          onConfirm={() => void runConfirmedDisable()}
+        />
       )}
     </main>
   );
