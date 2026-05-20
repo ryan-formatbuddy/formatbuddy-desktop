@@ -1029,6 +1029,13 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalUsablePlanString(path.registryValueName)) invalid.push("registry value name");
     if (!isOptionalUsablePlanString(path.protectedBy)) invalid.push("protection reason");
+    if (
+      path.kind === "startup-registry" &&
+      (typeof path.registryValueName !== "string" ||
+        !isSafeStartupRegistryValuePath(path.path, path.registryValueName))
+    ) {
+      invalid.push("startup registry value");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
