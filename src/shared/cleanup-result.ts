@@ -106,42 +106,59 @@ function executedItemStillWithinRestoreWindow(
   return expiryTime - executedTime <= RESTORE_WINDOW_MS;
 }
 
+function uniqueIds(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    unique.push(id);
+  }
+  return unique;
+}
+
 export function restorableTrashEntryIds(result: CleanupExecuteResult, now = Date.now()): string[] {
-  return result.removedItems
-    .filter(
-      (item) =>
-        item.succeeded &&
-        item.mode === "trash" &&
-        isSafeRestorableResultId(item.trashEntryId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
-    )
-    .map((item) => item.trashEntryId)
-    .filter((id): id is string => typeof id === "string");
+  return uniqueIds(
+    result.removedItems
+      .filter(
+        (item) =>
+          item.succeeded &&
+          item.mode === "trash" &&
+          isSafeRestorableResultId(item.trashEntryId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.trashEntryId)
+      .filter((id): id is string => typeof id === "string")
+  );
 }
 
 export function restorableRegistryBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
-  return result.removedItems
-    .filter(
-      (item) =>
-        item.succeeded &&
-        item.mode === "trash" &&
-        isSafeRestorableResultId(item.registryBackupId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
-    )
-    .map((item) => item.registryBackupId)
-    .filter((id): id is string => typeof id === "string");
+  return uniqueIds(
+    result.removedItems
+      .filter(
+        (item) =>
+          item.succeeded &&
+          item.mode === "trash" &&
+          isSafeRestorableResultId(item.registryBackupId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.registryBackupId)
+      .filter((id): id is string => typeof id === "string")
+  );
 }
 
 export function preservedRegistryBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
-  return result.skippedItems
-    .filter(
-      (item) =>
-        item.reason === "execute-failed" &&
-        isSafeRestorableResultId(item.registryBackupId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
-    )
-    .map((item) => item.registryBackupId)
-    .filter((id): id is string => typeof id === "string");
+  return uniqueIds(
+    result.skippedItems
+      .filter(
+        (item) =>
+          item.reason === "execute-failed" &&
+          isSafeRestorableResultId(item.registryBackupId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.registryBackupId)
+      .filter((id): id is string => typeof id === "string")
+  );
 }
 
 export function recoverableRegistryBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
@@ -159,16 +176,18 @@ export function recoverableRegistryBackupIds(result: CleanupExecuteResult, now =
 }
 
 export function restorableStartupDisabledIds(result: CleanupExecuteResult, now = Date.now()): string[] {
-  return result.removedItems
-    .filter(
-      (item) =>
-        item.succeeded &&
-        item.mode === "trash" &&
-        isSafeRestorableResultId(item.startupDisabledId) &&
-        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
-    )
-    .map((item) => item.startupDisabledId)
-    .filter((id): id is string => typeof id === "string");
+  return uniqueIds(
+    result.removedItems
+      .filter(
+        (item) =>
+          item.succeeded &&
+          item.mode === "trash" &&
+          isSafeRestorableResultId(item.startupDisabledId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.startupDisabledId)
+      .filter((id): id is string => typeof id === "string")
+  );
 }
 
 type IntegrityStatusSource = { integrityStatus?: "verified" | "changed" | "legacy" } | null | undefined;

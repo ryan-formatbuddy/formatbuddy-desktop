@@ -193,6 +193,100 @@ describe("Cleanup result undo helper", () => {
     ]);
   });
 
+  it("deduplicates immediate undo handles before the renderer calls restore", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      ...resultWithEntries(),
+      removedItems: [
+        {
+          itemId: "trash-a",
+          path: "C:\\Temp\\a.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "same-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "trash-b",
+          path: "C:\\Temp\\b.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "same-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "registry-a",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: "same-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "registry-b",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: "same-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "startup-a",
+          path: "C:\\Users\\Ryan\\Startup\\Acme.lnk",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "same-startup-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "startup-b",
+          path: "C:\\Users\\Ryan\\Startup\\Acme.lnk",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "same-startup-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ],
+      skippedItems: [
+        {
+          itemId: "preserved-registry-a",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+          reason: "execute-failed",
+          registryBackupId: "same-preserved-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "preserved-registry-b",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+          reason: "execute-failed",
+          registryBackupId: "same-preserved-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(restorableTrashEntryIds(result, now)).toEqual(["same-trash-id"]);
+    expect(restorableRegistryBackupIds(result, now)).toEqual(["same-registry-id"]);
+    expect(preservedRegistryBackupIds(result, now)).toEqual(["same-preserved-registry-id"]);
+    expect(restorableStartupDisabledIds(result, now)).toEqual(["same-startup-id"]);
+    expect(recoverableRegistryBackupIds(result, now)).toEqual([
+      "same-registry-id",
+      "same-preserved-registry-id"
+    ]);
+  });
+
   it("returns only safe startup disabled ids for immediate undo", () => {
     const now = Date.parse("2026-05-20T00:00:00.000Z");
     const result: CleanupExecuteResult = {
