@@ -22,7 +22,7 @@ import type {
 } from "@shared/types";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "./blocklist";
-import { findLinkedDescendant, findLinkedPathPart } from "./pathSafety";
+import { findLinkedDescendant, findLinkedInstallFolderPathPart, findLinkedPathPart } from "./pathSafety";
 
 export const FORMATBUDDY_TRASH_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 const DAY_MS = 86_400_000;
@@ -815,7 +815,7 @@ export async function moveToFormatBuddyTrash(
     if (!sourceStat?.isDirectory()) {
       throw new Error("cleanup-trash refuses app install folder source that is not a folder");
     }
-    const linkedInstallPath = await findLinkedPathPart(options.item.path, dirname(options.item.path), true);
+    const linkedInstallPath = await findLinkedInstallFolderPathPart(options.item.path);
     if (linkedInstallPath) {
       throw new Error(`cleanup-trash refuses linked app install folder source (링크 경로): ${linkedInstallPath}`);
     }

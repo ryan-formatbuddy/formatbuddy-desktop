@@ -31,7 +31,7 @@ import type {
 } from "@shared/types";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
-import { findLinkedPathPart } from "../cleanup/pathSafety";
+import { findLinkedInstallFolderPathPart, findLinkedPathPart } from "../cleanup/pathSafety";
 import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
 import { disableStartupFolderEntry } from "../startup/folderToggle";
 import {
@@ -657,10 +657,6 @@ function installFolderNameMatchesApp(raw: string, app: InstalledApp): boolean {
 function isTrustedInstallFolderPath(raw: string, app: InstalledApp): boolean {
   if (!isUnderProgramFiles(raw)) return false;
   return installFolderNameMatchesApp(raw, app);
-}
-
-async function findLinkedInstallFolderPathPart(raw: string): Promise<string | undefined> {
-  return findLinkedPathPart(raw, dirname(raw), true);
 }
 
 const PUBLISHER_LEGAL_SUFFIX_PATTERN =

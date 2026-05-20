@@ -1,5 +1,5 @@
 import { lstat, readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { normalizePath } from "./blocklist";
 
 const MAX_LINK_DESCENDANT_DEPTH = 32;
@@ -36,6 +36,34 @@ export async function findLinkedPathPart(
   }
 
   return undefined;
+}
+
+function isProgramFilesFolderName(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return normalized === "program files" || normalized === "program files (x86)";
+}
+
+function nearestProgramFilesAncestorPath(targetPath: string): string | undefined {
+  let current = targetPath;
+
+  while (current) {
+    if (isProgramFilesFolderName(basename(current))) return current;
+    const next = dirname(current);
+    if (next === current) break;
+    current = next;
+  }
+
+  return undefined;
+}
+
+export async function findLinkedInstallFolderPathPart(
+  targetPath: string
+): Promise<string | undefined> {
+  return findLinkedPathPart(
+    targetPath,
+    nearestProgramFilesAncestorPath(targetPath) ?? dirname(targetPath),
+    true
+  );
 }
 
 export async function findLinkedDescendant(
