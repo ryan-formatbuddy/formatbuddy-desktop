@@ -26,6 +26,7 @@ import type {
   CleanupExecutedItem,
   CleanupItem,
   CleanupSkippedItem,
+  CleanupTrashEntry,
   InstalledApp,
   StartupAutoDisabledEntry,
   StartupAutoEntry
@@ -34,7 +35,11 @@ import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedInstallFolderPathPart, findLinkedPathPart } from "../cleanup/pathSafety";
-import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
+import {
+  assertManagedTrashEntryManifest,
+  isManagedTrashEntryStoredPath,
+  moveToFormatBuddyTrash
+} from "../cleanup/trash";
 import {
   disableStartupFolderEntry,
   isManagedStartupStoredPath,
@@ -1394,6 +1399,46 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
     : "execute-failed";
 }
 
+async function movePathBestEffort(source: string, destination: string): Promise<void> {
+  await fs.mkdir(dirname(destination), { recursive: true });
+  try {
+    await fs.rename(source, destination);
+    return;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "EXDEV") throw err;
+  }
+  await fs.cp(source, destination, { recursive: true, force: false, errorOnExist: true });
+  await fs.rm(source, { recursive: true, force: true });
+}
+
+async function cleanupUnverifiedTrashMove(options: {
+  userDataDir: string;
+  originalPath: string;
+  trashEntry?: Pick<CleanupTrashEntry, "id" | "storedPath">;
+}): Promise<void> {
+  const { trashEntry } = options;
+  if (!trashEntry || !isManagedTrashEntryStoredPath(options.userDataDir, trashEntry.id, trashEntry.storedPath)) {
+    return;
+  }
+  const storedExists = await fs.lstat(trashEntry.storedPath).then(
+    () => true,
+    () => false
+  );
+  if (!storedExists) return;
+
+  const originalExists = await fs.lstat(options.originalPath).then(
+    () => true,
+    () => false
+  );
+  if (!originalExists) {
+    await movePathBestEffort(trashEntry.storedPath, options.originalPath);
+  }
+
+  const entryRoot = dirname(dirname(trashEntry.storedPath));
+  await fs.rm(entryRoot, { recursive: true, force: true }).catch(() => {});
+}
+
 async function assertStartupHoldingCleanupResult(options: {
   entry: StartupAutoDisabledEntry;
   sourcePath: string;
@@ -1913,8 +1958,9 @@ export async function cleanupAppLeftovers(
       },
       cached.snapshot
     );
+    let trashEntry: CleanupTrashEntry | undefined;
     try {
-      const trashEntry = await moveToFormatBuddyTrash({
+      trashEntry = await moveToFormatBuddyTrash({
         userDataDir: options.userDataDir,
         item: cleanupItem,
         sizeBytes: cleanupItem.sizeBytes,
@@ -1955,6 +2001,11 @@ export async function cleanupAppLeftovers(
       resolvedPathIds.add(path.id);
     } catch (err) {
       const message = (err as Error).message;
+      await cleanupUnverifiedTrashMove({
+        userDataDir: options.userDataDir,
+        originalPath: cleanupItem.path,
+        trashEntry
+      }).catch(() => {});
       skippedItems.push({
         itemId: cleanupItem.id,
         path: cleanupItem.path,

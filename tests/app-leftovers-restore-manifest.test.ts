@@ -107,6 +107,7 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
 
       expect(result.removedItems).toHaveLength(0);
       expect(result.totalFreedBytes).toBe(0);
+      await expect(fs.stat(slack)).resolves.toBeTruthy();
       const failure = result.skippedItems.find((item) => item.reason === "execute-failed");
       expect(failure?.detail).toMatch(/manifest|복구함/);
     } finally {
