@@ -1059,6 +1059,12 @@ function registerIpc() {
         }).catch((err) => {
           log.warn("registry-backup:purge-before-app-leftovers failed:", (err as Error).message);
         });
+        await purgeExpiredStartupFolderEntriesWithAudit({
+          userDataDir,
+          trigger: "app-leftovers"
+        }).catch((err) => {
+          log.warn("startup-disabled:purge-before-app-leftovers failed:", (err as Error).message);
+        });
         const result = await cleanupAppLeftovers(safeLeftoversRequest, {
           userDataDir,
           onFollowupCleaned: async (cleanedApp) => {

@@ -89,6 +89,23 @@ describe("cleanup policy wiring", () => {
     expect(policyIndex).toBeLessThan(restoreIndex);
   });
 
+  it("purges all 30-day restore bins before app leftovers cleanup runs", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const policyIndex = source.indexOf("const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request)");
+    const registryPurgeIndex = source.indexOf("purgeExpiredRegistryBackupsWithAudit({", policyIndex);
+    const startupPurgeIndex = source.indexOf("purgeExpiredStartupFolderEntriesWithAudit({", policyIndex);
+    const cleanupIndex = source.indexOf("cleanupAppLeftovers(safeLeftoversRequest", policyIndex);
+
+    expect(policyIndex).toBeGreaterThanOrEqual(0);
+    expect(registryPurgeIndex).toBeGreaterThan(policyIndex);
+    expect(startupPurgeIndex).toBeGreaterThan(registryPurgeIndex);
+    expect(cleanupIndex).toBeGreaterThan(startupPurgeIndex);
+    expect(source.indexOf('trigger: "app-leftovers"', registryPurgeIndex)).toBeGreaterThan(registryPurgeIndex);
+    expect(source.indexOf('trigger: "app-leftovers"', startupPurgeIndex)).toBeGreaterThan(startupPurgeIndex);
+    expect(source).toContain("startup-disabled:purge-before-app-leftovers failed");
+  });
+
   it("logs only restorable app leftover ids in audit details", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
