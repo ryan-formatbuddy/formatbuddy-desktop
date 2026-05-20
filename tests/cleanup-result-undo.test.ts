@@ -7,6 +7,7 @@ import {
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
   restorableTrashEntryIds,
+  restorableStartupDisabledIds,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
@@ -126,6 +127,47 @@ describe("Cleanup result undo helper", () => {
 
   it("returns only successful registry backup ids for immediate undo", () => {
     expect(restorableRegistryBackupIds(resultWithEntries())).toEqual(["registry-ok"]);
+  });
+
+  it("returns only safe startup disabled ids for immediate undo", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      ...resultWithEntries(),
+      removedItems: [
+        {
+          itemId: "safe-startup",
+          path: "C:\\Users\\Ryan\\Startup\\Acme.lnk",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "safe-startup-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-startup",
+          path: "C:\\Users\\Ryan\\Startup\\Unsafe.lnk",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "../unsafe-startup-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "expired-startup",
+          path: "C:\\Users\\Ryan\\Startup\\Expired.lnk",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "expired-startup-id",
+          expiresAt: "2026-05-19T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(restorableStartupDisabledIds(result, now)).toEqual(["safe-startup-id"]);
   });
 
   it("summarizes recent restore outcomes in friendly Korean", () => {
@@ -456,6 +498,7 @@ describe("Cleanup result undo helper", () => {
 
     expect(restorableTrashEntryIds(result, now)).toEqual(["fresh-file"]);
     expect(restorableRegistryBackupIds(result, now)).toEqual(["fresh-registry"]);
+    expect(restorableStartupDisabledIds(result, now)).toEqual([]);
   });
 
   it("omits recent restore ids with unsafe ids or expiry outside the 30-day window", () => {

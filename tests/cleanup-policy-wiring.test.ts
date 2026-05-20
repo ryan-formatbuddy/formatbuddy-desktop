@@ -105,11 +105,18 @@ describe("cleanup policy wiring", () => {
     ).toBeGreaterThan(appLeftoversIndex);
     expect(
       source.indexOf(
-        "const removedCount = trashEntryIds.length + registryBackupIds.length",
+        "const startupDisabledIds = restorableStartupDisabledIds(result)",
+        appLeftoversIndex
+      )
+    ).toBeGreaterThan(appLeftoversIndex);
+    expect(
+      source.indexOf(
+        "const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length",
         appLeftoversIndex
       )
     ).toBeGreaterThan(appLeftoversIndex);
     expect(source.indexOf("removedCount,", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
+    expect(source.indexOf("startupDisabledIds", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
   });
 
   it("runs the 30-day restore-bin purge on startup and on a scheduled loop", () => {

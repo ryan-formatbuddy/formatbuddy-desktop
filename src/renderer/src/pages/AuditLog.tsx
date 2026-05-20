@@ -106,7 +106,11 @@ function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
 
 function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
   if (!detail) return 0;
-  return arrayCountDetail(detail, "trashEntryIds") + arrayCountDetail(detail, "registryBackupIds");
+  return (
+    arrayCountDetail(detail, "trashEntryIds") +
+    arrayCountDetail(detail, "registryBackupIds") +
+    arrayCountDetail(detail, "startupDisabledIds")
+  );
 }
 
 function auditWarningMessage(entry: AuditEntry): string {

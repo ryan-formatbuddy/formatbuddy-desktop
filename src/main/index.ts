@@ -9,6 +9,7 @@ import { IpcChannels } from "@shared/ipc";
 import {
   registryBackupKindLabel,
   restorableRegistryBackupIds,
+  restorableStartupDisabledIds,
   restorableTrashEntryIds
 } from "@shared/cleanup-result";
 import type {
@@ -1070,13 +1071,17 @@ function registerIpc() {
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         const trashEntryIds = restorableTrashEntryIds(result);
         const registryBackupIds = restorableRegistryBackupIds(result);
-        const removedCount = trashEntryIds.length + registryBackupIds.length;
+        const startupDisabledIds = restorableStartupDisabledIds(result);
+        const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length;
         const summaryParts = [
           trashEntryIds.length > 0
             ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`
             : "",
           registryBackupIds.length > 0
             ? `앱 삭제 흔적 ${registryBackupIds.length}개를 백업 후 정리했어요`
+            : "",
+          startupDisabledIds.length > 0
+            ? `잠시 꺼둔 시작 항목 ${startupDisabledIds.length}개를 보관했어요`
             : ""
         ].filter(Boolean);
         await appendAuditEntry(userDataDir, {
@@ -1084,7 +1089,7 @@ function registerIpc() {
           action: "app-leftovers-trash",
           summary:
             summaryParts.length > 0
-              ? `${summaryParts.join(", ")}. 잔여 폴더와 앱 삭제 흔적 백업은 30일 뒤 자동으로 비워요.`
+              ? `${summaryParts.join(", ")}. 보관한 항목은 30일 뒤 자동으로 비워요.`
               : "앱 잔여 정리를 실행했지만 정리된 항목은 없어요.",
           detail: {
             planId: result.planId,
@@ -1092,7 +1097,8 @@ function registerIpc() {
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
             trashEntryIds,
-            registryBackupIds
+            registryBackupIds,
+            startupDisabledIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
         return result;

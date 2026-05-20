@@ -8,6 +8,7 @@ import {
 } from "@shared/app-leftovers";
 import {
   restorableRegistryBackupIds,
+  restorableStartupDisabledIds,
   restorableTrashEntryIds,
   summarizeRestoreAllResults
 } from "@shared/cleanup-result";
@@ -21,7 +22,8 @@ import type {
   CleanupExecuteResult,
   AppUninstallResult,
   CleanupTrashRestoreResult,
-  RegistryBackupRestoreResult
+  RegistryBackupRestoreResult,
+  StartupFolderToggleResult
 } from "@shared/types";
 
 interface AppManagerProps {
@@ -100,6 +102,7 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
 function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const folderCount = restorableTrashEntryIds(result).length;
   const backupCount = restorableRegistryBackupIds(result).length;
+  const startupCount = restorableStartupDisabledIds(result).length;
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
     result.skippedItems.filter((item) => item.reason !== "not-selected").length;
@@ -110,6 +113,9 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   }
   if (backupCount > 0) {
     lines.push(`앱 삭제 흔적/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+  }
+  if (startupCount > 0) {
+    lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (untouchedCount > 0) {
     lines.push(`건드리지 않은 항목 ${untouchedCount}개는 그대로 뒀어요.`);
@@ -657,13 +663,15 @@ export function AppManager({
     async (result: CleanupExecuteResult) => {
       const entryIds = restorableTrashEntryIds(result);
       const registryBackupIds = restorableRegistryBackupIds(result);
-      if (entryIds.length === 0 && registryBackupIds.length === 0) {
+      const startupDisabledIds = restorableStartupDisabledIds(result);
+      if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
       const missingRestoreBridge =
         (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
-        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup);
+        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
+        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto);
       if (missingRestoreBridge) {
         setRecentRestoreMessage(
           "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
@@ -676,6 +684,7 @@ export function AppManager({
       try {
         const results: CleanupTrashRestoreResult[] = [];
         const registryResults: RegistryBackupRestoreResult[] = [];
+        const startupResults: StartupFolderToggleResult[] = [];
         let restoreFailureCount = 0;
         for (const entryId of entryIds) {
           try {
@@ -691,7 +700,18 @@ export function AppManager({
             restoreFailureCount += 1;
           }
         }
-        setRecentRestoreMessage(summarizeRestoreAllResults(results, registryResults, restoreFailureCount));
+        for (const disabledId of startupDisabledIds) {
+          try {
+            if (window.fb?.restoreStartupAuto) {
+              startupResults.push(await window.fb.restoreStartupAuto({ disabledId }));
+            }
+          } catch {
+            restoreFailureCount += 1;
+          }
+        }
+        setRecentRestoreMessage(
+          summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)
+        );
         await loadLeftovers();
       } finally {
         setRecentRestoreBusy(false);

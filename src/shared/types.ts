@@ -709,6 +709,8 @@ export interface CleanupExecutedItem {
   trashEntryId?: string;
   /** Present when a registry leftover was exported before cleanup. */
   registryBackupId?: string;
+  /** Present when a Startup folder item was held in FormatBuddy's 30-day bin. */
+  startupDisabledId?: string;
   /** ISO-8601 UTC. FormatBuddy auto-deletes the trashed copy after this time. */
   expiresAt?: string;
   error?: string;

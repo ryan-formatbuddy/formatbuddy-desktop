@@ -131,6 +131,19 @@ export function restorableRegistryBackupIds(result: CleanupExecuteResult, now = 
     .filter((id): id is string => typeof id === "string");
 }
 
+export function restorableStartupDisabledIds(result: CleanupExecuteResult, now = Date.now()): string[] {
+  return result.removedItems
+    .filter(
+      (item) =>
+        item.succeeded &&
+        item.mode === "trash" &&
+        isSafeRestorableResultId(item.startupDisabledId) &&
+        executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+    )
+    .map((item) => item.startupDisabledId)
+    .filter((id): id is string => typeof id === "string");
+}
+
 type IntegrityStatusSource = { integrityStatus?: "verified" | "changed" | "legacy" } | null | undefined;
 
 function isChangedBlockedRestore(

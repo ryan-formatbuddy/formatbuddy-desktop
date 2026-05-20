@@ -29,7 +29,9 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("restoreRegistryBackup");
     expect(source).toContain("restorableRegistryBackupIds");
-    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount)");
+    expect(source).toContain("restoreStartupAuto");
+    expect(source).toContain("restorableStartupDisabledIds");
+    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).not.toContain("레지스트리는");
     expect(source).not.toContain("? \"레지스트리\"");
@@ -46,7 +48,7 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("restoreFailureCount += 1");
-    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount)");
+    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
@@ -57,6 +59,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("방금 정리 되돌리기를 연결하지 못했어요");
     expect(source).not.toContain("if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;");
     expect(source).not.toContain("if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;");
+    expect(source).not.toContain("if (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) return;");
   });
 
   it("shows friendly messages instead of silently returning when app manager bridges are missing", () => {
@@ -97,8 +100,10 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("appLeftoverResultLines");
     expect(source).toContain("const folderCount = restorableTrashEntryIds(result).length");
     expect(source).toContain("const backupCount = restorableRegistryBackupIds(result).length");
+    expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 폴더");
     expect(source).toContain("앱 삭제 흔적/시작 항목 백업");
+    expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
   });
 
