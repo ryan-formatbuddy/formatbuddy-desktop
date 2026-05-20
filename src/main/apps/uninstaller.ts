@@ -18,6 +18,8 @@
  *   - the resolved string must not be empty / whitespace
  *   - it must not include cmd control, expansion, or escape syntax
  *   - it must not include silent/quiet uninstall switches
+ *   - cmd.exe runs with /d so user/machine AutoRun hooks cannot
+ *     prepend unrelated commands before the uninstall wizard
  *   - we never run quietUninstallString; FormatBuddy only opens the
  *     interactive Windows uninstall wizard so the user can confirm
  *
@@ -234,10 +236,14 @@ export function canLaunchUninstall(
   return chosen.trim().length > 0 && !isUnsafeUninstallCommand(chosen);
 }
 
+function cmdArgsForUninstall(command: string): string[] {
+  return ["/d", "/c", command];
+}
+
 async function defaultSpawn(command: string): Promise<{ pid?: number }> {
   return await new Promise((resolveSpawn, rejectSpawn) => {
     try {
-      const child = spawn("cmd.exe", ["/c", command], {
+      const child = spawn("cmd.exe", cmdArgsForUninstall(command), {
         detached: true,
         stdio: "ignore",
         windowsHide: false
@@ -333,6 +339,7 @@ export async function runUninstall(
 
 export const __testing = {
   blockedUninstallMessage,
+  cmdArgsForUninstall,
   defaultSpawn,
   hasUnsafeShellControl: isUnsafeUninstallCommand,
   isUnsafeUninstallCommand,

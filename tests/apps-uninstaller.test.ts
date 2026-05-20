@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { canLaunchUninstall, runUninstall } from "../src/main/apps/uninstaller";
+import { canLaunchUninstall, runUninstall, __testing } from "../src/main/apps/uninstaller";
 import type { InstalledApp } from "../src/shared/types";
 
 const baseApp: InstalledApp = {
@@ -12,6 +12,14 @@ const baseApp: InstalledApp = {
 };
 
 describe("runUninstall", () => {
+  it("builds cmd.exe arguments with AutoRun disabled for the default launcher", () => {
+    expect(__testing.cmdArgsForUninstall('"C:\\Program Files\\Slack\\unins000.exe"')).toEqual([
+      "/d",
+      "/c",
+      '"C:\\Program Files\\Slack\\unins000.exe"'
+    ]);
+  });
+
   it("exposes whether a request is launchable before taking a restore point", () => {
     expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "win32")).toBe(true);
     expect(canLaunchUninstall({ appName: "Slack", mode: "quiet" }, baseApp, "win32")).toBe(false);
