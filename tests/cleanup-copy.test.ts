@@ -99,6 +99,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("cleanupResultDetailLines");
     expect(source).toContain("cleanupRemovedItemLines");
     expect(source).toContain("cleanupSkippedItemLines");
+    expect(source).toContain("선택하지 않은 후보");
     expect(source).not.toContain("JSON.stringify(");
     expect(source).not.toContain("<pre");
   });

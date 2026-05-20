@@ -38,6 +38,18 @@ describe("cleanup policy wiring", () => {
     );
     expect(
       source.indexOf(
+        'const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length',
+        cleanupStartIndex
+      )
+    ).toBeGreaterThan(cleanupStartIndex);
+    expect(
+      source.indexOf(
+        'const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length',
+        cleanupStartIndex
+      )
+    ).toBeGreaterThan(cleanupStartIndex);
+    expect(
+      source.indexOf(
         "summary: `포맷버디 복구함으로 ${removedCount}개 항목",
         cleanupAuditIndex
       )
@@ -46,6 +58,7 @@ describe("cleanup policy wiring", () => {
       source.indexOf("trashEntryIds,", cleanupAuditIndex)
     ).toBeGreaterThan(cleanupAuditIndex);
     expect(source.indexOf("removedCount,", cleanupAuditIndex)).toBeGreaterThan(cleanupAuditIndex);
+    expect(source.indexOf("notSelectedCount,", cleanupAuditIndex)).toBeGreaterThan(cleanupAuditIndex);
   });
 
   it("normalizes restore IPC requests before reading ids", () => {

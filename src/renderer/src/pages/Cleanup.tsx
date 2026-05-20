@@ -345,12 +345,14 @@ function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
   const succeededCount = result.removedItems.filter((item) => item.succeeded).length;
   const restorableCount = restorableTrashEntryIds(result).length;
   const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+  const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
   const lines: string[] = [];
 
   if (result.totalFreedBytes > 0) lines.push(`확보한 공간 ${formatBytes(result.totalFreedBytes)}`);
   if (succeededCount > 0) lines.push(`정상 처리 ${succeededCount}개`);
   if (restorableCount > 0) lines.push(`복구함에서 되돌릴 수 있는 항목 ${restorableCount}개`);
   if (skippedCount > 0) lines.push(`건너뛴 항목 ${skippedCount}개`);
+  if (notSelectedCount > 0) lines.push(`선택하지 않은 후보 ${notSelectedCount}개`);
 
   return lines.length > 0 ? lines : ["이번 정리에서 처리된 항목은 없어요."];
 }

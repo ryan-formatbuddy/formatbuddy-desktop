@@ -874,6 +874,8 @@ function registerIpc() {
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         const trashEntryIds = restorableTrashEntryIds(result);
         const removedCount = trashEntryIds.length;
+        const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+        const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
         await appendAuditEntry(app.getPath("userData"), {
           category: "cleanup",
           action: "trash",
@@ -881,7 +883,8 @@ function registerIpc() {
           detail: {
             mode: safeRequest.mode,
             removedCount,
-            skippedCount: result.skippedItems.length,
+            skippedCount,
+            notSelectedCount,
             totalFreedBytes: result.totalFreedBytes,
             trashEntryIds
           }
