@@ -105,6 +105,43 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
+  it("cleans restore-bin display labels before writing metadata", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: {
+        ...makeItem(source),
+        label: "old.tmp\rmore",
+        appName: "Acme\nNotes",
+        appPublisher: "Acme\0Corp."
+      },
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    expect(entry.label).toBe("old.tmp more");
+    expect(entry.appName).toBe("Acme Notes");
+    expect(entry.appPublisher).toBe("Acme Corp.");
+
+    const manifest = JSON.parse(
+      await readFile(join(__testing.entryDir(fx.userData, entry.id), "manifest.json"), "utf8")
+    );
+    expect(manifest.label).toBe("old.tmp more");
+    expect(manifest.appName).toBe("Acme Notes");
+    expect(manifest.appPublisher).toBe("Acme Corp.");
+
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries[0].label).toBe("old.tmp more");
+    expect(snapshot.entries[0].appName).toBe("Acme Notes");
+    expect(snapshot.entries[0].appPublisher).toBe("Acme Corp.");
+  });
+
   it("records the actual stored size when the caller passes a stale size", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });
@@ -527,7 +564,6 @@ describe("FormatBuddy Trash", () => {
     ["source path padded", (source: string) => ({ path: `${source} ` })],
     ["source path control", (source: string) => ({ path: `${source}\n` })],
     ["label", () => ({ label: "" })],
-    ["label control", () => ({ label: "old.tmp\rmore" })],
     ["item size negative", () => ({ sizeBytes: -1 })],
     ["item size non-finite", () => ({ sizeBytes: Number.NaN })],
     ["category", () => ({ categoryId: "" })],
@@ -2246,7 +2282,6 @@ describe("FormatBuddy Trash", () => {
     ["storedPath", ""],
     ["storedPath", `C:\\Users\\Ryan\\bad\npath.tmp`],
     ["label", ""],
-    ["label", "old.tmp\rmore"],
     ["categoryId", ""],
     ["categoryId", "   "]
   ] as Array<[("itemId" | "originalPath" | "storedPath" | "label" | "categoryId"), string]>)(
@@ -2271,6 +2306,33 @@ describe("FormatBuddy Trash", () => {
       );
     }
   );
+
+  it("cleans display-only trash metadata strings while coercing stored metadata", () => {
+    const entry = {
+      id: "safe-entry",
+      itemId: "item-1",
+      originalPath: join(fx.home, "restored.tmp"),
+      storedPath: join(__testing.itemsRoot(fx.userData), "safe-entry", "files", "old.tmp"),
+      label: "old.tmp\rmore",
+      categoryId: "temp-user",
+      appName: "Acme\nNotes",
+      appPublisher: "Acme\0Corp.",
+      sizeBytes: 5,
+      createdAt: "2026-05-19T00:00:00.000Z",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    };
+
+    expect(__testing.coerceEntry(entry)).toMatchObject({
+      label: "old.tmp more",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp."
+    });
+    expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries[0]).toMatchObject({
+      label: "old.tmp more",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp."
+    });
+  });
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
     "rejects non-finite trash sizes while coercing stored metadata",

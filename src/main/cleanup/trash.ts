@@ -205,6 +205,16 @@ function isStrictMetadataString(value: unknown): value is string {
   return isUsableMetadataString(value) && value.trim() === value;
 }
 
+function cleanDisplayMetadataString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 1024);
+}
+
 function isUsableSizeBytes(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
@@ -255,20 +265,23 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!isStrictMetadataString(raw.itemId)) return null;
   if (!isStrictMetadataString(raw.originalPath)) return null;
   if (!isStrictMetadataString(raw.storedPath)) return null;
-  if (!isUsableMetadataString(raw.label)) return null;
+  const label = cleanDisplayMetadataString(raw.label);
+  if (!label) return null;
   if (!isCleanupCategoryId(raw.categoryId)) return null;
   if (typeof raw.sizeBytes !== "number" || !Number.isFinite(raw.sizeBytes)) return null;
   if (!validIso(raw.createdAt)) return null;
   if (!validIso(raw.expiresAt)) return null;
+  const appName = cleanDisplayMetadataString(raw.appName) ?? null;
+  const appPublisher = cleanDisplayMetadataString(raw.appPublisher) ?? null;
   return {
     id: raw.id,
     itemId: raw.itemId,
     originalPath: raw.originalPath,
     storedPath: raw.storedPath,
-    label: raw.label,
+    label,
     categoryId: raw.categoryId,
-    appName: isUsableMetadataString(raw.appName) ? raw.appName : null,
-    appPublisher: isUsableMetadataString(raw.appPublisher) ? raw.appPublisher : null,
+    appName,
+    appPublisher,
     sizeBytes: Math.max(0, Math.round(raw.sizeBytes)),
     contentHash: isValidContentHash(raw.contentHash) ? raw.contentHash : null,
     createdAt: raw.createdAt,
@@ -305,9 +318,8 @@ function assertUsableCleanupItemMetadata(item: CleanupItem): void {
     throw new Error("cleanup-trash refuses unusable source metadata: category");
   }
 
-  const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
-  if (invalid) {
-    throw new Error(`cleanup-trash refuses unusable source metadata: ${invalid[0]}`);
+  if (!cleanDisplayMetadataString(item.label)) {
+    throw new Error("cleanup-trash refuses unusable source metadata: label");
   }
 
   if (!isUsableSizeBytes(item.sizeBytes)) {
@@ -882,6 +894,12 @@ export async function moveToFormatBuddyTrash(
 
   const now = options.now?.() ?? new Date();
   const entryId = randomUUID();
+  const label = cleanDisplayMetadataString(options.item.label);
+  if (!label) {
+    throw new Error("cleanup-trash refuses unusable source metadata: label");
+  }
+  const appName = cleanDisplayMetadataString(options.item.appName) ?? null;
+  const appPublisher = cleanDisplayMetadataString(options.item.appPublisher) ?? null;
   await ensureUsableItemsRootForWrite(options.userDataDir);
   const targetDir = entryDir(options.userDataDir, entryId);
   const storedPath = storedPathFor(options.userDataDir, entryId, options.item.path);
@@ -894,10 +912,10 @@ export async function moveToFormatBuddyTrash(
     itemId: options.item.id,
     originalPath: options.item.path,
     storedPath,
-    label: options.item.label,
+    label,
     categoryId: options.item.categoryId,
-    appName: isUsableMetadataString(options.item.appName) ? options.item.appName : null,
-    appPublisher: isUsableMetadataString(options.item.appPublisher) ? options.item.appPublisher : null,
+    appName,
+    appPublisher,
     sizeBytes: Math.max(0, Math.round(options.sizeBytes)),
     contentHash,
     createdAt: now.toISOString(),
