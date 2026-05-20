@@ -1129,20 +1129,17 @@ button { font-family: inherit; }
   gap: 8px;
   margin-top: 6px;
 }
-.fb-err-toggle {
+.fb-err-hint {
   margin-top: 8px;
-  background: transparent;
-  border: 0;
-  font-family: inherit;
   font-size: 12px;
   color: var(--color-fb-ink-3);
-  cursor: pointer;
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   font-weight: 600;
+  line-height: 18px;
 }
-.fb-err-toggle:hover { color: var(--color-fb-ink-1); }
 .fb-err-code {
   background: var(--color-fb-blue-tint);
   color: var(--color-fb-blue-heavy);
@@ -1151,23 +1148,6 @@ button { font-family: inherit; }
   font-size: 11px;
   font-feature-settings: "tnum" on;
 }
-.fb-err-detail {
-  margin-top: 4px;
-  max-width: 640px;
-  background: #ffffff;
-  border: 1px solid var(--color-fb-line);
-  border-radius: 12px;
-  padding: 14px 16px;
-  /* v0.6.2 — 모노스페이스 제거. 자세한 내용 박스도 Wanted Sans로. */
-  font-family: inherit;
-  font-size: 11px;
-  color: var(--color-fb-ink-3);
-  line-height: 16px;
-  text-align: left;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.fb-err-detail pre { margin: 0; font-family: inherit; }
 
 .fb-report-card-explain {
   font-size: 13px;

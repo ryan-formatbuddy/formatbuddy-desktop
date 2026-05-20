@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Button } from "../components/Button";
 import { copy } from "@shared/copy";
@@ -35,7 +35,6 @@ function buildMailto(error: ScanError): string {
 }
 
 export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
-  const [showDetail, setShowDetail] = useState(false);
   const code = error.code ?? "UNKNOWN";
   const friendly = friendlyErrorMessage(error);
 
@@ -68,23 +67,13 @@ export function ErrorScreen({ error, onRetry, onBack }: ErrorScreenProps) {
         </Button>
       </div>
       {(error.detail || error.message) && (
-        <button
-          type="button"
-          className="fb-err-toggle"
-          onClick={() => setShowDetail((v) => !v)}
-          aria-expanded={showDetail}
-        >
-          {showDetail ? "자세한 내용 숨기기" : "자세한 내용 보기"}
+        <p className="fb-err-hint">
+          오류 원문은 메일에만 담아둘게요. 기록 폴더를 열면 자세한 단서를 확인할 수 있어요.
           <span className="fb-err-code">
             {copy.errorCodePrefix}
             {code}
           </span>
-        </button>
-      )}
-      {showDetail && (
-        <div className="fb-err-detail">
-          <pre>{(error.detail ?? error.message ?? "").slice(0, 1200)}</pre>
-        </div>
+        </p>
       )}
     </main>
   );
