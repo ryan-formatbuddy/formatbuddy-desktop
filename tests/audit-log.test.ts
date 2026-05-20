@@ -200,6 +200,40 @@ describe("coerce + sanity guards", () => {
     expect(result).toBeNull();
   });
 
+  it("skips entries with invalid timestamps", () => {
+    const result = __testing.coerceEntry({
+      id: "bad-time",
+      at: "not-a-date",
+      category: "cleanup",
+      action: "trash",
+      summary: "bad timestamp"
+    });
+
+    expect(result).toBeNull();
+    expect(
+      __testing.coerceLog({
+        version: 1,
+        retentionDays: 30,
+        entries: [
+          {
+            id: "bad-time",
+            at: "not-a-date",
+            category: "cleanup",
+            action: "trash",
+            summary: "bad timestamp"
+          },
+          {
+            id: "ok",
+            at: "2026-05-19T10:00:00.000Z",
+            category: "cleanup",
+            action: "trash",
+            summary: "good"
+          }
+        ]
+      }).entries.map((entry) => entry.id)
+    ).toEqual(["ok"]);
+  });
+
   it("skips entries missing required string fields", () => {
     expect(
       __testing.coerceEntry({ id: "x", at: "2026-05-19T10:00:00.000Z", category: "cleanup" })

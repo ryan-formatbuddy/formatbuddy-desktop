@@ -60,11 +60,15 @@ function sanitizeAuditText(value: unknown, fallback: string): string {
   return sanitized || fallback;
 }
 
+function isValidAuditTimestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
 function coerceEntry(value: unknown): AuditEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<AuditEntry>;
   if (typeof raw.id !== "string") return null;
-  if (typeof raw.at !== "string") return null;
+  if (!isValidAuditTimestamp(raw.at)) return null;
   if (!isAuditCategory(raw.category)) return null;
   if (typeof raw.action !== "string") return null;
   if (typeof raw.summary !== "string") return null;
@@ -106,7 +110,7 @@ function prune(
   const cutoff = now.getTime() - log.retentionDays * 86_400_000;
   const filtered = log.entries.filter((e) => {
     const t = Date.parse(e.at);
-    return Number.isFinite(t) ? t >= cutoff : true;
+    return Number.isFinite(t) && t >= cutoff;
   });
   if (filtered.length === log.entries.length) return { log, mutated: false };
   return {
