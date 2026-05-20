@@ -127,6 +127,12 @@ describe("evaluatePath — user-scoped blocklist", () => {
     "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data",
     "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Cookies",
     "C:\\Users\\Ryan\\AppData\\Local\\Microsoft\\Edge\\User Data\\Default\\Web Data",
+    "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 1\\Login Data",
+    "C:\\Users\\Ryan\\AppData\\Local\\Google\\Chrome\\User Data\\Profile 2\\Network\\Cookies",
+    "C:\\Users\\Ryan\\AppData\\Local\\Naver\\Naver Whale\\User Data\\Profile 3\\Bookmarks",
+    "C:\\Users\\Ryan\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default-release\\logins.json",
+    "C:\\Users\\Ryan\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default-release\\key4.db",
+    "C:\\Users\\Ryan\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default-release\\places.sqlite",
     "C:\\Users\\Ryan\\AppData\\Roaming\\KakaoTalk\\database.db",
     "C:\\Users\\Ryan\\AppData\\Local\\Kakao\\KakaoTalk\\cache",
     "C:\\Users\\Ryan\\OneDrive\\Documents\\report.docx",
@@ -192,7 +198,7 @@ describe("evaluatePath — user-scoped blocklist", () => {
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(7);
+    expect(BLOCKLIST_VERSION).toBe(8);
   });
 });
 

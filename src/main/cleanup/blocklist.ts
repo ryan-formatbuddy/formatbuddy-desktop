@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 7;
+export const BLOCKLIST_VERSION = 8;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:
@@ -147,6 +147,37 @@ function endsWithBrowserProfileRoot(p: string): boolean {
     if (segments.length !== 1) return false;
     return segments[0] === "default" || /^profile \d+$/i.test(segments[0]);
   });
+}
+
+function includesBrowserSensitiveProfileFile(p: string): boolean {
+  const sensitiveChromiumNames = [
+    "\\login data",
+    "\\cookies",
+    "\\network\\cookies",
+    "\\web data",
+    "\\local state",
+    "\\bookmarks"
+  ];
+  if (
+    CHROMIUM_PROFILE_ROOT_MARKERS.some((marker) => p.includes(marker)) &&
+    sensitiveChromiumNames.some((suffix) => p.endsWith(suffix))
+  ) {
+    return true;
+  }
+
+  if (p.includes("\\mozilla\\firefox\\profiles\\")) {
+    return [
+      "\\logins.json",
+      "\\key4.db",
+      "\\key3.db",
+      "\\cookies.sqlite",
+      "\\places.sqlite",
+      "\\cert9.db",
+      "\\cert8.db"
+    ].some((suffix) => p.endsWith(suffix));
+  }
+
+  return false;
 }
 
 function includesKoreanCertificateFolder(p: string): boolean {
@@ -299,6 +330,11 @@ const SYSTEM_BLOCK_RULES: BlockRule[] = [
     id: "system:browser-profile-root",
     label: "브라우저 프로필 폴더 (비밀번호·쿠키 포함 가능)",
     match: endsWithBrowserProfileRoot
+  },
+  {
+    id: "system:browser-sensitive-profile-file",
+    label: "브라우저 비밀번호·쿠키·북마크 보관 파일",
+    match: includesBrowserSensitiveProfileFile
   },
   {
     id: "system:hibernation",
