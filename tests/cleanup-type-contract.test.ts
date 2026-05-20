@@ -20,6 +20,10 @@ describe("cleanup type contract", () => {
     expect(source).toContain("export interface RestoreBinPurgeResult");
     expect(source).toContain("export interface CleanupTrashPurgedItem");
     expect(source).toContain("purgedItems?: CleanupTrashPurgedItem[]");
+    expect(source).toContain("export interface RegistryBackupPurgedItem");
+    expect(source).toContain("purgedItems?: RegistryBackupPurgedItem[]");
+    expect(source).toContain("export interface StartupDisabledPurgedItem");
+    expect(source).toContain("purgedItems?: StartupDisabledPurgedItem[]");
     expect(source).toContain("trash?: CleanupTrashPurgeResult");
     expect(source).toContain("registryBackups?: RegistryBackupPurgeResult");
     expect(source).toContain("startupDisabled?: StartupDisabledPurgeResult");

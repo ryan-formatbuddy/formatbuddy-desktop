@@ -1,9 +1,11 @@
 import type {
   CleanupTrashPurgeResult,
   CleanupTrashPurgedItem,
+  RegistryBackupPurgedItem,
   RegistryBackupPurgeResult,
   RestoreBinPurgeKind,
   RestoreBinPurgeResult,
+  StartupDisabledPurgedItem,
   StartupDisabledPurgeResult
 } from "@shared/types";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
@@ -146,6 +148,54 @@ function normalizeTrashPurgedItems(
   return items;
 }
 
+function normalizeRegistryBackupPurgedItems(
+  value: unknown,
+  allowedIds: Set<string>
+): RegistryBackupPurgedItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<string>();
+  const items: RegistryBackupPurgedItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<RegistryBackupPurgedItem>;
+    if (!item.id || !allowedIds.has(item.id) || seen.has(item.id)) continue;
+    const label = sanitizePurgeLabel(item.label);
+    const backupKind = item.backupKind === "startup-value" ? "startup-value" : item.backupKind === "key" ? "key" : null;
+    if (!label || !backupKind) continue;
+    seen.add(item.id);
+    items.push({
+      id: item.id,
+      label,
+      backupKind,
+      sizeBytes: coerceNonNegativeInteger(item.sizeBytes)
+    });
+  }
+  return items;
+}
+
+function normalizeStartupDisabledPurgedItems(
+  value: unknown,
+  allowedIds: Set<string>
+): StartupDisabledPurgedItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<string>();
+  const items: StartupDisabledPurgedItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<StartupDisabledPurgedItem>;
+    if (!item.id || !allowedIds.has(item.id) || seen.has(item.id)) continue;
+    const label = sanitizePurgeLabel(item.label);
+    if (!label) continue;
+    seen.add(item.id);
+    items.push({
+      id: item.id,
+      label,
+      sizeBytes: coerceNonNegativeInteger(item.sizeBytes)
+    });
+  }
+  return items;
+}
+
 function normalizeTrashPurgeResult(result: CleanupTrashPurgeResult): CleanupTrashPurgeResult {
   const purgedEntryIds = coerceSafeIdList(result.purgedEntryIds);
   const purgedIdSet = new Set(purgedEntryIds);
@@ -164,11 +214,13 @@ function normalizeRegistryBackupPurgeResult(
   result: RegistryBackupPurgeResult
 ): RegistryBackupPurgeResult {
   const purgedIds = coerceSafeIdList(result.purgedIds);
+  const purgedIdSet = new Set(purgedIds);
   return {
     ...result,
     purgedCount: purgedIds.length,
     purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
     purgedIds,
+    purgedItems: normalizeRegistryBackupPurgedItems(result.purgedItems, purgedIdSet),
     failedIds: coerceOptionalSafeIdList(result.failedIds),
     retentionDays: coerceRetentionDays(result.retentionDays)
   };
@@ -178,10 +230,12 @@ function normalizeStartupDisabledPurgeResult(
   result: StartupDisabledPurgeResult
 ): StartupDisabledPurgeResult {
   const purgedIds = coerceSafeIdList(result.purgedIds);
+  const purgedIdSet = new Set(purgedIds);
   return {
     ...result,
     purgedCount: purgedIds.length,
     purgedIds,
+    purgedItems: normalizeStartupDisabledPurgedItems(result.purgedItems, purgedIdSet),
     failedIds: coerceOptionalSafeIdList(result.failedIds),
     retentionDays: coerceRetentionDays(result.retentionDays)
   };

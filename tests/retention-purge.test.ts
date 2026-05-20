@@ -253,12 +253,20 @@ describe("retention purge scheduler", () => {
       purgedCount: -4,
       purgedBytes: Number.POSITIVE_INFINITY,
       purgedIds: ["reg-ok"],
+      purgedItems: [
+        { id: "reg-ok", label: "Acme\tNotes", backupKind: "startup-value", sizeBytes: 123 },
+        { id: "reg-bad-kind", label: "Bad", backupKind: "unknown", sizeBytes: 1 }
+      ],
       failedIds: ["reg-busy"],
       retentionDays: Number.NaN
     } as unknown as RegistryBackupPurgeResult));
     const purgeStartupDisabled = vi.fn(async () => ({
       purgedCount: Number.NaN,
       purgedIds: ["startup-ok"],
+      purgedItems: [
+        { id: "startup-ok", label: "KakaoTalk\n.lnk", sizeBytes: 7 },
+        { id: "startup/unsafe", label: "Bad", sizeBytes: 1 }
+      ],
       failedIds: ["startup-busy"],
       retentionDays: 0
     } as unknown as StartupDisabledPurgeResult));
@@ -285,12 +293,18 @@ describe("retention purge scheduler", () => {
       purgedCount: 1,
       purgedBytes: 0,
       purgedIds: ["reg-ok"],
+      purgedItems: [
+        { id: "reg-ok", label: "Acme Notes", backupKind: "startup-value", sizeBytes: 123 }
+      ],
       failedIds: ["reg-busy"],
       retentionDays: 30
     });
     expect(result.startupDisabled).toMatchObject({
       purgedCount: 1,
       purgedIds: ["startup-ok"],
+      purgedItems: [
+        { id: "startup-ok", label: "KakaoTalk .lnk", sizeBytes: 7 }
+      ],
       failedIds: ["startup-busy"],
       retentionDays: 30
     });

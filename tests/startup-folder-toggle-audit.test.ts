@@ -67,6 +67,13 @@ describe("purgeExpiredStartupFolderEntriesWithAudit", () => {
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
       purgedIds: [disabled.entry!.id],
+      purgedItems: [
+        {
+          id: disabled.entry!.id,
+          label: "KakaoTalk.lnk",
+          sizeBytes: Buffer.byteLength("shortcut")
+        }
+      ],
       trigger: "startup"
     });
   });

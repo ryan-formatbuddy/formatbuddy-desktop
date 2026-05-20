@@ -888,17 +888,32 @@ export interface RegistryBackupRestoreResult {
   entry?: RegistryBackupEntry;
 }
 
+export interface RegistryBackupPurgedItem {
+  id: string;
+  label: string;
+  backupKind: "key" | "startup-value";
+  sizeBytes: number;
+}
+
 export interface RegistryBackupPurgeResult {
   purgedCount: number;
   purgedBytes: number;
   purgedIds: string[];
+  purgedItems?: RegistryBackupPurgedItem[];
   failedIds?: string[];
   retentionDays: number;
+}
+
+export interface StartupDisabledPurgedItem {
+  id: string;
+  label: string;
+  sizeBytes: number;
 }
 
 export interface StartupDisabledPurgeResult {
   purgedCount: number;
   purgedIds: string[];
+  purgedItems?: StartupDisabledPurgedItem[];
   failedIds?: string[];
   retentionDays: number;
 }

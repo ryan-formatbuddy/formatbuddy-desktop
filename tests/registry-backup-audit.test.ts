@@ -82,6 +82,14 @@ describe("purgeExpiredRegistryBackupsWithAudit", () => {
       purgedCount: 1,
       purgedBytes: backupBytes,
       purgedIds: [backup.id],
+      purgedItems: [
+        {
+          id: backup.id,
+          label: "Acme Notes",
+          backupKind: "key",
+          sizeBytes: backupBytes
+        }
+      ],
       trigger: "startup"
     });
   });

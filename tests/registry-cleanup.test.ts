@@ -985,6 +985,14 @@ describe("registry leftover cleanup", () => {
       purgedCount: 1,
       purgedBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
       purgedIds: [result.id],
+      purgedItems: [
+        {
+          id: result.id,
+          label: "Acme Notes",
+          backupKind: "key",
+          sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8")
+        }
+      ],
       retentionDays: 30
     });
     await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();

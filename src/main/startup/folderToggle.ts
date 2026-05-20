@@ -15,6 +15,7 @@ import type {
   StartupAutoDisabledEntry,
   StartupAutoDisabledSnapshot,
   StartupAutoEntry,
+  StartupDisabledPurgedItem,
   StartupDisabledPurgeResult,
   StartupFolderToggleResult
 } from "@shared/types";
@@ -823,6 +824,7 @@ export async function purgeExpiredStartupFolderEntries(
   }
 
   const purgedIds: string[] = [];
+  const purgedItems: StartupDisabledPurgedItem[] = [];
   const failedIds: string[] = [];
   const removeEntryDir =
     options.removeEntryDir ??
@@ -842,9 +844,18 @@ export async function purgeExpiredStartupFolderEntries(
       if (linkedEntryDescendant) {
         throw new Error(`Expired startup holding entry contains a nested link: ${linkedEntryDescendant}`);
       }
+      const storedSize = await lstat(entry.storedPath).then(
+        (stat) => (stat.isFile() && !stat.isSymbolicLink() ? stat.size : 0),
+        () => 0
+      );
       await removeEntryDir(dir, entry);
       if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
       purgedIds.push(entry.id);
+      purgedItems.push({
+        id: entry.id,
+        label: entry.name,
+        sizeBytes: storedSize
+      });
     } catch {
       if (isSafeStartupDisabledId(dirent.name)) failedIds.push(dirent.name);
     }
@@ -853,6 +864,7 @@ export async function purgeExpiredStartupFolderEntries(
   return {
     purgedCount: purgedIds.length,
     purgedIds,
+    ...(purgedItems.length > 0 ? { purgedItems } : {}),
     ...(failedIds.length > 0 ? { failedIds } : {}),
     retentionDays: STARTUP_DISABLED_RETENTION_DAYS
   };

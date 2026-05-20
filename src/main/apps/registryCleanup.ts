@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import type {
   InstalledApp,
   RegistryBackupEntry,
+  RegistryBackupPurgedItem,
   RegistryBackupPurgeResult,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot
@@ -163,6 +164,13 @@ function cleanDisplayString(value: unknown): string | undefined {
 
 function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
+}
+
+function registryBackupPurgeLabel(entry: RegistryBackupEntry): string {
+  if (entry.appName) return entry.appName;
+  if (entry.backupKind === "startup-value" && entry.valueName) return entry.valueName;
+  const parts = normalizeRegistryKeyPath(entry.keyPath).split("\\").filter(Boolean);
+  return parts.at(-1) ?? "앱 삭제 흔적";
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -1196,6 +1204,7 @@ export async function purgeExpiredRegistryBackups(options: {
 
   const now = options.now?.() ?? new Date();
   const purgedIds: string[] = [];
+  const purgedItems: RegistryBackupPurgedItem[] = [];
   const failedIds: string[] = [];
   let purgedBytes = 0;
   const removeEntryDir =
@@ -1243,6 +1252,9 @@ export async function purgeExpiredRegistryBackups(options: {
       ) {
         continue;
       }
+      const readableEntry = await readRegistryBackupEntry(options.userDataDir, entry.name).catch(
+        () => null
+      );
       const entryBytes = await measureRegistryBackupPurgeBytes(entryDir);
       await removeEntryDir(entryDir, entry.name);
       if (await pathExists(entryDir)) {
@@ -1250,6 +1262,14 @@ export async function purgeExpiredRegistryBackups(options: {
       }
       purgedBytes += entryBytes;
       purgedIds.push(entry.name);
+      if (readableEntry) {
+        purgedItems.push({
+          id: readableEntry.id,
+          label: registryBackupPurgeLabel(readableEntry),
+          backupKind: readableEntry.backupKind === "startup-value" ? "startup-value" : "key",
+          sizeBytes: entryBytes
+        });
+      }
     } catch {
       if (isSafeRegistryBackupId(entry.name)) failedIds.push(entry.name);
       continue;
@@ -1260,6 +1280,7 @@ export async function purgeExpiredRegistryBackups(options: {
     purgedCount: purgedIds.length,
     purgedBytes,
     purgedIds,
+    ...(purgedItems.length > 0 ? { purgedItems } : {}),
     ...(failedIds.length > 0 ? { failedIds } : {}),
     retentionDays: REGISTRY_BACKUP_RETENTION_DAYS
   };
