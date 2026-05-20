@@ -52,6 +52,26 @@ describe("appendAuditEntry + getAuditSnapshot", () => {
     expect(snap.entries[0].detail).toEqual({ removedCount: 3 });
   });
 
+  it("sanitizes action and summary text before persisting an audit entry", async () => {
+    const fixedNow = new Date("2026-05-19T10:00:00.000Z");
+    const entry = await appendAuditEntry(
+      dir,
+      {
+        category: "cleanup",
+        action: "trash\nexpired\0purge",
+        summary: "30일 자동 비움\t확인\r완료"
+      },
+      fixedNow
+    );
+
+    expect(entry.action).toBe("trash expired purge");
+    expect(entry.summary).toBe("30일 자동 비움 확인 완료");
+
+    const snap = await getAuditSnapshot(dir, fixedNow);
+    expect(snap.entries[0].action).toBe("trash expired purge");
+    expect(snap.entries[0].summary).toBe("30일 자동 비움 확인 완료");
+  });
+
   it("keeps the newest entries first across multiple appends", async () => {
     const base = new Date("2026-05-19T10:00:00.000Z");
     await appendAuditEntry(

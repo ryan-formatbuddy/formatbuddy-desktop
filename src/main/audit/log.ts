@@ -51,6 +51,15 @@ function isAuditCategory(value: unknown): value is AuditCategory {
   );
 }
 
+function sanitizeAuditText(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const sanitized = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return sanitized || fallback;
+}
+
 function coerceEntry(value: unknown): AuditEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<AuditEntry>;
@@ -59,12 +68,14 @@ function coerceEntry(value: unknown): AuditEntry | null {
   if (!isAuditCategory(raw.category)) return null;
   if (typeof raw.action !== "string") return null;
   if (typeof raw.summary !== "string") return null;
+  const action = sanitizeAuditText(raw.action, "unknown");
+  const summary = sanitizeAuditText(raw.summary, "활동 기록을 남겼어요.");
   return {
     id: raw.id,
     at: raw.at,
     category: raw.category,
-    action: raw.action,
-    summary: raw.summary,
+    action,
+    summary,
     detail:
       raw.detail && typeof raw.detail === "object" && !Array.isArray(raw.detail)
         ? (raw.detail as Record<string, unknown>)
@@ -165,8 +176,8 @@ export async function appendAuditEntry(
     id: randomUUID(),
     at: now.toISOString(),
     category: emit.category,
-    action: emit.action,
-    summary: emit.summary,
+    action: sanitizeAuditText(emit.action, "unknown"),
+    summary: sanitizeAuditText(emit.summary, "활동 기록을 남겼어요."),
     detail: emit.detail
   };
   const next: PersistedAuditLog = {
