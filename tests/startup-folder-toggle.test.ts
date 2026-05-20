@@ -526,4 +526,47 @@ describe("startup folder toggle", () => {
     expect(snapshot.entries).toEqual([]);
     expect(readFileSync(outside, "utf8")).toBe("outside");
   });
+
+  it("prunes a disabled startup record when the held file is already missing", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk")
+    });
+    await rm(disabled.entry!.storedPath, { force: true });
+
+    const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(false);
+  });
+
+  it("prunes a disabled startup record when the held file was replaced with a link", async () => {
+    if (process.platform === "win32") return;
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    const outside = join(fx.root, "outside-startup-target.lnk");
+    writeFileSync(source, "shortcut");
+    writeFileSync(outside, "outside stays put");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk")
+    });
+    await rm(disabled.entry!.storedPath, { force: true });
+    symlinkSync(outside, disabled.entry!.storedPath);
+
+    const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
+
+    expect(snapshot.entries).toEqual([]);
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(false);
+    expect(readFileSync(outside, "utf8")).toBe("outside stays put");
+  });
 });

@@ -287,6 +287,59 @@ async function assertSafeStartupDisabledEntryForPurge(
   return dir;
 }
 
+async function removeManagedStartupDisabledItem(
+  userDataDir: string,
+  disabledId: string
+): Promise<boolean> {
+  if (!isSafeStartupDisabledId(disabledId)) return false;
+
+  const root = itemsRoot(userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) return false;
+
+  const dir = entryDir(userDataDir, disabledId);
+  const normalizedRoot = normalizePath(resolve(root));
+  const normalizedDir = normalizePath(resolve(dir));
+  if (!normalizedDir.startsWith(`${normalizedRoot}\\`)) return false;
+
+  await rm(dir, { recursive: true, force: true }).catch(() => {});
+  return !(await pathExists(dir));
+}
+
+async function pruneNonRestorableStartupDisabledItems(userDataDir: string): Promise<void> {
+  const root = itemsRoot(userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) return;
+
+  let dirs;
+  try {
+    dirs = await readdir(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  for (const dirent of dirs) {
+    if (!isSafeStartupDisabledId(dirent.name)) continue;
+    if (!dirent.isDirectory()) {
+      await removeManagedStartupDisabledItem(userDataDir, dirent.name);
+      continue;
+    }
+
+    const entry = await readDisabledEntry(userDataDir, dirent.name);
+    if (!entry || entry.id !== dirent.name) continue;
+    if (!isManagedStartupStoredPath(userDataDir, dirent.name, entry.storedPath)) continue;
+
+    const linkedStored = await findLinkedPathPart(
+      entry.storedPath,
+      entryDir(userDataDir, dirent.name),
+      true
+    );
+    if (linkedStored || !(await pathExists(entry.storedPath))) {
+      await removeManagedStartupDisabledItem(userDataDir, dirent.name);
+    }
+  }
+}
+
 export async function listDisabledStartupFolderEntries(
   options: StartupFolderToggleRuntime
 ): Promise<StartupAutoDisabledSnapshot> {
@@ -304,6 +357,8 @@ export async function listDisabledStartupFolderEntries(
       notes: ["시작 항목 보관함 경로가 안전하지 않아 목록을 비웠어요."]
     };
   }
+
+  await pruneNonRestorableStartupDisabledItems(options.userDataDir).catch(() => {});
 
   let dirs;
   try {
@@ -670,5 +725,6 @@ export const __testing = {
   isManagedStartupStoredPath,
   coerceDisabledEntry,
   startupHoldingIntegrityStatus,
-  assertSafeStartupDisabledEntryForPurge
+  assertSafeStartupDisabledEntryForPurge,
+  pruneNonRestorableStartupDisabledItems
 };
