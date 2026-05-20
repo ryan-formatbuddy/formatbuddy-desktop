@@ -1222,6 +1222,12 @@ export async function purgeExpiredTrash(
         entry.id,
         entry.storedPath
       );
+      if (
+        linkedStoredPath &&
+        normalizePath(resolve(linkedStoredPath)) !== normalizePath(resolve(entry.storedPath))
+      ) {
+        throw new Error(`Expired trash entry contains a nested link: ${linkedStoredPath}`);
+      }
       const entryBytes = linkedStoredPath
         ? 0
         : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);

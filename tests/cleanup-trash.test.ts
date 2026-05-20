@@ -1631,6 +1631,45 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 
+  it("keeps an expired trash folder when it contains a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old-cache");
+    const outside = join(fx.root, "outside-cache");
+    await mkdir(source, { recursive: true });
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(source, "visible.tmp"), "hello", "utf8");
+    await writeFile(join(outside, "outside.tmp"), "outside should stay", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: {
+        ...makeItem(source),
+        label: "old-cache",
+        sizeBytes: 5
+      },
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const linkedPath = join(entry.storedPath, "linked-outside");
+    await symlink(outside, linkedPath, "dir");
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(purged.purgedCount).toBe(0);
+    expect(purged.purgedBytes).toBe(0);
+    expect(purged.purgedEntryIds).toEqual([]);
+    expect(purged.failedEntryIds).toEqual([entry.id]);
+    expect(existsSync(entry.storedPath)).toBe(true);
+    expect((await lstat(linkedPath)).isSymbolicLink()).toBe(true);
+    expect(await readFile(join(outside, "outside.tmp"), "utf8")).toBe("outside should stay");
+    const index = JSON.parse(await readFile(__testing.indexPath(fx.userData), "utf8")) as {
+      entries: CleanupTrashEntry[];
+    };
+    expect(index.entries.map((trashEntry) => trashEntry.id)).toEqual([entry.id]);
+  });
+
   it("does not restore an expired entry when restore is called directly", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });
