@@ -1419,14 +1419,9 @@ async function movePathBestEffort(
   destination: string,
   options: { destinationBoundary?: string } = {}
 ): Promise<void> {
+  await assertRollbackDestinationHasNoLinkedParent(destination, options.destinationBoundary);
   await fs.mkdir(dirname(destination), { recursive: true });
-  const linkedDestinationParent = await findLinkedPathPart(
-    destination,
-    options.destinationBoundary ?? dirname(destination)
-  );
-  if (linkedDestinationParent) {
-    throw new Error(`Rollback destination parent is a link: ${linkedDestinationParent}`);
-  }
+  await assertRollbackDestinationHasNoLinkedParent(destination, options.destinationBoundary);
   try {
     await fs.rename(source, destination);
     return;
@@ -1436,6 +1431,19 @@ async function movePathBestEffort(
   }
   await fs.cp(source, destination, { recursive: true, force: false, errorOnExist: true });
   await fs.rm(source, { recursive: true, force: true });
+}
+
+async function assertRollbackDestinationHasNoLinkedParent(
+  destination: string,
+  destinationBoundary?: string
+): Promise<void> {
+  const linkedDestinationParent = await findLinkedPathPart(
+    destination,
+    destinationBoundary ?? dirname(destination)
+  );
+  if (linkedDestinationParent) {
+    throw new Error(`Rollback destination parent is a link: ${linkedDestinationParent}`);
+  }
 }
 
 async function cleanupUnverifiedTrashMove(options: {
@@ -1481,8 +1489,23 @@ async function cleanupUnverifiedTrashMove(options: {
 }
 
 function rollbackBoundaryForPath(path: string, env: LeftoverEnv): string {
+  const programFilesRoot = programFilesRootForPath(path, env);
+  if (programFilesRoot) return programFilesRoot;
   const roots = [env.home, env.programData];
   return roots.find((root) => isAtOrInside(path, root)) ?? dirname(path);
+}
+
+function programFilesRootForPath(path: string, env: LeftoverEnv): string | undefined {
+  const winPath = path.replace(/\//g, "\\");
+  const driveRoot = winPath.match(/^([a-z]:\\program files(?: \(x86\))?)(?:\\|$)/i)?.[1];
+  if (driveRoot) return driveRoot;
+
+  const simulatedWindowsRoot = dirname(env.programData);
+  const roots = [
+    join(simulatedWindowsRoot, "Program Files"),
+    join(simulatedWindowsRoot, "Program Files (x86)")
+  ];
+  return roots.find((root) => isAtOrInside(path, root));
 }
 
 async function assertStartupHoldingCleanupResult(options: {
@@ -2143,5 +2166,6 @@ export const __testing = {
   PLAN_TTL_MS,
   cleanupUnverifiedTrashMove,
   movePathBestEffort,
+  programFilesRootForPath,
   rollbackBoundaryForPath
 };

@@ -411,6 +411,32 @@ describe("planAppLeftovers", () => {
     await expect(fs.readdir(outsideParent)).resolves.toEqual([]);
   });
 
+  it("refuses Program Files rollback moves through a linked Program Files root before creating parents", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.root, "stored-install-cache.bin");
+    const programFilesLink = join(fx.root, "Program Files");
+    const outsideProgramFiles = join(fx.root, "outside-program-files");
+    const destination = join(programFilesLink, "Acme Corp", "Acme Notes", "cache.bin");
+    await fs.writeFile(source, "cached", "utf8");
+    await fs.mkdir(outsideProgramFiles, { recursive: true });
+    await fs.symlink(outsideProgramFiles, programFilesLink, "dir");
+
+    await expect(
+      leftoversTesting.movePathBestEffort(source, destination, {
+        destinationBoundary: leftoversTesting.rollbackBoundaryForPath(destination, {
+          home: fx.home,
+          roaming: fx.roaming,
+          localAppData: fx.localAppData,
+          localLow: fx.localLow,
+          programData: fx.programData
+        })
+      })
+    ).rejects.toThrow(/link/i);
+
+    await expect(fs.readFile(source, "utf8")).resolves.toBe("cached");
+    await expect(fs.readdir(outsideProgramFiles)).resolves.toEqual([]);
+  });
+
   it("keeps an unverified app-leftover trash move when a new item already exists at the original path", async () => {
     const userDataDir = join(fx.root, "userdata");
     const entryId = "entry-target-exists";
