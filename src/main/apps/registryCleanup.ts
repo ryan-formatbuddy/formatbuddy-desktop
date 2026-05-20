@@ -337,6 +337,9 @@ async function assertRestorableRegistryBackupFile(
   if (expectedKeyPath && !registryBackupSectionsMatchExpectedKey(content, expectedKeyPath)) {
     throw new Error("앱 삭제 흔적 백업 파일의 레지스트리 위치가 달라 되돌리지 않았어요.");
   }
+  if (expectedKeyPath && !registryBackupContainsRestorableValueLine(content)) {
+    throw new Error("앱 삭제 흔적 백업 파일에 되돌릴 값이 없어 정리하지 않았어요.");
+  }
   if (expectedValueName && !registryBackupContainsOnlyValue(content, expectedValueName)) {
     throw new Error("앱 삭제 흔적 백업 파일의 시작 항목 값이 달라 되돌리지 않았어요.");
   }
@@ -366,6 +369,13 @@ function registryBackupContainsValueDeleteLine(content: string): boolean {
   return content.split(/\r?\n/).some((rawLine) => {
     const line = rawLine.trim();
     return /^@\s*=\s*-$/.test(line) || /^"((?:\\"|[^"])*)"\s*=\s*-$/.test(line);
+  });
+}
+
+function registryBackupContainsRestorableValueLine(content: string): boolean {
+  return content.split(/\r?\n/).some((rawLine) => {
+    const line = rawLine.trim();
+    return /^@\s*=/.test(line) || /^"((?:\\"|[^"])*)"\s*=/.test(line);
   });
 }
 
