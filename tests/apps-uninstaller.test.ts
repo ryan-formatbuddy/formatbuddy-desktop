@@ -343,6 +343,11 @@ describe("runUninstall", () => {
     ["cmd start wrapper", 'start "" "C:\\Program Files\\Sketchy\\unins000.exe"'],
     ["cmd call wrapper", 'call "C:\\Program Files\\Sketchy\\unins000.exe"'],
     ["PowerShell", "powershell.exe -NoProfile -File uninstall.ps1"],
+    ["WMIC", 'wmic.exe product where name="Sketchy" call uninstall'],
+    ["Registry utility", 'reg.exe delete HKCU\\Software\\Sketchy /f'],
+    ["Task Scheduler", 'schtasks.exe /Run /TN "\\Sketchy\\Uninstall"'],
+    ["Control Panel", "control.exe appwiz.cpl"],
+    ["Explorer shell host", "explorer.exe shell:AppsFolder\\Sketchy"],
     ["rundll32", "rundll32.exe shell32.dll,Control_RunDLL appwiz.cpl"],
     ["regsvr32", "regsvr32.exe /u sketchy.dll"],
     ["Windows Script Host", "wscript.exe uninstall.vbs"]
