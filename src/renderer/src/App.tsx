@@ -410,6 +410,7 @@ export function App() {
             onBack={goHome}
             onOpenCleanup={() => setPhase({ kind: "cleanup" })}
             onRescan={() => void startScan()}
+            onQuickRescan={() => void startScan({ fast: true })}
             onVerifyUninstall={() => void scanThenOpenApps()}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}

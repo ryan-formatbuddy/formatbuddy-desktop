@@ -38,6 +38,7 @@ interface AppManagerProps {
   onBack: () => void;
   onOpenCleanup: () => void;
   onRescan: () => void;
+  onQuickRescan?: () => void;
   onVerifyUninstall?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
@@ -565,6 +566,7 @@ function LeftoverPanel({
   onClearSelection,
   onCleanup,
   onRescan,
+  onQuickRescan,
   onRestoreRecent,
   restoreRecentBusy,
   restoreRecentMessage,
@@ -581,6 +583,7 @@ function LeftoverPanel({
   onClearSelection: () => void;
   onCleanup: () => void;
   onRescan: () => void;
+  onQuickRescan?: () => void;
   onRestoreRecent: (result: CleanupExecuteResult) => void;
   restoreRecentBusy: boolean;
   restoreRecentMessage?: string;
@@ -743,7 +746,7 @@ function LeftoverPanel({
               </p>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button variant="primary" size="sm" onClick={onRescan}>
+              <Button variant="primary" size="sm" onClick={onQuickRescan ?? onRescan}>
                 다시 점검해서 효과 보기
               </Button>
               {result.mode === "trash" && restorableCount > 0 && (
@@ -878,6 +881,7 @@ export function AppManager({
   onBack,
   onOpenCleanup,
   onRescan,
+  onQuickRescan,
   onVerifyUninstall,
   onOpenTrashRestore,
   onOpenAuditLog,
@@ -1302,6 +1306,7 @@ export function AppManager({
         onClearSelection={() => setSelectedLeftovers(new Set())}
         onCleanup={cleanupSelectedLeftovers}
         onRescan={onRescan}
+        onQuickRescan={onQuickRescan}
         onRestoreRecent={(result) => void restoreRecentLeftovers(result)}
         restoreRecentBusy={recentRestoreBusy}
         restoreRecentMessage={recentRestoreMessage}

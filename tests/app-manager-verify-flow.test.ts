@@ -16,6 +16,16 @@ describe("AppManager uninstall verification flow", () => {
     expect(source).toContain("onVerifyUninstall={() => void scanThenOpenApps()}");
   });
 
+  it("wires app-leftover cleanup effect checks to the fast rescan path", () => {
+    const appSource = readFileSync(APP_TSX, "utf8");
+    const managerSource = readFileSync(APP_MANAGER_TSX, "utf8");
+
+    expect(appSource).toContain("onQuickRescan={() => void startScan({ fast: true })}");
+    expect(managerSource).toContain("onQuickRescan?: () => void");
+    expect(managerSource).toContain("onQuickRescan ?? onRescan");
+    expect(managerSource).toContain("다시 점검해서 효과 보기");
+  });
+
   it("lets app cleanup jump to the startup review when manual traces remain", () => {
     const appSource = readFileSync(APP_TSX, "utf8");
     const managerSource = readFileSync(APP_MANAGER_TSX, "utf8");

@@ -187,6 +187,14 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (state.snapshot.groups.length === 0) {\n    return (");
   });
 
+  it("keeps the post-cleanup effect check wired to quick rescan when available", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("onQuickRescan?: () => void");
+    expect(source).toContain("onClick={onQuickRescan ?? onRescan}");
+    expect(source).toContain("다시 점검해서 효과 보기");
+  });
+
   it("keeps cleanup result actions visible when leftover refresh fails after cleanup", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
