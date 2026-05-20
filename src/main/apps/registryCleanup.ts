@@ -365,7 +365,7 @@ function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath
 function registryBackupContainsValueDeleteLine(content: string): boolean {
   return content.split(/\r?\n/).some((rawLine) => {
     const line = rawLine.trim();
-    return /^@=-$/.test(line) || /^"((?:\\"|[^"])*)"\s*=\s*-$/.test(line);
+    return /^@\s*=\s*-$/.test(line) || /^"((?:\\"|[^"])*)"\s*=\s*-$/.test(line);
   });
 }
 
