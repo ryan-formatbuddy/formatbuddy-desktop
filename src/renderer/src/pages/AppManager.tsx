@@ -909,7 +909,7 @@ export function AppManager({
     setLoad({ kind: "loading" });
     try {
       const snapshot = await window.fb.listApps();
-      if (snapshot.total === 0) {
+      if (snapshot.total === 0 && snapshot.recentlyUninstallLaunched.length === 0) {
         setLoad({ kind: "empty" });
       } else {
         setLoad({ kind: "ready", snapshot });

@@ -29,6 +29,14 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("마법사");
   });
 
+  it("keeps the app cleanup follow-up visible after restart even when the installed app list is empty", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("snapshot.total === 0 && snapshot.recentlyUninstallLaunched.length === 0");
+    expect(source).toContain('setLoad({ kind: "ready", snapshot })');
+    expect(source).toContain("load.snapshot.recentlyUninstallLaunched.length > 0");
+  });
+
   it("includes registry backup undo in the recent cleanup flow", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
