@@ -68,7 +68,7 @@ function trashEntryExpiryLabel(expiresAt: string): string {
 
 function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
   const nextExpiryAt = snapshot.nextExpiryAt ?? snapshot.entries[0]?.expiresAt;
-  if (!nextExpiryAt) return `${snapshot.retentionDays}일 동안 보관해요`;
+  if (!nextExpiryAt) return "30일 동안 보관해요";
 
   const days = daysUntilTrashExpiry(nextExpiryAt);
   if (isTrashEntryExpired(nextExpiryAt)) return "보관 기간이 지난 항목이 있어요";

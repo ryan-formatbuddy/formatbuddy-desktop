@@ -28,6 +28,13 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain("시작 레지스트리 백업");
   });
 
+  it("keeps the restore-bin retention promise fixed at 30 days in user copy", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("보관 기간 30일");
+    expect(source).not.toContain("보관 기간 ${snapshot.retentionDays}일");
+  });
+
   it("uses app identity and value names for backup titles", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 

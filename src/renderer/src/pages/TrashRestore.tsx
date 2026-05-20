@@ -296,7 +296,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     ]
       .filter(Boolean)
       .join(" · ");
-    return `파일 ${entries.length}개 · ${backupSummary || "백업 0개"} · 총 ${formatBytes(totalBytes)} · 보관 기간 ${snapshot.retentionDays}일`;
+    return `파일 ${entries.length}개 · ${backupSummary || "백업 0개"} · 총 ${formatBytes(totalBytes)} · 보관 기간 30일`;
   }, [
     snapshot,
     registrySnapshot,
