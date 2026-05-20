@@ -1617,6 +1617,17 @@ function friendlyTrashFailureDetail(message: string): string {
   return "복구함으로 옮기는 중 문제가 생겨서 그대로 뒀어요.";
 }
 
+function finalLeftoverTrashSizeBytes(
+  trashEntry: Pick<CleanupTrashEntry, "sizeBytes"> | undefined,
+  fallbackSizeBytes: number
+): number {
+  if (trashEntry?.sizeBytes === undefined) return fallbackSizeBytes;
+  if (!Number.isFinite(trashEntry.sizeBytes) || trashEntry.sizeBytes < 0) {
+    throw new Error("FormatBuddy restore entry size is not safe");
+  }
+  return Math.max(0, Math.round(trashEntry.sizeBytes));
+}
+
 async function movePathBestEffort(
   source: string,
   destination: string,
@@ -2311,12 +2322,13 @@ export async function cleanupAppLeftovers(
             : undefined,
         now: options.now
       });
+      const finalSizeBytes = finalLeftoverTrashSizeBytes(trashEntry, cleanupItem.sizeBytes);
       await assertManagedTrashEntryManifest({
         userDataDir: options.userDataDir,
         entryId: trashEntry.id,
         itemId: cleanupItem.id,
         categoryId: cleanupItem.categoryId,
-        sizeBytes: cleanupItem.sizeBytes,
+        sizeBytes: finalSizeBytes,
         originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt,
@@ -2328,7 +2340,7 @@ export async function cleanupAppLeftovers(
       removedItems.push({
         itemId: cleanupItem.id,
         path: cleanupItem.path,
-        sizeBytes: cleanupItem.sizeBytes,
+        sizeBytes: finalSizeBytes,
         categoryId: cleanupItem.categoryId,
         mode: "trash",
         succeeded: true,

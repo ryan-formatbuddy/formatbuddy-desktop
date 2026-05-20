@@ -2628,6 +2628,7 @@ describe("planAppLeftovers", () => {
 
     expect(result.removedItems).toHaveLength(1);
     expect(result.removedItems[0].categoryId).toBe("app-leftovers");
+    expect(result.removedItems[0].sizeBytes).toBe(3);
     expect(result.removedItems[0].trashEntryId).toBeTruthy();
     await expect(fs.stat(slack)).rejects.toThrow();
 
@@ -2637,6 +2638,7 @@ describe("planAppLeftovers", () => {
     });
     expect(trash.entries).toHaveLength(1);
     expect(trash.entries[0].originalPath).toBe(slack);
+    expect(result.removedItems[0].sizeBytes).toBe(trash.entries[0].sizeBytes);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
