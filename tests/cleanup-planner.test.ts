@@ -104,6 +104,8 @@ describe("planCleanup", () => {
     const itemPaths = tempUser!.items.map((i) => i.path);
     expect(itemPaths).toContain(oldFile);
     expect(itemPaths).not.toContain(freshFile);
+    const oldItem = tempUser!.items.find((item) => item.path === oldFile);
+    expect(oldItem?.fingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("never surfaces browser credential files even if they live near the cache", async () => {

@@ -18,6 +18,7 @@
  * kept for lower-level tests and future maintenance tools, not user flows.
  */
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -275,6 +276,10 @@ function isValidIsoDateString(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function isOptionalPlanFingerprint(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || (typeof value === "string" && /^[a-f0-9]{64}$/.test(value));
+}
+
 function isCleanupPathKind(value: unknown): value is CleanupPathKind {
   return value === "file" || value === "directory" || value === "other";
 }
@@ -367,6 +372,14 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
       path: item.path,
       reason: "blocked-path",
       detail: "정리 항목 종류 정보가 안전하지 않아 자동 정리하지 않았어요."
+    };
+  }
+  if (!isOptionalPlanFingerprint(item.fingerprint)) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "정리 항목 확인값이 안전하지 않아 자동 정리하지 않았어요."
     };
   }
   return undefined;
@@ -485,6 +498,59 @@ async function validateLivePathKind(item: CleanupItem): Promise<CleanupSkippedIt
   return undefined;
 }
 
+function pathMetadataFingerprint(
+  kind: CleanupPathKind,
+  path: string,
+  sizeBytes: number,
+  modifiedAtMs: number
+): string {
+  const hash = createHash("sha256");
+  hash.update(kind);
+  hash.update("\0");
+  hash.update(normalizePath(path));
+  hash.update("\0");
+  hash.update(String(Math.max(0, Math.round(sizeBytes))));
+  hash.update("\0");
+  hash.update(String(Math.round(modifiedAtMs)));
+  return hash.digest("hex");
+}
+
+async function validateLiveFingerprint(item: CleanupItem): Promise<CleanupSkippedItem | undefined> {
+  if (!item.fingerprint) return undefined;
+
+  let stat;
+  try {
+    stat = await fs.lstat(item.path);
+  } catch {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "not-found"
+    };
+  }
+  if (stat.isSymbolicLink()) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "링크 경로라 자동 정리하지 않아요."
+    };
+  }
+
+  const kind: CleanupPathKind = stat.isFile() ? "file" : stat.isDirectory() ? "directory" : "other";
+  const liveFingerprint = pathMetadataFingerprint(kind, item.path, stat.size, stat.mtimeMs);
+  if (liveFingerprint !== item.fingerprint) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "점검했던 항목 내용이 바뀌었어요. 다시 점검한 뒤 정리해주세요."
+    };
+  }
+
+  return undefined;
+}
+
 async function attemptItem(
   item: CleanupItem,
   mode: CleanupExecuteMode,
@@ -541,6 +607,8 @@ async function attemptItem(
   if (preMeasureSkip) return { skipped: preMeasureSkip };
   const kindSkip = await validateLivePathKind(cleanupItem);
   if (kindSkip) return { skipped: kindSkip };
+  const fingerprintSkip = await validateLiveFingerprint(cleanupItem);
+  if (fingerprintSkip) return { skipped: fingerprintSkip };
 
   let actualSize = cleanupItem.sizeBytes;
   const measured = await deps.statSize(cleanupItem.path);

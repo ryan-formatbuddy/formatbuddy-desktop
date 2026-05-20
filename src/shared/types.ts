@@ -654,6 +654,8 @@ export interface CleanupItem {
   sizeBytes: number;
   /** ISO-8601 UTC; may be missing for synthetic group entries. */
   modifiedAt?: string;
+  /** Metadata fingerprint captured at plan time so execution can stop if contents changed. */
+  fingerprint?: string | null;
   categoryId: CleanupCategoryId;
   riskLevel: CleanupRiskLevel;
   /** Short rationale for *why* this candidate is here (e.g. "30일 이상 미사용"). */

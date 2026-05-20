@@ -367,15 +367,16 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(join(outside, "old1.tmp"), "utf8")).resolves.toBe("outside");
   });
 
-  it("uses the latest zero-byte measurement instead of stale plan size", async () => {
+  it("skips a selected file when its metadata changed after planning", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
     const item = tempUser.items[0];
     expect(item.pathKind).toBe("file");
+    expect(item.fingerprint).toMatch(/^[a-f0-9]{64}$/);
     await fs.writeFile(targetFile, "", "utf8");
 
-    const { deps } = makeSpyDeps();
+    const { deps, trashed } = makeSpyDeps();
     const result = await executeCleanup(
       {
         planId: plan.planId,
@@ -386,7 +387,14 @@ describe("executeCleanup", () => {
       { userDataDir: fx.userData, deps, home: fx.home }
     );
 
-    expect(result.removedItems[0].sizeBytes).toBe(0);
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      path: targetFile,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/바뀌|다시 점검/);
+    expect(trashed).toEqual([]);
     expect(result.totalFreedBytes).toBe(0);
   });
 

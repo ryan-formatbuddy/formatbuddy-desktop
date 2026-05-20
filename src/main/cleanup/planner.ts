@@ -27,6 +27,7 @@ import type {
   CleanupCategoryId,
   CleanupCategoryPlan,
   CleanupItem,
+  CleanupPathKind,
   CleanupPlan,
   CleanupRiskLevel,
   LargeFileCandidate
@@ -125,7 +126,7 @@ async function* walkFiles(
   root: string,
   signal?: AbortSignal,
   depth = 0
-): AsyncGenerator<{ path: string; size: number; modified: Date }> {
+): AsyncGenerator<{ path: string; size: number; modified: Date; fingerprint: string }> {
   if (signal?.aborted) return;
   if (depth > MAX_DEPTH) return;
 
@@ -136,7 +137,7 @@ async function* walkFiles(
     return;
   }
 
-  for (const entry of entries) {
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (signal?.aborted) return;
     if (entry.isSymbolicLink()) continue;
 
@@ -158,10 +159,28 @@ async function* walkFiles(
       yield {
         path: fullPath,
         size: stat.size,
-        modified: stat.mtime
+        modified: stat.mtime,
+        fingerprint: pathMetadataFingerprint("file", fullPath, stat.size, stat.mtime)
       };
     }
   }
+}
+
+function pathMetadataFingerprint(
+  kind: CleanupPathKind,
+  path: string,
+  sizeBytes: number,
+  modifiedAt: Date
+): string {
+  const hash = createHash("sha256");
+  hash.update(kind);
+  hash.update("\0");
+  hash.update(normalizePath(path));
+  hash.update("\0");
+  hash.update(String(Math.max(0, Math.round(sizeBytes))));
+  hash.update("\0");
+  hash.update(String(Math.round(modifiedAt.getTime())));
+  return hash.digest("hex");
 }
 
 async function planAgeBasedTempCategory(args: {
@@ -192,6 +211,7 @@ async function planAgeBasedTempCategory(args: {
         label: basename(file.path),
         sizeBytes: file.size,
         modifiedAt: file.modified.toISOString(),
+        fingerprint: file.fingerprint,
         categoryId: args.categoryId,
         riskLevel: "safe",
         reason: args.reason({ ageDays: age })
@@ -297,6 +317,7 @@ async function planBrowserCacheCategory(args: {
             label: `${profile.name} / ${sub} / ${basename(file.path)}`,
             sizeBytes: file.size,
             modifiedAt: file.modified.toISOString(),
+            fingerprint: file.fingerprint,
             categoryId: "browser-cache",
             riskLevel: "safe",
             reason: `${profile.name} 브라우저 임시 캐시`
@@ -325,6 +346,7 @@ async function planBrowserCacheCategory(args: {
           label: `${profile.name} / cache2 / ${basename(file.path)}`,
           sizeBytes: file.size,
           modifiedAt: file.modified.toISOString(),
+          fingerprint: file.fingerprint,
           categoryId: "browser-cache",
           riskLevel: "safe",
           reason: "Firefox 브라우저 임시 캐시"
@@ -407,6 +429,7 @@ async function planDownloadsInstallersCategory(args: {
         label: basename(file.path),
         sizeBytes: file.size,
         modifiedAt: file.modified.toISOString(),
+        fingerprint: file.fingerprint,
         categoryId: "downloads-installers",
         riskLevel: "review",
         reason: `${Math.round(age)}일 전 다운로드한 설치 파일`
@@ -620,7 +643,7 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
   const tokenInput = categories
     .map((c) => {
       const itemSeal = c.items
-        .map((item) => `${item.id}:${item.pathKind ?? "unknown"}:${item.sizeBytes}`)
+        .map((item) => `${item.id}:${item.pathKind ?? "unknown"}:${item.sizeBytes}:${item.fingerprint ?? ""}`)
         .join(",");
       return `${c.id}:${c.itemCount}:${c.totalBytes}:${itemSeal}`;
     })
