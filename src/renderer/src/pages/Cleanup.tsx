@@ -113,7 +113,7 @@ function cleanupHistoryDateLabel(value: string): string {
 function cleanupHistoryDetailLines(entry: CleanupLogEntry): string[] {
   const lines: string[] = [];
   if (entry.totalFreedBytes > 0) lines.push(`확보한 공간 ${formatBytes(entry.totalFreedBytes)}`);
-  if (entry.removedCount > 0) lines.push(`복구함으로 보낸 항목 ${entry.removedCount}개`);
+  if (entry.removedCount > 0) lines.push(`30일 안에 되돌릴 수 있는 항목 ${entry.removedCount}개`);
   if (entry.notSelectedCount > 0) lines.push(`선택하지 않은 후보 ${entry.notSelectedCount}개`);
   if (entry.skippedCount > 0) lines.push(`건드리지 않은 항목 ${entry.skippedCount}개`);
   return lines.length > 0 ? lines : ["처리한 항목은 없어요"];

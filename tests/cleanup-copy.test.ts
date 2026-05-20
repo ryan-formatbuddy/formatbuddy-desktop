@@ -128,8 +128,10 @@ describe("Cleanup copy", () => {
     expect(source).toContain("최근 정리 기록");
     expect(source).toContain("이 PC에서 처리한 정리만 로컬로 남겨요");
     expect(source).toContain("entry.notSelectedCount");
+    expect(source).toContain("30일 안에 되돌릴 수 있는 항목 ${entry.removedCount}개");
     expect(source).toContain("선택하지 않은 후보 ${entry.notSelectedCount}개");
     expect(source).toContain("30일 복구함");
+    expect(source).not.toContain("복구함으로 보낸 항목 ${entry.removedCount}개");
   });
 
   it("renders cleanup result details as friendly lines instead of raw JSON", () => {
