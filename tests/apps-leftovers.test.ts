@@ -9,6 +9,7 @@ import {
 } from "../src/main/apps/leftovers";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot } from "../src/main/cleanup/trash";
+import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
@@ -600,7 +601,7 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems).toHaveLength(1);
   });
 
-  it("moves a selected startup-folder trace into the 30-day trash after uninstall follow-up", async () => {
+  it("moves a selected startup-folder trace into the 30-day startup holding bin after uninstall follow-up", async () => {
     const startupShortcut = join(
       fx.roaming,
       "Microsoft",
@@ -619,7 +620,7 @@ describe("planAppLeftovers", () => {
         name: "Acme Notes.lnk",
         path: startupShortcut,
         publisher: "Acme Corp.",
-        origin: "시작 프로그램 폴더"
+        origin: dirname(startupShortcut)
       }
     ];
 
@@ -632,7 +633,10 @@ describe("planAppLeftovers", () => {
     const path = snapshot.groups[0].paths.find((p) => p.path === startupShortcut)!;
     expect(path).toMatchObject({
       kind: "startup-folder",
-      exists: true
+      exists: true,
+      startupEntryId: "startup-folder|acme-notes",
+      startupEntryName: "Acme Notes.lnk",
+      startupOrigin: dirname(startupShortcut)
     });
     expect(path.protectedBy).toBeUndefined();
 
@@ -657,16 +661,26 @@ describe("planAppLeftovers", () => {
       succeeded: true,
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
+    expect(result.removedItems[0].startupDisabledId).toBeTruthy();
+    expect(result.removedItems[0].trashEntryId).toBeUndefined();
     await expect(fs.stat(startupShortcut)).rejects.toThrow();
 
     const trash = await getTrashSnapshot({
       userDataDir: join(fx.root, "userdata"),
       now: () => new Date("2026-05-20T00:00:00.000Z")
     });
-    expect(trash.entries[0]).toMatchObject({
+    expect(trash.entries).toHaveLength(0);
+
+    const disabled = await listDisabledStartupFolderEntries({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(disabled.entries[0]).toMatchObject({
+      id: result.removedItems[0].startupDisabledId,
       originalPath: startupShortcut,
-      categoryId: "app-leftovers",
-      appName: "Acme Notes"
+      origin: dirname(startupShortcut),
+      expiresAt: "2026-06-18T00:00:00.000Z",
+      integrityStatus: "verified"
     });
   });
 

@@ -1176,6 +1176,12 @@ export interface AppLeftoverPath {
   id: string;
   kind?: "folder" | "registry" | "startup-folder" | "startup-registry" | "startup-entry";
   path: string;
+  /** Original StartupAutoEntry id when kind === "startup-folder". */
+  startupEntryId?: string | null;
+  /** Original startup file display name when kind === "startup-folder". */
+  startupEntryName?: string | null;
+  /** Original Startup folder root when kind === "startup-folder". */
+  startupOrigin?: string | null;
   registryValueName?: string | null;
   exists: boolean;
   sizeBytes?: number | null;

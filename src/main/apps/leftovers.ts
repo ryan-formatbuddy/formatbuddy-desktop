@@ -33,6 +33,7 @@ import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
+import { disableStartupFolderEntry } from "../startup/folderToggle";
 import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
@@ -65,6 +66,7 @@ interface CleanupAppLeftoversOptions {
   userDataDir: string;
   now?: () => Date;
   registryRunner?: RegistryCleanupRunner;
+  disableStartupFolderEntry?: typeof disableStartupFolderEntry;
   recordCleanupExecution?: typeof recordCleanupExecution;
   onFollowupCleaned?: (app: Pick<InstalledApp, "name" | "publisher">) => void | Promise<void>;
 }
@@ -759,7 +761,10 @@ async function startupLeftoverPaths(
       paths.push({
         ...info,
         id: makePathId(`startup-folder:${entry.id}:${entry.path}`),
-        kind: "startup-folder"
+        kind: "startup-folder",
+        startupEntryId: entry.id,
+        startupEntryName: entry.name,
+        startupOrigin: entry.origin
       });
       continue;
     }
@@ -1049,6 +1054,11 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalStrictPlanString(path.registryValueName)) invalid.push("registry value name");
     if (!isOptionalStrictPlanString(path.protectedBy)) invalid.push("protection reason");
+    if (path.kind === "startup-folder") {
+      if (!isStrictPlanString(path.startupEntryId)) invalid.push("startup entry id");
+      if (!isStrictPlanString(path.startupEntryName)) invalid.push("startup entry name");
+      if (!isStrictPlanString(path.startupOrigin)) invalid.push("startup origin");
+    }
     if (
       path.kind === "startup-registry" &&
       (typeof path.registryValueName !== "string" ||
@@ -1240,6 +1250,92 @@ export async function cleanupAppLeftovers(
           reason: /지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
+          detail: message
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "startup-folder") {
+      const startupEntryId = path.startupEntryId;
+      const startupEntryName = path.startupEntryName;
+      const startupOrigin = path.startupOrigin;
+      if (
+        !isStrictPlanString(startupEntryId) ||
+        !isStrictPlanString(startupEntryName) ||
+        !isStrictPlanString(startupOrigin)
+      ) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: "시작 항목 원래 위치 정보를 확인하지 못했어요."
+        });
+        continue;
+      }
+      const measured = await measurePath(path.path);
+      if (!measured.exists) {
+        skippedItems.push({ itemId: path.id, path: path.path, reason: "not-found" });
+        continue;
+      }
+      if (measured.protectedBy) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: measured.protectedBy
+        });
+        continue;
+      }
+      if (leftoverChangedSincePlan(path, measured)) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: CHANGED_LEFTOVER_PROTECTION
+        });
+        continue;
+      }
+
+      try {
+        const disableStartup = options.disableStartupFolderEntry ?? disableStartupFolderEntry;
+        const disabled = await disableStartup({
+          userDataDir: options.userDataDir,
+          now: options.now,
+          entry: {
+            id: startupEntryId,
+            kind: "startup-folder",
+            name: startupEntryName,
+            path: path.path,
+            origin: startupOrigin
+          }
+        });
+        if (disabled.status !== "disabled" || !disabled.entry) {
+          skippedItems.push({
+            itemId: path.id,
+            path: path.path,
+            reason: disabled.status === "not-found" ? "not-found" : "blocked-path",
+            detail: disabled.message
+          });
+          continue;
+        }
+        removedItems.push({
+          itemId: path.id,
+          path: path.path,
+          sizeBytes: Math.max(0, Math.round(measured.sizeBytes ?? 0)),
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: disabled.entry.id,
+          expiresAt: disabled.entry.expiresAt
+        });
+        rememberCleanedFollowupGroup(cleanedFollowupGroups, group);
+      } catch (err) {
+        const message = (err as Error).message;
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: skipReasonFromTrashError(message),
           detail: message
         });
       }
