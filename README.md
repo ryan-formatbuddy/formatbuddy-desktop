@@ -53,6 +53,7 @@ temporary items, then verifies:
 - a startup-folder item can be held for 30 days and restored
 - a dedicated HKCU Run value can be backed up, turned off, and restored
 - an isolated Windows scheduled scan task can be registered and removed
+- the unified 30-day retention tick can empty file, app-deletion, and startup holding bins
 
 It does not touch user files or existing startup values. It creates only
 `FormatBuddyFieldE2E_*` registry values, `FormatBuddy Field E2E *` scheduled

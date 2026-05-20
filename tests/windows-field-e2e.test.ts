@@ -18,12 +18,15 @@ import {
 } from "../src/main/monitorScheduler";
 import {
   disableStartupFolderEntry,
+  purgeExpiredStartupFolderEntries,
   restoreStartupFolderEntry
 } from "../src/main/startup/folderToggle";
 import {
   backupAndDeleteRegistryKey,
+  purgeExpiredRegistryBackups,
   restoreRegistryBackup
 } from "../src/main/apps/registryCleanup";
+import { runRetentionPurgeTick } from "../src/main/retentionPurge";
 
 const execFileAsync = promisify(execFile);
 const RUN_FIELD_E2E =
@@ -293,4 +296,79 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     const restoredKey = await runReg(["query", UNINSTALL_KEY, "/v", "DisplayName"]);
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
   }, 45_000);
+
+  it("empties all 30-day restore bins through the unified retention tick", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-retention-"));
+    userDataDir = join(root, "userdata");
+    home = join(root, "home");
+    const firstAt = new Date("2026-05-20T12:00:00.000Z");
+    const purgeAt = new Date("2026-06-20T12:00:00.000Z");
+    const cleanupSource = join(home, "AppData", "Local", "Temp", "field-retention-trash.txt");
+    const startupRoot = join(root, "StartupRetention");
+    const startupSource = join(startupRoot, "FormatBuddy Field Retention.txt");
+
+    await mkdir(dirname(cleanupSource), { recursive: true });
+    await writeFile(cleanupSource, "field-retention-trash", "utf8");
+    const trashed = await moveToFormatBuddyTrash({
+      userDataDir,
+      home,
+      item: cleanupItem(cleanupSource),
+      sizeBytes: 21,
+      now: () => firstAt
+    });
+
+    await runReg([
+      "add",
+      UNINSTALL_KEY,
+      "/v",
+      "DisplayName",
+      "/t",
+      "REG_SZ",
+      "/d",
+      FIELD_VALUE_NAME,
+      "/f"
+    ]);
+    const registryBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: UNINSTALL_KEY,
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    await mkdir(startupRoot, { recursive: true });
+    await writeFile(startupSource, "startup retention marker", "utf8");
+    const disabledStartup = await disableStartupFolderEntry({
+      userDataDir,
+      entry: startupFolderEntry(startupSource, startupRoot),
+      now: () => firstAt
+    });
+
+    const purge = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash: () =>
+        purgeExpiredTrash({
+          userDataDir,
+          home,
+          now: () => purgeAt
+        }),
+      purgeRegistryBackups: () =>
+        purgeExpiredRegistryBackups({
+          userDataDir,
+          now: () => purgeAt
+        }),
+      purgeStartupDisabled: () =>
+        purgeExpiredStartupFolderEntries({
+          userDataDir,
+          now: () => purgeAt
+        })
+    });
+
+    expect(purge.failed).toEqual([]);
+    expect(purge.trash?.purgedEntryIds).toEqual([trashed.id]);
+    expect(purge.registryBackups?.purgedIds).toEqual([registryBackup.id]);
+    expect(purge.startupDisabled?.purgedIds).toEqual([disabledStartup.entry!.id]);
+    expect(existsSync(trashed.storedPath)).toBe(false);
+    expect(existsSync(registryBackup.backupPath)).toBe(false);
+    expect(existsSync(disabledStartup.entry!.storedPath)).toBe(false);
+  }, 90_000);
 });
