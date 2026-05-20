@@ -80,6 +80,12 @@ describe("AuditLog copy", () => {
     expect(source).toContain('if (entry.action === "app-leftovers-trash") return "앱 잔여 정리"');
   });
 
+  it("labels resolved app leftover follow-up records clearly", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain('if (entry.action === "uninstall-followup-resolved") return "잔여 없음 확인"');
+  });
+
   it("shows restore-bin guidance for app leftover cleanup records too", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
