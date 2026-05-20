@@ -446,6 +446,46 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [
+      "shell-host",
+      "powershell.exe -NoProfile -File uninstall.ps1",
+      /PowerShell|powershell/
+    ],
+    [
+      "remote-or-url",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=https://example.com/remove',
+      /https:\/\/example\.com|C:\\Program Files/
+    ],
+    [
+      "silent-mode",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --quiet',
+      /--quiet|C:\\Program Files/
+    ]
+  ] as const)(
+    "records only the safe blocked uninstall kind for %s",
+    async (kind, command, rawCommandPattern) => {
+      const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+      const result = await runUninstall(
+        { appName: "Friendly Tool" },
+        {
+          findApp: () => ({
+            ...baseApp,
+            name: "Friendly Tool",
+            uninstallString: command
+          }),
+          spawnCmd,
+          platform: "win32"
+        }
+      );
+
+      expect(result.status).toBe("blocked");
+      expect(result.detail).toBe(`unsafe-uninstall-command:${kind}`);
+      expect(result.detail).not.toMatch(rawCommandPattern);
+      expect(spawnCmd).not.toHaveBeenCalled();
+    }
+  );
+
   it("allows ordinary MSI uninstall commands", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const command = "MsiExec.exe /X{12345678-1234-1234-1234-123456789012}";

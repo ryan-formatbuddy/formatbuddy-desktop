@@ -469,12 +469,13 @@ export async function runUninstall(
     };
   }
 
-  if (isUnsafeUninstallCommand(chosen.command)) {
+  const unsafeKind = unsafeUninstallCommandKind(chosen.command);
+  if (unsafeKind) {
     return {
       status: "blocked",
       appName: request.appName,
       message: blockedUninstallMessage(chosen.command),
-      detail: "unsafe-uninstall-command"
+      detail: `unsafe-uninstall-command:${unsafeKind}`
     };
   }
 
