@@ -66,11 +66,7 @@ function appNameKey(app: Pick<InstalledApp, "name">): string {
 }
 
 function blockedAutomaticUninstallNote(command: string): string {
-  const reason = blockedUninstallMessage(command).replace(
-    "FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.",
-    "FormatBuddy에서는 숨겨둘게요."
-  );
-  return `Windows 제거 마법사는 사용할 수 있어요. 자동 제거 명령은 ${reason}`;
+  return `Windows 제거 마법사는 사용할 수 있어요. 자동 제거 명령은 숨겨요. ${blockedUninstallMessage(command)}`;
 }
 
 function evaluateAvailability(app: InstalledApp): {

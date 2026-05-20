@@ -315,6 +315,43 @@ describe("runUninstall", () => {
     expect(spawnCmd).toHaveBeenCalledWith(command);
   });
 
+  it.each([
+    ["MSI quiet flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /quiet"],
+    ["MSI no-ui flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /qn"],
+    ["Inno silent flag", '"C:\\Program Files\\Friendly Tool\\unins000.exe" /VERYSILENT'],
+    ["NSIS silent flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" /S'],
+    ["GNU quiet flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --quiet']
+  ])("blocks %s so app removal always stays user-confirmed", async (_label, command) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+
+    expect(
+      canLaunchUninstall(
+        { appName: "Friendly Tool" },
+        { ...baseApp, name: "Friendly Tool", uninstallString: command },
+        "win32"
+      )
+    ).toBe(false);
+
+    const result = await runUninstall(
+      { appName: "Friendly Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Friendly Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/조용히 제거|Windows 설정|직접 확인/);
+    expect(result.message).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
   it("blocks unquoted executable paths with spaces", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const command = "C:\\Program Files\\Friendly Tool\\unins000.exe /remove";

@@ -17,6 +17,7 @@
  *   - it must not be flagged systemComponent=true
  *   - the resolved string must not be empty / whitespace
  *   - it must not include cmd control, expansion, or escape syntax
+ *   - it must not include silent/quiet uninstall switches
  *   - we never run quietUninstallString; FormatBuddy only opens the
  *     interactive Windows uninstall wizard so the user can confirm
  *
@@ -64,6 +65,7 @@ export type UnsafeUninstallCommandKind =
   | "shell-host"
   | "script-file"
   | "unquoted-spaced-path"
+  | "silent-mode"
   | "cmd-syntax"
   | "unclosed-quote";
 
@@ -100,6 +102,51 @@ function startsWithUnquotedSpacedExecutablePath(command: string): boolean {
   return /\s/.test(executablePath);
 }
 
+function commandTokens(command: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let inQuote = false;
+
+  for (const char of command.trim()) {
+    if (char === "\"") {
+      inQuote = !inQuote;
+      continue;
+    }
+    if (!inQuote && /\s/.test(char)) {
+      if (current) tokens.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function hasSilentUninstallSwitch(command: string): boolean {
+  const silentSwitches = new Set([
+    "/q",
+    "/qn",
+    "/quiet",
+    "/passive",
+    "/s",
+    "/silent",
+    "/verysilent",
+    "/suppressmsgboxes",
+    "-q",
+    "-quiet",
+    "-silent",
+    "--quiet",
+    "--silent",
+    "--unattended"
+  ]);
+
+  return commandTokens(command)
+    .slice(1)
+    .some((token) => silentSwitches.has(token.toLowerCase()));
+}
+
 export function isUnsafeUninstallCommand(command: string): boolean {
   return unsafeUninstallCommandKind(command) !== null;
 }
@@ -110,6 +157,7 @@ export function unsafeUninstallCommandKind(command: string): UnsafeUninstallComm
   if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return "shell-host";
   if (targetsBlockedScriptFile(command)) return "script-file";
   if (startsWithUnquotedSpacedExecutablePath(command)) return "unquoted-spaced-path";
+  if (hasSilentUninstallSwitch(command)) return "silent-mode";
 
   for (const char of command) {
     if (char === "\n" || char === "\r" || char === "\0") return "cmd-syntax";
@@ -139,6 +187,8 @@ export function blockedUninstallMessage(command: string): string {
       return "스크립트 파일을 실행하는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "unquoted-spaced-path":
       return "경로에 공백이 있는데 따옴표가 없어 Windows가 다르게 해석할 수 있어요. Windows 설정에서 직접 제거해주세요.";
+    case "silent-mode":
+      return "조용히 제거되는 옵션이 들어 있어 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 확인하며 제거해주세요.";
     case "unclosed-quote":
       return "제거 명령의 따옴표가 닫혀 있지 않아 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "cmd-syntax":
