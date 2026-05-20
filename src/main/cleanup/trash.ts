@@ -814,6 +814,17 @@ export async function restoreTrashEntry(
     };
   }
 
+  const actualStoredSizeBytes = await measureStoredPath(entry.storedPath).catch(() => null);
+  if (actualStoredSizeBytes !== entry.sizeBytes) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: "복구함 안의 저장물 크기가 기록과 달라 자동으로 되돌리지 않았어요. 다시 점검해 주세요.",
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
   const restoreDecision = evaluatePath(entry.originalPath, {
     allowRoots: [entry.originalPath],
     home: options.home

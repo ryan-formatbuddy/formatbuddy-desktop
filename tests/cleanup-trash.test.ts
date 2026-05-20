@@ -841,6 +841,30 @@ describe("FormatBuddy Trash", () => {
     expect(storedStat.isSymbolicLink()).toBe(true);
   });
 
+  it("refuses restore when the stored trash item size changed", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+    await writeFile(entry.storedPath, "hello and more bytes", "utf8");
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/크기|size|복구함/);
+    await expect(lstat(source)).rejects.toThrow();
+    await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("hello and more bytes");
+  });
+
   it("refuses restore when the managed trash parent folder is a symbolic link", async () => {
     if (process.platform === "win32") return;
     const entryId = "linked-parent-entry";
