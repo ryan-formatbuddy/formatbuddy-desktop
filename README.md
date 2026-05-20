@@ -52,9 +52,11 @@ temporary items, then verifies:
 - a cleanup file moves into the 30-day restore bin, restores, and auto-purges after expiry
 - a startup-folder item can be held for 30 days and restored
 - a dedicated HKCU Run value can be backed up, turned off, and restored
+- an isolated Windows scheduled scan task can be registered and removed
 
 It does not touch user files or existing startup values. It creates only
-`FormatBuddyFieldE2E_*` registry values and temporary files, then removes them.
+`FormatBuddyFieldE2E_*` registry values, `FormatBuddy Field E2E *` scheduled
+tasks, and temporary files, then removes them.
 
 ## 검증 한계
 

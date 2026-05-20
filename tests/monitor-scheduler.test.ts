@@ -75,6 +75,29 @@ describe("monitorScheduler", () => {
     expect(fakeRunner.calls[0]).toContain(SCHEDULED_AUTO_SCAN_START_TIME);
   });
 
+  it("can use an isolated task name for field validation without touching the user task", async () => {
+    const fakeRunner = runner();
+    const taskName = "FormatBuddy Field E2E 123";
+    const result = await reconcileScheduledAutoScan({
+      prefs: prefs({ autoScanEnabled: true, autoScanDays: 7 }),
+      appPath: "C:\\Program Files\\FormatBuddy\\FormatBuddy.exe",
+      platform: "win32",
+      runner: fakeRunner,
+      taskName
+    });
+
+    expect(result.status).toBe("registered");
+    expect(fakeRunner.calls).toEqual([
+      registerScheduledAutoScanArgs(
+        { autoScanDays: 7 },
+        "C:\\Program Files\\FormatBuddy\\FormatBuddy.exe",
+        taskName
+      )
+    ]);
+    expect(fakeRunner.calls[0]).toContain(taskName);
+    expect(fakeRunner.calls[0]).not.toContain(SCHEDULED_AUTO_SCAN_TASK_NAME);
+  });
+
   it("deletes the scheduled scan when the user turns it off", async () => {
     const fakeRunner = runner();
     const result = await reconcileScheduledAutoScan({
@@ -86,6 +109,21 @@ describe("monitorScheduler", () => {
 
     expect(result.status).toBe("deleted");
     expect(fakeRunner.calls).toEqual([deleteScheduledAutoScanArgs()]);
+  });
+
+  it("deletes an isolated scheduled scan by task name", async () => {
+    const fakeRunner = runner();
+    const taskName = "FormatBuddy Field E2E 456";
+    const result = await reconcileScheduledAutoScan({
+      prefs: prefs({ autoScanEnabled: false }),
+      appPath: "C:\\Program Files\\FormatBuddy\\FormatBuddy.exe",
+      platform: "win32",
+      runner: fakeRunner,
+      taskName
+    });
+
+    expect(result.status).toBe("deleted");
+    expect(fakeRunner.calls).toEqual([deleteScheduledAutoScanArgs(taskName)]);
   });
 
   it("treats a missing scheduled task as an already-clean disabled state", async () => {

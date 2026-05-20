@@ -46,12 +46,13 @@ export function scheduledAutoScanTaskRunValue(appPath: string): string {
 
 export function registerScheduledAutoScanArgs(
   prefs: Pick<MonitorPreferences, "autoScanDays">,
-  appPath: string
+  appPath: string,
+  taskName = SCHEDULED_AUTO_SCAN_TASK_NAME
 ): string[] {
   return [
     "/Create",
     "/TN",
-    SCHEDULED_AUTO_SCAN_TASK_NAME,
+    taskName,
     "/SC",
     "DAILY",
     "/MO",
@@ -64,8 +65,8 @@ export function registerScheduledAutoScanArgs(
   ];
 }
 
-export function deleteScheduledAutoScanArgs(): string[] {
-  return ["/Delete", "/TN", SCHEDULED_AUTO_SCAN_TASK_NAME, "/F"];
+export function deleteScheduledAutoScanArgs(taskName = SCHEDULED_AUTO_SCAN_TASK_NAME): string[] {
+  return ["/Delete", "/TN", taskName, "/F"];
 }
 
 export function defaultScheduledAutoScanRunner(): ScheduledAutoScanRunner {
@@ -114,18 +115,20 @@ export async function reconcileScheduledAutoScan(options: {
   platform?: NodeJS.Platform;
   runner?: ScheduledAutoScanRunner;
   timeoutMs?: number;
+  taskName?: string;
 }): Promise<ScheduledAutoScanResult> {
   const platform = options.platform ?? process.platform;
   if (platform !== "win32") return { status: "skipped", detail: "non-windows" };
 
   const runner = options.runner ?? defaultScheduledAutoScanRunner();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const taskName = options.taskName ?? SCHEDULED_AUTO_SCAN_TASK_NAME;
   let args: string[] | undefined;
 
   try {
     args = options.prefs.autoScanEnabled
-      ? registerScheduledAutoScanArgs(options.prefs, options.appPath)
-      : deleteScheduledAutoScanArgs();
+      ? registerScheduledAutoScanArgs(options.prefs, options.appPath, taskName)
+      : deleteScheduledAutoScanArgs(taskName);
     const result = await runner.run(args, timeoutMs);
     const detail = sanitizeDetail([result.stdout, result.stderr].filter(Boolean).join(" "));
     if (result.exitCode === 0) {

@@ -6,11 +6,16 @@ import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CleanupItem, StartupAutoEntry } from "../src/shared/types";
+import { defaultPrefs } from "../src/main/monitor";
 import {
   moveToFormatBuddyTrash,
   purgeExpiredTrash,
   restoreTrashEntry
 } from "../src/main/cleanup/trash";
+import {
+  reconcileScheduledAutoScan,
+  SCHEDULED_AUTO_SCAN_ARG
+} from "../src/main/monitorScheduler";
 import {
   disableStartupFolderEntry,
   restoreStartupFolderEntry
@@ -23,6 +28,7 @@ const RUN_FIELD_E2E =
 const fieldDescribe = RUN_FIELD_E2E ? describe : describe.skip;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
+const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
 
 function cleanupItem(path: string): CleanupItem {
   return {
@@ -68,9 +74,27 @@ async function runReg(args: string[]): Promise<{ stdout: string; stderr: string 
   return { stdout: String(stdout), stderr: String(stderr) };
 }
 
+async function runSchtasks(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  const { stdout, stderr } = await execFileAsync("schtasks.exe", args, {
+    windowsHide: true,
+    timeout: 15_000,
+    maxBuffer: 256 * 1024
+  });
+  return { stdout: String(stdout), stderr: String(stderr) };
+}
+
 async function registryValueExists(): Promise<boolean> {
   try {
     await runReg(["query", RUN_KEY, "/v", FIELD_VALUE_NAME]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function scheduledTaskExists(taskName: string): Promise<boolean> {
+  try {
+    await runSchtasks(["/Query", "/TN", taskName]);
     return true;
   } catch {
     return false;
@@ -84,6 +108,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
 
   afterEach(async () => {
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
+    await runSchtasks(["/Delete", "/TN", FIELD_TASK_NAME, "/F"]).catch(() => {});
     if (root) rmSync(root, { recursive: true, force: true });
   });
 
@@ -174,4 +199,28 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredRegistry.entry?.backupKind).toBe("startup-value");
     expect(await registryValueExists()).toBe(true);
   }, 90_000);
+
+  it("registers and removes an isolated Windows scheduled scan task", async () => {
+    const registered = await reconcileScheduledAutoScan({
+      prefs: { ...defaultPrefs(), autoScanEnabled: true, autoScanDays: 30 },
+      appPath: process.execPath,
+      platform: "win32",
+      taskName: FIELD_TASK_NAME
+    });
+
+    expect(registered.status).toBe("registered");
+    expect(registered.command).toContain(FIELD_TASK_NAME);
+    expect(registered.command?.some((arg) => arg.includes(SCHEDULED_AUTO_SCAN_ARG))).toBe(true);
+    expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(true);
+
+    const deleted = await reconcileScheduledAutoScan({
+      prefs: { ...defaultPrefs(), autoScanEnabled: false },
+      appPath: process.execPath,
+      platform: "win32",
+      taskName: FIELD_TASK_NAME
+    });
+
+    expect(deleted.status).toBe("deleted");
+    expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(false);
+  }, 45_000);
 });
