@@ -117,6 +117,10 @@ describe("AuditLog copy", () => {
     expect(source).toContain("auditDetailLines");
     expect(source).toContain("비운 항목");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목");
+    expect(source).toContain("파일/폴더 복구함");
+    expect(source).toContain("앱 삭제 흔적 백업");
+    expect(source).toContain("확인 못 끝낸 앱 흔적 백업");
+    expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("아직 남아 있는 항목");
     expect(source).toContain("선택하지 않은 후보");
     expect(source).toContain("확보한 공간");
@@ -135,6 +139,12 @@ describe("AuditLog copy", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
     expect(source).toContain("const restorableCount = auditRestorableDetailCount(detail)");
+    expect(source).toContain('const fileTrashCount = numberDetail(detail, "fileTrashCount")');
+    expect(source).toContain('const registryBackupCount = numberDetail(detail, "registryBackupCount")');
+    expect(source).toContain(
+      'const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount")'
+    );
+    expect(source).toContain('const startupDisabledCount = numberDetail(detail, "startupDisabledCount")');
     expect(source).toContain("restorableCount > 0");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목 ${restorableCount}개");
   });

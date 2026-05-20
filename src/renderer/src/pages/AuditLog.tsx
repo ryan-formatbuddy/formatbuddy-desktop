@@ -145,12 +145,28 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems");
   const notSelectedCount = numberDetail(detail, "notSelectedCount");
   const restorableCount = auditRestorableDetailCount(detail);
+  const fileTrashCount = numberDetail(detail, "fileTrashCount");
+  const registryBackupCount = numberDetail(detail, "registryBackupCount");
+  const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount");
+  const startupDisabledCount = numberDetail(detail, "startupDisabledCount");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
 
   if (purgedCount !== null && purgedCount > 0) lines.push(`비운 항목 ${purgedCount}개`);
   if (removedCount > 0) lines.push(`정리한 항목 ${removedCount}개`);
   if (restorableCount > 0) lines.push(`30일 안에 되돌릴 수 있는 항목 ${restorableCount}개`);
+  if (fileTrashCount !== null && fileTrashCount > 0) {
+    lines.push(`파일/폴더 복구함 ${fileTrashCount}개`);
+  }
+  if (registryBackupCount !== null && registryBackupCount > 0) {
+    lines.push(`앱 삭제 흔적 백업 ${registryBackupCount}개`);
+  }
+  if (preservedRegistryBackupCount !== null && preservedRegistryBackupCount > 0) {
+    lines.push(`확인 못 끝낸 앱 흔적 백업 ${preservedRegistryBackupCount}개`);
+  }
+  if (startupDisabledCount !== null && startupDisabledCount > 0) {
+    lines.push(`잠시 꺼둔 시작 항목 ${startupDisabledCount}개`);
+  }
   if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
   if (failedBucketCount !== null && failedBucketCount > 0) {
     lines.push(`확인 못 한 복구함 영역 ${failedBucketCount}곳`);
