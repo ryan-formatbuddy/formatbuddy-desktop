@@ -6,7 +6,11 @@ import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
-import { registryBackupKindLabel } from "@shared/cleanup-result";
+import {
+  registryBackupKindLabel,
+  restorableRegistryBackupIds,
+  restorableTrashEntryIds
+} from "@shared/cleanup-result";
 import type {
   ActionRunResult,
   AppStateSnapshot,
@@ -860,9 +864,7 @@ function registerIpc() {
             removedCount: result.removedItems.length,
             skippedCount: result.skippedItems.length,
             totalFreedBytes: result.totalFreedBytes,
-            trashEntryIds: result.removedItems
-              .map((item) => item.trashEntryId)
-              .filter((id): id is string => typeof id === "string")
+            trashEntryIds: restorableTrashEntryIds(result)
           }
         }).catch((e) => log.warn("audit append (cleanup) failed:", (e as Error).message));
         // v2.0 (D-34) — invalidate the scan cache so a follow-up
@@ -1048,12 +1050,8 @@ function registerIpc() {
           }
         });
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
-        const trashEntryIds = result.removedItems
-          .map((item) => item.trashEntryId)
-          .filter((id): id is string => typeof id === "string");
-        const registryBackupIds = result.removedItems
-          .map((item) => item.registryBackupId)
-          .filter((id): id is string => typeof id === "string");
+        const trashEntryIds = restorableTrashEntryIds(result);
+        const registryBackupIds = restorableRegistryBackupIds(result);
         const summaryParts = [
           trashEntryIds.length > 0
             ? `앱 잔여 폴더 ${trashEntryIds.length}개(약 ${freedMb} MB)를 복구함으로 보냈어요`

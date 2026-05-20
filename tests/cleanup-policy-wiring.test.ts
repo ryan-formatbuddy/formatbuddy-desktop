@@ -23,6 +23,16 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("30일 뒤 자동으로 비워요");
   });
 
+  it("logs only restorable cleanup trash ids in audit details", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const cleanupAuditIndex = source.indexOf('action: "trash"');
+    expect(cleanupAuditIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      source.indexOf("trashEntryIds: restorableTrashEntryIds(result)", cleanupAuditIndex)
+    ).toBeGreaterThan(cleanupAuditIndex);
+  });
+
   it("normalizes restore IPC requests before reading ids", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
@@ -46,6 +56,22 @@ describe("cleanup policy wiring", () => {
     expect(policyIndex).toBeGreaterThanOrEqual(0);
     expect(restoreIndex).toBeGreaterThanOrEqual(0);
     expect(policyIndex).toBeLessThan(restoreIndex);
+  });
+
+  it("logs only restorable app leftover ids in audit details", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const appLeftoversIndex = source.indexOf("cleanupAppLeftovers(safeLeftoversRequest");
+    expect(appLeftoversIndex).toBeGreaterThanOrEqual(0);
+    expect(
+      source.indexOf("const trashEntryIds = restorableTrashEntryIds(result)", appLeftoversIndex)
+    ).toBeGreaterThan(appLeftoversIndex);
+    expect(
+      source.indexOf(
+        "const registryBackupIds = restorableRegistryBackupIds(result)",
+        appLeftoversIndex
+      )
+    ).toBeGreaterThan(appLeftoversIndex);
   });
 
   it("runs the 30-day restore-bin purge on startup and on a scheduled loop", () => {
