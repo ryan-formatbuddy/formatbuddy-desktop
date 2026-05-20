@@ -117,6 +117,7 @@ import {
   shouldRemind,
   updatePrefs as updateMonitorPrefs
 } from "./monitor";
+import { reconcileLaunchAtLogin, shouldStartHiddenFromArgs } from "./monitorLogin";
 import { createTray, destroyTray } from "./tray";
 import type {
   AppLeftoversSnapshot,
@@ -446,6 +447,10 @@ function createWindow() {
   });
 
   mainWindow.on("ready-to-show", () => {
+    if (shouldStartHiddenFromArgs()) {
+      mainWindow?.hide();
+      return;
+    }
     mainWindow?.show();
   });
 
@@ -1248,16 +1253,18 @@ function registerIpc() {
     async (_e, patch: UpdateMonitorPreferencesRequest): Promise<MonitorPreferences> => {
       const next = await updateMonitorPrefs(app.getPath("userData"), patch);
       log.info(
-        `monitor:prefs tray=${next.trayEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel} theme=${next.themeMode} telemetry=${next.telemetryOptIn}`
+        `monitor:prefs tray=${next.trayEnabled} login=${next.launchAtLoginEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel} theme=${next.themeMode} telemetry=${next.telemetryOptIn}`
       );
       await reconcileTray(next);
+      reconcileLaunchAtLogin(app, next, (message) => log.warn(`monitor:${message}`));
       setUpdaterChannel(next.updateChannel);
       await appendAuditEntry(app.getPath("userData"), {
         category: "monitor",
         action: "prefs-changed",
-        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}, 화면 ${next.themeMode}, 익명 통계 ${next.telemetryOptIn ? "허용" : "꺼짐"}.`,
+        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, PC 시작 ${next.launchAtLoginEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}, 화면 ${next.themeMode}, 익명 통계 ${next.telemetryOptIn ? "허용" : "꺼짐"}.`,
         detail: {
           trayEnabled: next.trayEnabled,
+          launchAtLoginEnabled: next.launchAtLoginEnabled,
           reminderEnabled: next.reminderEnabled,
           reminderDays: next.reminderDays,
           updateChannel: next.updateChannel,
@@ -1328,6 +1335,10 @@ app.whenReady().then(() => {
     try {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
+      reconcileLaunchAtLogin(app, prefs, (message) => log.warn(`monitor:${message}`));
+      if (shouldStartHiddenFromArgs() && (!prefs.launchAtLoginEnabled || !trayInstance)) {
+        focusMainWindow();
+      }
       await reconcileReminderTimer();
       await runAppRetentionPurgeTick("startup");
       reconcileRetentionPurgeTimer();

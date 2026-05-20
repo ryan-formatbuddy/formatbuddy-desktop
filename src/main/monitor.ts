@@ -4,7 +4,7 @@
  * Two sides:
  *   1. Persistence — load/save formatbuddy-monitor-prefs.json from
  *      userData. Opt-in only: defaults are trayEnabled=false,
- *      reminderEnabled=false, reminderDays=14.
+ *      launchAtLoginEnabled=false, reminderEnabled=false, reminderDays=14.
  *   2. Decision — shouldRemind(lastScanAt, prefs, now) is the only
  *      place that decides whether the main process should show a
  *      Notification. Keep it pure so tests don't need timers.
@@ -56,6 +56,7 @@ function prefsPath(userDataDir: string): string {
 export function defaultPrefs(): MonitorPreferences {
   return {
     trayEnabled: false,
+    launchAtLoginEnabled: false,
     reminderEnabled: false,
     reminderDays: DEFAULT_REMINDER_DAYS,
     updateChannel: DEFAULT_UPDATE_CHANNEL,
@@ -84,6 +85,7 @@ function coerce(value: unknown): MonitorPreferences {
   const prefs = raw.prefs ?? (raw as unknown as Partial<MonitorPreferences>);
   return {
     trayEnabled: Boolean(prefs?.trayEnabled),
+    launchAtLoginEnabled: Boolean(prefs?.launchAtLoginEnabled),
     reminderEnabled: Boolean(prefs?.reminderEnabled),
     reminderDays: clampReminderDays(prefs?.reminderDays),
     updateChannel: coerceChannel(prefs?.updateChannel),
@@ -140,9 +142,23 @@ export async function updatePrefs(
   patch: UpdateMonitorPreferencesRequest
 ): Promise<MonitorPreferences> {
   const current = await loadPrefs(userDataDir);
+  let trayEnabled =
+    patch.trayEnabled !== undefined ? Boolean(patch.trayEnabled) : current.trayEnabled;
+  let launchAtLoginEnabled =
+    patch.launchAtLoginEnabled !== undefined
+      ? Boolean(patch.launchAtLoginEnabled)
+      : current.launchAtLoginEnabled;
+
+  // Starting hidden without a tray leaves the user with no obvious way
+  // back into the app. Treat launch-at-login as a tray-backed mode.
+  if (patch.launchAtLoginEnabled === true) trayEnabled = true;
+  if (patch.trayEnabled === false) launchAtLoginEnabled = false;
+  if (!trayEnabled) launchAtLoginEnabled = false;
+
   const next: MonitorPreferences = {
     ...current,
-    ...(patch.trayEnabled !== undefined ? { trayEnabled: Boolean(patch.trayEnabled) } : {}),
+    trayEnabled,
+    launchAtLoginEnabled,
     ...(patch.reminderEnabled !== undefined
       ? { reminderEnabled: Boolean(patch.reminderEnabled) }
       : {}),

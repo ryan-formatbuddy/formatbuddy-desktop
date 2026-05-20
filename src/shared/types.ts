@@ -1363,6 +1363,13 @@ export type ThemeMode = "system" | "light" | "dark";
 
 export interface MonitorPreferences {
   trayEnabled: boolean;
+  /**
+   * When true, FormatBuddy asks the OS to start the app on login so
+   * tray/reminder/30-day restore-bin maintenance can run while the PC
+   * is on. Strict opt-in; enabling this also keeps trayEnabled true so
+   * the app never starts hidden without a visible way back.
+   */
+  launchAtLoginEnabled: boolean;
   reminderEnabled: boolean;
   /** Days since the last scan before we'll show a reminder. 1..90. */
   reminderDays: number;
@@ -1397,6 +1404,7 @@ export interface MonitorPreferences {
 
 export interface UpdateMonitorPreferencesRequest {
   trayEnabled?: boolean;
+  launchAtLoginEnabled?: boolean;
   reminderEnabled?: boolean;
   reminderDays?: number;
   updateChannel?: UpdateChannel;

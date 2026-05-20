@@ -23,6 +23,8 @@ describe("user help docs copy", () => {
   it("keeps README public checklist wording consistent with product copy", () => {
     const readme = readFileSync(join(ROOT, "README.md"), "utf8");
 
+    expect(readme).not.toMatch(/manifest/i);
+    expect(readme).not.toContain("매니페스트");
     expect(readme).not.toContain("백업 manifest");
     expect(readme).not.toContain("manifest + winget");
     expect(readme).not.toContain("PowerShell 진단");

@@ -34,7 +34,7 @@
 - `formatbuddy-state.json` — 진단 점검 기록 (점수, 추천 수치 등) + 정리
   후보 무시 목록. 진단 데이터는 사용자가 직접 export하지 않는 한 외부로
   나가지 않아요.
-- `formatbuddy-monitor-prefs.json` — 트레이 / 주기 알림 / 업데이트 채널 /
+- `formatbuddy-monitor-prefs.json` — 트레이 / PC 시작 시 켜기 / 주기 알림 / 업데이트 채널 /
   복원 지점 자동 생성 / 화면 모드 / 익명 사용 통계 허용 여부 같은 사용자 설정.
 - `formatbuddy-cleanup-log.json` — 정리 실행 내역 (어떤 카테고리에서 몇 개
   항목을 포맷버디 복구함으로 보냈는지). 파일 경로는 저장하지 않아요.

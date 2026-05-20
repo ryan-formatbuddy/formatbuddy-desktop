@@ -22,6 +22,7 @@ describe("defaultPrefs", () => {
   it("starts everything OFF except a 14-day reminder window", () => {
     const prefs = defaultPrefs();
     expect(prefs.trayEnabled).toBe(false);
+    expect(prefs.launchAtLoginEnabled).toBe(false);
     expect(prefs.reminderEnabled).toBe(false);
     expect(prefs.reminderDays).toBe(14);
     expect(prefs.lastReminderAt).toBeUndefined();
@@ -66,9 +67,16 @@ describe("coerce + clampReminderDays", () => {
   it("accepts the wrapped { prefs } shape and a flat one", () => {
     const wrapped = __testing.coerce({
       version: 1,
-      prefs: { trayEnabled: true, reminderEnabled: true, reminderDays: 7, themeMode: "dark" }
+      prefs: {
+        trayEnabled: true,
+        launchAtLoginEnabled: true,
+        reminderEnabled: true,
+        reminderDays: 7,
+        themeMode: "dark"
+      }
     });
     expect(wrapped.trayEnabled).toBe(true);
+    expect(wrapped.launchAtLoginEnabled).toBe(true);
     expect(wrapped.reminderDays).toBe(7);
     expect(wrapped.themeMode).toBe("dark");
 
@@ -102,6 +110,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
   it("round-trips through save + load", async () => {
     await savePrefs(dir, prefs({
       trayEnabled: true,
+      launchAtLoginEnabled: true,
       reminderEnabled: true,
       reminderDays: 21,
       updateChannel: "beta",
@@ -110,6 +119,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     }));
     const reloaded = await loadPrefs(dir);
     expect(reloaded.trayEnabled).toBe(true);
+    expect(reloaded.launchAtLoginEnabled).toBe(true);
     expect(reloaded.reminderEnabled).toBe(true);
     expect(reloaded.reminderDays).toBe(21);
     expect(reloaded.updateChannel).toBe("beta");
@@ -120,6 +130,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
   it("updatePrefs patches only specified fields", async () => {
     await savePrefs(dir, prefs({
       trayEnabled: true,
+      launchAtLoginEnabled: true,
       reminderEnabled: false,
       reminderDays: 14,
       updateChannel: "stable",
@@ -128,6 +139,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     }));
     const next = await updatePrefs(dir, { reminderEnabled: true, reminderDays: 30 });
     expect(next.trayEnabled).toBe(true);
+    expect(next.launchAtLoginEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.reminderDays).toBe(30);
     expect(next.updateChannel).toBe("stable");
@@ -180,6 +192,24 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     expect(next.telemetryOptIn).toBe(false);
   });
 
+  it("turns tray on when launch-at-login is enabled", async () => {
+    await savePrefs(dir, prefs({ trayEnabled: false, launchAtLoginEnabled: false }));
+
+    const next = await updatePrefs(dir, { launchAtLoginEnabled: true });
+
+    expect(next.launchAtLoginEnabled).toBe(true);
+    expect(next.trayEnabled).toBe(true);
+  });
+
+  it("turns launch-at-login off when tray is disabled", async () => {
+    await savePrefs(dir, prefs({ trayEnabled: true, launchAtLoginEnabled: true }));
+
+    const next = await updatePrefs(dir, { trayEnabled: false });
+
+    expect(next.trayEnabled).toBe(false);
+    expect(next.launchAtLoginEnabled).toBe(false);
+  });
+
   it("coerces non-boolean telemetryOptIn to false (strict opt-in)", () => {
     // coerce() accepts `unknown`, so passing string/numeric values
     // here mimics a tampered-with prefs file on disk.
@@ -203,6 +233,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
   it("markReminderShown stamps lastReminderAt without flipping other fields", async () => {
     await savePrefs(dir, prefs({
       trayEnabled: true,
+      launchAtLoginEnabled: true,
       reminderEnabled: true,
       reminderDays: 14,
       updateChannel: "stable",
@@ -212,6 +243,7 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     const next = await markReminderShown(dir, fixedNow);
     expect(next.lastReminderAt).toBe(fixedNow.toISOString());
     expect(next.trayEnabled).toBe(true);
+    expect(next.launchAtLoginEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.updateChannel).toBe("stable");
   });

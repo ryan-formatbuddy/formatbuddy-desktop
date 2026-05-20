@@ -89,6 +89,15 @@ function MonitorPrefsCard() {
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
             <input
               type="checkbox"
+              checked={prefs.launchAtLoginEnabled}
+              disabled={busy}
+              onChange={(e) => void update({ launchAtLoginEnabled: e.target.checked })}
+            />
+            <span>PC 켤 때 포맷버디도 조용히 켜기 (트레이도 같이 켜져요)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
               checked={prefs.reminderEnabled}
               disabled={busy}
               onChange={(e) => void update({ reminderEnabled: e.target.checked })}
@@ -160,7 +169,8 @@ function MonitorPrefsCard() {
         </>
       )}
       <small style={{ opacity: 0.6 }}>
-        포맷버디는 자동 점검을 하지 않아요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
+        포맷버디는 자동 점검을 하지 않아요. PC 시작 옵션은 알림과 30일 복구함 정리가 앱을 켜야
+        동작한다는 점을 보완해요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
         베타 채널은 가끔 불안정할 수 있고, 화면 모드는 이 PC에만 저장돼요.
       </small>
     </section>
