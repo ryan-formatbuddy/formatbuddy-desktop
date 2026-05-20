@@ -33,6 +33,16 @@ describe("AuditLog copy", () => {
     expect(source).toContain("auditFailureDetailCount(entry.detail) > 0");
   });
 
+  it("keeps restore-bin warning text separate from general failure text", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("function auditWarningMessage(entry: AuditEntry): string");
+    expect(source).toContain('entry.action.includes("expired-purge")');
+    expect(source).toContain("아직 비우지 못한 항목은 복구함에 남겨뒀어요");
+    expect(source).toContain("작업을 끝내지 못했어요. 상세 내용을 확인해 주세요.");
+    expect(source).toContain("{auditWarningMessage(entry)}");
+  });
+
   it("labels app leftover cleanup records clearly", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 

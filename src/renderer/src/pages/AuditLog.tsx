@@ -81,6 +81,13 @@ function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
   return arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
 }
 
+function auditWarningMessage(entry: AuditEntry): string {
+  if (entry.action.includes("expired-purge") || auditFailureDetailCount(entry.detail) > 0) {
+    return "아직 비우지 못한 항목은 복구함에 남겨뒀어요. 다음 자동 비움 때 한 번 더 확인해요.";
+  }
+  return "작업을 끝내지 못했어요. 상세 내용을 확인해 주세요.";
+}
+
 function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   if (!detail) return [];
   const lines: string[] = [];
@@ -269,7 +276,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
             <p style={{ fontSize: 14, margin: "4px 0" }}>{entry.summary}</p>
             {warning && (
               <small style={{ display: "block", opacity: 0.72, marginTop: 4 }}>
-                아직 비우지 못한 항목은 복구함에 남겨뒀어요. 다음 자동 비움 때 한 번 더 확인해요.
+                {auditWarningMessage(entry)}
               </small>
             )}
             {isRestoreBinAuditEntry(entry) && (
