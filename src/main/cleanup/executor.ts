@@ -34,7 +34,10 @@ import type {
   CleanupSkipReason,
   CleanupSkippedItem
 } from "@shared/types";
-import { CLEANUP_HISTORY_SAVE_WARNING } from "@shared/cleanup-warnings";
+import {
+  CLEANUP_HISTORY_SAVE_WARNING,
+  CLEANUP_RESTORE_SIZE_WARNING
+} from "@shared/cleanup-warnings";
 import { evaluatePath, normalizePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
@@ -256,7 +259,7 @@ function finalTrashSizeBytes(
 ): number {
   if (trashEntry?.sizeBytes === undefined) return fallbackSizeBytes;
   if (!Number.isFinite(trashEntry.sizeBytes) || trashEntry.sizeBytes < 0) {
-    throw new Error("FormatBuddy restore entry size is not safe");
+    throw new Error(CLEANUP_RESTORE_SIZE_WARNING);
   }
   return Math.max(0, Math.round(trashEntry.sizeBytes));
 }

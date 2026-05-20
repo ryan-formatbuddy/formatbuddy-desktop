@@ -4,6 +4,7 @@ import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type * as TrashModule from "../src/main/cleanup/trash";
+import { CLEANUP_RESTORE_SIZE_WARNING } from "../src/shared/cleanup-warnings";
 
 interface Fixture {
   root: string;
@@ -112,6 +113,79 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
       await expect(fs.stat(slack)).resolves.toBeTruthy();
       const failure = result.skippedItems.find((item) => item.reason === "execute-failed");
       expect(failure?.detail).toMatch(/manifest|복구함/);
+    } finally {
+      fx.cleanup();
+    }
+  });
+
+  it("shows a friendly failure when the app-leftover restore-bin size cannot be trusted", async () => {
+    const fx = makeFixture();
+    try {
+      vi.doMock("../src/main/cleanup/trash", async () => {
+        const actual =
+          await vi.importActual<typeof TrashModule>("../src/main/cleanup/trash");
+        return {
+          ...actual,
+          moveToFormatBuddyTrash: vi.fn(async (options) => {
+            const entryId = "leftover-bad-size";
+            return {
+              id: entryId,
+              storedPath: join(
+                options.userDataDir,
+                "formatbuddy-trash",
+                "items",
+                entryId,
+                "files",
+                "Slack"
+              ),
+              expiresAt: "2026-06-18T00:00:00.000Z",
+              sizeBytes: Number.NaN
+            };
+          })
+        };
+      });
+
+      const {
+        cleanupAppLeftovers,
+        planAppLeftovers,
+        __resetLeftoversPlanCacheForTests
+      } = await import("../src/main/apps/leftovers");
+      __resetLeftoversPlanCacheForTests();
+
+      const slack = join(fx.roaming, "Slack");
+      await fs.mkdir(slack, { recursive: true });
+      await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+      const snapshot = await planAppLeftovers([], {
+        home: fx.home,
+        env: {
+          roaming: fx.roaming,
+          localAppData: fx.localAppData,
+          programData: fx.programData
+        },
+        extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+      });
+      const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+      const result = await cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        {
+          userDataDir: fx.userDataDir,
+          now: () => new Date("2026-05-19T00:00:00.000Z"),
+          currentInstalledAppsKnown: true,
+          currentInstalledApps: []
+        }
+      );
+
+      expect(result.removedItems).toHaveLength(0);
+      expect(result.totalFreedBytes).toBe(0);
+      await expect(fs.stat(slack)).resolves.toBeTruthy();
+      const failure = result.skippedItems.find((item) => item.reason === "execute-failed");
+      expect(failure?.detail).toBe(CLEANUP_RESTORE_SIZE_WARNING);
+      expect(failure?.detail).not.toMatch(/FormatBuddy|restore entry|size is not safe/i);
     } finally {
       fx.cleanup();
     }

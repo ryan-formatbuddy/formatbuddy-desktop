@@ -9,7 +9,10 @@ import {
   __testing as executorTesting,
   type ExecutorDeps
 } from "../src/main/cleanup/executor";
-import { CLEANUP_HISTORY_SAVE_WARNING } from "../src/shared/cleanup-warnings";
+import {
+  CLEANUP_HISTORY_SAVE_WARNING,
+  CLEANUP_RESTORE_SIZE_WARNING
+} from "../src/shared/cleanup-warnings";
 import {
   consumePlan,
   peekPlan,
@@ -265,6 +268,37 @@ describe("executeCleanup", () => {
     expect(result.totalFreedBytes).toBe(finalSizeBytes);
     expect(result.logEntry.totalFreedBytes).toBe(finalSizeBytes);
     await expect(fs.readFile(storedPath, "utf8")).resolves.toBe(finalText);
+  });
+
+  it("shows a friendly failure when the restore-bin size cannot be trusted", async () => {
+    const targetFile = join(fx.tempDir, "bad-size.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async () => ({
+        id: "trash-bad-size",
+        expiresAt: "2026-06-18T00:00:00.000Z",
+        storedPath: join(fx.userData, "formatbuddy-trash", "items", "trash-bad-size", "files", "bad-size.tmp"),
+        sizeBytes: Number.NaN
+      })
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toBe(CLEANUP_RESTORE_SIZE_WARNING);
+    expect(failure?.detail).not.toMatch(/FormatBuddy|restore entry|size is not safe/i);
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
   });
 
   it("permanent mode routes through permanentRemove instead of the recycle bin", async () => {

@@ -3,3 +3,6 @@ export const CLEANUP_HISTORY_SAVE_WARNING =
 
 export const CLEANUP_FOLLOWUP_SAVE_WARNING =
   "정리는 처리됐지만 제거 후 확인 상태 저장은 못 했어요. 다시 점검하면 상태를 맞출게요.";
+
+export const CLEANUP_RESTORE_SIZE_WARNING =
+  "복구함에 보관된 용량 정보를 확인하지 못해서 정리하지 않았어요.";

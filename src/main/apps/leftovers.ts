@@ -33,7 +33,8 @@ import type {
 } from "@shared/types";
 import {
   CLEANUP_FOLLOWUP_SAVE_WARNING,
-  CLEANUP_HISTORY_SAVE_WARNING
+  CLEANUP_HISTORY_SAVE_WARNING,
+  CLEANUP_RESTORE_SIZE_WARNING
 } from "@shared/cleanup-warnings";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
@@ -1593,6 +1594,9 @@ function friendlyStartupHoldingFailureDetail(message: string): string {
 }
 
 function friendlyTrashFailureDetail(message: string): string {
+  if (/restore entry size|size is not safe|용량 정보/i.test(message)) {
+    return CLEANUP_RESTORE_SIZE_WARNING;
+  }
   if (/30-day|30일|expiry|expires|window/i.test(message)) {
     return "30일 보관 기간을 확인하지 못해서 정리하지 않았어요.";
   }
@@ -1623,7 +1627,7 @@ function finalLeftoverTrashSizeBytes(
 ): number {
   if (trashEntry?.sizeBytes === undefined) return fallbackSizeBytes;
   if (!Number.isFinite(trashEntry.sizeBytes) || trashEntry.sizeBytes < 0) {
-    throw new Error("FormatBuddy restore entry size is not safe");
+    throw new Error(CLEANUP_RESTORE_SIZE_WARNING);
   }
   return Math.max(0, Math.round(trashEntry.sizeBytes));
 }
