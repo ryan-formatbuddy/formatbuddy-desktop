@@ -63,10 +63,14 @@ describe("startup folder toggle", () => {
     expect(disabled.entry?.storedPath).toContain("formatbuddy-startup-disabled");
     expect(disabled.entry?.disabledAt).toBe("2026-05-20T10:00:00.000Z");
     expect(disabled.entry?.expiresAt).toBe("2026-06-19T10:00:00.000Z");
+    expect(disabled.entry?.contentHash?.algorithm).toBe("sha256");
+    expect(disabled.entry?.contentHash?.value).toMatch(/^[a-f0-9]{64}$/);
+    expect(disabled.entry?.integrityStatus).toBe("verified");
     expect(readFileSync(disabled.entry!.storedPath, "utf8")).toBe("shortcut");
 
     const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([disabled.entry!.id]);
+    expect(snapshot.entries[0].integrityStatus).toBe("verified");
 
     const restored = await restoreStartupFolderEntry({
       userDataDir: fx.userDataDir,
@@ -196,6 +200,71 @@ describe("startup folder toggle", () => {
     expect(existsSync(source)).toBe(false);
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(false);
+  });
+
+  it("does not restore a disabled startup item when the held file was changed", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    writeFileSync(disabled.entry!.storedPath, "changed shortcut");
+
+    const snapshot = await listDisabledStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-21T10:00:00.000Z")
+    });
+    expect(snapshot.entries[0].integrityStatus).toBe("changed");
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      now: () => new Date("2026-05-21T10:00:00.000Z")
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/바뀐|안전/);
+    expect(restored.entry?.integrityStatus).toBe("changed");
+    expect(existsSync(source)).toBe(false);
+    expect(readFileSync(disabled.entry!.storedPath, "utf8")).toBe("changed shortcut");
+  });
+
+  it("does not restore a legacy disabled startup item without a holding hash", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    const { contentHash: _contentHash, integrityStatus: _integrityStatus, ...legacyEntry } = disabled.entry!;
+    writeFileSync(
+      join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "meta.json"),
+      JSON.stringify(legacyEntry, null, 2),
+      "utf8"
+    );
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      now: () => new Date("2026-05-21T10:00:00.000Z")
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/기록|확인/);
+    expect(restored.entry?.integrityStatus).toBe("legacy");
+    expect(existsSync(source)).toBe(false);
+    expect(readFileSync(disabled.entry!.storedPath, "utf8")).toBe("shortcut");
   });
 
   it("does not auto-empty an expired startup holding record when restore metadata points outside", async () => {

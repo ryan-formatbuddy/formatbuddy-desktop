@@ -144,8 +144,18 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
     storedPath: raw.storedPath,
     origin: raw.origin,
     disabledAt: raw.disabledAt,
-    expiresAt: canonicalDisabledExpiry(raw.disabledAt)
+    expiresAt: canonicalDisabledExpiry(raw.disabledAt),
+    contentHash: isValidContentHash(raw.contentHash) ? raw.contentHash : null,
+    integrityStatus: isValidContentHash(raw.contentHash) ? "verified" : "legacy"
   };
+}
+
+function isValidContentHash(
+  value: unknown
+): value is NonNullable<StartupAutoDisabledEntry["contentHash"]> {
+  if (!value || typeof value !== "object") return false;
+  const raw = value as Partial<NonNullable<StartupAutoDisabledEntry["contentHash"]>>;
+  return raw.algorithm === "sha256" && typeof raw.value === "string" && /^[a-f0-9]{64}$/.test(raw.value);
 }
 
 async function pathExists(targetPath: string): Promise<boolean> {
@@ -155,6 +165,22 @@ async function pathExists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function hashHeldStartupFile(targetPath: string): Promise<string> {
+  const stat = await lstat(targetPath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error("Startup holding file is not a regular file");
+  }
+  return createHash("sha256").update(await readFile(targetPath)).digest("hex");
+}
+
+async function startupHoldingIntegrityStatus(
+  entry: StartupAutoDisabledEntry
+): Promise<NonNullable<StartupAutoDisabledEntry["integrityStatus"]>> {
+  if (!entry.contentHash) return "legacy";
+  const actualHash = await hashHeldStartupFile(entry.storedPath).catch(() => null);
+  return actualHash === entry.contentHash.value ? "verified" : "changed";
 }
 
 async function ensureManagedItemsRoot(userDataDir: string): Promise<void> {
@@ -215,6 +241,15 @@ async function isListableDisabledEntry(
   if (!isUnderRoot(entry.originalPath, entry.origin)) return false;
   if (await findLinkedPathPart(entry.storedPath, dir, true)) return false;
   return pathExists(entry.storedPath);
+}
+
+async function withStartupHoldingIntegrity(
+  entry: StartupAutoDisabledEntry
+): Promise<StartupAutoDisabledEntry> {
+  return {
+    ...entry,
+    integrityStatus: await startupHoldingIntegrityStatus(entry)
+  };
 }
 
 async function assertSafeStartupDisabledEntryForPurge(
@@ -285,7 +320,7 @@ export async function listDisabledStartupFolderEntries(
       !isOutsideDisabledRetentionWindow(entry, now) &&
       (await isListableDisabledEntry(options.userDataDir, dir.name, entry))
     ) {
-      entries.push(entry);
+      entries.push(await withStartupHoldingIntegrity(entry));
     }
   }
   entries.sort((a, b) => Date.parse(b.disabledAt) - Date.parse(a.disabledAt));
@@ -347,7 +382,7 @@ export async function disableStartupFolderEntry(
   const disabledAtDate = new Date(disabledAt);
   const disabledId = makeDisabledId(entry, disabledAtDate);
   const storedPath = storedPathFor(userDataDir, disabledId, source);
-  const disabledEntry: StartupAutoDisabledEntry = {
+  let disabledEntry: StartupAutoDisabledEntry = {
     id: disabledId,
     entryId: entry.id,
     name: entry.name,
@@ -379,6 +414,14 @@ export async function disableStartupFolderEntry(
     }
     await safeMove(source, storedPath);
     movedToHoldingArea = true;
+    disabledEntry = {
+      ...disabledEntry,
+      contentHash: {
+        algorithm: "sha256",
+        value: await hashHeldStartupFile(storedPath)
+      },
+      integrityStatus: "verified"
+    };
     await ensureSafeMetaWritePath(userDataDir, disabledId);
     await writeFile(metaPath(userDataDir, disabledId), JSON.stringify(disabledEntry, null, 2), "utf8");
     await ensureSafeMetaWritePath(userDataDir, disabledId);
@@ -488,6 +531,20 @@ export async function restoreStartupFolderEntry(
       status: "missing-stored-item",
       message: "보관된 파일을 찾지 못했어요.",
       entry
+    };
+  }
+  const integrityStatus = await startupHoldingIntegrityStatus(entry);
+  if (integrityStatus !== "verified") {
+    return {
+      status: "blocked-path",
+      message:
+        integrityStatus === "legacy"
+          ? "보관 기록을 확인할 수 없어 자동으로 되돌리지 않았어요."
+          : "보관된 시작 항목 파일이 바뀐 것 같아요. 안전하게 되돌리지 않았어요.",
+      entry: {
+        ...entry,
+        integrityStatus
+      }
     };
   }
   if (await pathExists(entry.originalPath)) {
@@ -611,5 +668,6 @@ export const __testing = {
   isSafeStartupDisabledId,
   isManagedStartupStoredPath,
   coerceDisabledEntry,
+  startupHoldingIntegrityStatus,
   assertSafeStartupDisabledEntryForPurge
 };

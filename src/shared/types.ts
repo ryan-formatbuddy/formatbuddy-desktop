@@ -1027,6 +1027,12 @@ export interface StartupAutoDisabledEntry {
   origin: string;
   disabledAt: string;
   expiresAt: string;
+  /** Hash of the held startup file, used before one-click restore. */
+  contentHash?: {
+    algorithm: "sha256";
+    value: string;
+  } | null;
+  integrityStatus?: "verified" | "changed" | "legacy";
 }
 
 export interface StartupAutoDisabledSnapshot {
