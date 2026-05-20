@@ -64,6 +64,50 @@ function isValidAuditTimestamp(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+const AUDIT_DETAIL_ID_ARRAY_KEYS = new Set([
+  "failedEntryIds",
+  "failedIds",
+  "purgedEntryIds",
+  "purgedIds",
+  "trashEntryIds",
+  "registryBackupIds",
+  "startupDisabledIds"
+]);
+
+function isSafeAuditDetailId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    value !== "." &&
+    value !== ".." &&
+    !/\s/.test(value) &&
+    !/[\/\\\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function sanitizeAuditDetailIdArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    if (!isSafeAuditDetailId(item) || seen.has(item)) continue;
+    seen.add(item);
+    ids.push(item);
+  }
+  return ids;
+}
+
+function sanitizeAuditDetail(detail: unknown): Record<string, unknown> | undefined {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) return undefined;
+  const raw = detail as Record<string, unknown>;
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    clean[key] = AUDIT_DETAIL_ID_ARRAY_KEYS.has(key) ? sanitizeAuditDetailIdArray(value) : value;
+  }
+  return clean;
+}
+
 function coerceEntry(value: unknown): AuditEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<AuditEntry>;
@@ -80,10 +124,7 @@ function coerceEntry(value: unknown): AuditEntry | null {
     category: raw.category,
     action,
     summary,
-    detail:
-      raw.detail && typeof raw.detail === "object" && !Array.isArray(raw.detail)
-        ? (raw.detail as Record<string, unknown>)
-        : undefined
+    detail: sanitizeAuditDetail(raw.detail)
   };
 }
 
@@ -182,7 +223,7 @@ export async function appendAuditEntry(
     category: emit.category,
     action: sanitizeAuditText(emit.action, "unknown"),
     summary: sanitizeAuditText(emit.summary, "활동 기록을 남겼어요."),
-    detail: emit.detail
+    detail: sanitizeAuditDetail(emit.detail)
   };
   const next: PersistedAuditLog = {
     ...loaded,

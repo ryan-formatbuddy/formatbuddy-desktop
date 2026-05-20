@@ -252,6 +252,33 @@ describe("coerce + sanity guards", () => {
     expect(result?.detail).toBeUndefined();
   });
 
+  it("keeps only safe unique ids in audit detail arrays used for counts", () => {
+    const result = __testing.coerceEntry({
+      id: "safe-detail",
+      at: "2026-05-19T10:00:00.000Z",
+      category: "cleanup",
+      action: "trash",
+      summary: "detail count",
+      detail: {
+        failedEntryIds: ["trash-busy", "trash-busy", "../trash", " trash-padded"],
+        failedIds: ["reg-busy", "reg\\bad", ".", ".."],
+        trashEntryIds: ["trash-ok", "trash/unsafe"],
+        registryBackupIds: ["reg-ok", "reg ok"],
+        startupDisabledIds: ["startup-ok", "startup\nbad"],
+        note: "kept"
+      }
+    });
+
+    expect(result?.detail).toEqual({
+      failedEntryIds: ["trash-busy"],
+      failedIds: ["reg-busy"],
+      trashEntryIds: ["trash-ok"],
+      registryBackupIds: ["reg-ok"],
+      startupDisabledIds: ["startup-ok"],
+      note: "kept"
+    });
+  });
+
   it("survives a hand-written corrupt log file", async () => {
     writeFileSync(
       join(dir, "formatbuddy-audit-log.json"),
