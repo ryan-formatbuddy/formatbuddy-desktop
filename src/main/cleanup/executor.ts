@@ -200,6 +200,10 @@ function isUsableMetadataString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+function hasControlCharacters(value: string): boolean {
+  return /[\u0000-\u001f\u007f]/.test(value);
+}
+
 function isTrimmedString(value: string): boolean {
   return value.trim() === value;
 }
@@ -419,6 +423,9 @@ export async function executeCleanup(
   if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
     throw new Error("cleanup:execute requires planId and confirmationToken without whitespace padding");
   }
+  if (hasControlCharacters(request.planId) || hasControlCharacters(request.confirmationToken)) {
+    throw new Error("cleanup:execute requires planId and confirmationToken without control characters");
+  }
   if (!Array.isArray(request.selectedItemIds) || request.selectedItemIds.length === 0) {
     throw new Error("cleanup:execute requires at least one selected item");
   }
@@ -427,6 +434,9 @@ export async function executeCleanup(
   }
   if (!request.selectedItemIds.every(isTrimmedString)) {
     throw new Error("cleanup:execute requires selectedItemIds without whitespace padding");
+  }
+  if (request.selectedItemIds.some(hasControlCharacters)) {
+    throw new Error("cleanup:execute requires selectedItemIds without control characters");
   }
   if (hasDuplicates(request.selectedItemIds)) {
     throw new Error("cleanup:execute requires selectedItemIds to be unique without duplicates");

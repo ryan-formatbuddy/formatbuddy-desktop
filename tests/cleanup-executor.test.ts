@@ -599,6 +599,59 @@ describe("executeCleanup", () => {
     expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
   });
 
+  it.each([
+    [
+      "plan id",
+      (plan: CleanupPlan, itemId: string) => ({
+        planId: `${plan.planId.slice(0, 8)}\n${plan.planId.slice(8)}`,
+        itemId
+      })
+    ],
+    [
+      "confirmation token",
+      (plan: CleanupPlan, itemId: string) => ({
+        confirmationToken: `${plan.confirmationToken.slice(0, 8)}\r${plan.confirmationToken.slice(8)}`,
+        itemId
+      })
+    ],
+    [
+      "selected item id",
+      (_plan: CleanupPlan, itemId: string) => ({
+        itemId: `${itemId.slice(0, 4)}\u0000${itemId.slice(4)}`
+      })
+    ]
+  ] as Array<[
+    string,
+    (plan: CleanupPlan, itemId: string) => Partial<{
+      planId: string;
+      confirmationToken: string;
+      itemId: string;
+    }>
+  ]>)("refuses cleanup request fields with control characters before consuming the plan: %s", async (_label, mutate) => {
+    const targetFile = join(fx.tempDir, "old.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const patch = mutate(plan, item.id);
+    const { deps, trashed, permanently } = makeSpyDeps();
+
+    await expect(
+      executeCleanup(
+        {
+          planId: patch.planId ?? plan.planId,
+          confirmationToken: patch.confirmationToken ?? plan.confirmationToken,
+          selectedItemIds: [patch.itemId ?? item.id],
+          mode: "trash"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/제어 문자|control characters/i);
+
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    expect(await fs.readFile(targetFile, "utf8")).toBe("x".repeat(4096));
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
+  });
+
   it("records a log entry that survives a subsequent getCleanupHistory call", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
