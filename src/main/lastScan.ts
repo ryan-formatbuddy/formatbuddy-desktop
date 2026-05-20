@@ -91,8 +91,8 @@ function pruneRecentlyUninstallLaunched(now: number): void {
 
 /**
  * Keep only the minimum app identity needed after the Windows
- * uninstaller wizard was opened. We do not know whether the user
- * completed or canceled that wizard, so UI must not claim "removed".
+ * uninstaller window was opened. We do not know whether the user
+ * completed or canceled that flow, so UI must not claim "removed".
  *
  * We intentionally do NOT store uninstall command strings, install
  * We intentionally do NOT store uninstall command strings or versions

@@ -82,6 +82,6 @@ describe("enforceAppUninstallRequestPolicy", () => {
         ...request(),
         mode: "quiet"
       })
-    ).toThrow(/Windows 제거 마법사|직접 확인/);
+    ).toThrow(/Windows 제거 창|직접 확인/);
   });
 });

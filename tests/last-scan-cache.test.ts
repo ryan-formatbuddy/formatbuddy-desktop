@@ -131,13 +131,13 @@ describe("lastScan TTL", () => {
   });
 });
 
-describe("recently opened uninstall wizard memory", () => {
+describe("recently opened uninstall window memory", () => {
   afterEach(() => {
     clearLastScan();
     clearRecentlyUninstallLaunchedApps();
   });
 
-  it("keeps safe local cleanup metadata for post-uninstall-wizard leftover scans", () => {
+  it("keeps safe local cleanup metadata for post-uninstall-window leftover scans", () => {
     const t0 = 1_000_000;
     rememberRecentlyUninstallLaunchedApp(
       {

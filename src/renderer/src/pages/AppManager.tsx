@@ -1076,7 +1076,7 @@ export function AppManager({
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">앱 정리 센터</h1>
         <p className="fb-lede">
-          설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 마법사를 띄워드려요. 잔여 항목은
+          설치된 앱을 카테고리별로 보여드리고, Windows 기본 제거 창을 열어드려요. 잔여 항목은
           직접 고른 것만 정리하고, 앱 삭제 흔적도 30일 안에 되돌릴 수 있게 챙겨요.
         </p>
         {!isWindows && (
@@ -1150,7 +1150,7 @@ export function AppManager({
             <h2 style={{ margin: 0 }}>{postUninstallAppName} 제거 후도 같이 챙길게요</h2>
           </header>
           <p style={{ fontSize: 13, opacity: 0.78 }}>
-            Windows 제거 마법사를 끝냈다면 먼저 제거 완료를 확인해볼게요. 제거 확인이 끝나면 남은 항목을 바로 보여드려요.
+            Windows 제거 창을 끝냈다면 먼저 제거 완료를 확인해볼게요. 제거 확인이 끝나면 남은 항목을 바로 보여드려요.
           </p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Button variant="primary" size="sm" onClick={onVerifyUninstall ?? onRescan}>
@@ -1174,7 +1174,7 @@ export function AppManager({
           <header>
             <h2 style={{ margin: 0 }}>방금 제거를 연 앱</h2>
             <small style={{ opacity: 0.7 }}>
-              최근 24시간 안에 Windows 제거 마법사를 띄운 앱이에요. 실제 제거 완료 여부는 다시 점검으로 확인해요.
+              최근 24시간 안에 Windows 제거 창을 연 앱이에요. 실제 제거 완료 여부는 다시 점검으로 확인해요.
             </small>
           </header>
           <ul style={{ listStyle: "none", padding: 0, margin: "10px 0" }}>

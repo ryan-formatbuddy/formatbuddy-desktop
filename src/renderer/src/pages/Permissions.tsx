@@ -126,7 +126,7 @@ const CATEGORIES: PermissionCategory[] = [
         evidence: "체크한 항목만 포맷버디 복구함으로 보내요. 앱 삭제 흔적과 잠시 꺼둔 시작 항목도 사용자가 고른 것만 보관해요."
       },
       {
-        what: "Windows 기본 제거 마법사 실행",
+        what: "Windows 기본 제거 창 열기",
         why: "사용자가 앱 매니저에서 '제거' 버튼을 눌렀을 때만요.",
         evidence: "Windows가 제공하는 기본 제거 화면으로 연결해요."
       },

@@ -13,15 +13,18 @@ const APP_MANAGER_PAGE = join(
 );
 
 describe("AppManager uninstall copy", () => {
-  it("does not claim an app was removed just because the Windows wizard opened", () => {
+  it("does not claim an app was removed just because the Windows uninstall window opened", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).not.toContain("방금 제거한 앱");
     expect(source).not.toContain("방금 제거한 앱 기준");
     expect(source).not.toContain("방금 제거를 연 앱 기준");
     expect(source).toContain("방금 제거를 연 앱");
+    expect(source).toContain("Windows 기본 제거 창을 열어드려요");
+    expect(source).toContain("Windows 제거 창을 끝냈다면");
     expect(source).toContain("제거 완료 확인됨");
     expect(source).toContain("다시 점검 후 정리 가능");
+    expect(source).not.toContain("마법사");
   });
 
   it("includes registry backup undo in the recent cleanup flow", () => {
@@ -221,7 +224,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("setUninstallConfirm(item)");
     expect(source).toContain("runConfirmedUninstall");
     expect(source).not.toContain("window.confirm(");
-    expect(source).not.toContain("제거 마법사를 띄울게요");
+    expect(source).not.toContain("마법사");
   });
 
   it("shows the startup item name beside the startup location", () => {

@@ -1179,7 +1179,7 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.every((p) => !p.exists)).toBe(true);
   });
 
-  it("plans leftovers for a recently opened uninstall wizard even after the app left the scan", async () => {
+  it("plans leftovers for a recently opened uninstall window even after the app left the scan", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
@@ -1197,7 +1197,7 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
   });
 
-  it("locks a recently opened uninstall wizard while the latest scan still shows the app", async () => {
+  it("locks a recently opened uninstall window while the latest scan still shows the app", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
@@ -1253,7 +1253,7 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].cleanupState).toBe("still-installed");
   });
 
-  it("locks a recently opened uninstall wizard when no latest scan exists yet", async () => {
+  it("locks a recently opened uninstall window when no latest scan exists yet", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
     await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");

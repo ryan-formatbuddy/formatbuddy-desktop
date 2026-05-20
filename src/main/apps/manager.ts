@@ -66,7 +66,7 @@ function appNameKey(app: Pick<InstalledApp, "name">): string {
 }
 
 function blockedAutomaticUninstallNote(command: string): string {
-  return `Windows 제거 마법사는 사용할 수 있어요. 자동 제거 명령은 숨겨요. ${blockedUninstallMessage(command)}`;
+  return `Windows 제거 창은 열 수 있어요. 자동 제거 명령은 숨겨요. ${blockedUninstallMessage(command)}`;
 }
 
 function evaluateAvailability(app: InstalledApp): {
@@ -109,13 +109,13 @@ function evaluateAvailability(app: InstalledApp): {
   if (quietUninstallString) {
     return {
       availability: "ready",
-      note: "Windows 제거 마법사만 띄워요. 자동 제거 명령은 숨겨요.",
+      note: "Windows 제거 창만 열어요. 자동 제거 명령은 숨겨요.",
       mode: "interactive"
     };
   }
   return {
     availability: "ready",
-    note: "Windows 제거 마법사가 떠요. 진행 여부는 직접 결정해요.",
+    note: "Windows 제거 창이 떠요. 진행 여부는 직접 결정해요.",
     mode: "interactive"
   };
 }
@@ -142,11 +142,11 @@ function toItem(app: InstalledApp): AppManagerItem {
 
 export interface BuildAppManagerSnapshotOptions {
   /**
-   * Apps whose Windows uninstall wizard was opened recently. Renderer
+   * Apps whose Windows uninstall window was opened recently. Renderer
    * surfaces these for 24h so the user can check leftovers after the
-   * wizard finishes. Not deduplicated against the live `apps` list
+   * uninstall window finishes. Not deduplicated against the live `apps` list
    * because a still-installed app reappearing here may mean the user
-   * canceled the wizard.
+   * canceled the uninstall flow.
    */
   recentlyUninstallLaunched?: InstalledApp[];
 }

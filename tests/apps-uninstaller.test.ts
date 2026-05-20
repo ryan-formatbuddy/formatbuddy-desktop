@@ -177,7 +177,7 @@ describe("runUninstall", () => {
       { findApp: () => noisy, spawnCmd, platform: "win32" }
     );
     expect(result.status).toBe("blocked");
-    expect(result.message).toMatch(/Windows 제거 마법사|직접 확인/);
+    expect(result.message).toMatch(/Windows 제거 창|직접 확인/);
     expect(result.detail).toBe("quiet-uninstall-blocked");
     expect(spawnCmd).not.toHaveBeenCalled();
 

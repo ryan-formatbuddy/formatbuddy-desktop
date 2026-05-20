@@ -369,7 +369,7 @@ export interface PlanLeftoversOptions {
    */
   extraApps?: InstalledApp[];
   /**
-   * False when the uninstall wizard was opened and the scan cache was
+   * False when the uninstall window was opened and the scan cache was
    * invalidated. In that state we can preview leftovers, but must not
    * clean them until a fresh scan confirms the app disappeared.
    */

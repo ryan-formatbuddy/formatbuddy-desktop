@@ -1184,7 +1184,7 @@ function registerIpc() {
         action: result.status,
         summary:
           result.status === "launched"
-            ? `Windows 제거 마법사로 "${safeUninstallRequest.appName}"을 열었어요.`
+            ? `Windows 제거 창으로 "${safeUninstallRequest.appName}"을 열었어요.`
             : result.status === "app-not-found"
               ? `"${safeUninstallRequest.appName}"의 제거 정보를 찾지 못했어요.`
               : result.status === "blocked"

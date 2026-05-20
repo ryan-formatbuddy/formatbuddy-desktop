@@ -73,7 +73,7 @@ describe("buildAppManagerSnapshot", () => {
 
     const item = snapshot.groups.flatMap((g) => g.items)[0];
     expect(item.uninstallAvailability).toBe("ready");
-    expect(item.availabilityNote).toMatch(/Windows 제거 마법사/);
+    expect(item.availabilityNote).toMatch(/Windows 제거 창/);
     expect(item.availabilityNote).toMatch(/자동 제거 명령/);
     expect(item.availabilityNote).toMatch(/별도 실행 도구/);
     expect(item.availabilityNote).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
@@ -167,7 +167,7 @@ describe("buildAppManagerSnapshot", () => {
     expect(snapshot.total).toBe(1);
   });
 
-  it("surfaces recently opened uninstall wizards with minimal identity only", () => {
+  it("surfaces recently opened uninstall windows with minimal identity only", () => {
     const snapshot = buildAppManagerSnapshot([], {
       recentlyUninstallLaunched: [
         app({
@@ -184,7 +184,7 @@ describe("buildAppManagerSnapshot", () => {
     ]);
   });
 
-  it("marks a recently opened uninstall wizard as still installed when it remains in the app list", () => {
+  it("marks a recently opened uninstall window as still installed when it remains in the app list", () => {
     const snapshot = buildAppManagerSnapshot(
       [app({ name: "Slack", publisher: "Slack Technologies", uninstallString: "uninstall.exe" })],
       {
@@ -216,7 +216,7 @@ describe("buildAppManagerSnapshot", () => {
 });
 
 describe("availability evaluator", () => {
-  it("hides quiet uninstall choices and keeps the Windows wizard as the only launch path", () => {
+  it("hides quiet uninstall choices and keeps the Windows window as the only launch path", () => {
     const result = __testing.evaluateAvailability({
       name: "Foo",
       uninstallString: "uninstall.exe",
@@ -224,7 +224,7 @@ describe("availability evaluator", () => {
     });
     expect(result.availability).toBe("ready");
     expect(result.mode).toBe("interactive");
-    expect(result.note).toContain("Windows 제거 마법사");
+    expect(result.note).toContain("Windows 제거 창");
     expect(result.note).toContain("자동 제거 명령은 숨겨요");
     expect(result.note).not.toContain("선택할 수 있어요");
   });

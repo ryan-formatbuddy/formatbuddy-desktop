@@ -20,9 +20,9 @@
  *   - it must not go through shell built-ins or DLL/script runner hosts
  *   - it must not include silent/quiet uninstall switches
  *   - cmd.exe runs with /d so user/machine AutoRun hooks cannot
- *     prepend unrelated commands before the uninstall wizard
+ *     prepend unrelated commands before the uninstall window
  *   - we never run quietUninstallString; FormatBuddy only opens the
- *     interactive Windows uninstall wizard so the user can confirm
+ *     interactive Windows uninstall window so the user can confirm
  *
  * After spawning, the process detaches — we don't wait for Windows'
  * GUI uninstaller to finish, and we don't capture its stdio (it
@@ -371,7 +371,7 @@ export async function runUninstall(
     return {
       status: "blocked",
       appName: request.appName,
-      message: "포맷버디는 Windows 제거 마법사만 띄워요. 제거 여부는 직접 확인해주세요.",
+      message: "포맷버디는 Windows 제거 창만 열어요. 제거 여부는 직접 확인해주세요.",
       detail: "quiet-uninstall-blocked"
     };
   }
@@ -407,7 +407,7 @@ export async function runUninstall(
     return {
       status: "launched",
       appName: request.appName,
-      message: "Windows 제거 마법사를 띄웠어요. 진행 여부는 마법사에서 직접 결정해주세요.",
+      message: "Windows 제거 창을 열었어요. 진행 여부는 그 안에서 직접 결정해주세요.",
       detail: result.pid ? `pid=${result.pid}` : undefined
     };
   } catch (err) {
