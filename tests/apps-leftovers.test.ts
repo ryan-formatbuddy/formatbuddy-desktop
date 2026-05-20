@@ -9,7 +9,7 @@ import {
   __testing as leftoversTesting
 } from "../src/main/apps/leftovers";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
-import { getTrashSnapshot, __testing as trashTesting } from "../src/main/cleanup/trash";
+import { getTrashSnapshot, restoreTrashEntry, __testing as trashTesting } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
 import {
@@ -2575,6 +2575,58 @@ describe("planAppLeftovers", () => {
     expect(trash.entries).toHaveLength(1);
     expect(trash.entries[0].originalPath).toBe(slack);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("restores an app-leftover trash entry with its original app follow-up identity", async () => {
+    const slack = join(fx.roaming, "Slack");
+    const cacheFile = join(slack, "cache.bin");
+    const userDataDir = join(fx.root, "userdata");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(cacheFile, "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const cleanup = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: []
+      }
+    );
+    const trashEntryId = cleanup.removedItems[0]?.trashEntryId;
+    expect(trashEntryId).toBeTruthy();
+    await expect(fs.stat(slack)).rejects.toThrow();
+
+    const onAppLeftoverRestored = vi.fn();
+    const restored = await restoreTrashEntry({
+      userDataDir,
+      entryId: trashEntryId!,
+      home: fx.home,
+      onAppLeftoverRestored
+    });
+
+    expect(restored.status).toBe("restored");
+    await expect(fs.readFile(cacheFile, "utf8")).resolves.toBe("abc");
+    expect(onAppLeftoverRestored).toHaveBeenCalledWith({
+      name: "Slack",
+      publisher: "Slack Technologies"
+    });
+    const afterRestore = await getTrashSnapshot({
+      userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(afterRestore.entries).toEqual([]);
   });
 
   it("refuses to clean app leftovers when the app was installed again after the plan", async () => {
