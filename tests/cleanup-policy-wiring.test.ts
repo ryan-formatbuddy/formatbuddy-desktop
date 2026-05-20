@@ -225,4 +225,20 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("apps:leftovers startup traces unavailable");
     expect(source).toContain("startupEntries");
   });
+
+  it("closes uninstall follow-ups when a leftover scan finds no remaining evidence", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const leftoversIndex = source.indexOf("ipcMain.handle(IpcChannels.appsLeftovers");
+    const planIndex = source.indexOf("const snapshot = await planAppLeftovers", leftoversIndex);
+    const resolvedIndex = source.indexOf("resolvedUninstallFollowupsWithoutLeftovers", planIndex);
+    const forgetMemoryIndex = source.indexOf("forgetRecentlyUninstallLaunchedApp(resolvedApp)", resolvedIndex);
+    const forgetDiskIndex = source.indexOf("forgetUninstallFollowup(userDataDir, resolvedApp)", resolvedIndex);
+
+    expect(leftoversIndex).toBeGreaterThanOrEqual(0);
+    expect(planIndex).toBeGreaterThan(leftoversIndex);
+    expect(resolvedIndex).toBeGreaterThan(planIndex);
+    expect(forgetMemoryIndex).toBeGreaterThan(resolvedIndex);
+    expect(forgetDiskIndex).toBeGreaterThan(resolvedIndex);
+  });
 });

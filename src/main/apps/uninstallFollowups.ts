@@ -1,9 +1,10 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { InstalledApp } from "@shared/types";
+import type { AppLeftoverGroup, AppLeftoversSnapshot, InstalledApp } from "@shared/types";
 import { normalizePath } from "../cleanup/blocklist";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { RECENT_UNINSTALL_TTL_MS } from "../lastScan";
+import { leftoverRuleLabelForApp } from "./leftovers";
 
 export const UNINSTALL_FOLLOWUPS_FILE = "formatbuddy-uninstall-followups.json";
 
@@ -261,10 +262,59 @@ export function mergeUninstallFollowupApps(...groups: InstalledApp[][]): Install
   return merged;
 }
 
+function groupInstallIdentity(group: AppLeftoverGroup): Pick<InstalledApp, "name" | "publisher"> {
+  return {
+    name: group.sourceAppName?.trim() || group.appName,
+    publisher: group.publisher ?? null
+  };
+}
+
+function groupMatchesFollowupApp(group: AppLeftoverGroup, app: InstalledApp): boolean {
+  return sameFollowupApp(groupInstallIdentity(group), app);
+}
+
+function groupHasExistingLeftoverEvidence(group: AppLeftoverGroup): boolean {
+  return group.paths.some((path) => path.exists);
+}
+
+function followupAppStillInstalled(app: InstalledApp, installedApps: InstalledApp[]): boolean {
+  const appFamily = leftoverRuleLabelForApp(app);
+  return installedApps.some((installedApp) => {
+    if (sameFollowupApp(installedApp, app)) return true;
+    if (norm(installedApp.name) === norm(app.name)) return true;
+    return typeof appFamily === "string" && leftoverRuleLabelForApp(installedApp) === appFamily;
+  });
+}
+
+export function resolvedUninstallFollowupsWithoutLeftovers(
+  snapshot: AppLeftoversSnapshot,
+  followupApps: InstalledApp[],
+  options: { installedAppsKnown: boolean; installedApps: InstalledApp[] }
+): Pick<InstalledApp, "name" | "publisher">[] {
+  if (!options.installedAppsKnown) return [];
+
+  const resolved: Pick<InstalledApp, "name" | "publisher">[] = [];
+  for (const app of followupApps) {
+    const minimal = sanitizeFollowupApp(app);
+    if (!minimal) continue;
+    const hasLeftoverEvidence = snapshot.groups.some(
+      (group) =>
+        group.source === "uninstall-launched" &&
+        groupMatchesFollowupApp(group, minimal) &&
+        groupHasExistingLeftoverEvidence(group)
+    );
+    if (hasLeftoverEvidence) continue;
+    if (followupAppStillInstalled(minimal, options.installedApps)) continue;
+    resolved.push({ name: minimal.name, publisher: minimal.publisher ?? null });
+  }
+  return resolved;
+}
+
 export const __testing = {
   followupsPath,
   sanitizeFollowupApp,
   coerceStore,
   pruneAndDedupe,
-  sameFollowupApp
+  sameFollowupApp,
+  resolvedUninstallFollowupsWithoutLeftovers
 };

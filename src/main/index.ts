@@ -101,7 +101,8 @@ import {
   forgetUninstallFollowup,
   listUninstallFollowups,
   mergeUninstallFollowupApps,
-  rememberUninstallFollowup
+  rememberUninstallFollowup,
+  resolvedUninstallFollowupsWithoutLeftovers
 } from "./apps/uninstallFollowups";
 import {
   clearLastScan,
@@ -1127,11 +1128,25 @@ function registerIpc() {
         log.warn("apps:leftovers startup traces unavailable:", (err as Error).message);
         return [];
       });
-    return planAppLeftovers(cached?.report.installedApps ?? [], {
-      extraApps: mergeUninstallFollowupApps(getRecentlyUninstallLaunchedApps(), persistedFollowups),
+    const followupApps = mergeUninstallFollowupApps(getRecentlyUninstallLaunchedApps(), persistedFollowups);
+    const snapshot = await planAppLeftovers(cached?.report.installedApps ?? [], {
+      extraApps: followupApps,
       installedAppsKnown: Boolean(cached),
       startupEntries
     });
+    const resolvedFollowups = resolvedUninstallFollowupsWithoutLeftovers(snapshot, followupApps, {
+      installedAppsKnown: Boolean(cached),
+      installedApps: cached?.report.installedApps ?? []
+    });
+    await Promise.all(
+      resolvedFollowups.map(async (resolvedApp) => {
+        forgetRecentlyUninstallLaunchedApp(resolvedApp);
+        await forgetUninstallFollowup(userDataDir, resolvedApp).catch((err) => {
+          log.warn("apps:leftovers resolved followup forget failed:", (err as Error).message);
+        });
+      })
+    );
+    return snapshot;
   });
 
   ipcMain.handle(

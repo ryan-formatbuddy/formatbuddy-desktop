@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  __testing,
   forgetUninstallFollowup,
   listUninstallFollowups,
   mergeUninstallFollowupApps,
@@ -17,6 +18,25 @@ import {
   UNINSTALL_FOLLOWUPS_FILE
 } from "../src/main/apps/uninstallFollowups";
 import { RECENT_UNINSTALL_TTL_MS } from "../src/main/lastScan";
+import type { AppLeftoversSnapshot, InstalledApp } from "../src/shared/types";
+
+function leftoverSnapshot(groups: AppLeftoversSnapshot["groups"]): AppLeftoversSnapshot {
+  return {
+    planId: "plan-1",
+    confirmationToken: "token-1",
+    generatedAt: "2026-05-20T10:00:00.000Z",
+    groups
+  };
+}
+
+function leftoverPath(exists: boolean): AppLeftoversSnapshot["groups"][number]["paths"][number] {
+  return {
+    id: exists ? "path-existing" : "path-missing",
+    path: exists ? "C:\\Users\\Ryan\\AppData\\Roaming\\Slack" : "C:\\Users\\Ryan\\AppData\\Roaming\\Missing",
+    kind: "folder",
+    exists
+  };
+}
 
 describe("persisted uninstall follow-ups", () => {
   let userDataDir: string;
@@ -203,5 +223,65 @@ describe("persisted uninstall follow-ups", () => {
     expect(lstatSync(followupFile).isSymbolicLink()).toBe(false);
     expect(existsSync(outsideFile)).toBe(false);
     expect(readFileSync(followupFile, "utf8")).toContain("Slack");
+  });
+
+  it("marks removed follow-ups as resolved when no leftover evidence remains", () => {
+    const followup: InstalledApp = { name: "Slack", publisher: "Slack Technologies" };
+    const snapshot = leftoverSnapshot([
+      {
+        appName: "Slack",
+        publisher: "Slack Technologies",
+        sourceAppName: "Slack",
+        source: "uninstall-launched",
+        cleanupState: "removed-confirmed",
+        paths: [leftoverPath(false)]
+      }
+    ]);
+
+    expect(
+      __testing.resolvedUninstallFollowupsWithoutLeftovers(snapshot, [followup], {
+        installedAppsKnown: true,
+        installedApps: []
+      })
+    ).toEqual([{ name: "Slack", publisher: "Slack Technologies" }]);
+  });
+
+  it("keeps follow-ups open when a leftover path still exists", () => {
+    const followup: InstalledApp = { name: "Slack", publisher: "Slack Technologies" };
+    const snapshot = leftoverSnapshot([
+      {
+        appName: "Slack",
+        publisher: "Slack Technologies",
+        sourceAppName: "Slack",
+        source: "uninstall-launched",
+        cleanupState: "removed-confirmed",
+        paths: [leftoverPath(true)]
+      }
+    ]);
+
+    expect(
+      __testing.resolvedUninstallFollowupsWithoutLeftovers(snapshot, [followup], {
+        installedAppsKnown: true,
+        installedApps: []
+      })
+    ).toEqual([]);
+  });
+
+  it("keeps follow-ups open when install state is unknown or the app family is still installed", () => {
+    const adobe: InstalledApp = { name: "Adobe Photoshop 2024", publisher: "Adobe Inc." };
+    const emptySnapshot = leftoverSnapshot([]);
+
+    expect(
+      __testing.resolvedUninstallFollowupsWithoutLeftovers(emptySnapshot, [adobe], {
+        installedAppsKnown: false,
+        installedApps: []
+      })
+    ).toEqual([]);
+    expect(
+      __testing.resolvedUninstallFollowupsWithoutLeftovers(emptySnapshot, [adobe], {
+        installedAppsKnown: true,
+        installedApps: [{ name: "Adobe Illustrator 2024", publisher: "Adobe Inc." }]
+      })
+    ).toEqual([]);
   });
 });
