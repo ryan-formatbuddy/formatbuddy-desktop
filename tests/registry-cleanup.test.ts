@@ -296,6 +296,44 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("keeps a restorable registry backup when the post-delete key check fails", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      keyExists: vi.fn(async () => {
+        throw new Error("post-delete registry check unavailable");
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      })
+    ).rejects.toThrow(/post-delete registry check unavailable/);
+
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    const backups = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(backups.entries).toHaveLength(1);
+    expect(backups.entries[0]).toMatchObject({
+      keyPath,
+      expiresAt: "2026-06-18T00:00:00.000Z",
+      integrityStatus: "verified"
+    });
+    await expect(readFile(backups.entries[0].backupPath, "utf8")).resolves.toContain(
+      "Windows Registry"
+    );
+  });
+
   it("does not report a registry key cleanup as restorable when the backup file disappears after deletion", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     let exportedBackupPath = "";
@@ -453,6 +491,51 @@ describe("registry leftover cleanup", () => {
 
     expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("keeps a restorable startup value backup when the post-delete value check fails", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      valueExists: vi.fn(async () => {
+        throw new Error("post-delete startup value check unavailable");
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        valueName,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      })
+    ).rejects.toThrow(/post-delete startup value check unavailable/);
+
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    const backups = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(backups.entries).toHaveLength(1);
+    expect(backups.entries[0]).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      expiresAt: "2026-06-18T00:00:00.000Z",
+      integrityStatus: "verified"
+    });
   });
 
   it("does not delete a startup registry value when the value backup fails", async () => {

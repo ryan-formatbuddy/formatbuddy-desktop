@@ -551,6 +551,8 @@ export async function backupAndDeleteRegistryKey(options: {
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
   let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
+  let deleteInvoked = false;
+  let deleteConfirmedIncomplete = false;
 
   try {
     await runner.exportKey(keyPath, backupPath);
@@ -569,12 +571,21 @@ export async function backupAndDeleteRegistryKey(options: {
     };
     await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     await runner.deleteKey(keyPath);
+    deleteInvoked = true;
     if (runner.keyExists && (await runner.keyExists(keyPath))) {
+      deleteConfirmedIncomplete = true;
       throw new Error("Registry key still exists after deletion");
     }
     await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
+    if (
+      deleteInvoked &&
+      !deleteConfirmedIncomplete &&
+      (await hasRestorableRegistryBackupEntry(options.userDataDir, id))
+    ) {
+      throw err;
+    }
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
@@ -611,6 +622,8 @@ export async function backupAndDeleteRegistryValue(options: {
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
   let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
+  let deleteInvoked = false;
+  let deleteConfirmedIncomplete = false;
 
   if (!exportValue || !deleteValue) {
     throw new Error("시작 항목 레지스트리 값을 백업할 준비가 되지 않았어요.");
@@ -640,12 +653,21 @@ export async function backupAndDeleteRegistryValue(options: {
     };
     await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     await deleteValue(keyPath, valueName);
+    deleteInvoked = true;
     if (runner.valueExists && (await runner.valueExists(keyPath, valueName))) {
+      deleteConfirmedIncomplete = true;
       throw new Error("Registry value still exists after deletion");
     }
     await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
+    if (
+      deleteInvoked &&
+      !deleteConfirmedIncomplete &&
+      (await hasRestorableRegistryBackupEntry(options.userDataDir, id))
+    ) {
+      throw err;
+    }
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
@@ -672,6 +694,18 @@ async function assertRegistryBackupEntryStillRestorable(
   const result = await readRegistryBackupEntryForRestore(userDataDir, backupId);
   if (result.kind === "entry") return result.entry;
   throw new Error(result.result.message);
+}
+
+async function hasRestorableRegistryBackupEntry(
+  userDataDir: string,
+  backupId: string
+): Promise<boolean> {
+  try {
+    await assertRegistryBackupEntryStillRestorable(userDataDir, backupId);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 type RegistryBackupReadResult =
