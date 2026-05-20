@@ -18,6 +18,7 @@ import type {
 } from "@shared/types";
 import { classifyInstalledApp, normalizeInstalledAppForDisplay } from "../appInventory";
 import { blockedUninstallMessage, isUnsafeUninstallCommand } from "./uninstaller";
+import { leftoverRuleLabelForApp } from "./leftovers";
 
 const CATEGORY_ORDER: AppManagerCategory[] = [
   "work",
@@ -178,6 +179,11 @@ export function buildAppManagerSnapshot(
         a.categoryLabel.localeCompare(b.categoryLabel, "ko") ||
         a.name.localeCompare(b.name, "ko")
     );
+  const installedLeftoverFamilies = new Set(
+    usable
+      .map(leftoverRuleLabelForApp)
+      .filter((label): label is string => Boolean(label))
+  );
 
   const groups: AppManagerGroup[] = CATEGORY_ORDER.map((category) => {
     const groupItems = items.filter((item) => item.category === category);
@@ -198,11 +204,22 @@ export function buildAppManagerSnapshot(
     recentlyUninstallLaunched: (opts.recentlyUninstallLaunched ?? [])
       .map(normalizeInstalledAppForDisplay)
       .filter((app): app is InstalledApp => app !== null)
-      .map((app) => ({
-        name: app.name,
-        publisher: app.publisher ?? null,
-        stillInstalled: seen.has(appIdentityKey(app)) || seenNames.has(appNameKey(app))
-      }))
+      .map((app) => {
+        const exactStillInstalled = seen.has(appIdentityKey(app)) || seenNames.has(appNameKey(app));
+        const leftoverFamily = leftoverRuleLabelForApp(app);
+        const sharedFamilyStillInstalled =
+          !exactStillInstalled &&
+          typeof leftoverFamily === "string" &&
+          installedLeftoverFamilies.has(leftoverFamily);
+        return {
+          name: app.name,
+          publisher: app.publisher ?? null,
+          stillInstalled: exactStillInstalled || sharedFamilyStillInstalled,
+          ...(sharedFamilyStillInstalled
+            ? { stillInstalledReason: "shared-leftover-family" as const }
+            : {})
+        };
+      })
   };
 }
 

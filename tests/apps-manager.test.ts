@@ -231,6 +231,32 @@ describe("buildAppManagerSnapshot", () => {
       { name: "Slack", publisher: null, stillInstalled: true }
     ]);
   });
+
+  it("marks a recent uninstall as still installed when a sibling app shares the leftover family", () => {
+    const snapshot = buildAppManagerSnapshot(
+      [
+        app({
+          name: "Adobe Illustrator 2024",
+          publisher: "Adobe Inc.",
+          uninstallString: "uninstall.exe"
+        })
+      ],
+      {
+        recentlyUninstallLaunched: [
+          app({ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." })
+        ]
+      }
+    );
+
+    expect(snapshot.recentlyUninstallLaunched).toEqual([
+      {
+        name: "Adobe Photoshop 2024",
+        publisher: "Adobe Inc.",
+        stillInstalled: true,
+        stillInstalledReason: "shared-leftover-family"
+      }
+    ]);
+  });
 });
 
 describe("availability evaluator", () => {

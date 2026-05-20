@@ -22,6 +22,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("방금 제거를 연 앱");
     expect(source).toContain("Windows 기본 제거 창을 열어드려요");
     expect(source).toContain("Windows 제거 창을 끝냈다면");
+    expect(source).toContain("같은 제품군 앱이 남아 있어요");
+    expect(source).toContain("followupInstallStateLabel");
     expect(source).toContain("제거 완료 확인됨");
     expect(source).toContain("다시 점검 후 정리 가능");
     expect(source).not.toContain("마법사");

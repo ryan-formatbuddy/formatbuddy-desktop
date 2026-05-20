@@ -25,6 +25,7 @@ import type {
   AppLeftoversSnapshot,
   AppManagerItem,
   AppManagerSnapshot,
+  AppUninstallFollowUpItem,
   CleanupExecuteResult,
   AppUninstallResult,
   CleanupTrashRestoreResult,
@@ -291,6 +292,14 @@ function uninstallStatusDetailLabel(result: AppUninstallResult): string {
   if (result.status === "no-scan-cache") return "최근 점검 결과가 필요해요";
 
   return detail ? "상세 확인이 필요해요" : "";
+}
+
+function followupInstallStateLabel(app: AppUninstallFollowUpItem): string {
+  if (app.stillInstalledReason === "shared-leftover-family") {
+    return "같은 제품군 앱이 남아 있어요";
+  }
+  if (app.stillInstalled) return "아직 앱 목록에 있어요";
+  return "현재 앱 목록에서는 안 보여요";
 }
 
 interface LeftoverState {
@@ -1238,8 +1247,7 @@ export function AppManager({
                 <strong>{app.name}</strong>
                 {app.publisher && <small style={{ opacity: 0.68 }}> · {app.publisher}</small>}
                 <small style={{ opacity: 0.68 }}>
-                  {" "}
-                  · {app.stillInstalled ? "아직 앱 목록에 있어요" : "현재 앱 목록에서는 안 보여요"}
+                  {" "}· {followupInstallStateLabel(app)}
                 </small>
               </li>
             ))}

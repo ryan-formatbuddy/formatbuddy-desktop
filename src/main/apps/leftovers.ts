@@ -518,8 +518,12 @@ function ruleForApp(app: InstalledApp): LeftoverRule | undefined {
   return RULES.find((rule) => rule.match.test(text));
 }
 
+export function leftoverRuleLabelForApp(app: InstalledApp): string | undefined {
+  return ruleForApp(app)?.appLabel;
+}
+
 function appMatchesRuleLabel(app: InstalledApp, label: string): boolean {
-  return ruleForApp(app)?.appLabel === label;
+  return leftoverRuleLabelForApp(app) === label;
 }
 
 function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {

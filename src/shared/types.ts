@@ -1171,6 +1171,10 @@ export interface AppUninstallFollowUpItem {
   publisher?: string | null;
   /** True when the app still appears in the latest installed-app scan. */
   stillInstalled: boolean;
+  /**
+   * shared-leftover-family: a sibling app shares the same leftover family folder.
+   */
+  stillInstalledReason?: "shared-leftover-family";
 }
 
 export interface AppManagerSnapshot {
