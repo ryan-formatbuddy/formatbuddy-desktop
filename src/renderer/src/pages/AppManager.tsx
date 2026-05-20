@@ -128,6 +128,17 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
   return path.path;
 }
 
+function manualLeftoverReviewHint(path: AppLeftoverPath): string | null {
+  if (!leftoverPathNeedsManualCheck(path)) return null;
+  if (path.startupEntryKind === "service") {
+    return "서비스는 보안·프린터·드라이버와 가까워서 앱에서 바로 지우지 않아요. 시작 항목 화면에서 이름을 다시 확인해주세요.";
+  }
+  if (path.startupEntryKind === "scheduled-task") {
+    return "예약 작업은 업데이트·동기화 조건이 섞여 있어 앱에서 바로 지우지 않아요. 시작 항목 화면에서 이름을 다시 확인해주세요.";
+  }
+  return "시작 항목 화면에서 한 번 더 확인해주세요. 안전하게 확인되지 않은 흔적은 앱에서 바로 지우지 않아요.";
+}
+
 function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const fileOrFolderCount = restorableTrashEntryIds(result).length;
   const backupCount = recoverableRegistryBackupIds(result).length;
@@ -837,40 +848,49 @@ function LeftoverGroupCard({
         )}
       </header>
       <ul style={{ listStyle: "none", padding: 0, marginTop: 8 }}>
-        {group.paths.map((path) => (
-          <li
-            key={path.id}
-            style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "baseline",
-              padding: "6px 0",
-              borderTop: "1px solid rgba(0,0,0,0.05)"
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={selected.has(path.id)}
-              disabled={!cleanupAllowed || !path.exists || Boolean(path.protectedBy)}
-              onChange={(e) => onToggle(path.id, e.target.checked)}
-              aria-label={`${leftoverDisplayPath(path)} 선택`}
-            />
-            <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>
-              {leftoverDisplayPath(path)}
-            </code>
-            <span style={{ fontSize: 12, opacity: 0.7 }}>
-              {leftoverKindLabel(path)}
-            </span>
-            {path.protectedBy && (
-              <span
-                title={path.protectedBy}
-                style={{ fontSize: 11, color: "#a36400" }}
-              >
-                {leftoverPathNeedsManualCheck(path) ? "수동 확인" : "보호됨"}
+        {group.paths.map((path) => {
+          const manualHint = manualLeftoverReviewHint(path);
+          return (
+            <li
+              key={path.id}
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "baseline",
+                flexWrap: "wrap",
+                padding: "6px 0",
+                borderTop: "1px solid rgba(0,0,0,0.05)"
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(path.id)}
+                disabled={!cleanupAllowed || !path.exists || Boolean(path.protectedBy)}
+                onChange={(e) => onToggle(path.id, e.target.checked)}
+                aria-label={`${leftoverDisplayPath(path)} 선택`}
+              />
+              <code style={{ fontSize: 12, flex: 1, wordBreak: "break-all" }}>
+                {leftoverDisplayPath(path)}
+              </code>
+              <span style={{ fontSize: 12, opacity: 0.7 }}>
+                {leftoverKindLabel(path)}
               </span>
-            )}
-          </li>
-        ))}
+              {path.protectedBy && (
+                <span
+                  title={path.protectedBy}
+                  style={{ fontSize: 11, color: "#a36400" }}
+                >
+                  {leftoverPathNeedsManualCheck(path) ? "수동 확인" : "보호됨"}
+                </span>
+              )}
+              {manualHint && (
+                <small style={{ flexBasis: "100%", marginLeft: 24, opacity: 0.72 }}>
+                  {manualHint}
+                </small>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </article>
   );

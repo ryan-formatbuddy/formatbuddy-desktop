@@ -288,6 +288,10 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("수동 확인");
     expect(source).toContain("서비스·예약 작업 같은");
     expect(source).toContain("시작 항목에서 확인");
+    expect(source).toContain("manualLeftoverReviewHint");
+    expect(source).toContain("서비스는 보안·프린터·드라이버와 가까워서 앱에서 바로 지우지 않아요");
+    expect(source).toContain("예약 작업은 업데이트·동기화 조건이 섞여 있어 앱에서 바로 지우지 않아요");
+    expect(source).toContain("안전하게 확인되지 않은 흔적은 앱에서 바로 지우지 않아요");
   });
 
   it("does not show raw IPC errors in app cleanup messages", () => {
