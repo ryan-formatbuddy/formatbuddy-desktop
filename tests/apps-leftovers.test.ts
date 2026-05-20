@@ -390,6 +390,28 @@ describe("planAppLeftovers", () => {
     expect(parentStat.isSymbolicLink()).toBe(true);
   });
 
+  it("keeps an unverified app-leftover trash move when a new item already exists at the original path", async () => {
+    const userDataDir = join(fx.root, "userdata");
+    const entryId = "entry-target-exists";
+    const originalPath = join(fx.roaming, "Acme Notes", "cache.bin");
+    const storedPath = trashTesting.storedPathFor(userDataDir, entryId, originalPath);
+    await fs.mkdir(dirname(storedPath), { recursive: true });
+    await fs.mkdir(dirname(originalPath), { recursive: true });
+    await fs.writeFile(storedPath, "original cached data", "utf8");
+    await fs.writeFile(originalPath, "new data at original path", "utf8");
+
+    await leftoversTesting.cleanupUnverifiedTrashMove({
+      userDataDir,
+      originalPath,
+      trashEntry: { id: entryId, storedPath },
+      rollbackBoundary: fx.home
+    });
+
+    await expect(fs.readFile(originalPath, "utf8")).resolves.toBe("new data at original path");
+    await expect(fs.readFile(storedPath, "utf8")).resolves.toBe("original cached data");
+    await expect(fs.stat(trashTesting.entryDir(userDataDir, entryId))).resolves.toBeTruthy();
+  });
+
   it("finds nested publisher/app folders for apps outside the built-in dictionary", async () => {
     const nestedRoaming = join(fx.roaming, "Acme Corp", "Acme Notes");
     const nestedLocal = join(fx.localAppData, "Acme", "AcmeNotes");

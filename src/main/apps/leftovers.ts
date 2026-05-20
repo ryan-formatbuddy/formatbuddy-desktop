@@ -1460,9 +1460,8 @@ async function cleanupUnverifiedTrashMove(options: {
     () => true,
     () => false
   );
-  if (!originalExists) {
-    await movePathBestEffort(trashEntry.storedPath, options.originalPath);
-  }
+  if (originalExists) return;
+  await movePathBestEffort(trashEntry.storedPath, options.originalPath);
 
   const entryRoot = dirname(dirname(trashEntry.storedPath));
   await fs.rm(entryRoot, { recursive: true, force: true }).catch(() => {});
