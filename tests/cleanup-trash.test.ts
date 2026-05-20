@@ -531,7 +531,8 @@ describe("FormatBuddy Trash", () => {
     ["item size negative", () => ({ sizeBytes: -1 })],
     ["item size non-finite", () => ({ sizeBytes: Number.NaN })],
     ["category", () => ({ categoryId: "" })],
-    ["category padded", () => ({ categoryId: " temp-user" })]
+    ["category padded", () => ({ categoryId: " temp-user" })],
+    ["category unknown", () => ({ categoryId: "unknown-cleanup-category" })]
   ] as Array<[string, (source: string) => Partial<Record<keyof CleanupItem, unknown>>]>)(
     "refuses to create a restore-bin entry from unusable cleanup metadata: %s",
     async (_label, makePatch) => {
@@ -2216,6 +2217,25 @@ describe("FormatBuddy Trash", () => {
       );
     }
   );
+
+  it("rejects unknown trash category ids while coercing stored metadata", () => {
+    const entry = {
+      id: "safe-entry",
+      itemId: "item-1",
+      originalPath: join(fx.home, "restored.tmp"),
+      storedPath: join(__testing.itemsRoot(fx.userData), "safe-entry", "files", "old.tmp"),
+      label: "old.tmp",
+      categoryId: "unknown-cleanup-category",
+      sizeBytes: 5,
+      createdAt: "2026-05-19T00:00:00.000Z",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    };
+
+    expect(__testing.coerceEntry(entry)).toBeNull();
+    expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual(
+      []
+    );
+  });
 
   it.each([
     ["itemId", ""],

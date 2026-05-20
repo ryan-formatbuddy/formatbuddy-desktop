@@ -14,6 +14,7 @@ import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } fr
 import { createHash, randomUUID } from "node:crypto";
 import { basename, dirname, join, parse, relative, resolve } from "node:path";
 import type {
+  CleanupCategoryId,
   CleanupItem,
   CleanupTrashEntry,
   CleanupTrashPurgeResult,
@@ -31,6 +32,16 @@ const TRASH_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 const TRASH_DIR = "formatbuddy-trash";
 const ITEMS_DIR = "items";
 const INDEX_FILE = "trash-index.json";
+const CLEANUP_CATEGORY_IDS = [
+  "recycle-bin",
+  "temp-user",
+  "temp-windows",
+  "browser-cache",
+  "windows-old",
+  "downloads-installers",
+  "large-files",
+  "app-leftovers"
+] as const satisfies readonly CleanupCategoryId[];
 
 interface PersistedTrashIndex {
   version: 1;
@@ -198,6 +209,13 @@ function isUsableSizeBytes(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+function isCleanupCategoryId(value: unknown): value is CleanupCategoryId {
+  return (
+    typeof value === "string" &&
+    CLEANUP_CATEGORY_IDS.includes(value as CleanupCategoryId)
+  );
+}
+
 function isValidContentHash(value: unknown): value is NonNullable<CleanupTrashEntry["contentHash"]> {
   if (!value || typeof value !== "object") return false;
   const raw = value as Partial<NonNullable<CleanupTrashEntry["contentHash"]>>;
@@ -238,7 +256,7 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!isStrictMetadataString(raw.originalPath)) return null;
   if (!isStrictMetadataString(raw.storedPath)) return null;
   if (!isUsableMetadataString(raw.label)) return null;
-  if (!isStrictMetadataString(raw.categoryId)) return null;
+  if (!isCleanupCategoryId(raw.categoryId)) return null;
   if (typeof raw.sizeBytes !== "number" || !Number.isFinite(raw.sizeBytes)) return null;
   if (!validIso(raw.createdAt)) return null;
   if (!validIso(raw.expiresAt)) return null;
@@ -281,6 +299,10 @@ function assertUsableCleanupItemMetadata(item: CleanupItem): void {
   const invalidStrict = strictRequired.find(([, value]) => !isStrictMetadataString(value));
   if (invalidStrict) {
     throw new Error(`cleanup-trash refuses unusable source metadata: ${invalidStrict[0]}`);
+  }
+
+  if (!isCleanupCategoryId(item.categoryId)) {
+    throw new Error("cleanup-trash refuses unusable source metadata: category");
   }
 
   const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
