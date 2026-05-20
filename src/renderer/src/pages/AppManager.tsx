@@ -293,7 +293,9 @@ function LeftoverPanel({
   }
   if (!state.snapshot) return null;
   const restorableCount = result
-    ? restorableTrashEntryIds(result).length + restorableRegistryBackupIds(result).length
+    ? restorableTrashEntryIds(result).length +
+      restorableRegistryBackupIds(result).length +
+      restorableStartupDisabledIds(result).length
     : 0;
   const cleanedCount = result
     ? result.removedItems.filter((item) => item.succeeded).length
@@ -313,8 +315,8 @@ function LeftoverPanel({
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         Windows가 앱을 제거해도 남는 경우가 있는 폴더와 앱 삭제 흔적 후보예요. 직접 고른
-        항목만 정리하고, 폴더는 복구함에 30일 동안 보관해요. 앱 삭제 흔적도 30일 동안
-        되돌릴 수 있게 백업해요.
+        항목만 정리하고, 폴더와 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
+        30일 동안 되돌릴 수 있게 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.

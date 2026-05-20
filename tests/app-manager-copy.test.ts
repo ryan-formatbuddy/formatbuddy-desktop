@@ -37,11 +37,21 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("? \"레지스트리\"");
     expect(source).not.toContain("앱 삭제 흔적은 백업 후 처리해요");
     expect(source).toContain("앱 삭제 흔적도 30일 안에 되돌릴 수 있게 챙겨요");
-    expect(source).toContain("앱 삭제 흔적도 30일 동안");
+    expect(source).toContain("30일 동안 되돌릴 수 있게 백업해요");
     expect(source).toContain("폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("시작 항목");
     expect(source).not.toContain("시작 레지스트리");
     expect(source).toContain("시작 흔적");
+  });
+
+  it("counts startup holding items when deciding whether recent cleanup can be undone", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("const restorableCount = result");
+    expect(source).toContain("restorableTrashEntryIds(result).length +");
+    expect(source).toContain("restorableRegistryBackupIds(result).length +");
+    expect(source).toContain("restorableStartupDisabledIds(result).length");
+    expect(source).toContain("{restorableCount > 0 && (");
   });
 
   it("keeps recent app-leftover restore moving when one item fails", () => {
@@ -104,6 +114,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("잔여 폴더");
     expect(source).toContain("앱 삭제 흔적/시작 항목 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
+    expect(source).toContain("폴더와 시작 항목은 복구함에 30일 동안 보관해요");
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
   });
 
