@@ -22,6 +22,9 @@ describe("runUninstall", () => {
 
   it("exposes whether a request is launchable before taking a restore point", () => {
     expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "win32")).toBe(true);
+    expect(
+      canLaunchUninstall(null as unknown as Parameters<typeof canLaunchUninstall>[0], baseApp, "win32")
+    ).toBe(false);
     expect(canLaunchUninstall({ appName: " Slack" }, baseApp, "win32")).toBe(false);
     expect(canLaunchUninstall({ appName: "Slack\nBeta" }, baseApp, "win32")).toBe(false);
     expect(
@@ -62,6 +65,13 @@ describe("runUninstall", () => {
         "win32"
       )
     ).toBe(false);
+    expect(
+      canLaunchUninstall(
+        { appName: "Broken" },
+        { ...baseApp, name: "Broken", uninstallString: 123 as unknown as string },
+        "win32"
+      )
+    ).toBe(false);
   });
 
   it("blocks malformed uninstall requests before app lookup or process spawn", async () => {
@@ -77,6 +87,40 @@ describe("runUninstall", () => {
     expect(result.message).toMatch(/앱 제거 대상/);
     expect(result.detail).toBe("invalid-uninstall-request");
     expect(findApp).not.toHaveBeenCalled();
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("blocks non-object uninstall requests before app lookup or process spawn", async () => {
+    const findApp = vi.fn(() => baseApp);
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(null as unknown as Parameters<typeof runUninstall>[0], {
+      findApp,
+      spawnCmd,
+      platform: "win32"
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(result.appName).toBe("선택한 앱");
+    expect(result.message).toMatch(/앱 제거 대상/);
+    expect(result.detail).toBe("invalid-uninstall-request");
+    expect(findApp).not.toHaveBeenCalled();
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("blocks corrupted uninstall command values before process spawn", async () => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "Broken" },
+      {
+        findApp: () => ({ ...baseApp, name: "Broken", uninstallString: 123 as unknown as string }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/Windows 제거 명령/);
+    expect(result.detail).toBe("invalid-uninstall-command");
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 

@@ -226,6 +226,16 @@ function validateUninstallRequest(request: AppUninstallRequest):
   return { ok: true };
 }
 
+function readUninstallCommand(
+  app: InstalledApp
+): { status: "ok"; command: string } | { status: "missing" | "invalid" } {
+  const value = (app as { uninstallString?: unknown }).uninstallString;
+  if (value === undefined || value === null) return { status: "missing" };
+  if (typeof value !== "string") return { status: "invalid" };
+  if (!value.trim()) return { status: "missing" };
+  return { status: "ok", command: value };
+}
+
 export function isUnsafeUninstallCommand(command: string): boolean {
   return unsafeUninstallCommandKind(command) !== null;
 }
@@ -286,8 +296,8 @@ export function canLaunchUninstall(
   if (request.mode === "quiet") return false;
   if (!app) return false;
   if (app.systemComponent === true) return false;
-  const chosen = app.uninstallString || "";
-  return chosen.trim().length > 0 && !isUnsafeUninstallCommand(chosen);
+  const chosen = readUninstallCommand(app);
+  return chosen.status === "ok" && !isUnsafeUninstallCommand(chosen.command);
 }
 
 function cmdArgsForUninstall(command: string): string[] {
@@ -357,9 +367,17 @@ export async function runUninstall(
       detail: "quiet-uninstall-blocked"
     };
   }
-  const chosen = app.uninstallString || "";
+  const chosen = readUninstallCommand(app);
 
-  if (!chosen.trim()) {
+  if (chosen.status !== "ok") {
+    if (chosen.status === "invalid") {
+      return {
+        status: "blocked",
+        appName: request.appName,
+        message: "Windows 제거 명령을 확인하지 못했어요. 다시 점검한 뒤 시도해주세요.",
+        detail: "invalid-uninstall-command"
+      };
+    }
     return {
       status: "no-uninstall-string",
       appName: request.appName,
@@ -367,17 +385,17 @@ export async function runUninstall(
     };
   }
 
-  if (isUnsafeUninstallCommand(chosen)) {
+  if (isUnsafeUninstallCommand(chosen.command)) {
     return {
       status: "blocked",
       appName: request.appName,
-      message: blockedUninstallMessage(chosen),
+      message: blockedUninstallMessage(chosen.command),
       detail: "unsafe-uninstall-command"
     };
   }
 
   try {
-    const result = await (deps.spawnCmd ?? defaultSpawn)(chosen);
+    const result = await (deps.spawnCmd ?? defaultSpawn)(chosen.command);
     return {
       status: "launched",
       appName: request.appName,
