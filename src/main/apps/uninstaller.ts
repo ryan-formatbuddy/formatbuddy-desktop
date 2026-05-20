@@ -173,6 +173,49 @@ function hasSilentUninstallSwitch(command: string): boolean {
     });
 }
 
+function isStrictDisplayString(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function isOptionalStrictDisplayString(value: unknown): value is string | null | undefined {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "string") return false;
+  if (value.length === 0) return true;
+  return value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+function invalidRequestResult(message: string): AppUninstallResult {
+  return {
+    status: "blocked",
+    appName: "선택한 앱",
+    message,
+    detail: "invalid-uninstall-request"
+  };
+}
+
+function validateUninstallRequest(request: AppUninstallRequest):
+  | { ok: true }
+  | { ok: false; result: AppUninstallResult } {
+  if (!isStrictDisplayString(request?.appName)) {
+    return {
+      ok: false,
+      result: invalidRequestResult("앱 제거 대상을 확인하지 못했어요. 다시 점검한 뒤 앱을 선택해주세요.")
+    };
+  }
+  if (!isOptionalStrictDisplayString(request.publisher)) {
+    return {
+      ok: false,
+      result: invalidRequestResult("앱 제거 정보를 확인하지 못했어요. 다시 점검한 뒤 앱을 선택해주세요.")
+    };
+  }
+  return { ok: true };
+}
+
 export function isUnsafeUninstallCommand(command: string): boolean {
   return unsafeUninstallCommandKind(command) !== null;
 }
@@ -229,6 +272,7 @@ export function canLaunchUninstall(
   platform: NodeJS.Platform = process.platform
 ): boolean {
   if (platform !== "win32") return false;
+  if (!validateUninstallRequest(request).ok) return false;
   if (request.mode === "quiet") return false;
   if (!app) return false;
   if (app.systemComponent === true) return false;
@@ -264,6 +308,9 @@ export async function runUninstall(
   deps: UninstallerDeps
 ): Promise<AppUninstallResult> {
   const platform = deps.platform ?? process.platform;
+  const requestValidation = validateUninstallRequest(request);
+  if (!requestValidation.ok) return requestValidation.result;
+
   if (platform !== "win32") {
     return {
       status: "blocked",

@@ -22,6 +22,15 @@ describe("runUninstall", () => {
 
   it("exposes whether a request is launchable before taking a restore point", () => {
     expect(canLaunchUninstall({ appName: "Slack" }, baseApp, "win32")).toBe(true);
+    expect(canLaunchUninstall({ appName: " Slack" }, baseApp, "win32")).toBe(false);
+    expect(canLaunchUninstall({ appName: "Slack\nBeta" }, baseApp, "win32")).toBe(false);
+    expect(
+      canLaunchUninstall(
+        { appName: "Slack", publisher: " Slack Technologies" },
+        baseApp,
+        "win32"
+      )
+    ).toBe(false);
     expect(canLaunchUninstall({ appName: "Slack", mode: "quiet" }, baseApp, "win32")).toBe(false);
     expect(
       canLaunchUninstall(
@@ -46,6 +55,37 @@ describe("runUninstall", () => {
         "win32"
       )
     ).toBe(false);
+  });
+
+  it("blocks malformed uninstall requests before app lookup or process spawn", async () => {
+    const findApp = vi.fn(() => baseApp);
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: " Slack\n", publisher: "Slack Technologies" },
+      { findApp, spawnCmd, platform: "win32" }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.appName).toBe("선택한 앱");
+    expect(result.message).toMatch(/앱 제거 대상/);
+    expect(result.detail).toBe("invalid-uninstall-request");
+    expect(findApp).not.toHaveBeenCalled();
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("blocks malformed uninstall publishers before app lookup or process spawn", async () => {
+    const findApp = vi.fn(() => baseApp);
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "Slack", publisher: " Slack Technologies" },
+      { findApp, spawnCmd, platform: "win32" }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/앱 제거 정보/);
+    expect(result.detail).toBe("invalid-uninstall-request");
+    expect(findApp).not.toHaveBeenCalled();
+    expect(spawnCmd).not.toHaveBeenCalled();
   });
 
   it("launches Windows uninstaller via cmd.exe in interactive mode", async () => {
