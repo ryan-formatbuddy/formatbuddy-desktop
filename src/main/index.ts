@@ -1144,6 +1144,17 @@ function registerIpc() {
         await forgetUninstallFollowup(userDataDir, resolvedApp).catch((err) => {
           log.warn("apps:leftovers resolved followup forget failed:", (err as Error).message);
         });
+        await appendAuditEntry(userDataDir, {
+          category: "uninstall",
+          action: "uninstall-followup-resolved",
+          summary: `"${resolvedApp.name}" 잔여 항목을 확인했어요. 남은 흔적이 없어 확인 목록에서 내렸어요.`,
+          detail: {
+            appName: resolvedApp.name,
+            publisher: resolvedApp.publisher ?? null
+          }
+        }).catch((err) => {
+          log.warn("audit append (resolved uninstall followup) failed:", (err as Error).message);
+        });
       })
     );
     return snapshot;

@@ -234,11 +234,14 @@ describe("cleanup policy wiring", () => {
     const resolvedIndex = source.indexOf("resolvedUninstallFollowupsWithoutLeftovers", planIndex);
     const forgetMemoryIndex = source.indexOf("forgetRecentlyUninstallLaunchedApp(resolvedApp)", resolvedIndex);
     const forgetDiskIndex = source.indexOf("forgetUninstallFollowup(userDataDir, resolvedApp)", resolvedIndex);
+    const auditIndex = source.indexOf('action: "uninstall-followup-resolved"', resolvedIndex);
 
     expect(leftoversIndex).toBeGreaterThanOrEqual(0);
     expect(planIndex).toBeGreaterThan(leftoversIndex);
     expect(resolvedIndex).toBeGreaterThan(planIndex);
     expect(forgetMemoryIndex).toBeGreaterThan(resolvedIndex);
     expect(forgetDiskIndex).toBeGreaterThan(resolvedIndex);
+    expect(auditIndex).toBeGreaterThan(forgetDiskIndex);
+    expect(source).toContain("남은 흔적이 없어 확인 목록에서 내렸어요");
   });
 });
