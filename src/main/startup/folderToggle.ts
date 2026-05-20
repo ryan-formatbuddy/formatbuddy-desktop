@@ -62,14 +62,17 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-export function isSafeStartupDisabledId(disabledId: string): boolean {
+export function isSafeStartupDisabledId(disabledId: unknown): disabledId is string {
   return (
+    typeof disabledId === "string" &&
     disabledId.length > 0 &&
+    disabledId.trim() === disabledId &&
     disabledId !== "." &&
     disabledId !== ".." &&
+    !/\s/.test(disabledId) &&
     !disabledId.includes("/") &&
     !disabledId.includes("\\") &&
-    !disabledId.includes("\0")
+    !/[\u0000-\u001f\u007f]/.test(disabledId)
   );
 }
 

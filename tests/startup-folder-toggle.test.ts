@@ -9,7 +9,8 @@ import {
   disableStartupFolderEntry,
   listDisabledStartupFolderEntries,
   purgeExpiredStartupFolderEntries,
-  restoreStartupFolderEntry
+  restoreStartupFolderEntry,
+  __testing
 } from "../src/main/startup/folderToggle";
 
 function makeFixture() {
@@ -262,6 +263,50 @@ describe("startup folder toggle", () => {
     expect(restored.status).toBe("target-exists");
     expect(readFileSync(source, "utf8")).toBe("new shortcut");
     expect(existsSync(disabled.entry!.storedPath)).toBe(true);
+  });
+
+  it("refuses unsafe disabled startup ids without reading holding metadata", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    const unsafeIds = [
+      "../outside",
+      "startup/id",
+      "startup\\id",
+      "  ",
+      " startup-1",
+      "startup-1 ",
+      "startup 1",
+      "startup\nid",
+      undefined as unknown as string
+    ];
+
+    for (const disabledId of unsafeIds) {
+      const restored = await restoreStartupFolderEntry({
+        userDataDir: fx.userDataDir,
+        disabledId
+      });
+
+      expect(restored.status).toBe("not-found");
+    }
+  });
+
+  it("does not coerce disabled startup metadata with unsafe ids", () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    for (const id of ["../outside", "", "  ", "bad id", "bad\nid", "bad\\id"]) {
+      expect(
+        __testing.coerceDisabledEntry({
+          id,
+          entryId: "startup-folder|app",
+          name: "App.lnk",
+          originalPath: join(fx.startupDir, "App.lnk"),
+          storedPath: join(fx.userDataDir, "formatbuddy-startup-disabled", "items", "safe", "files", "App.lnk"),
+          origin: fx.startupDir,
+          disabledAt: "2026-05-20T10:00:00.000Z",
+          expiresAt: "2026-06-19T10:00:00.000Z"
+        })
+      ).toBeNull();
+    }
   });
 
   it("does not trust a tampered restore record outside the managed holding area", async () => {
