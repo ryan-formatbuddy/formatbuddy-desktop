@@ -3,7 +3,12 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { chmod, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { CleanupItem, CleanupTrashEntry, CleanupTrashSnapshot } from "../src/shared/types";
+import type {
+  CleanupItem,
+  CleanupTrashEntry,
+  CleanupTrashRestoreResult,
+  CleanupTrashSnapshot
+} from "../src/shared/types";
 import { summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
@@ -787,6 +792,36 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("restored");
     expect(await readFile(source, "utf8")).toBe("hello");
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("reports restore success when only the final index write fails", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+
+    const trashRoot = __testing.trashRoot(fx.userData);
+    await chmod(trashRoot, 0o500);
+    let result: CleanupTrashRestoreResult;
+    try {
+      result = await restoreTrashEntry({
+        userDataDir: fx.userData,
+        entryId: entry.id
+      });
+    } finally {
+      await chmod(trashRoot, 0o700).catch(() => {});
+    }
+
+    expect(result.status).toBe("restored");
+    expect(await readFile(source, "utf8")).toBe("hello");
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(false);
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
   });

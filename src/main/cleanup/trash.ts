@@ -1072,7 +1072,7 @@ export async function restoreTrashEntry(
       throw new Error("Restore entry still exists after restore");
     }
     index.entries = index.entries.filter((e) => e.id !== entry.id);
-    await saveIndex(options.userDataDir, index);
+    await saveIndexOrKeepManifestFallback(options.userDataDir, index);
     await notifyAppLeftoverRestored(options, entry);
     return {
       entryId: entry.id,
