@@ -531,6 +531,64 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("rejects unsafe uninstall registry key paths before consuming the leftover plan", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          registryKeyPath
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    const originalPath = path.path;
+    path.path = "HKCU\\Software\\Acme Notes";
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, "Windows Registry Editor Version 5.00", "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        {
+          userDataDir: join(fx.root, "userdata"),
+          registryRunner
+        }
+      )
+    ).rejects.toThrow(/leftover plan metadata|uninstall registry key|registry key/);
+
+    expect(registryRunner.exportKey).not.toHaveBeenCalled();
+    expect(registryRunner.deleteKey).not.toHaveBeenCalled();
+
+    path.path = originalPath;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
   it("moves a selected startup-folder trace into the 30-day trash after uninstall follow-up", async () => {
     const startupShortcut = join(
       fx.roaming,

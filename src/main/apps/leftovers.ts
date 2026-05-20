@@ -1036,6 +1036,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     ) {
       invalid.push("startup registry value");
     }
+    if (path.kind === "registry" && !isSafeUninstallRegistryKeyPath(path.path)) {
+      invalid.push("uninstall registry key");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
