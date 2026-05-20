@@ -12,12 +12,17 @@ const baseApp: InstalledApp = {
 };
 
 describe("runUninstall", () => {
-  it("builds cmd.exe arguments with AutoRun disabled for the default launcher", () => {
-    expect(__testing.cmdArgsForUninstall('"C:\\Program Files\\Slack\\unins000.exe"')).toEqual([
-      "/d",
-      "/c",
-      '"C:\\Program Files\\Slack\\unins000.exe"'
-    ]);
+  it("builds a direct spawn spec instead of routing uninstall strings through cmd.exe", () => {
+    expect(__testing.spawnSpecForUninstall('"C:\\Program Files\\Slack\\unins000.exe" /remove')).toEqual({
+      executable: "C:\\Program Files\\Slack\\unins000.exe",
+      args: ["/remove"]
+    });
+    expect(__testing.spawnSpecForUninstall("MsiExec.exe /X{12345678-1234-1234-1234-123456789012}")).toEqual({
+      executable: "MsiExec.exe",
+      args: ["/X{12345678-1234-1234-1234-123456789012}"]
+    });
+    expect(__testing.defaultSpawn.toString()).not.toContain("cmd.exe");
+    expect(__testing.defaultSpawn.toString()).toContain("shell: false");
   });
 
   it("exposes whether a request is launchable before taking a restore point", () => {

@@ -1,16 +1,15 @@
 /**
  * App uninstaller — launches Windows' own uninstall flow.
  *
- * Why cmd.exe and not direct spawn?
+ * Why a small parser and direct spawn?
  *   Windows UninstallString values are routinely shell-quoted command
  *   lines, e.g.
  *     "C:\Program Files (x86)\Foo\unins000.exe"
  *     MsiExec.exe /X{12345678-…}
- *     "C:\Windows\System32\rundll32.exe" appwiz.cpl,...
- *   Splitting these reliably without cmd.exe means re-implementing the
- *   Windows command parser. cmd /c does it for us, and we never
- *   accept the string from the renderer — only the (name, publisher)
- *   pair, which we look up in the in-memory scan cache.
+ *   We only support a deliberately narrow subset: a local executable
+ *   path (or msiexec) plus plain arguments. Anything that needs shell
+ *   interpretation, scripts, remote paths, or silent switches is blocked
+ *   and routed back to Windows Settings.
  *
  * Safety checks before we spawn:
  *   - the app must be in the cached scan (renderer cannot inject one)
@@ -19,8 +18,8 @@
  *   - it must not include cmd control, expansion, or escape syntax
  *   - it must not go through shell built-ins or DLL/script runner hosts
  *   - it must not include silent/quiet uninstall switches
- *   - cmd.exe runs with /d so user/machine AutoRun hooks cannot
- *     prepend unrelated commands before the uninstall window
+ *   - no cmd.exe / shell is used; accepted commands are split into
+ *     executable + args and spawned directly
  *   - we never run quietUninstallString; FormatBuddy only opens the
  *     interactive Windows uninstall window so the user can confirm
  *
@@ -38,7 +37,7 @@ import type {
 export interface UninstallerDeps {
   /** Look up an app by display name (and optional publisher) in the cached scan. */
   findApp: (request: AppUninstallRequest) => InstalledApp | undefined;
-  /** Spawn a cmd.exe instance with the given UninstallString. */
+  /** Test hook for the already-validated UninstallString. Product default avoids cmd.exe. */
   spawnCmd?: (command: string) => Promise<{ pid?: number }>;
   /** Optional override so tests can pretend platform === 'win32'. */
   platform?: NodeJS.Platform;
@@ -359,17 +358,26 @@ export function canLaunchUninstall(
   return chosen.status === "ok" && !isUnsafeUninstallCommand(chosen.command);
 }
 
-function cmdArgsForUninstall(command: string): string[] {
-  return ["/d", "/c", command];
+function spawnSpecForUninstall(command: string): { executable: string; args: string[] } | null {
+  const tokens = commandTokens(command);
+  const executable = tokens[0];
+  if (!executable) return null;
+  return { executable, args: tokens.slice(1) };
 }
 
 async function defaultSpawn(command: string): Promise<{ pid?: number }> {
   return await new Promise((resolveSpawn, rejectSpawn) => {
     try {
-      const child = spawn("cmd.exe", cmdArgsForUninstall(command), {
+      const spec = spawnSpecForUninstall(command);
+      if (!spec) {
+        rejectSpawn(new Error("Invalid uninstall command"));
+        return;
+      }
+      const child = spawn(spec.executable, spec.args, {
         detached: true,
         stdio: "ignore",
-        windowsHide: false
+        windowsHide: false,
+        shell: false
       });
       child.on("error", rejectSpawn);
       // detached + unref so quitting FormatBuddy doesn't kill the
@@ -473,9 +481,9 @@ export async function runUninstall(
 
 export const __testing = {
   blockedUninstallMessage,
-  cmdArgsForUninstall,
   defaultSpawn,
   hasUnsafeShellControl: isUnsafeUninstallCommand,
   isUnsafeUninstallCommand,
+  spawnSpecForUninstall,
   unsafeUninstallCommandKind
 };
