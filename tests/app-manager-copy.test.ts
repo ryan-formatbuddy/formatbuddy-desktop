@@ -80,6 +80,17 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("{result.removedItems.length}개를 정리했어요");
   });
 
+  it("explains app-leftover cleanup results by restorable folders and backups", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("appLeftoverResultLines");
+    expect(source).toContain("const folderCount = restorableTrashEntryIds(result).length");
+    expect(source).toContain("const backupCount = restorableRegistryBackupIds(result).length");
+    expect(source).toContain("잔여 폴더");
+    expect(source).toContain("앱 삭제 흔적/시작 항목 백업");
+    expect(source).toContain("30일 안에 되돌릴 수 있어요");
+  });
+
   it("includes failed app-leftover removed items in the failed or skipped count", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

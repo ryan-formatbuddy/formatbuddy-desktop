@@ -97,6 +97,27 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
   return path.path;
 }
 
+function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
+  const folderCount = restorableTrashEntryIds(result).length;
+  const backupCount = restorableRegistryBackupIds(result).length;
+  const untouchedCount =
+    result.removedItems.filter((item) => !item.succeeded).length +
+    result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+  const lines: string[] = [];
+
+  if (folderCount > 0) {
+    lines.push(`잔여 폴더 ${folderCount}개는 복구함에 30일 동안 보관해요.`);
+  }
+  if (backupCount > 0) {
+    lines.push(`앱 삭제 흔적/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+  }
+  if (untouchedCount > 0) {
+    lines.push(`건드리지 않은 항목 ${untouchedCount}개는 그대로 뒀어요.`);
+  }
+
+  return lines;
+}
+
 interface LeftoverState {
   loading: boolean;
   snapshot?: AppLeftoversSnapshot;
@@ -261,6 +282,7 @@ function LeftoverPanel({
   const skippedCount = result
     ? result.skippedItems.filter((item) => item.reason !== "not-selected").length
     : 0;
+  const resultLines = result ? appLeftoverResultLines(result) : [];
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
   const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
@@ -344,6 +366,13 @@ function LeftoverPanel({
               {cleanedCount}개를 정리했어요. 실패/건너뜀{" "}
               {failedRemovedCount + skippedCount}개.
             </p>
+            {resultLines.length > 0 && (
+              <ul style={{ fontSize: 12, opacity: 0.78, margin: "0 0 8px", paddingLeft: 18 }}>
+                {resultLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            )}
             {result.logPersistenceWarning && (
               <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
                 정리 결과는 처리됐지만 활동 기록 저장은 못 했어요. 앱을 다시 열어 기록 화면을 확인해주세요.
