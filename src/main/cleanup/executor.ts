@@ -66,7 +66,7 @@ export interface ExecutorDeps {
     item: CleanupItem,
     sizeBytes: number,
     context: { userDataDir: string; home?: string; now?: () => Date }
-  ) => Promise<{ id: string; expiresAt: string; storedPath: string } | undefined>;
+  ) => Promise<{ id: string; expiresAt: string; storedPath: string; sizeBytes?: number } | undefined>;
   /** Permanently delete a file or directory tree. */
   permanentRemove: (path: string) => Promise<void>;
   /** Stat a path on disk; returns null if missing. */
@@ -248,6 +248,17 @@ function cleanExecuteFailureDetail(err: unknown): string {
     .replace(/\s+/g, " ")
     .trim();
   return (cleaned || "정리 중 문제가 생겼어요.").slice(0, MAX_EXECUTE_FAILURE_DETAIL_LENGTH);
+}
+
+function finalTrashSizeBytes(
+  trashEntry: { sizeBytes?: number } | undefined,
+  fallbackSizeBytes: number
+): number {
+  if (trashEntry?.sizeBytes === undefined) return fallbackSizeBytes;
+  if (!Number.isFinite(trashEntry.sizeBytes) || trashEntry.sizeBytes < 0) {
+    throw new Error("FormatBuddy restore entry size is not safe");
+  }
+  return Math.max(0, Math.round(trashEntry.sizeBytes));
 }
 
 function cleanupItemWithDisplayMetadata(item: CleanupItem): CleanupItem | null {
@@ -635,6 +646,7 @@ async function attemptItem(
 
   try {
     const trashEntry = mode === "trash" ? await deps.trashItem(cleanupItem, actualSize, context) : undefined;
+    const finalSizeBytes = mode === "trash" ? finalTrashSizeBytes(trashEntry, actualSize) : actualSize;
     if (mode === "trash") {
       if (!trashEntry?.id) {
         throw new Error("FormatBuddy restore entry was not created");
@@ -673,7 +685,7 @@ async function attemptItem(
         entryId: trashEntry.id,
         itemId: cleanupItem.id,
         categoryId: cleanupItem.categoryId,
-        sizeBytes: actualSize,
+        sizeBytes: finalSizeBytes,
         originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt,
@@ -684,7 +696,7 @@ async function attemptItem(
       removed: {
         itemId: cleanupItem.id,
         path: cleanupItem.path,
-        sizeBytes: actualSize,
+        sizeBytes: finalSizeBytes,
         categoryId: cleanupItem.categoryId,
         mode,
         succeeded: true,

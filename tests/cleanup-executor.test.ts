@@ -122,7 +122,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
         "utf8"
       );
       await fs.rm(item.path, { recursive: true, force: true });
-      return { id: entryId, expiresAt: trashExpiresAt, storedPath };
+      return { id: entryId, expiresAt: trashExpiresAt, storedPath, sizeBytes };
     },
     permanentRemove: async (p) => {
       permanently.push(p);
@@ -203,6 +203,68 @@ describe("executeCleanup", () => {
       skippedCount: 0,
       notSelectedCount: 1
     });
+  });
+
+  it("records the final restore-bin size when a file changes between measurement and trash move", async () => {
+    const targetFile = join(fx.tempDir, "changing-cache.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const finalText = "y".repeat(8192);
+    const finalSizeBytes = Buffer.byteLength(finalText);
+    const entryId = "trash-changing-cache";
+    const storedPath = join(fx.userData, "formatbuddy-trash", "items", entryId, "files", "changing-cache.tmp");
+    const expiresAt = "2026-06-18T00:00:00.000Z";
+    const { deps } = makeSpyDeps({
+      trashItem: async (cleanupItem, measuredSizeBytes) => {
+        expect(measuredSizeBytes).toBe(4096);
+        await fs.writeFile(cleanupItem.path, finalText, "utf8");
+        await fs.mkdir(join(storedPath, ".."), { recursive: true });
+        await fs.copyFile(cleanupItem.path, storedPath);
+        await fs.writeFile(
+          join(fx.userData, "formatbuddy-trash", "items", entryId, "manifest.json"),
+          JSON.stringify(
+            {
+              id: entryId,
+              itemId: cleanupItem.id,
+              originalPath: cleanupItem.path,
+              storedPath,
+              label: cleanupItem.label,
+              categoryId: cleanupItem.categoryId,
+              sizeBytes: finalSizeBytes,
+              contentHash: contentHashForText(finalText),
+              createdAt: "2026-05-19T00:00:00.000Z",
+              expiresAt
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+        await fs.rm(cleanupItem.path, { recursive: true, force: true });
+        return { id: entryId, expiresAt, storedPath, sizeBytes: finalSizeBytes };
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].sizeBytes).toBe(finalSizeBytes);
+    expect(result.totalFreedBytes).toBe(finalSizeBytes);
+    expect(result.logEntry.totalFreedBytes).toBe(finalSizeBytes);
+    await expect(fs.readFile(storedPath, "utf8")).resolves.toBe(finalText);
   });
 
   it("permanent mode routes through permanentRemove instead of the recycle bin", async () => {
