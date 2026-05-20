@@ -165,7 +165,8 @@ const RULES: Rule[] = [
 ];
 
 function appKey(app: InstalledApp): string {
-  return `${app.name ?? ""} ${app.publisher ?? ""}`.toLowerCase();
+  const displayApp = normalizeInstalledAppForDisplay(app);
+  return `${displayApp?.name ?? ""} ${displayApp?.publisher ?? ""}`.toLowerCase();
 }
 
 function isUninstallNoise(app: InstalledApp): boolean {
@@ -173,13 +174,43 @@ function isUninstallNoise(app: InstalledApp): boolean {
   return /security update|hotfix|kb\d{6,}|language pack/i.test(key);
 }
 
+export function cleanAppDisplayText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return trimmed || undefined;
+}
+
+function cleanAppMetadataText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (/[\u0000-\u001f\u007f]/.test(value)) return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+export function normalizeInstalledAppForDisplay(app: InstalledApp): InstalledApp | null {
+  const name = cleanAppDisplayText(app.name);
+  if (!name) return null;
+  return {
+    ...app,
+    name,
+    version: cleanAppDisplayText(app.version) ?? null,
+    publisher: cleanAppDisplayText(app.publisher) ?? null,
+    installLocation: cleanAppMetadataText(app.installLocation) ?? null,
+    registryKeyPath: cleanAppMetadataText(app.registryKeyPath) ?? null
+  };
+}
+
 export function classifyInstalledApp(app: InstalledApp): AppInventoryItem {
+  const displayApp = normalizeInstalledAppForDisplay(app);
   const key = appKey(app);
-  if (!app.name || isUninstallNoise(app)) {
+  if (!displayApp || isUninstallNoise(displayApp)) {
     return {
-      name: app.name || "이름 없는 항목",
-      version: app.version,
-      publisher: app.publisher,
+      name: displayApp?.name || "이름 없는 항목",
+      version: displayApp?.version,
+      publisher: displayApp?.publisher,
       category: "system",
       categoryLabel: CATEGORY_LABEL.system,
       confidence: "low",
@@ -192,9 +223,9 @@ export function classifyInstalledApp(app: InstalledApp): AppInventoryItem {
   const rule = RULES.find((r) => r.patterns.some((p) => p.test(key)));
   if (rule) {
     return {
-      name: app.name,
-      version: app.version,
-      publisher: app.publisher,
+      name: displayApp.name,
+      version: displayApp.version,
+      publisher: displayApp.publisher,
       category: rule.category,
       categoryLabel: CATEGORY_LABEL[rule.category],
       confidence: rule.confidence,
@@ -205,9 +236,9 @@ export function classifyInstalledApp(app: InstalledApp): AppInventoryItem {
   }
 
   return {
-    name: app.name,
-    version: app.version,
-    publisher: app.publisher,
+    name: displayApp.name,
+    version: displayApp.version,
+    publisher: displayApp.publisher,
     category: "unknown",
     categoryLabel: CATEGORY_LABEL.unknown,
     confidence: "low",
@@ -220,7 +251,8 @@ export function classifyInstalledApp(app: InstalledApp): AppInventoryItem {
 export function buildAppInventory(report: ScanReport): AppInventorySummary {
   const seen = new Set<string>();
   const items = report.installedApps
-    .filter((app) => Boolean(app.name?.trim()))
+    .map(normalizeInstalledAppForDisplay)
+    .filter((app): app is InstalledApp => app !== null)
     .map(classifyInstalledApp)
     .filter((item) => {
       const key = `${item.name}|${item.publisher ?? ""}`.toLowerCase();

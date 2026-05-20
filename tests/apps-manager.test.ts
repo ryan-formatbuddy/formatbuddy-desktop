@@ -167,6 +167,24 @@ describe("buildAppManagerSnapshot", () => {
     expect(snapshot.total).toBe(1);
   });
 
+  it("cleans installed app labels before exposing the app manager snapshot", () => {
+    const snapshot = buildAppManagerSnapshot([
+      app({
+        name: " Acme\nNotes ",
+        publisher: " Acme\tLabs ",
+        version: " 1.2\nbeta ",
+        installLocation: "C:\\Program Files\\Acme\nNotes",
+        uninstallString: '"C:\\Program Files\\Acme Notes\\unins000.exe"'
+      })
+    ]);
+
+    const item = snapshot.groups.flatMap((g) => g.items)[0];
+    expect(item.name).toBe("Acme Notes");
+    expect(item.publisher).toBe("Acme Labs");
+    expect(item.version).toBe("1.2 beta");
+    expect(item.installLocation).toBeUndefined();
+  });
+
   it("surfaces recently opened uninstall windows with minimal identity only", () => {
     const snapshot = buildAppManagerSnapshot([], {
       recentlyUninstallLaunched: [

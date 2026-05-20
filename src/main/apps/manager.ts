@@ -16,7 +16,7 @@ import type {
   AppUninstallAvailability,
   InstalledApp
 } from "@shared/types";
-import { classifyInstalledApp } from "../appInventory";
+import { classifyInstalledApp, normalizeInstalledAppForDisplay } from "../appInventory";
 import { blockedUninstallMessage, isUnsafeUninstallCommand } from "./uninstaller";
 
 const CATEGORY_ORDER: AppManagerCategory[] = [
@@ -158,7 +158,8 @@ export function buildAppManagerSnapshot(
   const seen = new Set<string>();
   const seenNames = new Set<string>();
   const usable = apps
-    .filter((app) => Boolean(app.name?.trim()))
+    .map(normalizeInstalledAppForDisplay)
+    .filter((app): app is InstalledApp => app !== null)
     .filter((app) => !isWindowsUpdateNoise(app));
 
   const hiddenSystemCount = apps.filter((app) => app.systemComponent === true).length;
@@ -195,7 +196,8 @@ export function buildAppManagerSnapshot(
     groups,
     hiddenSystemCount,
     recentlyUninstallLaunched: (opts.recentlyUninstallLaunched ?? [])
-      .filter((app) => Boolean(app.name?.trim()))
+      .map(normalizeInstalledAppForDisplay)
+      .filter((app): app is InstalledApp => app !== null)
       .map((app) => ({
         name: app.name,
         publisher: app.publisher ?? null,
