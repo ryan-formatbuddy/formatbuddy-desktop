@@ -77,4 +77,14 @@ describe("Cleanup copy", () => {
     expect(source).toContain("result.logPersistenceWarning");
     expect(source).toContain("정리 결과는 처리됐지만 활동 기록 저장은 못 했어요");
   });
+
+  it("renders cleanup result details as friendly lines instead of raw JSON", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("cleanupResultDetailLines");
+    expect(source).toContain("cleanupRemovedItemLines");
+    expect(source).toContain("cleanupSkippedItemLines");
+    expect(source).not.toContain("JSON.stringify(");
+    expect(source).not.toContain("<pre");
+  });
 });

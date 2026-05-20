@@ -275,6 +275,67 @@ function ConfirmDialog({
   );
 }
 
+type CleanupRemovedItem = CleanupExecuteResult["removedItems"][number];
+type CleanupSkippedResultItem = CleanupExecuteResult["skippedItems"][number];
+
+function cleanupPathLabel(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.at(-1) ?? path;
+}
+
+function cleanupSkipReasonLabel(reason: CleanupSkippedResultItem["reason"]): string {
+  switch (reason) {
+    case "not-selected":
+      return "선택하지 않음";
+    case "blocked-path":
+      return "보호 경로";
+    case "access-denied":
+      return "권한 확인 필요";
+    case "not-found":
+      return "이미 없음";
+    case "below-min-age":
+      return "아직 최근 항목";
+    case "execute-failed":
+      return "권한 또는 잠금 확인 필요";
+  }
+}
+
+function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
+  const succeededCount = result.removedItems.filter((item) => item.succeeded).length;
+  const restorableCount = restorableTrashEntryIds(result).length;
+  const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+  const lines: string[] = [];
+
+  if (result.totalFreedBytes > 0) lines.push(`확보한 공간 ${formatBytes(result.totalFreedBytes)}`);
+  if (succeededCount > 0) lines.push(`정상 처리 ${succeededCount}개`);
+  if (restorableCount > 0) lines.push(`복구함에서 되돌릴 수 있는 항목 ${restorableCount}개`);
+  if (skippedCount > 0) lines.push(`건너뛴 항목 ${skippedCount}개`);
+
+  return lines.length > 0 ? lines : ["이번 정리에서 처리된 항목은 없어요."];
+}
+
+function cleanupRemovedItemLines(result: CleanupExecuteResult): string[] {
+  const succeeded = result.removedItems.filter((item) => item.succeeded);
+  const sample = succeeded.slice(0, 8).map((item: CleanupRemovedItem) => {
+    const restoreState = item.trashEntryId ? "복구함 보관" : "처리됨";
+    return `${cleanupPathLabel(item.path)} · ${formatBytes(item.sizeBytes)} · ${restoreState}`;
+  });
+  const hidden = succeeded.length - sample.length;
+  if (hidden > 0) sample.push(`외 ${hidden}개 항목도 처리했어요.`);
+  return sample;
+}
+
+function cleanupSkippedItemLines(result: CleanupExecuteResult): string[] {
+  const skipped = result.skippedItems.filter((item) => item.reason !== "not-selected");
+  const sample = skipped.slice(0, 6).map((item: CleanupSkippedResultItem) => {
+    const detail = item.detail ? ` · ${item.detail}` : "";
+    return `${cleanupPathLabel(item.path)} · ${cleanupSkipReasonLabel(item.reason)}${detail}`;
+  });
+  const hidden = skipped.length - sample.length;
+  if (hidden > 0) sample.push(`외 ${hidden}개 항목은 건드리지 않았어요.`);
+  return sample;
+}
+
 function ResultPanel({
   result,
   onBack,
@@ -299,6 +360,9 @@ function ResultPanel({
   const removedCount = result.removedItems.filter((i) => i.succeeded).length;
   const restorableCount = restorableTrashEntryIds(result).length;
   const failedCount = result.skippedItems.filter((s) => s.reason !== "not-selected").length;
+  const detailLines = cleanupResultDetailLines(result);
+  const removedLines = cleanupRemovedItemLines(result);
+  const skippedLines = cleanupSkippedItemLines(result);
   return (
     <article className="fb-card fb-anim-pop">
       <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -322,21 +386,31 @@ function ResultPanel({
       )}
       <details>
         <summary>처리 내역 자세히 보기</summary>
-        <pre style={{ fontSize: 11, maxHeight: 300, overflow: "auto" }}>
-          {JSON.stringify(
-            {
-              mode: result.mode,
-              freedBytes: result.totalFreedBytes,
-              logPersistenceWarning: result.logPersistenceWarning,
-              removed: result.removedItems.filter((i) => i.succeeded).map((i) => i.path),
-              skipped: result.skippedItems
-                .filter((s) => s.reason !== "not-selected")
-                .map((s) => ({ path: s.path, reason: s.reason, detail: s.detail }))
-            },
-            null,
-            2
-          )}
-        </pre>
+        <ul style={{ fontSize: 12, lineHeight: 1.7, margin: "8px 0 0", paddingLeft: 18 }}>
+          {detailLines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        {removedLines.length > 0 && (
+          <>
+            <strong style={{ display: "block", fontSize: 12, marginTop: 10 }}>정리한 항목</strong>
+            <ul style={{ fontSize: 12, lineHeight: 1.7, margin: "4px 0 0", paddingLeft: 18 }}>
+              {removedLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </>
+        )}
+        {skippedLines.length > 0 && (
+          <>
+            <strong style={{ display: "block", fontSize: 12, marginTop: 10 }}>건드리지 않은 항목</strong>
+            <ul style={{ fontSize: 12, lineHeight: 1.7, margin: "4px 0 0", paddingLeft: 18 }}>
+              {skippedLines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </>
+        )}
       </details>
       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Button variant="primary" onClick={onRescan}>
