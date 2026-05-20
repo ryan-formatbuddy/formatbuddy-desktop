@@ -175,6 +175,12 @@ function startupDisabledNeedsCheck(entry: StartupAutoDisabledEntry): boolean {
   return entry.integrityStatus !== "verified";
 }
 
+function restoreListItemNeedsCheck(item: RestoreListItem): boolean {
+  if (item.kind === "registry") return registryBackupNeedsCheck(item.entry);
+  if (item.kind === "startup") return startupDisabledNeedsCheck(item.entry);
+  return trashEntryNeedsCheck(item.entry);
+}
+
 function startupDisabledChangedNotice(): string {
   return "보관된 시작 항목 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
 }
@@ -266,6 +272,17 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     [sortedRestoreItems]
   );
   const totalRestorableCount = restorableRestoreItems.length;
+  const restoreStatusSummary = useMemo(() => {
+    const expiredCount = sortedRestoreItems.filter((item) => isTrashEntryExpired(item.expiresAt)).length;
+    const checkNeededCount = sortedRestoreItems.filter(
+      (item) => !isTrashEntryExpired(item.expiresAt) && restoreListItemNeedsCheck(item)
+    ).length;
+    return {
+      restorableCount: totalRestorableCount,
+      checkNeededCount,
+      expiredCount
+    };
+  }, [sortedRestoreItems, totalRestorableCount]);
 
   const onRestore = useCallback(
     async (entry: CleanupTrashEntry) => {
@@ -347,7 +364,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       return;
     }
     if (totalRestorableCount === 0) {
-      setToast("보관 기간이 지난 항목만 남아 있어요. 다음 자동 비움 때 다시 정리할게요.");
+      setToast("지금 바로 되돌릴 수 있는 항목이 없어요. 보관 기간이나 복구 기록을 확인해 주세요.");
       return;
     }
     const restorableFileCount = restorableRestoreItems.filter((item) => item.kind === "file").length;
@@ -506,6 +523,19 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 : "가능한 항목만 원래 자리로"}
           </Button>
         </div>
+        {totalEntryCount > 0 && (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#0f766e" }}>
+              바로 되돌릴 수 있는 항목 {restoreStatusSummary.restorableCount}개
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#1d4ed8" }}>
+              확인 필요한 항목 {restoreStatusSummary.checkNeededCount}개
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+              보관 기간 지난 항목 {restoreStatusSummary.expiredCount}개
+            </span>
+          </div>
+        )}
         {expiryMessage && (
           <div
             style={{
