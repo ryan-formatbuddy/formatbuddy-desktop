@@ -296,4 +296,16 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("friendlyErrorMessage");
     expect(source).not.toContain("(err as Error).message");
   });
+
+  it("filters raw internal app-leftover details before trusting startup wording", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const rawFilterIndex = source.indexOf("if (rawInternalDetailPattern.test(text))");
+    const startupCopyIndex = source.indexOf(
+      "if (/startup|holding|hash|integrity|source path|still exists|시작 항목/.test(lower))"
+    );
+
+    expect(rawFilterIndex).toBeGreaterThan(-1);
+    expect(startupCopyIndex).toBeGreaterThan(-1);
+    expect(rawFilterIndex).toBeLessThan(startupCopyIndex);
+  });
 });

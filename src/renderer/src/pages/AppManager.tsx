@@ -177,17 +177,17 @@ function friendlyAppLeftoverBlockedDetail(detail?: string): string {
   if (/backup|export|reg\.exe|registry|레지스트리/.test(lower)) {
     return "앱 삭제 흔적은 안전하게 확인되지 않아 그대로 뒀어요.";
   }
-  if (/startup|holding|hash|integrity|source path|still exists|시작 항목/.test(lower)) {
-    return text.includes("시작 항목")
-      ? text
-      : "시작 항목은 안전하게 보관되지 않아 그대로 뒀어요.";
-  }
   const rawInternalDetailPattern = new RegExp(
     ["power\\s?shell", "eno" + "ent", "format" + "buddy", "c:\\\\", "\\/users\\/"].join("|"),
     "i"
   );
   if (rawInternalDetailPattern.test(text)) {
     return "보호가 필요한 항목이라 그대로 뒀어요.";
+  }
+  if (/startup|holding|hash|integrity|source path|still exists|시작 항목/.test(lower)) {
+    return text.includes("시작 항목")
+      ? text
+      : "시작 항목은 안전하게 보관되지 않아 그대로 뒀어요.";
   }
 
   return text;
