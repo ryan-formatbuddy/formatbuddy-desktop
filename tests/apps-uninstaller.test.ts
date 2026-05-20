@@ -174,7 +174,7 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
-  it("launches Windows uninstaller via cmd.exe in interactive mode", async () => {
+  it("launches Windows uninstaller in interactive mode", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const result = await runUninstall(
       { appName: "Slack", publisher: "Slack Technologies", mode: "interactive" },
@@ -187,6 +187,12 @@ describe("runUninstall", () => {
     expect(result.status).toBe("launched");
     expect(spawnCmd).toHaveBeenCalledWith(baseApp.uninstallString);
     expect(result.detail).toMatch(/pid=1234/);
+  });
+
+  it("does not report launched when the default spawn path is missing", async () => {
+    await expect(__testing.defaultSpawn("/definitely/missing/formatbuddy-uninstall")).rejects.toThrow(
+      /ENOENT|spawn/i
+    );
   });
 
   it("blocks quiet uninstall mode even when a quiet command exists", async () => {

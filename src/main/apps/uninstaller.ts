@@ -394,11 +394,13 @@ async function defaultSpawn(command: string): Promise<{ pid?: number }> {
         windowsHide: false,
         shell: false
       });
-      child.on("error", rejectSpawn);
-      // detached + unref so quitting FormatBuddy doesn't kill the
-      // Windows uninstall GUI mid-flow.
-      child.unref();
-      resolveSpawn({ pid: child.pid });
+      child.once("error", rejectSpawn);
+      child.once("spawn", () => {
+        // detached + unref so quitting FormatBuddy doesn't kill the
+        // Windows uninstall GUI mid-flow.
+        child.unref();
+        resolveSpawn({ pid: child.pid });
+      });
     } catch (e) {
       rejectSpawn(e);
     }
