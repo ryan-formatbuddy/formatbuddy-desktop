@@ -70,6 +70,17 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (!window.fb?.uninstallApp) return;");
   });
 
+  it("does not show raw uninstall detail strings in the app list", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("uninstallStatusDetailLabel");
+    expect(source).toContain("제거 창을 안전하게 열었어요");
+    expect(source).toContain("제거 명령을 안전하게 확인하지 못했어요");
+    expect(source).toContain("Windows 구성요소라 자동으로 실행하지 않아요");
+    expect(source).toContain("Windows 제거 창을 열지 못했어요");
+    expect(source).not.toContain('{lastStatus.detail ? ` (${lastStatus.detail})` : ""}');
+  });
+
   it("counts only successful app-leftover cleanup items as cleaned", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
