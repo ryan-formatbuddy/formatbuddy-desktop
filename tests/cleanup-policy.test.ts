@@ -89,6 +89,29 @@ describe("enforceProductCleanupPolicy", () => {
     ).toThrow(/공백|선택한 항목/);
   });
 
+  it("blocks cleanup ids with internal control characters at the product boundary", () => {
+    expect(() =>
+      enforceProductCleanupPolicy({
+        ...request("trash"),
+        planId: "pl\nan"
+      })
+    ).toThrow(/제어 문자|정리 계획/);
+
+    expect(() =>
+      enforceProductCleanupPolicy({
+        ...request("trash"),
+        confirmationToken: "to\rken"
+      })
+    ).toThrow(/제어 문자|정리 계획/);
+
+    expect(() =>
+      enforceProductCleanupPolicy({
+        ...request("trash"),
+        selectedItemIds: ["it\nem"]
+      })
+    ).toThrow(/제어 문자|선택한 항목/);
+  });
+
   it("blocks unknown cleanup modes at the product IPC boundary", () => {
     expect(() =>
       enforceProductCleanupPolicy({
@@ -163,5 +186,28 @@ describe("enforceAppLeftoversCleanupPolicy", () => {
         selectedPathIds: [" path-1"]
       })
     ).toThrow(/공백|앱 잔여 항목|선택한 항목/);
+  });
+
+  it("blocks app leftovers ids with internal control characters at the product boundary", () => {
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        planId: "leftovers\n-plan"
+      })
+    ).toThrow(/제어 문자|앱 잔여 정리 계획|정리 계획/);
+
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        confirmationToken: "leftovers\r-token"
+      })
+    ).toThrow(/제어 문자|앱 잔여 정리 계획|정리 계획/);
+
+    expect(() =>
+      enforceAppLeftoversCleanupPolicy({
+        ...leftoversRequest(),
+        selectedPathIds: ["path\n-1"]
+      })
+    ).toThrow(/제어 문자|앱 잔여 항목|선택한 항목/);
   });
 });
