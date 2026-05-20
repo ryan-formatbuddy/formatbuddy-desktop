@@ -1494,6 +1494,14 @@ describe("FormatBuddy Trash", () => {
     expect(purged.purgedCount).toBe(1);
     expect(purged.purgedBytes).toBe(5);
     expect(purged.purgedEntryIds).toEqual([entry.id]);
+    expect(purged.purgedItems).toEqual([
+      {
+        id: entry.id,
+        label: "old.tmp",
+        categoryId: "temp-user",
+        sizeBytes: 5
+      }
+    ]);
     expect(existsSync(entry.storedPath)).toBe(false);
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
@@ -1613,6 +1621,14 @@ describe("FormatBuddy Trash", () => {
     expect(purged.purgedCount).toBe(1);
     expect(purged.purgedBytes).toBe(2);
     expect(purged.purgedEntryIds).toEqual([okEntry.id]);
+    expect(purged.purgedItems).toEqual([
+      {
+        id: okEntry.id,
+        label: "ok.tmp",
+        categoryId: "temp-user",
+        sizeBytes: 2
+      }
+    ]);
     expect(purged.failedEntryIds).toEqual([blockedEntry.id]);
     expect(existsSync(blockedEntry.storedPath)).toBe(true);
     expect(existsSync(okEntry.storedPath)).toBe(false);
@@ -1638,6 +1654,11 @@ describe("FormatBuddy Trash", () => {
     });
 
     expect(purged.purgedBytes).toBe(Buffer.byteLength("hello and more bytes"));
+    expect(purged.purgedItems?.[0]).toMatchObject({
+      id: entry.id,
+      label: "old.tmp",
+      sizeBytes: Buffer.byteLength("hello and more bytes")
+    });
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 

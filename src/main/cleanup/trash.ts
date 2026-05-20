@@ -17,6 +17,7 @@ import type {
   CleanupCategoryId,
   CleanupItem,
   CleanupTrashEntry,
+  CleanupTrashPurgedItem,
   CleanupTrashPurgeResult,
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot
@@ -1235,6 +1236,7 @@ export async function purgeExpiredTrash(
 
   let purgedBytes = 0;
   const purgedEntryIds: string[] = [];
+  const purgedItems: CleanupTrashPurgedItem[] = [];
   const failedEntryIds: string[] = [];
   const removeEntryDir =
     options.removeEntryDir ??
@@ -1262,6 +1264,12 @@ export async function purgeExpiredTrash(
       }
       purgedBytes += entryBytes;
       purgedEntryIds.push(entry.id);
+      purgedItems.push({
+        id: entry.id,
+        label: entry.label,
+        categoryId: entry.categoryId,
+        sizeBytes: entryBytes
+      });
     } catch {
       failedEntryIds.push(entry.id);
       keep.push(entry);
@@ -1279,6 +1287,7 @@ export async function purgeExpiredTrash(
     purgedCount: purgedEntryIds.length,
     purgedBytes,
     purgedEntryIds,
+    purgedItems,
     failedEntryIds,
     retentionDays: FORMATBUDDY_TRASH_RETENTION_DAYS
   };

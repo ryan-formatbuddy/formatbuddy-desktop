@@ -18,6 +18,8 @@ describe("cleanup type contract", () => {
     const source = readFileSync(SHARED_TYPES, "utf8");
 
     expect(source).toContain("export interface RestoreBinPurgeResult");
+    expect(source).toContain("export interface CleanupTrashPurgedItem");
+    expect(source).toContain("purgedItems?: CleanupTrashPurgedItem[]");
     expect(source).toContain("trash?: CleanupTrashPurgeResult");
     expect(source).toContain("registryBackups?: RegistryBackupPurgeResult");
     expect(source).toContain("startupDisabled?: StartupDisabledPurgeResult");

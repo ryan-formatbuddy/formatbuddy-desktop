@@ -116,6 +116,9 @@ describe("AuditLog copy", () => {
 
     expect(source).toContain("auditDetailLines");
     expect(source).toContain("비운 항목");
+    expect(source).toContain("auditPurgedItemLabels");
+    expect(source).toContain("auditPurgedItemsLine");
+    expect(source).toContain("자동 비운 항목");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목");
     expect(source).toContain("파일/폴더 복구함");
     expect(source).toContain("앱 삭제 흔적 백업");

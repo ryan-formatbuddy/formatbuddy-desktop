@@ -826,10 +826,18 @@ export interface CleanupTrashRestoreResult {
   entry?: CleanupTrashEntry;
 }
 
+export interface CleanupTrashPurgedItem {
+  id: string;
+  label: string;
+  categoryId: CleanupCategoryId;
+  sizeBytes: number;
+}
+
 export interface CleanupTrashPurgeResult {
   purgedCount: number;
   purgedBytes: number;
   purgedEntryIds: string[];
+  purgedItems?: CleanupTrashPurgedItem[];
   failedEntryIds?: string[];
   retentionDays: number;
 }

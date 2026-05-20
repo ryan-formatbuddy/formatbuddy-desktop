@@ -78,6 +78,14 @@ describe("purgeExpiredTrashWithAudit", () => {
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
       purgedBytes: 5,
+      purgedItems: [
+        {
+          id: entry.id,
+          label: "old.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 5
+        }
+      ],
       trigger: "startup"
     });
   });

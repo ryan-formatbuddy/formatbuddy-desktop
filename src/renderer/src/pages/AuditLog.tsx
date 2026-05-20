@@ -93,6 +93,33 @@ function stringArrayDetail(detail: Record<string, unknown>, key: string): string
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function auditPurgedItemLabels(detail: Record<string, unknown>): string[] {
+  const value = detail.purgedItems;
+  if (!Array.isArray(value)) return [];
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const label = (raw as { label?: unknown }).label;
+    if (typeof label !== "string") continue;
+    const clean = label
+      .replace(/[\u0000-\u001f\u007f]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!clean || seen.has(clean)) continue;
+    seen.add(clean);
+    labels.push(clean.slice(0, 120));
+  }
+  return labels;
+}
+
+function auditPurgedItemsLine(labels: string[]): string | null {
+  if (labels.length === 0) return null;
+  const visible = labels.slice(0, 3).join(", ");
+  const hidden = labels.length - 3;
+  return hidden > 0 ? `자동 비운 항목 ${visible} 외 ${hidden}개` : `자동 비운 항목 ${visible}`;
+}
+
 function isActualRestoreAuditEntry(entry: AuditEntry): boolean {
   return (
     entry.action.startsWith("trash-restore-") ||
@@ -151,8 +178,10 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const startupDisabledCount = numberDetail(detail, "startupDisabledCount");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
+  const purgedItemsLine = auditPurgedItemsLine(auditPurgedItemLabels(detail));
 
   if (purgedCount !== null && purgedCount > 0) lines.push(`비운 항목 ${purgedCount}개`);
+  if (purgedItemsLine) lines.push(purgedItemsLine);
   if (removedCount > 0) lines.push(`정리한 항목 ${removedCount}개`);
   if (restorableCount > 0) lines.push(`30일 안에 되돌릴 수 있는 항목 ${restorableCount}개`);
   if (fileTrashCount !== null && fileTrashCount > 0) {

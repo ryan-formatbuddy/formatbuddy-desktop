@@ -309,6 +309,12 @@ describe("retention purge scheduler", () => {
       purgedCount: 6,
       purgedBytes: 42,
       purgedEntryIds: ["trash-ok", "trash-ok", "../trash", "trash\\path", ".", ".."],
+      purgedItems: [
+        { id: "trash-ok", label: "old\ncache.tmp", categoryId: "temp-user", sizeBytes: 42 },
+        { id: "trash-bad-category", label: "bad category", categoryId: "unknown", sizeBytes: 42 },
+        { id: "../trash", label: "bad", categoryId: "temp-user", sizeBytes: 7 },
+        { id: "trash-ok", label: "duplicate", categoryId: "temp-user", sizeBytes: 1 }
+      ],
       failedEntryIds: ["trash-busy", "trash/bad", " trash-padded"],
       retentionDays: 30
     } as unknown as CleanupTrashPurgeResult));
@@ -338,6 +344,9 @@ describe("retention purge scheduler", () => {
     });
 
     expect(result.trash?.purgedEntryIds).toEqual(["trash-ok"]);
+    expect(result.trash?.purgedItems).toEqual([
+      { id: "trash-ok", label: "old cache.tmp", categoryId: "temp-user", sizeBytes: 42 }
+    ]);
     expect(result.trash?.failedEntryIds).toEqual(["trash-busy"]);
     expect(result.registryBackups?.purgedIds).toEqual(["reg-ok"]);
     expect(result.registryBackups?.failedIds).toEqual(["reg-busy"]);

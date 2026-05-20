@@ -1,5 +1,6 @@
 import type {
   CleanupTrashPurgeResult,
+  CleanupTrashPurgedItem,
   RegistryBackupPurgeResult,
   RestoreBinPurgeKind,
   RestoreBinPurgeResult,
@@ -44,6 +45,26 @@ const PURGE_KIND_LABELS: Record<RestoreBinPurgeKind, string> = {
   "registry-backups": "앱 삭제 흔적 백업",
   "startup-disabled": "잠시 꺼둔 시작 항목"
 };
+
+const CLEANUP_TRASH_PURGED_CATEGORY_IDS = [
+  "recycle-bin",
+  "temp-user",
+  "temp-windows",
+  "browser-cache",
+  "windows-old",
+  "downloads-installers",
+  "large-files",
+  "app-leftovers"
+] as const satisfies readonly CleanupTrashPurgedItem["categoryId"][];
+
+function isCleanupTrashPurgedCategoryId(
+  value: unknown
+): value is CleanupTrashPurgedItem["categoryId"] {
+  return (
+    typeof value === "string" &&
+    CLEANUP_TRASH_PURGED_CATEGORY_IDS.includes(value as CleanupTrashPurgedItem["categoryId"])
+  );
+}
 
 function errorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
@@ -92,13 +113,48 @@ function coerceOptionalSafeIdList(value: unknown): string[] | undefined {
   return Array.isArray(value) ? coerceSafeIdList(value) : undefined;
 }
 
+function sanitizePurgeLabel(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const label = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return label ? label.slice(0, 120) : null;
+}
+
+function normalizeTrashPurgedItems(
+  value: unknown,
+  allowedIds: Set<string>
+): CleanupTrashPurgedItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<string>();
+  const items: CleanupTrashPurgedItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<CleanupTrashPurgedItem>;
+    if (!item.id || !allowedIds.has(item.id) || seen.has(item.id)) continue;
+    const label = sanitizePurgeLabel(item.label);
+    if (!label || !isCleanupTrashPurgedCategoryId(item.categoryId)) continue;
+    seen.add(item.id);
+    items.push({
+      id: item.id,
+      label,
+      categoryId: item.categoryId,
+      sizeBytes: coerceNonNegativeInteger(item.sizeBytes)
+    });
+  }
+  return items;
+}
+
 function normalizeTrashPurgeResult(result: CleanupTrashPurgeResult): CleanupTrashPurgeResult {
   const purgedEntryIds = coerceSafeIdList(result.purgedEntryIds);
+  const purgedIdSet = new Set(purgedEntryIds);
   return {
     ...result,
     purgedCount: purgedEntryIds.length,
     purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
     purgedEntryIds,
+    purgedItems: normalizeTrashPurgedItems(result.purgedItems, purgedIdSet),
     failedEntryIds: coerceOptionalSafeIdList(result.failedEntryIds),
     retentionDays: coerceRetentionDays(result.retentionDays)
   };
