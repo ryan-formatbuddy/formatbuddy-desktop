@@ -86,6 +86,7 @@ export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
     trimmed === backupId &&
     backupId !== "." &&
     backupId !== ".." &&
+    !/\s/.test(backupId) &&
     !backupId.includes("/") &&
     !backupId.includes("\\") &&
     !/[\u0000-\u001f\u007f]/.test(backupId)

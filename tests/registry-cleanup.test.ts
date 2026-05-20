@@ -2134,6 +2134,7 @@ describe("registry leftover cleanup", () => {
       "  ",
       " registry-1",
       "registry-1 ",
+      "registry 1",
       "registry\nid"
     ]) {
       const result = await restoreRegistryBackup({

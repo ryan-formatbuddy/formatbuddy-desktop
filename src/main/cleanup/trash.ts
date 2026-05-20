@@ -115,6 +115,7 @@ export function isSafeTrashEntryId(entryId: unknown): entryId is string {
     entryId.trim() === entryId &&
     entryId !== "." &&
     entryId !== ".." &&
+    !/\s/.test(entryId) &&
     !entryId.includes("/") &&
     !entryId.includes("\\") &&
     !entryId.includes("\0")

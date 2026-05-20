@@ -1890,7 +1890,7 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(outside, "utf8")).toBe("outside stays put");
   });
 
-  it.each(["../outside", "", "  ", "bad\nid", "bad\\id"])(
+  it.each(["../outside", "", "  ", "bad id", "bad\nid", "bad\\id"])(
     "rejects unsafe trash entry ids while coercing stored metadata: %s",
     (id) => {
       const entry = {

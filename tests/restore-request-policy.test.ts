@@ -24,6 +24,7 @@ describe("restore request policy", () => {
       "  ",
       " trash-1",
       "trash-1 ",
+      "trash 1",
       "trash\nid"
     ]) {
       expect(normalizeCleanupTrashRestoreRequest({ entryId })).toEqual({ entryId: "" });
@@ -51,6 +52,7 @@ describe("restore request policy", () => {
       "  ",
       " registry-1",
       "registry-1 ",
+      "registry 1",
       "registry\nid"
     ]) {
       expect(normalizeRegistryBackupRestoreRequest({ backupId })).toEqual({ backupId: "" });

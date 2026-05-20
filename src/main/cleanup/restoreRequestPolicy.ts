@@ -16,6 +16,7 @@ function isSafeRestoreRequestId(value: string): boolean {
     trimmed === value &&
     value !== "." &&
     value !== ".." &&
+    !/\s/.test(value) &&
     !/[\/\\\u0000-\u001f\u007f]/.test(value)
   );
 }
