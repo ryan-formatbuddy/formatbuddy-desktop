@@ -1222,6 +1222,8 @@ export interface AppLeftoverPath {
   exists: boolean;
   sizeBytes?: number | null;
   lastModifiedAt?: string | null;
+  /** Metadata fingerprint captured at plan time so cleanup can stop if contents changed. */
+  fingerprint?: string | null;
   /** When true, the path is inside a Phase 1 blocklist root and must not be cleaned. */
   protectedBy?: string;
 }

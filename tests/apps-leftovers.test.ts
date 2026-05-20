@@ -3023,6 +3023,57 @@ describe("planAppLeftovers", () => {
     expect(trash.entries).toEqual([]);
   });
 
+  it("refuses to clean app leftovers when an inner file fingerprint changed but total size did not", async () => {
+    const slack = join(fx.roaming, "Slack");
+    const olderCache = join(slack, "a-cache.bin");
+    const newerCache = join(slack, "z-cache.bin");
+    const olderTime = new Date("2026-05-17T00:00:00.000Z");
+    const changedButStillOlderTime = new Date("2026-05-17T12:00:00.000Z");
+    const newerTime = new Date("2026-05-18T00:00:00.000Z");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(olderCache, "abc", "utf8");
+    await fs.writeFile(newerCache, "xyz", "utf8");
+    await fs.utimes(olderCache, olderTime, olderTime);
+    await fs.utimes(newerCache, newerTime, newerTime);
+    await fs.utimes(slack, newerTime, newerTime);
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    expect(path.sizeBytes).toBe(6);
+    expect(path.lastModifiedAt).toBe(newerTime.toISOString());
+    expect(path.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+
+    await fs.writeFile(olderCache, "def", "utf8");
+    await fs.utimes(olderCache, changedButStillOlderTime, changedButStillOlderTime);
+    await fs.utimes(slack, newerTime, newerTime);
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: slack,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/다시 점검|바뀌/);
+    await expect(fs.readFile(olderCache, "utf8")).resolves.toBe("def");
+    await expect(fs.readFile(newerCache, "utf8")).resolves.toBe("xyz");
+  });
+
   it("refuses to clean an app leftover folder when it became a file after the plan", async () => {
     const slack = join(fx.roaming, "Slack");
     const cacheFile = join(slack, "cache.bin");

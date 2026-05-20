@@ -516,6 +516,10 @@ function isOptionalPlanTimestamp(value: unknown): value is string | null | undef
   return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
 }
 
+function isOptionalPlanFingerprint(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || (typeof value === "string" && /^[a-f0-9]{64}$/.test(value));
+}
+
 function isValidIsoDateString(value: unknown): value is string {
   return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
 }
@@ -616,7 +620,7 @@ function planToken(planId: string, groups: AppLeftoverGroup[]): string {
   const tokenInput = groups
     .map((group) => {
       const pathToken = group.paths
-        .map((p) => `${p.id}:${p.exists ? 1 : 0}:${p.sizeBytes ?? 0}:${p.protectedBy ?? ""}`)
+        .map((p) => `${p.id}:${p.exists ? 1 : 0}:${p.sizeBytes ?? 0}:${p.fingerprint ?? ""}:${p.protectedBy ?? ""}`)
         .join(",");
       return `${group.appName}:${group.sourceAppName ?? ""}:${pathToken}`;
     })
@@ -656,7 +660,7 @@ async function* walkPath(
   } catch {
     throw new LeftoverMeasurementProtection(UNREADABLE_LEFTOVER_PROTECTION);
   }
-  for (const entry of entries) {
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     if (counter.count >= MAX_LEFTOVER_ITEMS) return;
     if (entry.isSymbolicLink()) {
       throw new LeftoverMeasurementProtection(LINKED_LEFTOVER_PROTECTION);
@@ -669,6 +673,7 @@ async function measurePath(raw: string): Promise<{
   exists: boolean;
   sizeBytes?: number;
   lastModifiedAt?: string;
+  fingerprint?: string;
   protectedBy?: string;
 }> {
   try {
@@ -680,21 +685,34 @@ async function measurePath(raw: string): Promise<{
       return {
         exists: true,
         sizeBytes: rootStat.size,
-        lastModifiedAt: rootStat.mtime.toISOString()
+        lastModifiedAt: rootStat.mtime.toISOString(),
+        fingerprint: metadataFingerprint([
+          ["file", "", String(rootStat.size), String(Math.round(rootStat.mtimeMs))]
+        ])
       };
     }
     if (!rootStat.isDirectory()) return { exists: false };
 
     let total = 0;
     let latest = rootStat.mtime;
+    const fingerprintParts: string[][] = [
+      ["dir", "", String(Math.round(rootStat.mtimeMs))]
+    ];
     for await (const file of walkPath(raw)) {
       total += file.size;
       if (file.modified.getTime() > latest.getTime()) latest = file.modified;
+      fingerprintParts.push([
+        "file",
+        normalizePath(relativePath(raw, file.path)),
+        String(file.size),
+        String(Math.round(file.modified.getTime()))
+      ]);
     }
     return {
       exists: true,
       sizeBytes: total,
-      lastModifiedAt: latest.toISOString()
+      lastModifiedAt: latest.toISOString(),
+      fingerprint: metadataFingerprint(fingerprintParts)
     };
   } catch (err) {
     if (err instanceof LeftoverMeasurementProtection) {
@@ -702,6 +720,23 @@ async function measurePath(raw: string): Promise<{
     }
     return { exists: false };
   }
+}
+
+function relativePath(root: string, path: string): string {
+  const normalizedRoot = normalizePath(root);
+  const normalizedPath = normalizePath(path);
+  if (normalizedPath === normalizedRoot) return "";
+  const prefix = normalizedRoot.endsWith("\\") ? normalizedRoot : `${normalizedRoot}\\`;
+  return normalizedPath.startsWith(prefix) ? normalizedPath.slice(prefix.length) : normalizedPath;
+}
+
+function metadataFingerprint(parts: string[][]): string {
+  const hash = createHash("sha256");
+  for (const part of parts) {
+    hash.update(part.join("\0"));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 async function pathInfo(
@@ -724,6 +759,7 @@ async function pathInfo(
     exists: measured.exists,
     sizeBytes: measured.sizeBytes,
     lastModifiedAt: measured.lastModifiedAt,
+    fingerprint: measured.fingerprint,
     protectedBy: decision.allowed ? measured.protectedBy : decision.blockedBy ?? normalized
   };
 }
@@ -1727,6 +1763,10 @@ function leftoverChangedSincePlan(
   planned: AppLeftoverPath,
   measured: Awaited<ReturnType<typeof measurePath>>
 ): boolean {
+  if (planned.fingerprint && measured.fingerprint && planned.fingerprint !== measured.fingerprint) {
+    return true;
+  }
+
   if (
     typeof planned.sizeBytes === "number" &&
     typeof measured.sizeBytes === "number" &&
@@ -1804,6 +1844,7 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (typeof path.exists !== "boolean") invalid.push("exists");
     if (!isOptionalPlanSizeBytes(path.sizeBytes)) invalid.push("size");
     if (!isOptionalPlanTimestamp(path.lastModifiedAt)) invalid.push("modified timestamp");
+    if (!isOptionalPlanFingerprint(path.fingerprint)) invalid.push("fingerprint");
     if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
     if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
     if (
