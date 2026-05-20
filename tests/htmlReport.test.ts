@@ -91,6 +91,7 @@ const sampleReport: ScanReport = {
       sizeGb: 1.1,
       count: 3,
       totalWastedGb: 2.2,
+      matchKind: "content-hash",
       paths: [
         "C:\\Users\\Ryan\\Downloads\\backup.zip",
         "C:\\Users\\Ryan\\Desktop\\backup.zip",
@@ -160,7 +161,8 @@ describe("buildHtmlReport", () => {
     expect(html).toContain("안전 정리 미리보기");
     expect(html).toContain("정리 후보 센터");
     expect(html).toContain("용량 큰 파일");
-    expect(html).toContain("중복 의심 파일");
+    expect(html).toContain("중복 파일 후보");
+    expect(html).toContain("내용 확인 3개");
     expect(html).toContain("바로 해볼 수 있는 관리 기능");
     expect(html).toContain("설치된 프로그램 분류");
     expect(html).toContain("빠진 파일이 있는지 확인하는 목록");

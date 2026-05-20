@@ -449,13 +449,16 @@ function LargeFileRow({ file }: { file: LargeFileCandidate }) {
 }
 
 function DuplicateRow({ group }: { group: DuplicateFileCandidateGroup }) {
+  const matchLabel =
+    group.matchKind === "content-hash"
+      ? `내용까지 같은 파일 ${group.count}개`
+      : `같은 이름과 크기 ${group.count}개`;
+
   return (
     <li className="fb-cleanup-detail-row">
       <div>
         <strong>{group.name}</strong>
-        <span>
-          같은 이름과 크기 {group.count}개 · 후보 위치 {group.paths.length}곳
-        </span>
+        <span>{matchLabel} · 후보 위치 {group.paths.length}곳</span>
       </div>
       <b>{formatGb(group.totalWastedGb)}</b>
     </li>
@@ -577,7 +580,7 @@ function SafetyPreviewPanel({ result }: { result: ScanResult }) {
         <article>
           <span>{copy.safetyPreviewReview}</span>
           <strong>{reviewItems.length}개</strong>
-          <p>큰 파일, 중복 의심, 이전 Windows 파일은 직접 확인이 먼저예요.</p>
+          <p>큰 파일, 중복 파일 후보, 이전 Windows 파일은 직접 확인이 먼저예요.</p>
         </article>
         <article>
           <span>{copy.safetyPreviewLeftovers}</span>

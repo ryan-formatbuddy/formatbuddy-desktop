@@ -501,6 +501,7 @@ describe("buddy checklist", () => {
             sizeGb: 1.1,
             count: 3,
             totalWastedGb: 2.2,
+            matchKind: "content-hash",
             paths: [
               "C:\\Users\\Ryan\\Downloads\\backup.zip",
               "C:\\Users\\Ryan\\Desktop\\backup.zip",
@@ -536,6 +537,7 @@ describe("buddy checklist", () => {
     expect(rec.cleanupCenter.reviewCount).toBe(5);
     expect(rec.cleanupCenter.largeFiles[0]?.name).toBe("old-installer.exe");
     expect(rec.cleanupCenter.duplicateGroups[0]?.name).toBe("backup.zip");
+    expect(rec.cleanupCenter.candidates.find((c) => c.id === "duplicate-files")?.evidence).toContain("내용까지 같은 파일");
     expect(rec.cleanupCenter.startupItems).toHaveLength(9);
     expect(rec.cleanupCenter.candidates.find((c) => c.id === "duplicate-files")?.safetyNote).toMatch(/후보/);
     expect(rec.cleanupCenter.candidates.every((c) => !/자동으로 지웠|삭제 완료/.test(`${c.evidence} ${c.action} ${c.safetyNote}`))).toBe(true);

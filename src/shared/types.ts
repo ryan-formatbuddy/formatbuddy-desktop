@@ -220,6 +220,8 @@ export interface DuplicateFileCandidateGroup {
   count: number;
   totalWastedGb: number;
   paths: string[];
+  /** "content-hash" means the scanner matched SHA-256 content, not just name/size. */
+  matchKind?: "content-hash" | "name-size";
 }
 
 /**

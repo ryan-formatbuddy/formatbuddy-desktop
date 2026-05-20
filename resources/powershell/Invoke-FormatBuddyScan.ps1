@@ -196,7 +196,7 @@ function Get-LargeFileCandidates {
 }
 
 function Get-DuplicateFileCandidates {
-  param([object[]]$Folders, [int64]$MinBytes = 10485760, [int]$Limit = 20)
+  param([object[]]$Folders, [int64]$MinBytes = 10485760, [int]$Limit = 20, [int]$MaxHashCandidates = 120)
 
   $files = New-Object System.Collections.Generic.List[object]
   foreach ($folder in ($Folders | Where-Object { $_.path -and (Test-Path $_.path) })) {
@@ -212,20 +212,53 @@ function Get-DuplicateFileCandidates {
   }
 
   $groups = New-Object System.Collections.Generic.List[object]
-  $files |
-    Group-Object { "$($_.Name.ToLowerInvariant())|$($_.Length)" } |
-    Where-Object { $_.Count -gt 1 } |
-    ForEach-Object {
-      $first = $_.Group[0]
-      $sizeGb = [Math]::Round($first.Length / 1GB, 2)
-      $groups.Add([ordered]@{
-        name = $first.Name
-        sizeGb = $sizeGb
-        count = $_.Count
-        totalWastedGb = [Math]::Round((($_.Count - 1) * $first.Length) / 1GB, 2)
-        paths = @($_.Group | Select-Object -First 6 | ForEach-Object { $_.FullName })
-      }) | Out-Null
+  $hashedCount = 0
+  $candidateGroups = @(
+    $files |
+      Group-Object { $_.Length } |
+      Where-Object { $_.Count -gt 1 } |
+      Sort-Object @{ Expression = { ($_.Count - 1) * $_.Group[0].Length }; Descending = $true }
+  )
+
+  foreach ($candidateGroup in $candidateGroups) {
+    if ($groups.Count -ge $Limit) { break }
+    if (($hashedCount + $candidateGroup.Count) -gt $MaxHashCandidates) {
+      Add-Diagnostic -Step "DuplicateFiles:HashLimit" -Message "Skipped duplicate hash candidates after $hashedCount files to keep scan responsive."
+      break
     }
+
+    $hashRows = New-Object System.Collections.Generic.List[object]
+    foreach ($file in $candidateGroup.Group) {
+      try {
+        $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+        $hashRows.Add([pscustomobject]@{
+          Hash = $hash
+          File = $file
+        }) | Out-Null
+      } catch {
+        Add-Diagnostic -Step "DuplicateFiles:Hash:$($file.Name)" -Message $_.Exception.Message
+      }
+      $hashedCount++
+    }
+
+    $hashRows |
+      Group-Object Hash |
+      Where-Object { $_.Count -gt 1 } |
+      ForEach-Object {
+        if ($groups.Count -lt $Limit) {
+          $first = $_.Group[0].File
+          $sizeGb = [Math]::Round($first.Length / 1GB, 2)
+          $groups.Add([ordered]@{
+            name = $first.Name
+            sizeGb = $sizeGb
+            count = $_.Count
+            totalWastedGb = [Math]::Round((($_.Count - 1) * $first.Length) / 1GB, 2)
+            paths = @($_.Group | Select-Object -First 6 | ForEach-Object { $_.File.FullName })
+            matchKind = "content-hash"
+          }) | Out-Null
+        }
+      }
+  }
 
   return @($groups | Sort-Object totalWastedGb -Descending | Select-Object -First $Limit)
 }

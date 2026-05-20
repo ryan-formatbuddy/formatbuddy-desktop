@@ -229,13 +229,15 @@ function renderCleanupCenter(rec: Recommendation): string {
       </tr>`
     )
     .join("");
+  const duplicateMatchLabel = (group: (typeof cleanup.duplicateGroups)[number]) =>
+    group.matchKind === "content-hash" ? `내용 확인 ${group.count}개` : `${group.count}개`;
   const duplicateRows = cleanup.duplicateGroups
     .slice(0, 6)
     .map(
       (g) => `
       <tr>
         <td>${esc(g.name)}</td>
-        <td>${g.count}개</td>
+        <td>${esc(duplicateMatchLabel(g))}</td>
         <td class="num">${esc(fmtGb(g.totalWastedGb))}</td>
       </tr>`
     )
@@ -290,7 +292,7 @@ function renderSafetyPreview(report: ScanReport, rec: Recommendation): string {
   const leftovers = (report.appDataCandidates ?? []).filter((c) => c.exists);
   const rows = [
     [copy.safetyPreviewSafe, `${safeItems.length}개`, "Windows가 다시 만들 수 있는 임시 파일 위주로 먼저 봐요."],
-    [copy.safetyPreviewReview, `${reviewItems.length}개`, "큰 파일, 중복 의심, 이전 Windows 파일은 직접 확인이 먼저예요."],
+    [copy.safetyPreviewReview, `${reviewItems.length}개`, "큰 파일, 중복 파일 후보, 이전 Windows 파일은 직접 확인이 먼저예요."],
     [copy.safetyPreviewLeftovers, `${leftovers.length}개`, "앱 데이터 폴더 후보만 보여줘요. 자동 삭제하지 않아요."]
   ];
   const leftoverRows = leftovers

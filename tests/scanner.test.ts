@@ -255,4 +255,11 @@ describe("bundled PowerShell compatibility", () => {
     const script = readFileSync(scriptPath, "utf8");
     expect(/^[\x00-\x7F]*$/.test(script)).toBe(true);
   });
+
+  it("uses SHA-256 content hashes for duplicate file candidates", () => {
+    const script = readFileSync(scriptPath, "utf8");
+    expect(script).toContain("Get-FileHash -LiteralPath");
+    expect(script).toContain("-Algorithm SHA256");
+    expect(script).toContain('matchKind = "content-hash"');
+  });
 });

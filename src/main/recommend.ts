@@ -420,7 +420,16 @@ function buildCleanupCenter(report: ScanReport): CleanupCenterSummary {
   const windowsOldGb = storage?.windowsOldExists ? storage.windowsOldGb : 0;
   const largeFiles = report.largeFiles ?? [];
   const duplicateGroups = report.duplicateFileCandidates ?? [];
+  const exactDuplicateGroups = duplicateGroups.filter((group) => group.matchKind === "content-hash");
   const duplicateGb = duplicateGroups.reduce((sum, g) => sum + (g.totalWastedGb || 0), 0);
+  const duplicateEvidence =
+    duplicateGroups.length === 0
+      ? "중복 파일 후보는 보이지 않아요."
+      : exactDuplicateGroups.length === duplicateGroups.length
+        ? `내용까지 같은 파일 묶음 ${exactDuplicateGroups.length}개를 찾았어요.`
+        : exactDuplicateGroups.length > 0
+          ? `내용까지 같은 파일 묶음 ${exactDuplicateGroups.length}개와 추가 확인 후보 ${duplicateGroups.length - exactDuplicateGroups.length}개가 있어요.`
+          : `같은 이름과 크기의 파일 묶음 ${duplicateGroups.length}개가 있어요.`;
   const startupItems = report.startupPrograms?.items ?? [];
   const candidates: CleanupCandidate[] = [
     {
@@ -457,13 +466,13 @@ function buildCleanupCenter(report: ScanReport): CleanupCenterSummary {
     {
       id: "duplicate-files",
       kind: "duplicates",
-      title: "중복 의심 파일",
+      title: "중복 파일 후보",
       status: duplicateGroups.length > 0 ? "review" : "empty",
       count: duplicateGroups.length,
       sizeGb: Math.round(duplicateGb * 10) / 10,
-      evidence: duplicateGroups.length > 0 ? `같은 이름과 크기의 파일 묶음 ${duplicateGroups.length}개가 있어요.` : "중복 의심 파일 묶음은 보이지 않아요.",
-      action: "내용까지 같은지 직접 열어보고 판단하세요.",
-      safetyNote: "이건 확정 중복이 아니라 후보예요."
+      evidence: duplicateEvidence,
+      action: exactDuplicateGroups.length > 0 ? "위치와 파일 용도를 확인한 뒤 고르세요." : "내용까지 같은지 직접 열어보고 판단하세요.",
+      safetyNote: "내용이 같아 보여도 삭제 후보라서 먼저 확인해야 해요."
     },
     {
       id: "startup-apps",
