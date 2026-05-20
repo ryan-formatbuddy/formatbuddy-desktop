@@ -736,6 +736,7 @@ export interface CleanupLogEntry {
   totalFreedBytes: number;
   removedCount: number;
   skippedCount: number;
+  notSelectedCount: number;
   categories: CleanupCategoryBreakdown[];
 }
 

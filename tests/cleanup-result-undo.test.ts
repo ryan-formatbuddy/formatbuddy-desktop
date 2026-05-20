@@ -87,6 +87,7 @@ function resultWithEntries(): CleanupExecuteResult {
       totalFreedBytes: 300,
       removedCount: 3,
       skippedCount: 0,
+      notSelectedCount: 0,
       categories: []
     }
   };
@@ -450,6 +451,7 @@ describe("Cleanup result undo helper", () => {
         totalFreedBytes: 4,
         removedCount: 4,
         skippedCount: 0,
+        notSelectedCount: 0,
         categories: []
       },
       removedItems: [
@@ -516,6 +518,7 @@ describe("Cleanup result undo helper", () => {
         totalFreedBytes: 4,
         removedCount: 4,
         skippedCount: 0,
+        notSelectedCount: 0,
         categories: []
       },
       removedItems: [
@@ -600,6 +603,7 @@ describe("Cleanup result undo helper", () => {
         totalFreedBytes: 2,
         removedCount: 2,
         skippedCount: 0,
+        notSelectedCount: 0,
         categories: []
       },
       removedItems: [

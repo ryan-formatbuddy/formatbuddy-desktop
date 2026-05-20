@@ -82,7 +82,8 @@ describe("cleanup execution log coercion", () => {
       mode: "trash",
       totalFreedBytes: 12,
       removedCount: 1,
-      skippedCount: 0
+      skippedCount: 0,
+      notSelectedCount: 0
     });
     expect(history.entries[0].categories).toEqual([
       { categoryId: "temp-user", bytesFreed: 12, itemCount: 1 }
@@ -94,6 +95,42 @@ describe("cleanup execution log coercion", () => {
       version: 1,
       entries: []
     });
+  });
+
+  it("keeps persisted not-selected counts while preserving legacy entries", () => {
+    expect(
+      __testing.coerceLog({
+        version: 1,
+        entries: [
+          {
+            id: "current",
+            executedAt: "2026-05-19T00:00:00.000Z",
+            mode: "trash",
+            totalFreedBytes: 12,
+            removedCount: 1,
+            skippedCount: 2,
+            notSelectedCount: 3,
+            categories: [{ categoryId: "temp-user", bytesFreed: 12, itemCount: 1 }]
+          },
+          {
+            id: "legacy",
+            executedAt: "2026-05-19T00:00:01.000Z",
+            mode: "trash",
+            totalFreedBytes: 4,
+            removedCount: 1,
+            skippedCount: 0,
+            categories: [{ categoryId: "browser-cache", bytesFreed: 4, itemCount: 1 }]
+          }
+        ]
+      }).entries.map((entry) => ({
+        id: entry.id,
+        skippedCount: entry.skippedCount,
+        notSelectedCount: entry.notSelectedCount
+      }))
+    ).toEqual([
+      { id: "current", skippedCount: 2, notSelectedCount: 3 },
+      { id: "legacy", skippedCount: 0, notSelectedCount: 0 }
+    ]);
   });
 
   it("does not count registry backups or startup holding items as freed disk space", () => {
@@ -136,6 +173,40 @@ describe("cleanup execution log coercion", () => {
     expect(entry.categories).toEqual([
       { categoryId: "app-leftovers", bytesFreed: 12, itemCount: 3 }
     ]);
+  });
+
+  it("separates user-unselected cleanup candidates from actual skipped items", () => {
+    const entry = buildLogEntry({
+      mode: "trash",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "removed-1",
+          path: join(dir, "old.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "trash-1"
+        }
+      ],
+      skippedItems: [
+        {
+          itemId: "not-selected-1",
+          path: join(dir, "keep.tmp"),
+          reason: "not-selected"
+        },
+        {
+          itemId: "blocked-1",
+          path: "C:\\Windows\\System32\\drivers\\etc\\hosts",
+          reason: "blocked-path"
+        }
+      ]
+    });
+
+    expect(entry.removedCount).toBe(1);
+    expect(entry.skippedCount).toBe(1);
+    expect(entry.notSelectedCount).toBe(1);
   });
 
   it("refuses to persist non-restore-bin cleanup history entries", async () => {

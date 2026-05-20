@@ -87,6 +87,7 @@ function coerceEntry(value: unknown): CleanupLogEntry | null {
   if (!isPersistedCleanupMode(raw.mode)) return null;
   const removedCount = coerceNonNegativeInteger(raw.removedCount);
   const skippedCount = coerceNonNegativeInteger(raw.skippedCount);
+  const notSelectedCount = coerceNonNegativeInteger(raw.notSelectedCount) ?? 0;
   if (removedCount === null || skippedCount === null) return null;
   if (!Array.isArray(raw.categories)) return null;
 
@@ -102,6 +103,7 @@ function coerceEntry(value: unknown): CleanupLogEntry | null {
     totalFreedBytes,
     removedCount,
     skippedCount,
+    notSelectedCount,
     categories
   };
 }
@@ -199,7 +201,8 @@ export function buildLogEntry(args: {
     mode: args.mode,
     totalFreedBytes,
     removedCount: args.removedItems.filter((i) => i.succeeded).length,
-    skippedCount: args.skippedItems.length,
+    skippedCount: args.skippedItems.filter((item) => item.reason !== "not-selected").length,
+    notSelectedCount: args.skippedItems.filter((item) => item.reason === "not-selected").length,
     categories: Array.from(breakdownMap.values())
   };
 }
