@@ -20,6 +20,12 @@ describe("StartupAuto copy", () => {
     expect(source).toContain("30일 동안 보관");
     expect(source).toContain("restoreEntryExpiryLabel");
     expect(source).toContain("disabledNotes");
+    expect(source).toContain("disabledEntryIntegrityLabel");
+    expect(source).toContain("보관 파일 확인 필요");
+    expect(source).toContain("오래된 보관 기록");
+    expect(source).toContain("바로 되돌릴 수 있어요");
+    expect(source).toContain("canRestoreDisabledEntry(entry)");
+    expect(source).toContain("확인 필요");
     expect(source).not.toContain("Promise.resolve<StartupAutoDisabledSnapshot>({");
   });
 });

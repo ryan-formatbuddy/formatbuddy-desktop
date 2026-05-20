@@ -58,6 +58,30 @@ function canDisable(entry: StartupAutoEntry): boolean {
   return entry.kind === "startup-folder" && Boolean(entry.path);
 }
 
+function disabledEntryIntegrityLabel(entry: StartupAutoDisabledEntry): string {
+  if (entry.integrityStatus === "changed") return "보관 파일 확인 필요";
+  if (entry.integrityStatus === "legacy") return "오래된 보관 기록";
+  if (entry.integrityStatus === "verified") return "바로 되돌릴 수 있어요";
+  return "보관 상태 확인 중";
+}
+
+function disabledEntryIntegrityHint(entry: StartupAutoDisabledEntry): string | null {
+  if (entry.integrityStatus === "changed") {
+    return "보관된 파일이 처음과 달라 보여요. 자동으로 되돌리지 않고 다시 조회해볼게요.";
+  }
+  if (entry.integrityStatus === "legacy") {
+    return "이전 버전에서 보관한 항목이라 파일 확인 기록이 부족해요. 자동으로 되돌리지 않아요.";
+  }
+  if (entry.integrityStatus && entry.integrityStatus !== "verified") {
+    return "보관 상태를 확인한 뒤 되돌릴 수 있어요.";
+  }
+  return null;
+}
+
+function canRestoreDisabledEntry(entry: StartupAutoDisabledEntry): boolean {
+  return entry.integrityStatus === "verified";
+}
+
 function PathLine({ path }: { path?: string }) {
   if (!path) return null;
   return (
@@ -290,14 +314,45 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                     꺼둔 시각: {new Date(entry.disabledAt).toLocaleString("ko-KR")} ·{" "}
                     {restoreEntryExpiryLabel(entry.expiresAt)}
                   </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      marginTop: 6
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: canRestoreDisabledEntry(entry) ? "#047857" : "#b45309",
+                        background: canRestoreDisabledEntry(entry) ? "#dcfce7" : "#fef3c7",
+                        padding: "2px 8px",
+                        borderRadius: 999
+                      }}
+                    >
+                      {disabledEntryIntegrityLabel(entry)}
+                    </span>
+                    {disabledEntryIntegrityHint(entry) && (
+                      <span style={{ fontSize: 12, opacity: 0.72 }}>
+                        {disabledEntryIntegrityHint(entry)}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => void handleRestore(entry)}
-                  disabled={busyId === entry.id}
+                  disabled={busyId === entry.id || !canRestoreDisabledEntry(entry)}
                 >
-                  {busyId === entry.id ? "처리 중..." : "되돌리기"}
+                  {busyId === entry.id
+                    ? "처리 중..."
+                    : canRestoreDisabledEntry(entry)
+                      ? "되돌리기"
+                      : "확인 필요"}
                 </Button>
               </li>
             ))}
