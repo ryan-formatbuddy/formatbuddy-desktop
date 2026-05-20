@@ -211,7 +211,7 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
             );
             const expiresAt = "2026-06-18T00:00:00.000Z";
             await fs.mkdir(dirname(storedPath), { recursive: true });
-            await fs.writeFile(storedPath, "stored copy", "utf8");
+            await fs.writeFile(storedPath, "abc", "utf8");
             await fs.writeFile(
               join(options.userDataDir, "formatbuddy-trash", "items", entryId, "manifest.json"),
               JSON.stringify(

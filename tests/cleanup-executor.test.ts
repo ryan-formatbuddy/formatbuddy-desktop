@@ -81,7 +81,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
       const entryId = `trash-${item.id}`;
       const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", entryId, "files", "stored");
       await fs.mkdir(join(storedPath, ".."), { recursive: true });
-      await fs.writeFile(storedPath, "stored", "utf8");
+      await fs.writeFile(storedPath, "x".repeat(Math.max(0, Math.round(sizeBytes))), "utf8");
       await fs.writeFile(
         join(context.userDataDir, "formatbuddy-trash", "items", entryId, "manifest.json"),
         JSON.stringify(

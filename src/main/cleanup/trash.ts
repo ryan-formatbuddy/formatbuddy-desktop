@@ -510,6 +510,10 @@ export async function assertManagedTrashEntryManifest(options: {
   if (linkedStoredPath) {
     throw new Error(`FormatBuddy restore manifest stored item is a link: ${linkedStoredPath}`);
   }
+  const actualStoredSizeBytes = await measureStoredPath(entry.storedPath);
+  if (actualStoredSizeBytes !== entry.sizeBytes) {
+    throw new Error("FormatBuddy restore manifest stored size does not match the restore entry");
+  }
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {

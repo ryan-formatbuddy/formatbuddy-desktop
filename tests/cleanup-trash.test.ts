@@ -574,6 +574,34 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(outside, "utf8")).toBe("outside stays put");
   });
 
+  it("does not accept a restore manifest when the stored item size changed", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(entry.storedPath, "hello and more bytes", "utf8");
+
+    await expect(
+      assertManagedTrashEntryManifest({
+        userDataDir: fx.userData,
+        entryId: entry.id,
+        itemId: entry.itemId,
+        categoryId: entry.categoryId,
+        sizeBytes: entry.sizeBytes,
+        originalPath: entry.originalPath,
+        storedPath: entry.storedPath,
+        expiresAt: entry.expiresAt,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/stored.*size|size.*stored|복구함.*크기|크기.*복구함/i);
+  });
+
   it("removes a prewritten trash entry folder when the source disappears before move", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
     await mkdir(join(source, ".."), { recursive: true });
