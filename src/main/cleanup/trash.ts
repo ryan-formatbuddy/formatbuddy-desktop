@@ -441,6 +441,38 @@ export async function findLinkedManagedTrashStoredPath(
   return findLinkedDescendant(candidatePath);
 }
 
+async function assertSafeEntryDirForPurge(
+  userDataDir: string,
+  entry: CleanupTrashEntry
+): Promise<string> {
+  if (!isSafeTrashEntryId(entry.id)) {
+    throw new Error("FormatBuddy restore bin purge entry id is not safe");
+  }
+
+  const root = normalizePath(resolve(itemsRoot(userDataDir)));
+  const dir = entryDir(userDataDir, entry.id);
+  const normalizedDir = normalizePath(resolve(dir));
+  if (!normalizedDir.startsWith(`${root}\\`)) {
+    throw new Error("FormatBuddy restore bin purge entry folder is outside the restore bin");
+  }
+
+  if (!isManagedTrashEntryStoredPath(userDataDir, entry.id, entry.storedPath)) {
+    throw new Error("FormatBuddy restore bin purge stored path is outside the restore entry folder");
+  }
+
+  const linkedDir = await findLinkedPathPart(dir, userDataDir, true);
+  if (linkedDir) {
+    throw new Error(`FormatBuddy restore bin purge entry folder is a link: ${linkedDir}`);
+  }
+
+  const dirStat = await lstat(dir);
+  if (!dirStat.isDirectory()) {
+    throw new Error("FormatBuddy restore bin purge entry folder is not a folder");
+  }
+
+  return dir;
+}
+
 export async function assertManagedTrashEntryManifest(options: {
   userDataDir: string;
   entryId: string;
@@ -1022,6 +1054,7 @@ export async function purgeExpiredTrash(
     ((dir: string) => rm(dir, { recursive: true, force: true }));
   for (const entry of purge) {
     try {
+      const dir = await assertSafeEntryDirForPurge(options.userDataDir, entry);
       const linkedStoredPath = await findLinkedManagedTrashStoredPath(
         options.userDataDir,
         entry.id,
@@ -1030,7 +1063,6 @@ export async function purgeExpiredTrash(
       const entryBytes = linkedStoredPath
         ? 0
         : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
-      const dir = entryDir(options.userDataDir, entry.id);
       await removeEntryDir(dir, entry);
       if (await exists(dir)) {
         throw new Error("Expired trash entry still exists after purge");
@@ -1080,5 +1112,6 @@ export const __testing = {
   indexPath,
   entryDir,
   storedPathFor,
-  expiryFor
+  expiryFor,
+  assertSafeEntryDirForPurge
 };

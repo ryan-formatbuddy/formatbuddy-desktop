@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { CleanupItem } from "../src/shared/types";
+import type { CleanupItem, CleanupTrashEntry } from "../src/shared/types";
 import { summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
@@ -41,6 +41,24 @@ function makeItem(path: string): CleanupItem {
     categoryId: "temp-user",
     riskLevel: "safe",
     reason: "테스트 임시 파일"
+  };
+}
+
+function makeTrashEntry(userDataDir: string, entryId = "entry-1"): CleanupTrashEntry {
+  const originalPath = join(userDataDir, "..", "home", "AppData", "Local", "Temp", "old.tmp");
+  return {
+    id: entryId,
+    itemId: "item-1",
+    originalPath,
+    storedPath: __testing.storedPathFor(userDataDir, entryId, originalPath),
+    label: "old.tmp",
+    categoryId: "temp-user",
+    appName: null,
+    appPublisher: null,
+    sizeBytes: 5,
+    contentHash: null,
+    createdAt: "2026-05-19T00:00:00.000Z",
+    expiresAt: "2026-06-18T00:00:00.000Z"
   };
 }
 
@@ -1175,6 +1193,31 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(true);
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries.map((trashEntry) => trashEntry.id)).toEqual([entry.id]);
+  });
+
+  it("blocks purge preflight when the stored path is outside its restore entry folder", async () => {
+    const entry = makeTrashEntry(fx.userData, "expired-outside-stored");
+
+    await expect(
+      __testing.assertSafeEntryDirForPurge(fx.userData, {
+        ...entry,
+        storedPath: join(fx.root, "outside.tmp")
+      })
+    ).rejects.toThrow(/stored path|outside/i);
+  });
+
+  it("blocks purge preflight when the expired entry folder is behind a link", async () => {
+    if (process.platform === "win32") return;
+    const entry = makeTrashEntry(fx.userData, "expired-linked-entry");
+    const outsideEntryDir = join(fx.root, "outside-entry-dir");
+
+    await mkdir(__testing.itemsRoot(fx.userData), { recursive: true });
+    await mkdir(outsideEntryDir, { recursive: true });
+    await symlink(outsideEntryDir, __testing.entryDir(fx.userData, entry.id), "dir");
+
+    await expect(
+      __testing.assertSafeEntryDirForPurge(fx.userData, entry)
+    ).rejects.toThrow(/link|restore bin/i);
   });
 
   it("keeps other expired entries purgeable when one expired entry cannot be removed", async () => {
