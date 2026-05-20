@@ -4,6 +4,10 @@ import { describe, expect, it } from "vitest";
 
 const PRELOAD = join(__dirname, "..", "src", "preload", "index.ts");
 const IPC = join(__dirname, "..", "src", "shared", "ipc.ts");
+const RETENTION_PURGE = join(__dirname, "..", "src", "main", "retentionPurge.ts");
+const TRASH_AUDIT = join(__dirname, "..", "src", "main", "cleanup", "trashAudit.ts");
+const REGISTRY_AUDIT = join(__dirname, "..", "src", "main", "apps", "registryBackupAudit.ts");
+const STARTUP_AUDIT = join(__dirname, "..", "src", "main", "startup", "folderToggleAudit.ts");
 
 describe("restore-bin preload policy", () => {
   it("exposes restore actions without exposing a manual empty-bin bridge", () => {
@@ -19,5 +23,19 @@ describe("restore-bin preload policy", () => {
     expect(preloadSource).not.toContain("purgeExpiredCleanupTrash");
     expect(preloadSource).not.toContain("cleanupTrashPurgeExpired");
     expect(ipcSource).not.toContain("cleanupTrashPurgeExpired");
+  });
+
+  it("keeps automatic restore-bin emptying triggers limited to startup and schedule", () => {
+    const retentionSource = readFileSync(RETENTION_PURGE, "utf8");
+    const auditSources = [TRASH_AUDIT, REGISTRY_AUDIT, STARTUP_AUDIT].map((file) =>
+      readFileSync(file, "utf8")
+    );
+
+    expect(retentionSource).toContain('export type RetentionPurgeTrigger = "startup" | "scheduled";');
+    expect(retentionSource).not.toContain('"manual"');
+    for (const source of auditSources) {
+      expect(source).not.toContain('| "manual"');
+      expect(source).not.toContain('"manual";');
+    }
   });
 });

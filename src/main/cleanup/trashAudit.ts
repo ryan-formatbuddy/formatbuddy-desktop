@@ -8,8 +8,7 @@ export type TrashPurgeAuditTrigger =
   | "cleanup-plan"
   | "app-leftovers"
   | "trash-list"
-  | "restore"
-  | "manual";
+  | "restore";
 
 export async function purgeExpiredTrashWithAudit(
   options: TrashRuntimeOptions & { trigger: TrashPurgeAuditTrigger }

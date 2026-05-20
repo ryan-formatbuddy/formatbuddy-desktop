@@ -10,8 +10,7 @@ export type StartupDisabledPurgeAuditTrigger =
   | "scheduled"
   | "app-leftovers"
   | "startup-list"
-  | "startup-restore"
-  | "manual";
+  | "startup-restore";
 
 export async function purgeExpiredStartupFolderEntriesWithAudit(
   options: StartupFolderToggleRuntime & {

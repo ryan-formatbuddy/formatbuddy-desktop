@@ -128,7 +128,7 @@ describe("retention purge scheduler", () => {
     });
 
     const result = await runRetentionPurgeTick({
-      trigger: "manual",
+      trigger: "scheduled",
       purgeTrash,
       purgeRegistryBackups,
       purgeStartupDisabled

@@ -7,8 +7,7 @@ export type RegistryBackupPurgeAuditTrigger =
   | "scheduled"
   | "app-leftovers"
   | "registry-list"
-  | "registry-restore"
-  | "manual";
+  | "registry-restore";
 
 export async function purgeExpiredRegistryBackupsWithAudit(options: {
   userDataDir: string;

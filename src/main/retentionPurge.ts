@@ -9,7 +9,7 @@ import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 
 export const RETENTION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
-export type RetentionPurgeTrigger = "startup" | "scheduled" | "manual";
+export type RetentionPurgeTrigger = "startup" | "scheduled";
 
 export interface RetentionPurgeTickDeps {
   trigger: RetentionPurgeTrigger;
