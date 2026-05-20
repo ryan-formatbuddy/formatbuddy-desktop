@@ -45,7 +45,7 @@ export interface MoveToTrashOptions {
   home?: string;
   now?: () => Date;
   trustedSource?: {
-    kind: "app-shortcut" | "app-shortcut-folder";
+    kind: "app-shortcut" | "app-shortcut-folder" | "app-install-folder";
     allowRoots: string[];
   };
 }
@@ -100,7 +100,12 @@ function isAtOrInside(rawPath: string, rawRoot: string): boolean {
 }
 
 function trustedSourceAllows(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): boolean {
-  if (!trusted || (trusted.kind !== "app-shortcut" && trusted.kind !== "app-shortcut-folder")) return false;
+  if (
+    !trusted ||
+    (trusted.kind !== "app-shortcut" &&
+      trusted.kind !== "app-shortcut-folder" &&
+      trusted.kind !== "app-install-folder")
+  ) return false;
   const normalized = normalizePath(rawPath);
   if (
     normalized.endsWith("\\microsoft\\windows\\start menu\\programs\\startup") ||
@@ -111,7 +116,8 @@ function trustedSourceAllows(rawPath: string, trusted?: MoveToTrashOptions["trus
   return trusted.allowRoots.some((root) => {
     if (!isAtOrInside(rawPath, root)) return false;
     if (trusted.kind === "app-shortcut") return normalized.endsWith(".lnk");
-    return normalized !== normalizePath(root) && !normalized.endsWith(".lnk");
+    if (trusted.kind === "app-shortcut-folder") return normalized !== normalizePath(root) && !normalized.endsWith(".lnk");
+    return normalized === normalizePath(root);
   });
 }
 
@@ -803,6 +809,12 @@ export async function moveToFormatBuddyTrash(
     throw new Error(
       `cleanup-trash refuses protected source path: ${sourceDecision.blockedBy ?? "blocked-path"}`
     );
+  }
+  if (options.trustedSource?.kind === "app-install-folder") {
+    const sourceStat = await lstat(options.item.path).catch(() => null);
+    if (!sourceStat?.isDirectory()) {
+      throw new Error("cleanup-trash refuses app install folder source that is not a folder");
+    }
   }
 
   const linkedSource = await findLinkedPathPart(

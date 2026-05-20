@@ -92,6 +92,8 @@ function availabilityBadge(item: AppManagerItem): { label: string; tone: string 
 
 function leftoverKindLabel(path: AppLeftoverPath): string {
   switch (path.kind) {
+    case "install-folder":
+      return path.exists ? formatBytes(path.sizeBytes) : "설치 폴더";
     case "registry":
       return "앱 삭제 흔적";
     case "startup-folder":
@@ -219,7 +221,7 @@ function buildLeftoverCleanupConfirm(
     confirmationToken: snapshot.confirmationToken,
     selectedPathIds,
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
-    folderCount: paths.filter((path) => path.kind === "folder").length,
+    folderCount: paths.filter((path) => path.kind === "folder" || path.kind === "install-folder").length,
     shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "shortcut-folder").length,
     backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length

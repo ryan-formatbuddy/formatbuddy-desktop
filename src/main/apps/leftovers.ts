@@ -455,6 +455,7 @@ function isOptionalPlanTimestamp(value: unknown): value is string | null | undef
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
   return (
     value === "folder" ||
+    value === "install-folder" ||
     value === "shortcut" ||
     value === "shortcut-folder" ||
     value === "registry" ||
@@ -633,6 +634,29 @@ function genericFolderNames(app: InstalledApp): string[] {
     .filter(isUsefulGenericName);
 
   return Array.from(new Set(candidates));
+}
+
+function isUnderProgramFiles(raw: string): boolean {
+  const normalized = normalizePath(raw);
+  return normalized.includes("\\program files\\") || normalized.includes("\\program files (x86)\\");
+}
+
+function installFolderNameMatchesApp(raw: string, app: InstalledApp): boolean {
+  const folderName = cleanGenericName(basename(raw)).toLowerCase();
+  const compactFolderName = folderName.replace(/\s+/g, "");
+  if (!folderName || !compactFolderName) return false;
+
+  return genericFolderNames(app)
+    .map((name) => cleanGenericName(name).toLowerCase())
+    .some((name) => {
+      const compactName = name.replace(/\s+/g, "");
+      return folderName === name || compactFolderName === compactName;
+    });
+}
+
+function isTrustedInstallFolderPath(raw: string, app: InstalledApp): boolean {
+  if (!isUnderProgramFiles(raw)) return false;
+  return installFolderNameMatchesApp(raw, app);
 }
 
 const PUBLISHER_LEGAL_SUFFIX_PATTERN =
@@ -912,8 +936,16 @@ async function installLocationLeftoverPaths(
   if (!installLocation) return [];
 
   const info = await pathInfo(installLocation, env);
-  const protectedBy = info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
-  return info.exists ? [{ ...info, protectedBy, kind: "folder" }] : [];
+  const installStat = await fs.lstat(installLocation).catch(() => null);
+  const trustedInstallFolder =
+    isTrustedInstallFolderPath(installLocation, app) && Boolean(installStat?.isDirectory());
+  const measured = trustedInstallFolder ? await measurePath(installLocation) : undefined;
+  const protectedBy = trustedInstallFolder
+    ? measured?.protectedBy
+    : info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
+  return info.exists
+    ? [{ ...info, protectedBy, kind: trustedInstallFolder ? "install-folder" : "folder" }]
+    : [];
 }
 
 function isAtOrInside(raw: string, root: string): boolean {
@@ -1600,10 +1632,14 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
+    const trustedAppFolder = path.kind === "install-folder" && isTrustedInstallFolderPath(path.path, {
+      name: group?.appName ?? "",
+      publisher: group?.publisher ?? null
+    });
     const shortcutAllowed =
       (path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env)) ||
       (path.kind === "shortcut-folder" && isShortcutFolderPathAllowed(path.path, cached.env));
-    const decision = shortcutAllowed
+    const decision = shortcutAllowed || trustedAppFolder
       ? { allowed: true as const }
       : evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
     if (!decision.allowed) {
@@ -1652,6 +1688,18 @@ export async function cleanupAppLeftovers(
         continue;
       }
     }
+    if (path.kind === "install-folder") {
+      const currentStat = await fs.lstat(path.path).catch(() => null);
+      if (!trustedAppFolder || !currentStat?.isDirectory()) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: "점검했던 앱 설치 폴더를 안전하게 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
+        });
+        continue;
+      }
+    }
 
     const cleanupItem = toCleanupItem(
       {
@@ -1671,7 +1719,9 @@ export async function cleanupAppLeftovers(
           ? path.kind === "shortcut-folder"
             ? { kind: "app-shortcut-folder", allowRoots: shortcutFolderRoots(cached.env) }
             : { kind: "app-shortcut", allowRoots: shortcutRoots(cached.env) }
-          : undefined,
+          : trustedAppFolder
+            ? { kind: "app-install-folder", allowRoots: [path.path] }
+            : undefined,
         now: options.now
       });
       await assertManagedTrashEntryManifest({

@@ -465,6 +465,75 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.some((p) => p.path === installFolder && p.exists)).toBe(true);
   });
 
+  it("allows an exact Program Files install folder for a recently uninstalled app", async () => {
+    const installFolder = join(fx.root, "Program Files", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder);
+    expect(path).toMatchObject({
+      kind: "install-folder",
+      exists: true,
+      protectedBy: undefined
+    });
+  });
+
+  it("keeps mismatched Program Files install folders protected", async () => {
+    const installFolder = join(fx.root, "Program Files", "Shared Tools");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "shared.dll"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder);
+    expect(path?.kind).toBe("folder");
+    expect(path?.protectedBy).toMatch(/Program Files|installed applications|설치/);
+  });
+
+  it("does not expose a Program Files file as a selectable install folder", async () => {
+    const installFile = join(fx.root, "Program Files", "Acme Notes");
+    await fs.mkdir(dirname(installFile), { recursive: true });
+    await fs.writeFile(installFile, "not a folder", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFile
+        }
+      ]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFile);
+    expect(path?.kind).toBe("folder");
+    expect(path?.protectedBy).toMatch(/Program Files|installed applications|설치/);
+  });
+
   it("moves a selected shortcut leftover into the 30-day trash after uninstall follow-up", async () => {
     const desktopShortcut = join(fx.home, "Desktop", "Acme Notes.lnk");
     await fs.mkdir(dirname(desktopShortcut), { recursive: true });
@@ -543,6 +612,48 @@ describe("planAppLeftovers", () => {
       now: () => new Date("2026-05-20T00:00:00.000Z")
     });
     expect(trash.entries[0].originalPath).toBe(startMenuFolder);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("moves a selected Program Files install folder into the 30-day trash after uninstall follow-up", async () => {
+    const installFolder = join(fx.root, "Program Files", "Acme Notes");
+    await fs.mkdir(installFolder, { recursive: true });
+    await fs.writeFile(join(installFolder, "AcmeNotes.exe"), "binary", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder)!;
+    expect(path).toMatchObject({ kind: "install-folder", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].trashEntryId).toBeTruthy();
+    await expect(fs.stat(installFolder)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0].originalPath).toBe(installFolder);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 

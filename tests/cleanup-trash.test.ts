@@ -105,6 +105,23 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
+  it("refuses an app-install-folder trusted source when the source is not a folder", async () => {
+    const source = join(fx.root, "Program Files", "Acme Notes");
+    await mkdir(dirname(source), { recursive: true });
+    await writeFile(source, "not a folder", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 12,
+        trustedSource: { kind: "app-install-folder", allowRoots: [source] },
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/install folder|설치 폴더|folder/i);
+    expect(await readFile(source, "utf8")).toBe("not a folder");
+  });
+
   it("recovers a moved item when the trash index was blocked by a link", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

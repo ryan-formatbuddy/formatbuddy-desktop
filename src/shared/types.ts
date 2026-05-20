@@ -1186,6 +1186,7 @@ export interface AppLeftoverPath {
   id: string;
   kind?:
     | "folder"
+    | "install-folder"
     | "shortcut"
     | "shortcut-folder"
     | "registry"
