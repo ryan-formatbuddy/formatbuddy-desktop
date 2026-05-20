@@ -8,8 +8,13 @@ import {
   __resetLeftoversPlanCacheForTests,
   __testing as leftoversTesting
 } from "../src/main/apps/leftovers";
+import {
+  forgetUninstallFollowup,
+  listUninstallFollowups,
+  rememberUninstallFollowup
+} from "../src/main/apps/uninstallFollowups";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
-import { getTrashSnapshot, restoreTrashEntry, __testing as trashTesting } from "../src/main/cleanup/trash";
+import { getTrashSnapshot, purgeExpiredTrash, restoreTrashEntry, __testing as trashTesting } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
 import {
@@ -19,6 +24,7 @@ import {
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 type CleanupAppLeftoversRequestArg = Parameters<typeof cleanupAppLeftoversBase>[0];
 type CleanupAppLeftoversOptionsArg = Parameters<typeof cleanupAppLeftoversBase>[1];
@@ -2627,6 +2633,114 @@ describe("planAppLeftovers", () => {
       now: () => new Date("2026-05-20T00:00:00.000Z")
     });
     expect(afterRestore.entries).toEqual([]);
+  });
+
+  it("runs the persisted uninstall follow-up through cleanup, restore, and 30-day purge", async () => {
+    const slack = join(fx.roaming, "Slack");
+    const cacheFile = join(slack, "cache.bin");
+    const userDataDir = join(fx.root, "userdata");
+    const baseMs = Date.now();
+    const firstCleanupAt = new Date(baseMs);
+    const restoredAt = new Date(baseMs + 1000);
+    const secondCleanupAt = new Date(baseMs + 2000);
+    const purgeAt = new Date(secondCleanupAt.getTime() + 31 * DAY_MS);
+
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(cacheFile, "abc", "utf8");
+    await rememberUninstallFollowup(
+      userDataDir,
+      { name: "Slack", publisher: "Slack Technologies" },
+      () => firstCleanupAt.getTime()
+    );
+
+    const persistedFollowups = await listUninstallFollowups(userDataDir, () => firstCleanupAt.getTime() + 1000);
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: persistedFollowups,
+      installedAppsKnown: true
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    expect(snapshot.groups[0]).toMatchObject({
+      appName: "Slack",
+      cleanupState: "removed-confirmed"
+    });
+
+    const cleanup = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir,
+        now: () => firstCleanupAt,
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: [],
+        onFollowupCleaned: async (app) => {
+          await forgetUninstallFollowup(userDataDir, app, () => firstCleanupAt.getTime() + 2000);
+        }
+      }
+    );
+    const firstTrashEntryId = cleanup.removedItems[0]?.trashEntryId;
+    expect(firstTrashEntryId).toBeTruthy();
+    expect(await listUninstallFollowups(userDataDir, () => firstCleanupAt.getTime() + 3000)).toEqual([]);
+    await expect(fs.stat(slack)).rejects.toThrow();
+
+    const restored = await restoreTrashEntry({
+      userDataDir,
+      entryId: firstTrashEntryId!,
+      home: fx.home,
+      onAppLeftoverRestored: (app) =>
+        rememberUninstallFollowup(userDataDir, app, () => restoredAt.getTime())
+    });
+    expect(restored.status).toBe("restored");
+    await expect(fs.readFile(cacheFile, "utf8")).resolves.toBe("abc");
+    expect(await listUninstallFollowups(userDataDir, () => restoredAt.getTime() + 1000)).toEqual([
+      { name: "Slack", publisher: "Slack Technologies" }
+    ]);
+
+    const restoredFollowups = await listUninstallFollowups(userDataDir, () => restoredAt.getTime() + 2000);
+    const secondSnapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: restoredFollowups,
+      installedAppsKnown: true
+    });
+    const secondPath = secondSnapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const secondCleanup = await cleanupAppLeftovers(
+      {
+        planId: secondSnapshot.planId,
+        confirmationToken: secondSnapshot.confirmationToken,
+        selectedPathIds: [secondPath.id]
+      },
+      {
+        userDataDir,
+        now: () => secondCleanupAt,
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: [],
+        onFollowupCleaned: async (app) => {
+          await forgetUninstallFollowup(userDataDir, app, () => secondCleanupAt.getTime() + 1000);
+        }
+      }
+    );
+    const secondTrashEntryId = secondCleanup.removedItems[0]?.trashEntryId;
+    expect(secondTrashEntryId).toBeTruthy();
+    expect(await listUninstallFollowups(userDataDir, () => secondCleanupAt.getTime() + 2000)).toEqual([]);
+
+    const purged = await purgeExpiredTrash({
+      userDataDir,
+      now: () => purgeAt
+    });
+    expect(purged.purgedEntryIds).toEqual([secondTrashEntryId]);
+    expect(purged.purgedCount).toBe(1);
+    await expect(fs.stat(slack)).rejects.toThrow();
+    expect(
+      await getTrashSnapshot({
+        userDataDir,
+        now: () => purgeAt
+      })
+    ).toMatchObject({ entries: [] });
   });
 
   it("refuses to clean app leftovers when the app was installed again after the plan", async () => {
