@@ -417,6 +417,14 @@ function hasControlCharacters(value: string): boolean {
   return /[\u0000-\u001f\u007f]/.test(value);
 }
 
+function isUsablePlanString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && !hasControlCharacters(value);
+}
+
+function isOptionalUsablePlanString(value: unknown): value is string | null | undefined {
+  return value === undefined || value === null || value === "" || isUsablePlanString(value);
+}
+
 function hasDuplicates(values: string[]): boolean {
   return new Set(values).size !== values.length;
 }
@@ -979,6 +987,31 @@ function leftoverChangedSincePlan(
   return false;
 }
 
+function assertSelectedLeftoverPlanMetadataUsable(
+  snapshot: AppLeftoversSnapshot,
+  selectedIds: Set<string>
+): void {
+  for (const selectedId of selectedIds) {
+    const path = allPaths(snapshot).find((candidate) => candidate.id === selectedId);
+    if (!path) continue;
+    const group = groupForPath(snapshot, selectedId);
+    const invalid: string[] = [];
+
+    if (!isUsablePlanString(path.id)) invalid.push("path id");
+    if (!isUsablePlanString(path.path)) invalid.push("path");
+    if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
+    if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
+    if (!isOptionalUsablePlanString(path.registryValueName)) invalid.push("registry value name");
+    if (!isOptionalUsablePlanString(path.protectedBy)) invalid.push("protection reason");
+
+    if (invalid.length > 0) {
+      throw new Error(
+        `apps:leftovers-cleanup leftover plan metadata contains control characters or empty fields: ${invalid.join(", ")}`
+      );
+    }
+  }
+}
+
 export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
   options: CleanupAppLeftoversOptions
@@ -1021,6 +1054,7 @@ export async function cleanupAppLeftovers(
       `apps:leftovers-cleanup selectedPathIds not present in the leftover plan: ${unknownSelectionIds.join(", ")}`
     );
   }
+  assertSelectedLeftoverPlanMetadataUsable(currentPlan.snapshot, selectedIds);
 
   const cached = consumeLeftoversPlan(request.planId, request.confirmationToken, options.now);
   if (!cached) {
