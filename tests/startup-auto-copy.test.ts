@@ -49,4 +49,18 @@ describe("StartupAuto copy", () => {
     expect(source).toContain("시작 설정은 포맷버디 복구함에 30일 동안 백업해요.");
     expect(source).not.toContain("HKCU Run");
   });
+
+  it("keeps service and scheduled-task items read-only with a GUI settings path", () => {
+    const source = readFileSync(STARTUP_AUTO_PAGE, "utf8");
+
+    expect(source).toContain("readonlyEntryHint");
+    expect(source).toContain("서비스와 예약 작업은 Windows와 가까워서 자동으로 끄지 않아요");
+    expect(source).toContain("예약 작업은 업데이트·동기화 같은 조건 실행이 섞여 있어서");
+    expect(source).toContain("서비스는 보안·프린터·드라이버와 가까워서");
+    expect(source).toContain("Windows 시작 앱 설정 열기");
+    expect(source).toContain("ms-settings:startupapps");
+    expect(source).toContain("보기만");
+    expect(source).not.toContain("powershell");
+    expect(source).not.toContain("PowerShell");
+  });
 });

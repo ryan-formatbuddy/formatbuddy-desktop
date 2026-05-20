@@ -59,6 +59,16 @@ function canDisable(entry: StartupAutoEntry): boolean {
   return entry.kind === "registry" && Boolean(entry.registryKeyPath && entry.registryValueName);
 }
 
+function readonlyEntryHint(entry: StartupAutoEntry): string | null {
+  if (entry.kind === "scheduled-task") {
+    return "예약 작업은 업데이트·동기화 같은 조건 실행이 섞여 있어서 이번 버전에서는 보기만 해요.";
+  }
+  if (entry.kind === "service") {
+    return "서비스는 보안·프린터·드라이버와 가까워서 앱에서 자동으로 끄지 않아요.";
+  }
+  return null;
+}
+
 function disabledEntryIntegrityLabel(entry: StartupAutoDisabledEntry): string {
   if (entry.integrityStatus === "changed") return "보관 파일 확인 필요";
   if (entry.integrityStatus === "legacy") return "오래된 보관 기록";
@@ -206,6 +216,25 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
     void load();
   }, [load]);
 
+  const openStartupSettings = useCallback(async () => {
+    if (!window.fb?.runActionCommand) {
+      setMessage("Windows 시작 앱 설정을 연결하지 못했어요. Windows 설정에서 '시작 앱'을 검색해보세요.");
+      return;
+    }
+    try {
+      const result = await window.fb.runActionCommand("ms-settings:startupapps");
+      if (result.mode === "opened-url") {
+        setMessage("Windows 시작 앱 설정을 열었어요. 포맷버디에서 보기만 하는 항목은 거기서 한 번 더 확인해주세요.");
+      } else if (result.mode === "copied-to-clipboard") {
+        setMessage("Windows 시작 앱 설정 주소를 복사했어요. 실행 창에 붙여넣어 열 수 있어요.");
+      } else {
+        setMessage("Windows 시작 앱 설정을 바로 열지 못했어요. Windows 설정에서 '시작 앱'을 검색해보세요.");
+      }
+    } catch {
+      setMessage("Windows 시작 앱 설정을 바로 열지 못했어요. Windows 설정에서 '시작 앱'을 검색해보세요.");
+    }
+  }, []);
+
   const groups = useMemo(() => {
     const map = new Map<StartupAutoKind, StartupAutoEntry[]>();
     for (const kind of KIND_ORDER) map.set(kind, []);
@@ -286,6 +315,9 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
           <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
             {loading ? "조회 중..." : "다시 조회"}
           </Button>
+          <Button variant="secondary" size="sm" onClick={() => void openStartupSettings()}>
+            Windows 시작 앱 설정 열기
+          </Button>
           <Button variant="ghost" size="sm" onClick={onBack}>
             처음으로
           </Button>
@@ -297,6 +329,10 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
         <p className="fb-lede">
           부팅 직후 자동으로 켜지는 앱을 한 화면에 모았어요. 시작 폴더 항목은 여기서 잠시
           꺼둘 수 있고, 30일 안에 다시 되돌릴 수 있어요. {summary}
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.72 }}>
+          서비스와 예약 작업은 Windows와 가까워서 자동으로 끄지 않아요. 대신 어떤 항목인지 보여드리고,
+          필요하면 Windows 시작 앱 설정도 열어 일반 시작 앱부터 직접 확인할 수 있게 이어드려요.
         </p>
       </section>
 
@@ -502,6 +538,11 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                       {entry.origin}
                       {entry.publisher ? ` · ${entry.publisher}` : ""}
                     </div>
+                    {!canDisable(entry) && readonlyEntryHint(entry) && (
+                      <div style={{ fontSize: 12, opacity: 0.68, marginTop: 4 }}>
+                        {readonlyEntryHint(entry)}
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                     {typeof entry.enabled === "boolean" && (
@@ -520,7 +561,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                         {entry.enabled ? "켜짐" : "꺼짐"}
                       </span>
                     )}
-                    {canDisable(entry) && (
+                    {canDisable(entry) ? (
                       <Button
                         variant="secondary"
                         size="sm"
@@ -529,7 +570,21 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                       >
                         {busyId === entry.id ? "처리 중..." : "잠시 끄기"}
                       </Button>
-                    )}
+                    ) : readonlyEntryHint(entry) ? (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          alignSelf: "center",
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(0,0,0,0.14)",
+                          opacity: 0.72,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        보기만
+                      </span>
+                    ) : null}
                   </div>
                 </li>
               ))}
