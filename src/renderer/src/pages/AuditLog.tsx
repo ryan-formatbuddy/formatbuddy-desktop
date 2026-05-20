@@ -109,6 +109,7 @@ function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
   return (
     arrayCountDetail(detail, "trashEntryIds") +
     arrayCountDetail(detail, "registryBackupIds") +
+    arrayCountDetail(detail, "preservedRegistryBackupIds") +
     arrayCountDetail(detail, "startupDisabledIds")
   );
 }

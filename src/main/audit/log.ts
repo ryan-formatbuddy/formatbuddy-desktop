@@ -71,6 +71,7 @@ const AUDIT_DETAIL_ID_ARRAY_KEYS = new Set([
   "purgedIds",
   "trashEntryIds",
   "registryBackupIds",
+  "preservedRegistryBackupIds",
   "startupDisabledIds"
 ]);
 

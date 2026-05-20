@@ -264,6 +264,7 @@ describe("coerce + sanity guards", () => {
         failedIds: ["reg-busy", "reg\\bad", ".", ".."],
         trashEntryIds: ["trash-ok", "trash/unsafe"],
         registryBackupIds: ["reg-ok", "reg ok"],
+        preservedRegistryBackupIds: ["preserved-reg-ok", "preserved reg bad"],
         startupDisabledIds: ["startup-ok", "startup\nbad"],
         note: "kept"
       }
@@ -274,6 +275,7 @@ describe("coerce + sanity guards", () => {
       failedIds: ["reg-busy"],
       trashEntryIds: ["trash-ok"],
       registryBackupIds: ["reg-ok"],
+      preservedRegistryBackupIds: ["preserved-reg-ok"],
       startupDisabledIds: ["startup-ok"],
       note: "kept"
     });

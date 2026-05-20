@@ -10,6 +10,7 @@ import {
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
+import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
@@ -2029,6 +2030,62 @@ describe("planAppLeftovers", () => {
       reason: "execute-failed"
     });
     expect(result.skippedItems[0].detail).toMatch(/백업|backup|보이지|찾지/i);
+  });
+
+  it("surfaces a preserved registry backup when the post-delete check fails", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp.", registryKeyPath }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      keyExists: vi.fn(async () => {
+        throw new Error("post-delete registry check unavailable");
+      })
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: registryKeyPath,
+      reason: "execute-failed",
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/백업|30일|복구함|남겨/);
+    expect(preservedRegistryBackupIds(result, Date.parse("2026-05-20T00:00:00.000Z"))).toEqual([
+      result.skippedItems[0].registryBackupId
+    ]);
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries).toHaveLength(1);
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: registryKeyPath,
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
   });
 
   it("does not create generic leftover groups when the app folders do not exist", async () => {

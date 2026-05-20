@@ -49,6 +49,7 @@ import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
+  isRegistryBackupPreservedError,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   type RegistryCleanupRunner
@@ -1399,6 +1400,19 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
     : "execute-failed";
 }
 
+function preservedRegistryBackupSkipFields(err: unknown): Pick<
+  CleanupSkippedItem,
+  "registryBackupId" | "expiresAt" | "detail"
+> | null {
+  if (!isRegistryBackupPreservedError(err)) return null;
+  const message = err.message.trim() || "정리 확인을 끝내지 못했어요.";
+  return {
+    registryBackupId: err.backup.id,
+    expiresAt: err.backup.expiresAt,
+    detail: `${message} 백업은 30일 복구함에 남겨뒀어요.`
+  };
+}
+
 async function movePathBestEffort(source: string, destination: string): Promise<void> {
   await fs.mkdir(dirname(destination), { recursive: true });
   try {
@@ -1713,13 +1727,20 @@ export async function cleanupAppLeftovers(
         resolvedPathIds.add(path.id);
       } catch (err) {
         const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
         skippedItems.push({
           itemId: path.id,
           path: path.path,
           reason: /지원하는 앱 제거 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
-          detail: message
+          detail: preservedBackup?.detail ?? message,
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
         });
       }
       continue;
@@ -1754,13 +1775,20 @@ export async function cleanupAppLeftovers(
         resolvedPathIds.add(path.id);
       } catch (err) {
         const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
         skippedItems.push({
           itemId: path.id,
           path: path.path,
           reason: /지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)
             ? "blocked-path"
             : "execute-failed",
-          detail: message
+          detail: preservedBackup?.detail ?? message,
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
         });
       }
       continue;

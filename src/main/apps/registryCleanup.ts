@@ -27,6 +27,34 @@ export interface RegistryCleanupRunner {
   importFile?: (backupPath: string) => Promise<void>;
 }
 
+export class RegistryBackupPreservedError extends Error {
+  readonly backup: Pick<RegistryBackupEntry, "id" | "expiresAt">;
+
+  constructor(
+    message: string,
+    backup: Pick<RegistryBackupEntry, "id" | "expiresAt">,
+    cause?: unknown
+  ) {
+    super(message);
+    this.name = "RegistryBackupPreservedError";
+    this.backup = backup;
+    if (cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = cause;
+    }
+    Object.setPrototypeOf(this, RegistryBackupPreservedError.prototype);
+  }
+}
+
+export function isRegistryBackupPreservedError(err: unknown): err is RegistryBackupPreservedError {
+  return (
+    err instanceof RegistryBackupPreservedError ||
+    (typeof err === "object" &&
+      err !== null &&
+      (err as { name?: unknown }).name === "RegistryBackupPreservedError" &&
+      typeof (err as { backup?: { id?: unknown } }).backup?.id === "string")
+  );
+}
+
 type RegistryBackupRestoredApp = {
   name: string;
   publisher?: string | null;
@@ -579,12 +607,16 @@ export async function backupAndDeleteRegistryKey(options: {
     await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
-    if (
-      deleteInvoked &&
-      !deleteConfirmedIncomplete &&
-      (await hasRestorableRegistryBackupEntry(options.userDataDir, id))
-    ) {
-      throw err;
+    if (deleteInvoked && !deleteConfirmedIncomplete) {
+      const preservedBackup = await restorableRegistryBackupEntry(options.userDataDir, id);
+      if (preservedBackup) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new RegistryBackupPreservedError(
+          message,
+          { id: preservedBackup.id, expiresAt: preservedBackup.expiresAt },
+          err
+        );
+      }
     }
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -661,12 +693,16 @@ export async function backupAndDeleteRegistryValue(options: {
     await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
-    if (
-      deleteInvoked &&
-      !deleteConfirmedIncomplete &&
-      (await hasRestorableRegistryBackupEntry(options.userDataDir, id))
-    ) {
-      throw err;
+    if (deleteInvoked && !deleteConfirmedIncomplete) {
+      const preservedBackup = await restorableRegistryBackupEntry(options.userDataDir, id);
+      if (preservedBackup) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new RegistryBackupPreservedError(
+          message,
+          { id: preservedBackup.id, expiresAt: preservedBackup.expiresAt },
+          err
+        );
+      }
     }
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -696,15 +732,14 @@ async function assertRegistryBackupEntryStillRestorable(
   throw new Error(result.result.message);
 }
 
-async function hasRestorableRegistryBackupEntry(
+async function restorableRegistryBackupEntry(
   userDataDir: string,
   backupId: string
-): Promise<boolean> {
+): Promise<RegistryBackupEntry | null> {
   try {
-    await assertRegistryBackupEntryStillRestorable(userDataDir, backupId);
-    return true;
+    return await assertRegistryBackupEntryStillRestorable(userDataDir, backupId);
   } catch {
-    return false;
+    return null;
   }
 }
 

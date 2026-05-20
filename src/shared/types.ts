@@ -724,6 +724,10 @@ export interface CleanupSkippedItem {
   path: string;
   reason: CleanupSkipReason;
   detail?: string;
+  /** Present when cleanup could not confirm deletion but a restorable registry backup was preserved. */
+  registryBackupId?: string;
+  /** ISO-8601 UTC. Registry backups are auto-deleted after this time. */
+  expiresAt?: string;
 }
 
 export interface CleanupCategoryBreakdown {

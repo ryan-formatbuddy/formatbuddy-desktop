@@ -10,6 +10,9 @@ describe("app leftovers audit copy", () => {
 
     expect(source).not.toContain("레지스트리 ${registryBackupIds.length}개를 백업 후 정리했어요");
     expect(source).toContain("앱 삭제 흔적 ${registryBackupIds.length}개를 백업 후 정리했어요");
+    expect(source).toContain("preservedRegistryBackupIds");
+    expect(source).toContain("확인을 끝내지 못한 앱 삭제 흔적 백업");
+    expect(source).toContain("복구함에 남겨뒀어요");
     expect(source).not.toContain("폴더와 백업은 30일 뒤 자동으로 비워요");
     expect(source).toContain("보관한 항목은 30일 뒤 자동으로 비워요");
   });

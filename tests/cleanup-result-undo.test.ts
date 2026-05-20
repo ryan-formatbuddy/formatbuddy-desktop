@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   daysUntilTrashExpiry,
   isTrashEntryExpired,
+  preservedRegistryBackupIds,
   restoreEntryExpiryLabel,
   restorableRegistryBackupIds,
   registryBackupKindLabel,
@@ -128,6 +129,39 @@ describe("Cleanup result undo helper", () => {
 
   it("returns only successful registry backup ids for immediate undo", () => {
     expect(restorableRegistryBackupIds(resultWithEntries())).toEqual(["registry-ok"]);
+  });
+
+  it("returns safe preserved registry backup ids from skipped cleanup items", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      ...resultWithEntries(),
+      skippedItems: [
+        {
+          itemId: "preserved-registry",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes",
+          reason: "execute-failed",
+          registryBackupId: "preserved-registry-ok",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-preserved-registry",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Unsafe",
+          reason: "execute-failed",
+          registryBackupId: "../unsafe",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "expired-preserved-registry",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Expired",
+          reason: "execute-failed",
+          registryBackupId: "expired-registry-ok",
+          expiresAt: "2026-05-19T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(preservedRegistryBackupIds(result, now)).toEqual(["preserved-registry-ok"]);
+    expect(restorableRegistryBackupIds(result, now)).toEqual(["registry-ok"]);
   });
 
   it("returns only safe startup disabled ids for immediate undo", () => {

@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import {
+  preservedRegistryBackupIds,
   registryBackupKindLabel,
   restorableRegistryBackupIds,
   restorableStartupDisabledIds,
@@ -1116,6 +1117,7 @@ function registerIpc() {
         const freedMb = (result.totalFreedBytes / 1024 / 1024).toFixed(1);
         const trashEntryIds = restorableTrashEntryIds(result);
         const registryBackupIds = restorableRegistryBackupIds(result);
+        const preservedBackupIds = preservedRegistryBackupIds(result);
         const startupDisabledIds = restorableStartupDisabledIds(result);
         const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length;
         const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
@@ -1126,6 +1128,9 @@ function registerIpc() {
             : "",
           registryBackupIds.length > 0
             ? `앱 삭제 흔적 ${registryBackupIds.length}개를 백업 후 정리했어요`
+            : "",
+          preservedBackupIds.length > 0
+            ? `확인을 끝내지 못한 앱 삭제 흔적 백업 ${preservedBackupIds.length}개는 복구함에 남겨뒀어요`
             : "",
           startupDisabledIds.length > 0
             ? `잠시 꺼둔 시작 항목 ${startupDisabledIds.length}개를 보관했어요`
@@ -1146,6 +1151,7 @@ function registerIpc() {
             totalFreedBytes: result.totalFreedBytes,
             trashEntryIds,
             registryBackupIds,
+            preservedRegistryBackupIds: preservedBackupIds,
             startupDisabledIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));

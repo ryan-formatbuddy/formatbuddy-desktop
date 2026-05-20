@@ -8,6 +8,7 @@ import {
   summarizeLeftoverSnapshot
 } from "@shared/app-leftovers";
 import {
+  preservedRegistryBackupIds,
   restorableRegistryBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
@@ -121,7 +122,8 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
 
 function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const fileOrFolderCount = restorableTrashEntryIds(result).length;
-  const backupCount = restorableRegistryBackupIds(result).length;
+  const preservedBackupCount = preservedRegistryBackupIds(result).length;
+  const backupCount = restorableRegistryBackupIds(result).length + preservedBackupCount;
   const startupCount = restorableStartupDisabledIds(result).length;
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
@@ -161,6 +163,9 @@ function appLeftoverSkippedMessage(
     case "below-min-age":
       return "아직 최근 항목이라 이번에는 그대로 뒀어요.";
     case "execute-failed":
+      if (item.registryBackupId && item.expiresAt) {
+        return "정리 확인을 끝내지 못했지만 백업은 30일 복구함에 남겨뒀어요.";
+      }
       return "정리 중 문제가 생겨서 그대로 뒀어요. 다시 점검 후 한 번 더 시도해주세요.";
     case "not-selected":
     default:
@@ -193,6 +198,7 @@ function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const restorableCount =
     restorableTrashEntryIds(result).length +
     restorableRegistryBackupIds(result).length +
+    preservedRegistryBackupIds(result).length +
     restorableStartupDisabledIds(result).length;
 
   if (cleanedCount > 0 && restorableCount > 0) {
@@ -547,6 +553,7 @@ function LeftoverPanel({
   const restorableCount = result
     ? restorableTrashEntryIds(result).length +
       restorableRegistryBackupIds(result).length +
+      preservedRegistryBackupIds(result).length +
       restorableStartupDisabledIds(result).length
     : 0;
   const cleanedCount = result
@@ -959,7 +966,9 @@ export function AppManager({
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
       const entryIds = restorableTrashEntryIds(result);
-      const registryBackupIds = restorableRegistryBackupIds(result);
+      const registryBackupIds = Array.from(
+        new Set([...restorableRegistryBackupIds(result), ...preservedRegistryBackupIds(result)])
+      );
       const startupDisabledIds = restorableStartupDisabledIds(result);
       if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");

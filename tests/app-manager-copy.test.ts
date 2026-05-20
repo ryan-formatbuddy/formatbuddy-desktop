@@ -119,7 +119,8 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("appLeftoverResultLines");
     expect(source).toContain("const fileOrFolderCount = restorableTrashEntryIds(result).length");
-    expect(source).toContain("const backupCount = restorableRegistryBackupIds(result).length");
+    expect(source).toContain("const preservedBackupCount = preservedRegistryBackupIds(result).length");
+    expect(source).toContain("const backupCount = restorableRegistryBackupIds(result).length + preservedBackupCount");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 파일/폴더");
     expect(source).toContain("앱 삭제 흔적/시작 항목 백업");
@@ -147,6 +148,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("appLeftoverSkippedPreviewLines");
     expect(source).toContain("그대로 둔 이유");
     expect(source).toContain("보호가 필요한 항목이라 그대로 뒀어요");
+    expect(source).toContain("item.registryBackupId");
+    expect(source).toContain("백업은 30일 복구함에 남겨뒀어요");
     expect(source).toContain("정리 중 문제가 생겨서 그대로 뒀어요");
     expect(source).toContain("활동 기록에서 이어서 볼 수 있어요");
     expect(source).not.toContain("item.detail ||");
