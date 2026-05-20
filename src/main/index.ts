@@ -74,6 +74,7 @@ import {
   listDisabledStartupFolderEntries,
   restoreStartupFolderEntry
 } from "./startup/folderToggle";
+import { normalizeStartupFolderRestoreRequest } from "./startup/folderToggleRequestPolicy";
 import { purgeExpiredStartupFolderEntriesWithAudit } from "./startup/folderToggleAudit";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
@@ -811,12 +812,15 @@ function registerIpc() {
         };
       }
       const userDataDir = app.getPath("userData");
-      await maybeCreateRestorePoint("시작 항목 되돌리기");
+      const safeRequest = normalizeStartupFolderRestoreRequest(request);
+      if (safeRequest.disabledId) {
+        await maybeCreateRestorePoint("시작 항목 되돌리기");
+      }
       const result = await restoreStartupFolderEntry({
         userDataDir,
-        disabledId: request?.disabledId ?? ""
+        disabledId: safeRequest.disabledId
       });
-      log.info(`startup:restore status=${result.status} id=${request?.disabledId ?? ""}`);
+      log.info(`startup:restore status=${result.status} id=${safeRequest.disabledId}`);
       await appendAuditEntry(userDataDir, {
         category: "system",
         action: `startup-restore-${result.status}`,
@@ -825,7 +829,7 @@ function registerIpc() {
             ? `"${result.entry?.name ?? "시작 항목"}"을 다시 PC 켤 때 같이 뜨도록 되돌렸어요.`
             : `시작 항목 되돌리기 결과: ${result.message}`,
         detail: {
-          disabledId: request?.disabledId,
+          disabledId: safeRequest.disabledId,
           status: result.status,
           name: result.entry?.name,
           originalPath: result.entry?.originalPath

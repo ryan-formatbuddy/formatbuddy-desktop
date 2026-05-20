@@ -53,8 +53,24 @@ describe("cleanup policy wiring", () => {
 
     expect(source).toContain("normalizeCleanupTrashRestoreRequest(request)");
     expect(source).toContain("normalizeRegistryBackupRestoreRequest(request)");
+    expect(source).toContain("normalizeStartupFolderRestoreRequest(request)");
     expect(source).toContain("entryId: safeRequest.entryId");
     expect(source).toContain("backupId: safeRequest.backupId");
+    expect(source).toContain("disabledId: safeRequest.disabledId");
+  });
+
+  it("normalizes startup restore requests before creating restore points", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const policyIndex = source.indexOf("const safeRequest = normalizeStartupFolderRestoreRequest(request)");
+    const restorePointIndex = source.indexOf('await maybeCreateRestorePoint("시작 항목 되돌리기")');
+    const restoreIndex = source.indexOf("restoreStartupFolderEntry({", policyIndex);
+    expect(policyIndex).toBeGreaterThanOrEqual(0);
+    expect(restorePointIndex).toBeGreaterThanOrEqual(0);
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(policyIndex).toBeLessThan(restorePointIndex);
+    expect(policyIndex).toBeLessThan(restoreIndex);
+    expect(source.indexOf("disabledId: safeRequest.disabledId", restoreIndex)).toBeGreaterThan(restoreIndex);
   });
 
   it("enforces the app leftovers cleanup policy before creating restore points", () => {
