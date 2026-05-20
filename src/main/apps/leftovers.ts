@@ -413,6 +413,10 @@ function isTrimmedString(value: string): boolean {
   return value.trim() === value;
 }
 
+function hasControlCharacters(value: string): boolean {
+  return /[\u0000-\u001f\u007f]/.test(value);
+}
+
 function hasDuplicates(values: string[]): boolean {
   return new Set(values).size !== values.length;
 }
@@ -979,11 +983,14 @@ export async function cleanupAppLeftovers(
   request: AppLeftoversCleanupRequest,
   options: CleanupAppLeftoversOptions
 ): Promise<CleanupExecuteResult> {
-  if (!request?.planId || !request?.confirmationToken) {
+  if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("apps:leftovers-cleanup requires planId and confirmationToken");
   }
   if (!isTrimmedString(request.planId) || !isTrimmedString(request.confirmationToken)) {
     throw new Error("apps:leftovers-cleanup requires planId and confirmationToken without whitespace padding");
+  }
+  if (hasControlCharacters(request.planId) || hasControlCharacters(request.confirmationToken)) {
+    throw new Error("apps:leftovers-cleanup requires planId and confirmationToken without control characters");
   }
   if (!Array.isArray(request.selectedPathIds) || request.selectedPathIds.length === 0) {
     throw new Error("apps:leftovers-cleanup requires at least one selected path");
@@ -993,6 +1000,9 @@ export async function cleanupAppLeftovers(
   }
   if (!request.selectedPathIds.every(isTrimmedString)) {
     throw new Error("apps:leftovers-cleanup requires selectedPathIds without whitespace padding");
+  }
+  if (request.selectedPathIds.some(hasControlCharacters)) {
+    throw new Error("apps:leftovers-cleanup requires selectedPathIds without control characters");
   }
   if (hasDuplicates(request.selectedPathIds)) {
     throw new Error("apps:leftovers-cleanup requires selectedPathIds to be unique without duplicates");
