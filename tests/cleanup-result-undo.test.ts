@@ -217,6 +217,32 @@ describe("Cleanup result undo helper", () => {
     );
   });
 
+  it("treats malformed restore-bin expiry data as expired in summaries and ordering", () => {
+    const now = Date.parse("2026-05-19T00:00:00.000Z");
+    const entries = [
+      {
+        id: "fresh",
+        expiresAt: "2026-05-21T00:00:00.000Z",
+        createdAt: "2026-05-18T00:00:00.000Z"
+      },
+      {
+        id: "bad-expiry",
+        expiresAt: "not-a-date",
+        createdAt: "2026-05-18T00:00:00.000Z"
+      }
+    ] as CleanupTrashEntry[];
+
+    expect(trashExpirySummary(entries, now)).toEqual({
+      nextExpiryDays: 0,
+      expiringSoonCount: 2,
+      todayCount: 1
+    });
+    expect(sortTrashEntriesByExpiry(entries).map((entry) => entry.id)).toEqual([
+      "bad-expiry",
+      "fresh"
+    ]);
+  });
+
   it("omits expired entries from recent restore helpers when expiry data is present", () => {
     const now = Date.parse("2026-06-18T00:00:01.000Z");
     const result: CleanupExecuteResult = {

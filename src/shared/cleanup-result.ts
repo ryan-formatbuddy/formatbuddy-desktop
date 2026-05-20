@@ -16,7 +16,7 @@ export interface TrashExpirySummary {
 
 function parseTrashExpiryDays(expiresAt: string, now: number): number | null {
   const t = Date.parse(expiresAt);
-  if (!Number.isFinite(t)) return null;
+  if (!Number.isFinite(t)) return 0;
   return Math.max(0, Math.ceil((t - now) / MS_PER_DAY));
 }
 
@@ -24,6 +24,11 @@ function parseSortTime(value: string | undefined, fallback: number): number {
   if (!value) return fallback;
   const t = Date.parse(value);
   return Number.isFinite(t) ? t : fallback;
+}
+
+function parseExpirySortTime(value: string): number {
+  const t = Date.parse(value);
+  return Number.isFinite(t) ? t : Number.NEGATIVE_INFINITY;
 }
 
 export function daysUntilTrashExpiry(expiresAt: string, now = Date.now()): number {
@@ -45,8 +50,7 @@ export function sortTrashEntriesByExpiry<T extends { expiresAt: string; createdA
 ): T[] {
   return entries.slice().sort((a, b) => {
     const expiryDiff =
-      parseSortTime(a.expiresAt, Number.POSITIVE_INFINITY) -
-      parseSortTime(b.expiresAt, Number.POSITIVE_INFINITY);
+      parseExpirySortTime(a.expiresAt) - parseExpirySortTime(b.expiresAt);
     if (expiryDiff !== 0) return expiryDiff;
 
     const createdDiff =
