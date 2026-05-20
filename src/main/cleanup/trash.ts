@@ -196,7 +196,8 @@ function commonAncestorPath(leftPath: string, rightPath: string): string | undef
 }
 
 function restoreLinkBoundary(options: TrashRuntimeOptions, originalPath: string): string {
-  return options.home ?? commonAncestorPath(options.userDataDir, originalPath) ?? dirname(originalPath);
+  if (options.home && isAtOrInside(originalPath, options.home)) return options.home;
+  return commonAncestorPath(options.userDataDir, originalPath) ?? dirname(originalPath);
 }
 
 export function isSafeTrashEntryId(entryId: unknown): entryId is string {
