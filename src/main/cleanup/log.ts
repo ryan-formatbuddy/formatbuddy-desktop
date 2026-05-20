@@ -43,8 +43,8 @@ function validIso(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function isCleanupMode(value: unknown): value is CleanupExecuteMode {
-  return value === "trash" || value === "permanent";
+function isPersistedCleanupMode(value: unknown): value is "trash" {
+  return value === "trash";
 }
 
 function isCleanupCategoryId(value: unknown): value is CleanupCategoryId {
@@ -84,7 +84,7 @@ function coerceEntry(value: unknown): CleanupLogEntry | null {
   const raw = value as Partial<CleanupLogEntry>;
   if (typeof raw.id !== "string") return null;
   if (!validIso(raw.executedAt)) return null;
-  if (!isCleanupMode(raw.mode)) return null;
+  if (!isPersistedCleanupMode(raw.mode)) return null;
   const removedCount = coerceNonNegativeInteger(raw.removedCount);
   const skippedCount = coerceNonNegativeInteger(raw.skippedCount);
   if (removedCount === null || skippedCount === null) return null;
@@ -202,6 +202,9 @@ export async function recordCleanupExecution(
   userDataDir: string,
   entry: CleanupLogEntry
 ): Promise<CleanupHistorySnapshot> {
+  if (!isPersistedCleanupMode(entry.mode)) {
+    throw new Error("FormatBuddy cleanup history only records 30-day restore-bin cleanups");
+  }
   const log = await loadLog(userDataDir);
   log.entries = [entry, ...log.entries].slice(0, MAX_ENTRIES);
   await saveLog(userDataDir, log);

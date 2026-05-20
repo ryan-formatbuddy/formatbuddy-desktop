@@ -48,6 +48,15 @@ describe("cleanup execution log coercion", () => {
               ]
             },
             {
+              id: "legacy-permanent",
+              executedAt: "2026-05-19T00:00:00.000Z",
+              mode: "permanent",
+              totalFreedBytes: 999,
+              removedCount: 1,
+              skippedCount: 0,
+              categories: [{ categoryId: "temp-user", bytesFreed: 999, itemCount: 1 }]
+            },
+            {
               id: "bad-mode",
               executedAt: "2026-05-19T00:00:00.000Z",
               mode: "wipe",
@@ -85,6 +94,27 @@ describe("cleanup execution log coercion", () => {
       version: 1,
       entries: []
     });
+  });
+
+  it("refuses to persist non-restore-bin cleanup history entries", async () => {
+    const entry = buildLogEntry({
+      mode: "permanent",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "item-1",
+          path: join(dir, "old.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "permanent",
+          succeeded: true
+        }
+      ],
+      skippedItems: []
+    });
+
+    await expect(recordCleanupExecution(dir, entry)).rejects.toThrow(/30-day restore-bin/);
+    await expect(getCleanupHistory(dir)).resolves.toEqual({ entries: [] });
   });
 
   it("does not write the cleanup execution log through a symbolic link", async () => {
