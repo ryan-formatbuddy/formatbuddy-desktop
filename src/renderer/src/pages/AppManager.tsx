@@ -56,6 +56,8 @@ type LeftoverCleanupConfirm = {
   startupHoldCount: number;
 };
 
+type UninstallConfirm = AppManagerItem;
+
 function formatBytes(value?: number | null): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
   const mb = value / 1024 / 1024;
@@ -416,6 +418,76 @@ function AppLeftoverConfirmDialog({
   );
 }
 
+function UninstallConfirmDialog({
+  item,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  item: UninstallConfirm;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="app-uninstall-confirm-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+        padding: 16
+      }}
+    >
+      <div
+        style={{
+          width: 520,
+          maxWidth: "100%",
+          borderRadius: 12,
+          background: "var(--color-fb-bg-elev)",
+          color: "var(--color-fb-ink-1)",
+          boxShadow: "var(--fb-shadow-3)",
+          padding: 24
+        }}
+      >
+        <h2 id="app-uninstall-confirm-title" style={{ marginTop: 0 }}>
+          Windows 제거 창을 열까요?
+        </h2>
+        <p>
+          <strong>{item.name}</strong>
+          {item.publisher ? ` · ${item.publisher}` : ""} 제거 창을 열어드릴게요.
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.8 }}>
+          실제 삭제 여부는 Windows 제거 창에서 직접 한 번 더 선택해요. 제거가 끝나면 포맷버디가
+          남은 폴더와 앱 삭제 흔적을 다시 확인해드릴게요.
+        </p>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            justifyContent: "flex-end",
+            flexWrap: "wrap",
+            marginTop: 16
+          }}
+        >
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            취소
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={busy}>
+            {busy ? "여는 중…" : "Windows 제거 창 열기"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeftoverPanel({
   state,
   selected,
@@ -758,6 +830,7 @@ export function AppManager({
   const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
   const [recentRestoreMessage, setRecentRestoreMessage] = useState<string | undefined>();
   const [activeUninstall, setActiveUninstall] = useState<string | null>(null);
+  const [uninstallConfirm, setUninstallConfirm] = useState<UninstallConfirm | null>(null);
   const [postUninstallAppName, setPostUninstallAppName] = useState<string | null>(null);
   const [uninstallStatuses, setUninstallStatuses] = useState<Record<string, AppUninstallResult>>(
     {}
@@ -936,9 +1009,16 @@ export function AppManager({
     [loadLeftovers]
   );
 
-  const onUninstall = useCallback(async (item: AppManagerItem) => {
+  const onUninstall = useCallback((item: AppManagerItem) => {
     if (item.uninstallAvailability !== "ready") return;
+    setUninstallConfirm(item);
+  }, []);
+
+  const runConfirmedUninstall = useCallback(async () => {
+    if (!uninstallConfirm) return;
+    const item = uninstallConfirm;
     if (!window.fb?.uninstallApp) {
+      setUninstallConfirm(null);
       setUninstallStatuses((prev) => ({
         ...prev,
         [item.id]: {
@@ -949,10 +1029,6 @@ export function AppManager({
       }));
       return;
     }
-    const confirmed = window.confirm(
-      `${item.name}의 Windows 제거 마법사를 띄울게요. 진행 여부는 마법사 안에서 직접 확인해주세요.`
-    );
-    if (!confirmed) return;
     setActiveUninstall(item.id);
     try {
       const result = await window.fb.uninstallApp({
@@ -960,6 +1036,7 @@ export function AppManager({
         publisher: item.publisher
       });
       setUninstallStatuses((prev) => ({ ...prev, [item.id]: result }));
+      setUninstallConfirm(null);
       if (result.status === "launched") {
         setPostUninstallAppName(item.name);
       }
@@ -972,10 +1049,11 @@ export function AppManager({
           message: friendlyErrorMessage(err)
         }
       }));
+      setUninstallConfirm(null);
     } finally {
       setActiveUninstall(null);
     }
-  }, []);
+  }, [uninstallConfirm]);
 
   const totalReady = useMemo(() => {
     if (load.kind !== "ready") return 0;
@@ -1174,6 +1252,14 @@ export function AppManager({
           busy={cleanupBusy}
           onCancel={() => setLeftoverCleanupConfirm(null)}
           onConfirm={() => void runConfirmedLeftoverCleanup()}
+        />
+      )}
+      {uninstallConfirm && (
+        <UninstallConfirmDialog
+          item={uninstallConfirm}
+          busy={activeUninstall === uninstallConfirm.id}
+          onCancel={() => setUninstallConfirm(null)}
+          onConfirm={() => void runConfirmedUninstall()}
         />
       )}
     </main>

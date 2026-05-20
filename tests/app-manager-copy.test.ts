@@ -212,6 +212,18 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요");
   });
 
+  it("uses an in-app confirmation dialog before launching the Windows uninstaller", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("UninstallConfirmDialog");
+    expect(source).toContain("Windows 제거 창을 열까요?");
+    expect(source).toContain("실제 삭제 여부는 Windows 제거 창에서 직접 한 번 더 선택해요");
+    expect(source).toContain("setUninstallConfirm(item)");
+    expect(source).toContain("runConfirmedUninstall");
+    expect(source).not.toContain("window.confirm(");
+    expect(source).not.toContain("제거 마법사를 띄울게요");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
