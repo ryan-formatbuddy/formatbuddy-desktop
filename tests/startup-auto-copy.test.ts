@@ -17,6 +17,8 @@ describe("StartupAuto copy", () => {
     const source = readFileSync(STARTUP_AUTO_PAGE, "utf8");
 
     expect(source).toContain("잠시 꺼둔 시작 항목 목록을 연결하지 못했어요");
+    expect(source).toContain("30일 동안 보관");
+    expect(source).toContain("restoreEntryExpiryLabel");
     expect(source).toContain("disabledNotes");
     expect(source).not.toContain("Promise.resolve<StartupAutoDisabledSnapshot>({");
   });

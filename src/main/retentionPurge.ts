@@ -1,4 +1,8 @@
-import type { CleanupTrashPurgeResult, RegistryBackupPurgeResult } from "@shared/types";
+import type {
+  CleanupTrashPurgeResult,
+  RegistryBackupPurgeResult,
+  StartupDisabledPurgeResult
+} from "@shared/types";
 
 export const RETENTION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -8,6 +12,7 @@ export interface RetentionPurgeTickDeps {
   trigger: RetentionPurgeTrigger;
   purgeTrash: (trigger: RetentionPurgeTrigger) => Promise<CleanupTrashPurgeResult>;
   purgeRegistryBackups: (trigger: RetentionPurgeTrigger) => Promise<RegistryBackupPurgeResult>;
+  purgeStartupDisabled?: (trigger: RetentionPurgeTrigger) => Promise<StartupDisabledPurgeResult>;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
 }
@@ -15,7 +20,8 @@ export interface RetentionPurgeTickDeps {
 export interface RetentionPurgeTickResult {
   trash?: CleanupTrashPurgeResult;
   registryBackups?: RegistryBackupPurgeResult;
-  failed: Array<{ kind: "trash" | "registry-backups"; message: string }>;
+  startupDisabled?: StartupDisabledPurgeResult;
+  failed: Array<{ kind: "trash" | "registry-backups" | "startup-disabled"; message: string }>;
 }
 
 function errorMessage(err: unknown): string {
@@ -44,6 +50,17 @@ function recordPartialRegistryBackupFailure(
   deps.logWarn?.(`30일 자동 비움 앱 삭제 흔적 백업 일부 실패: ${failedCount}개`);
 }
 
+function recordPartialStartupDisabledFailure(
+  result: RetentionPurgeTickResult,
+  deps: RetentionPurgeTickDeps
+): void {
+  const failedCount = result.startupDisabled?.failedIds?.length ?? 0;
+  if (failedCount === 0) return;
+  const message = `잠시 꺼둔 시작 항목 ${failedCount}개를 아직 비우지 못했어요.`;
+  result.failed.push({ kind: "startup-disabled", message });
+  deps.logWarn?.(`30일 자동 비움 잠시 꺼둔 시작 항목 일부 실패: ${failedCount}개`);
+}
+
 export async function runRetentionPurgeTick(
   deps: RetentionPurgeTickDeps
 ): Promise<RetentionPurgeTickResult> {
@@ -67,11 +84,26 @@ export async function runRetentionPurgeTick(
     deps.logWarn?.(`30일 자동 비움 앱 삭제 흔적 백업 실패: ${message}`);
   }
 
+  if (deps.purgeStartupDisabled) {
+    try {
+      result.startupDisabled = await deps.purgeStartupDisabled(deps.trigger);
+      recordPartialStartupDisabledFailure(result, deps);
+    } catch (err) {
+      const message = errorMessage(err);
+      result.failed.push({ kind: "startup-disabled", message });
+      deps.logWarn?.(`30일 자동 비움 잠시 꺼둔 시작 항목 실패: ${message}`);
+    }
+  }
+
   const trashCount = result.trash?.purgedCount ?? 0;
   const registryCount = result.registryBackups?.purgedCount ?? 0;
-  if (trashCount > 0 || registryCount > 0) {
+  const startupCount = result.startupDisabled?.purgedCount ?? 0;
+  if (trashCount > 0 || registryCount > 0 || startupCount > 0) {
+    const summary = `파일 ${trashCount}개, 앱 삭제 흔적 백업 ${registryCount}개`;
     deps.logInfo?.(
-      `30일 자동 비움: 파일 ${trashCount}개, 앱 삭제 흔적 백업 ${registryCount}개`
+      result.startupDisabled
+        ? `30일 자동 비움: ${summary}, 잠시 꺼둔 시작 항목 ${startupCount}개`
+        : `30일 자동 비움: ${summary}`
     );
   }
 

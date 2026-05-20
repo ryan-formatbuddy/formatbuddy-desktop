@@ -872,6 +872,13 @@ export interface RegistryBackupPurgeResult {
   retentionDays: number;
 }
 
+export interface StartupDisabledPurgeResult {
+  purgedCount: number;
+  purgedIds: string[];
+  failedIds?: string[];
+  retentionDays: number;
+}
+
 /**
  * v2.0 — Unified audit log. Cleanup, uninstall, Defender quick scan,
  * monitor toggles all funnel into the same append-only timeline so a
@@ -1017,6 +1024,7 @@ export interface StartupAutoDisabledEntry {
   /** Original Startup folder label/path. */
   origin: string;
   disabledAt: string;
+  expiresAt: string;
 }
 
 export interface StartupAutoDisabledSnapshot {
@@ -1041,6 +1049,7 @@ export type StartupFolderToggleStatus =
   | "blocked-path"
   | "target-exists"
   | "missing-stored-item"
+  | "expired"
   | "failed"
   | "windows-only";
 

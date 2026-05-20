@@ -126,4 +126,40 @@ describe("retention purge scheduler", () => {
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 앱 삭제 흔적 백업 일부 실패: 1개");
     expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 1개");
   });
+
+  it("purges disabled startup items when the app retention tick provides that bin", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedEntryIds: [],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+    const purgeStartupDisabled = vi.fn(async () => ({
+      purgedCount: 1,
+      purgedIds: ["startup-a"],
+      retentionDays: 30
+    }));
+    const logInfo = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled,
+      logInfo
+    });
+
+    expect(purgeStartupDisabled).toHaveBeenCalledWith("scheduled");
+    expect(result.failed).toEqual([]);
+    expect(result.startupDisabled?.purgedCount).toBe(1);
+    expect(logInfo).toHaveBeenCalledWith(
+      "30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 0개, 잠시 꺼둔 시작 항목 1개"
+    );
+  });
 });

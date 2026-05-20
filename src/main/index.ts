@@ -74,6 +74,7 @@ import {
   listDisabledStartupFolderEntries,
   restoreStartupFolderEntry
 } from "./startup/folderToggle";
+import { purgeExpiredStartupFolderEntriesWithAudit } from "./startup/folderToggleAudit";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import {
@@ -269,6 +270,11 @@ async function runAppRetentionPurgeTick(trigger: RetentionPurgeTrigger): Promise
       }),
     purgeRegistryBackups: (purgeTrigger) =>
       purgeExpiredRegistryBackupsWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: purgeTrigger
+      }),
+    purgeStartupDisabled: (purgeTrigger) =>
+      purgeExpiredStartupFolderEntriesWithAudit({
         userDataDir: app.getPath("userData"),
         trigger: purgeTrigger
       }),
@@ -743,6 +749,12 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.startupDisabledList,
     async (): Promise<StartupAutoDisabledSnapshot> => {
+      await purgeExpiredStartupFolderEntriesWithAudit({
+        userDataDir: app.getPath("userData"),
+        trigger: "startup-list"
+      }).catch((err) => {
+        log.warn("startup-disabled:purge-before-list failed:", (err as Error).message);
+      });
       return listDisabledStartupFolderEntries({ userDataDir: app.getPath("userData") });
     }
   );

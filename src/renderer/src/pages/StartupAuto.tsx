@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { restoreEntryExpiryLabel } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   StartupAutoDisabledEntry,
@@ -141,7 +142,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
         return;
       }
       const ok = window.confirm(
-        `"${entry.name}"을 PC 켤 때 자동으로 뜨지 않게 잠시 보관할까요?\n\n파일은 포맷버디 안에 보관해서 다시 되돌릴 수 있어요.`
+        `"${entry.name}"을 PC 켤 때 자동으로 뜨지 않게 잠시 보관할까요?\n\n파일은 포맷버디 안에 30일 동안 보관해서 다시 되돌릴 수 있어요.`
       );
       if (!ok) return;
       setBusyId(entry.id);
@@ -198,7 +199,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
         <h1 className="fb-h1-sm">PC 켤 때 같이 뜨는 것</h1>
         <p className="fb-lede">
           부팅 직후 자동으로 켜지는 앱을 한 화면에 모았어요. 시작 폴더 항목은 여기서 잠시
-          꺼둘 수 있고, 나중에 다시 되돌릴 수 있어요. {summary}
+          꺼둘 수 있고, 30일 안에 다시 되돌릴 수 있어요. {summary}
         </p>
       </section>
 
@@ -247,7 +248,7 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
           <div>
             <h2 style={{ margin: 0, fontSize: 16 }}>잠시 꺼둔 시작 항목</h2>
             <p style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
-              포맷버디 안에 보관된 항목이에요. 필요하면 다시 PC 켤 때 같이 뜨게 돌려둘 수 있어요.
+              포맷버디 안에 30일 동안 보관된 항목이에요. 필요하면 다시 PC 켤 때 같이 뜨게 돌려둘 수 있어요.
             </p>
           </div>
           <span
@@ -286,7 +287,8 @@ export function StartupAuto({ onBack }: StartupAutoProps) {
                   <div style={{ fontWeight: 500 }}>{entry.name}</div>
                   <PathLine path={entry.originalPath} />
                   <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
-                    꺼둔 시각: {new Date(entry.disabledAt).toLocaleString("ko-KR")}
+                    꺼둔 시각: {new Date(entry.disabledAt).toLocaleString("ko-KR")} ·{" "}
+                    {restoreEntryExpiryLabel(entry.expiresAt)}
                   </div>
                 </div>
                 <Button

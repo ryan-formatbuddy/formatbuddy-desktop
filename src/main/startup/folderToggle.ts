@@ -13,11 +13,13 @@ import type {
   StartupAutoDisabledEntry,
   StartupAutoDisabledSnapshot,
   StartupAutoEntry,
+  StartupDisabledPurgeResult,
   StartupFolderToggleResult
 } from "@shared/types";
 import { normalizePath } from "../cleanup/blocklist";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 
+export const STARTUP_DISABLED_RETENTION_DAYS = 30;
 const STARTUP_DISABLED_DIR = "formatbuddy-startup-disabled";
 const ITEMS_DIR = "items";
 const META_FILE = "meta.json";
@@ -88,6 +90,24 @@ function validIso(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function disabledExpiry(disabledAt: Date): string {
+  const expiresAt = new Date(disabledAt.getTime());
+  expiresAt.setUTCDate(expiresAt.getUTCDate() + STARTUP_DISABLED_RETENTION_DAYS);
+  return expiresAt.toISOString();
+}
+
+function canonicalDisabledExpiry(disabledAt: string): string {
+  return disabledExpiry(new Date(disabledAt));
+}
+
+function isOutsideDisabledRetentionWindow(
+  entry: Pick<StartupAutoDisabledEntry, "disabledAt" | "expiresAt">,
+  now: Date
+): boolean {
+  const expiresAt = Date.parse(entry.expiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now.getTime();
+}
+
 function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<StartupAutoDisabledEntry>;
@@ -105,7 +125,8 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
     originalPath: raw.originalPath,
     storedPath: raw.storedPath,
     origin: raw.origin,
-    disabledAt: raw.disabledAt
+    disabledAt: raw.disabledAt,
+    expiresAt: canonicalDisabledExpiry(raw.disabledAt)
   };
 }
 
@@ -182,6 +203,10 @@ export async function listDisabledStartupFolderEntries(
   options: StartupFolderToggleRuntime
 ): Promise<StartupAutoDisabledSnapshot> {
   const now = options.now?.() ?? new Date();
+  await purgeExpiredStartupFolderEntries({
+    ...options,
+    now: () => now
+  }).catch(() => {});
   const root = itemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
   if (linkedRoot) {
@@ -203,7 +228,11 @@ export async function listDisabledStartupFolderEntries(
   for (const dir of dirs) {
     if (!dir.isDirectory()) continue;
     const entry = await readDisabledEntry(options.userDataDir, dir.name);
-    if (entry && (await isListableDisabledEntry(options.userDataDir, dir.name, entry))) {
+    if (
+      entry &&
+      !isOutsideDisabledRetentionWindow(entry, now) &&
+      (await isListableDisabledEntry(options.userDataDir, dir.name, entry))
+    ) {
       entries.push(entry);
     }
   }
@@ -263,7 +292,8 @@ export async function disableStartupFolderEntry(
   }
 
   const disabledAt = (options.now?.() ?? new Date()).toISOString();
-  const disabledId = makeDisabledId(entry, new Date(disabledAt));
+  const disabledAtDate = new Date(disabledAt);
+  const disabledId = makeDisabledId(entry, disabledAtDate);
   const storedPath = storedPathFor(userDataDir, disabledId, source);
   const disabledEntry: StartupAutoDisabledEntry = {
     id: disabledId,
@@ -272,7 +302,8 @@ export async function disableStartupFolderEntry(
     originalPath: source,
     storedPath,
     origin,
-    disabledAt
+    disabledAt,
+    expiresAt: disabledExpiry(disabledAtDate)
   };
 
   let movedToHoldingArea = false;
@@ -311,7 +342,7 @@ export async function disableStartupFolderEntry(
     }
     return {
       status: "disabled",
-      message: "이제 PC 켤 때 자동으로 같이 뜨지 않게 보관했어요. 필요하면 언제든 되돌릴 수 있어요.",
+      message: "이제 PC 켤 때 자동으로 같이 뜨지 않게 보관했어요. 30일 안에는 다시 되돌릴 수 있어요.",
       entry: disabledEntry
     };
   } catch (err) {
@@ -348,6 +379,37 @@ export async function restoreStartupFolderEntry(
   }
 
   const dir = entryDir(userDataDir, disabledId);
+  if (isOutsideDisabledRetentionWindow(entry, options.now?.() ?? new Date())) {
+    const linkedDir = await findLinkedPathPart(dir, userDataDir, true);
+    if (linkedDir) {
+      return {
+        status: "blocked-path",
+        message: "보관 위치가 안전하지 않아 자동으로 비우지 않았어요.",
+        detail: linkedDir,
+        entry
+      };
+    }
+    const removeEntryDir =
+      options.removeEntryDir ??
+      ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
+    try {
+      await removeEntryDir(dir, entry);
+      if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
+    } catch (err) {
+      return {
+        status: "failed",
+        message: "30일 보관 기간이 지났지만 보관함을 비우는 중 문제가 생겼어요.",
+        detail: (err as Error).message,
+        entry
+      };
+    }
+    return {
+      status: "expired",
+      message: "30일 보관 기간이 지나서 되돌릴 수 없어요. 보관함에서도 비웠어요.",
+      entry
+    };
+  }
+
   if (!isUnderRoot(entry.storedPath, dir) || !isUnderRoot(entry.originalPath, entry.origin)) {
     return {
       status: "blocked-path",
@@ -420,10 +482,71 @@ export async function restoreStartupFolderEntry(
   }
 }
 
+export async function purgeExpiredStartupFolderEntries(
+  options: StartupFolderToggleRuntime & {
+    removeEntryDir?: (dir: string, entry: StartupAutoDisabledEntry) => Promise<void>;
+  }
+): Promise<StartupDisabledPurgeResult> {
+  const now = options.now?.() ?? new Date();
+  const root = itemsRoot(options.userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
+  if (linkedRoot) {
+    return {
+      purgedCount: 0,
+      purgedIds: [],
+      failedIds: [],
+      retentionDays: STARTUP_DISABLED_RETENTION_DAYS
+    };
+  }
+
+  let dirs;
+  try {
+    dirs = await readdir(root, { withFileTypes: true });
+  } catch {
+    return {
+      purgedCount: 0,
+      purgedIds: [],
+      retentionDays: STARTUP_DISABLED_RETENTION_DAYS
+    };
+  }
+
+  const purgedIds: string[] = [];
+  const failedIds: string[] = [];
+  const removeEntryDir =
+    options.removeEntryDir ??
+    ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
+
+  for (const dirent of dirs) {
+    if (!dirent.isDirectory()) continue;
+    const entry = await readDisabledEntry(options.userDataDir, dirent.name);
+    if (!entry || !isOutsideDisabledRetentionWindow(entry, now)) continue;
+    const dir = entryDir(options.userDataDir, dirent.name);
+    try {
+      const linkedDir = await findLinkedPathPart(dir, options.userDataDir, true);
+      if (linkedDir) throw new Error(`Startup holding entry is a link: ${linkedDir}`);
+      await removeEntryDir(dir, entry);
+      if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
+      purgedIds.push(entry.id);
+    } catch {
+      failedIds.push(dirent.name);
+    }
+  }
+
+  return {
+    purgedCount: purgedIds.length,
+    purgedIds,
+    ...(failedIds.length > 0 ? { failedIds } : {}),
+    retentionDays: STARTUP_DISABLED_RETENTION_DAYS
+  };
+}
+
 export const __testing = {
   STARTUP_DISABLED_DIR,
+  STARTUP_DISABLED_RETENTION_DAYS,
   ITEMS_DIR,
   META_FILE,
+  entryDir,
+  itemsRoot,
   isUnderRoot,
   isSafeStartupDisabledId,
   coerceDisabledEntry

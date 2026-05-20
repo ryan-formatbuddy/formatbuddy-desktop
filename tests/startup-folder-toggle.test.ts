@@ -8,6 +8,7 @@ import type { StartupAutoEntry } from "../src/shared/types";
 import {
   disableStartupFolderEntry,
   listDisabledStartupFolderEntries,
+  purgeExpiredStartupFolderEntries,
   restoreStartupFolderEntry
 } from "../src/main/startup/folderToggle";
 
@@ -60,6 +61,7 @@ describe("startup folder toggle", () => {
     expect(disabled.entry?.originalPath).toBe(source);
     expect(disabled.entry?.storedPath).toContain("formatbuddy-startup-disabled");
     expect(disabled.entry?.disabledAt).toBe("2026-05-20T10:00:00.000Z");
+    expect(disabled.entry?.expiresAt).toBe("2026-06-19T10:00:00.000Z");
     expect(readFileSync(disabled.entry!.storedPath, "utf8")).toBe("shortcut");
 
     const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
@@ -74,6 +76,63 @@ describe("startup folder toggle", () => {
     expect(readFileSync(source, "utf8")).toBe("shortcut");
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("keeps disabled startup items for 30 days and purges them after expiry", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Slack.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Slack.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+
+    const early = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T09:59:59.000Z")
+    });
+    const late = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(early.purgedCount).toBe(0);
+    expect(late).toMatchObject({
+      purgedCount: 1,
+      purgedIds: [disabled.entry!.id],
+      retentionDays: 30
+    });
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("does not restore a disabled startup item after the 30-day window", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(restored.status).toBe("expired");
+    expect(restored.message).toContain("30일");
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(false);
   });
 
   it("does not report restore success when the holding entry folder still exists", async () => {
