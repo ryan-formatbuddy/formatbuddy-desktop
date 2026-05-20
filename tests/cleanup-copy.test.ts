@@ -85,8 +85,22 @@ describe("Cleanup copy", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 
     expect(source).toContain("restoreFailureCount += 1");
-    expect(source).toContain("summarizeRestoreAllResults(results, [], restoreFailureCount)");
+    expect(source).toContain("recoverableRegistryBackupIds(result)");
+    expect(source).toContain("restorableStartupDisabledIds(result)");
+    expect(source).toContain("restoreRegistryBackup");
+    expect(source).toContain("restoreStartupAuto");
+    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
+  });
+
+  it("counts every recoverable cleanup artifact before offering immediate undo", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("function restorableCleanupResultCount(result: CleanupExecuteResult): number");
+    expect(source).toContain("restorableTrashEntryIds(result).length +");
+    expect(source).toContain("recoverableRegistryBackupIds(result).length +");
+    expect(source).toContain("restorableStartupDisabledIds(result).length");
+    expect(source).toContain("const restorableCount = restorableCleanupResultCount(result)");
   });
 
   it("shows friendly messages instead of silently returning when cleanup bridges are missing", () => {

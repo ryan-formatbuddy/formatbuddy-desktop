@@ -5,6 +5,8 @@ import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
   isTrashEntryExpired,
+  recoverableRegistryBackupIds,
+  restorableStartupDisabledIds,
   restorableTrashEntryIds,
   restoreEntryExpiryLabel,
   summarizeRestoreAllResults,
@@ -23,8 +25,10 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   LargeFileCandidate,
+  RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
   StartupAutoDisabledSnapshot,
+  StartupFolderToggleResult,
   ScanReport
 } from "@shared/types";
 
@@ -383,7 +387,7 @@ function friendlyCleanupDetail(detail?: string): string {
 
 function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
   const succeededCount = result.removedItems.filter((item) => item.succeeded).length;
-  const restorableCount = restorableTrashEntryIds(result).length;
+  const restorableCount = restorableCleanupResultCount(result);
   const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
   const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
   const lines: string[] = [];
@@ -395,6 +399,14 @@ function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
   if (notSelectedCount > 0) lines.push(`선택하지 않은 후보 ${notSelectedCount}개`);
 
   return lines.length > 0 ? lines : ["이번 정리에서 처리된 항목은 없어요."];
+}
+
+function restorableCleanupResultCount(result: CleanupExecuteResult): number {
+  return (
+    restorableTrashEntryIds(result).length +
+    recoverableRegistryBackupIds(result).length +
+    restorableStartupDisabledIds(result).length
+  );
 }
 
 function cleanupRemovedItemLines(result: CleanupExecuteResult): string[] {
@@ -441,7 +453,7 @@ function ResultPanel({
   onOpenAuditLog: () => void;
 }) {
   const removedCount = result.removedItems.filter((i) => i.succeeded).length;
-  const restorableCount = restorableTrashEntryIds(result).length;
+  const restorableCount = restorableCleanupResultCount(result);
   const failedCount = result.skippedItems.filter((s) => s.reason !== "not-selected").length;
   const detailLines = cleanupResultDetailLines(result);
   const removedLines = cleanupRemovedItemLines(result);
@@ -918,13 +930,19 @@ export function Cleanup({
   const restoreRecentCleanup = useCallback(
     async (result: CleanupExecuteResult) => {
       const entryIds = restorableTrashEntryIds(result);
-      if (entryIds.length === 0) {
+      const registryBackupIds = recoverableRegistryBackupIds(result);
+      const startupDisabledIds = restorableStartupDisabledIds(result);
+      if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
-      if (!window.fb?.restoreCleanupTrash) {
+      const missingRestoreBridge =
+        (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
+        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
+        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto);
+      if (missingRestoreBridge) {
         setRecentRestoreMessage(
-          "복구함 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함에서 확인해주세요."
+          "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
         );
         return;
       }
@@ -933,6 +951,8 @@ export function Cleanup({
       setRecentRestoreMessage(undefined);
       try {
         const results: CleanupTrashRestoreResult[] = [];
+        const registryResults: RegistryBackupRestoreResult[] = [];
+        const startupResults: StartupFolderToggleResult[] = [];
         let restoreFailureCount = 0;
         for (const entryId of entryIds) {
           try {
@@ -941,13 +961,29 @@ export function Cleanup({
             restoreFailureCount += 1;
           }
         }
-        setRecentRestoreMessage(summarizeRestoreAllResults(results, [], restoreFailureCount));
-        await loadTrash();
+        for (const backupId of registryBackupIds) {
+          try {
+            registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
+        }
+        for (const disabledId of startupDisabledIds) {
+          try {
+            startupResults.push(await window.fb.restoreStartupAuto({ disabledId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
+        }
+        setRecentRestoreMessage(
+          summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)
+        );
+        await Promise.all([loadTrash(), loadHistory()]);
       } finally {
         setRecentRestoreBusy(false);
       }
     },
-    [loadTrash]
+    [loadHistory, loadTrash]
   );
 
   const restoreFromTrash = useCallback(
