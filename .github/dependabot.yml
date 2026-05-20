@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - security
+    groups:
+      electron-stack:
+        patterns:
+          - electron
+          - electron-builder
+          - electron-vite
+          - "@electron*"
+      test-and-build-tools:
+        patterns:
+          - vite
+          - vitest
+          - "@vitejs/*"
+          - eslint
+          - "@typescript-eslint/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:20"
+      timezone: Asia/Seoul
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - security

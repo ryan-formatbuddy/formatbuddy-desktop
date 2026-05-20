@@ -83,7 +83,7 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 - [ ] **앱 스크린샷 5장** (Ryan, Windows 실기)
 - [x] 개인정보 처리방침 / 이용약관 초안 (`docs/` 안)
 - [x] FAQ + 사용 가이드 한국어 (`docs/` 안)
-- [x] CI 자동화 (PR/push마다 typecheck/lint/test/build)
+- [x] CI 자동화 (PR/push마다 npm audit/typecheck/lint/test/build)
 - [x] GitHub Issue 템플릿 (`.github/ISSUE_TEMPLATE/`)
 - [x] Codex 5사이클 22개 findings 모두 fix
 - [x] PowerShell 무결성 (app.asar-anchored hash + TOCTOU-safe staging + ReparsePoint 필터)

@@ -50,7 +50,7 @@
 |---|------|---|------|------|
 | C1 | Windows 코드 사이닝 결정 (EV / OV / MS Store / 무) | **P0** | ❌ | deferred |
 | C2 | `electron-updater verifyUpdateCodeSignature` 활성화 (C1 후) | P1 | ✅ | 비활성 |
-| C3 | npm audit / Dependabot / Snyk 정기 자동 검사 | P1 | ✅ | npm audit 0 ✅ (D-381) / Dependabot · Snyk 정기 자동화 없음 |
+| C3 | npm audit / Dependabot / Snyk 정기 자동 검사 | P1 | ✅ | npm audit 0 ✅ (D-381) / CI audit + Dependabot(npm/GitHub Actions) ✅ (D-382) / Snyk 없음 |
 | C4 | SBOM (Software Bill of Materials) | P3 | ✅ | 없음 |
 | C5 | Codex 정기 사이클 (작지 끝마다 1회) | P2 | ✅ | 5회 누적 |
 | C6 | 개인정보처리방침 (한국어) | **P0** | 부분 (초안) | `docs/PRIVACY_POLICY.md` |
@@ -83,7 +83,7 @@
 
 | # | 항목 | P | 자율 | 상태 |
 |---|------|---|------|------|
-| F1 | GitHub Actions: PR/push마다 typecheck/lint/test | P1 | ✅ | `.github/workflows/ci.yml` |
+| F1 | GitHub Actions: PR/push마다 audit/typecheck/lint/test/build | P1 | ✅ | `.github/workflows/ci.yml` |
 | F2 | GitHub Actions: tag push → 자동 빌드 + Release | P1 | ✅ | 수동 |
 | F3 | `@claude` GitHub Action (web에서 사용 중인 것 desktop에도) | P2 | ✅ | 없음 |
 | F4 | Branch protection (main에 직접 push 금지, PR 강제) | P2 | ❌ (GH 설정) | 없음 |
