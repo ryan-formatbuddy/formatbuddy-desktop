@@ -374,41 +374,47 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(join(targetFile, "private-note.txt"), "utf8")).resolves.toBe("keep me");
   });
 
-  it("blocks unusable cleanup item metadata inside an individual cleanup attempt", async () => {
+  it("cleans display-only cleanup item metadata inside an individual cleanup attempt", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
     const item = tempUser.items[0];
     item.label = "old.tmp\nmore";
+    item.appName = "Acme\rNotes";
+    item.appPublisher = "Acme\0Corp.";
 
     const statCalls = { value: 0 };
     const trashCalls = { value: 0 };
+    const base = makeSpyDeps();
     const { deps } = makeSpyDeps({
       statSize: async () => {
         statCalls.value += 1;
         return 4096;
       },
-      trashItem: async () => {
+      trashItem: async (passedItem, sizeBytes, context) => {
         trashCalls.value += 1;
-        throw new Error("trash should not be called");
+        expect(passedItem.label).toBe("old.tmp more");
+        expect(passedItem.appName).toBe("Acme Notes");
+        expect(passedItem.appPublisher).toBe("Acme Corp.");
+        return base.deps.trashItem(passedItem, sizeBytes, context);
       }
     });
 
     const result = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
       userDataDir: fx.userData,
-      home: fx.home
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
     });
 
-    expect(result.removed).toBeUndefined();
-    expect(result.skipped).toMatchObject({
+    expect(result.skipped).toBeUndefined();
+    expect(result.removed).toMatchObject({
       itemId: item.id,
       path: targetFile,
-      reason: "blocked-path"
+      trashEntryId: `trash-${item.id}`
     });
-    expect(result.skipped?.detail).toMatch(/정리 항목 정보|metadata/i);
-    expect(statCalls.value).toBe(0);
-    expect(trashCalls.value).toBe(0);
-    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+    expect(statCalls.value).toBe(1);
+    expect(trashCalls.value).toBe(1);
+    await expect(fs.readFile(targetFile, "utf8")).rejects.toThrow();
   });
 
   it("blocks whitespace-padded cleanup path metadata before stat or trash", async () => {
@@ -541,12 +547,13 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("state stays put");
   });
 
-  it("refuses corrupted selected cleanup item metadata before consuming the plan", async () => {
+  it("cleans selected cleanup display metadata before consuming the plan", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
     const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
     const item = tempUser.items[0];
     item.label = "old.tmp\nmore";
+    item.appName = "Acme\rNotes";
 
     const statCalls = { value: 0 };
     const trashCalls = { value: 0 };
@@ -555,30 +562,31 @@ describe("executeCleanup", () => {
         statCalls.value += 1;
         return 4096;
       },
-      trashItem: async () => {
+      trashItem: async (passedItem, sizeBytes, context) => {
         trashCalls.value += 1;
-        throw new Error("trash should not be called");
+        expect(passedItem.label).toBe("old.tmp more");
+        expect(passedItem.appName).toBe("Acme Notes");
+        return makeSpyDeps().deps.trashItem(passedItem, sizeBytes, context);
       }
     });
 
-    await expect(
-      executeCleanup(
-        {
-          planId: plan.planId,
-          confirmationToken: plan.confirmationToken,
-          selectedItemIds: [item.id],
-          mode: "trash"
-        },
-        { userDataDir: fx.userData, deps, home: fx.home }
-      )
-    ).rejects.toThrow(/정리 항목 정보|metadata/i);
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home, now: () => new Date("2026-05-19T00:00:00.000Z") }
+    );
 
-    expect(statCalls.value).toBe(0);
-    expect(trashCalls.value).toBe(0);
+    expect(result.removedItems[0]).toMatchObject({ itemId: item.id });
+    expect(statCalls.value).toBe(1);
+    expect(trashCalls.value).toBe(1);
     expect(trashed).toEqual([]);
     expect(permanently).toEqual([]);
-    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
-    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
+    await expect(fs.readFile(targetFile, "utf8")).rejects.toThrow();
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeUndefined();
   });
 
   it("refuses selected file cleanup from a plan missing required path kind metadata", async () => {

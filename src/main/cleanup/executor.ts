@@ -213,6 +213,31 @@ function isStrictMetadataString(value: unknown): value is string {
   return isUsableMetadataString(value) && value.trim() === value;
 }
 
+function cleanDisplayMetadataString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 1024);
+}
+
+function cleanOptionalDisplayMetadataString(value: unknown): string | null {
+  return cleanDisplayMetadataString(value) ?? null;
+}
+
+function cleanupItemWithDisplayMetadata(item: CleanupItem): CleanupItem | null {
+  const label = cleanDisplayMetadataString(item.label);
+  if (!label) return null;
+  return {
+    ...item,
+    label,
+    appName: cleanOptionalDisplayMetadataString(item.appName),
+    appPublisher: cleanOptionalDisplayMetadataString(item.appPublisher)
+  };
+}
+
 function hasControlCharacters(value: string): boolean {
   return /[\u0000-\u001f\u007f]/.test(value);
 }
@@ -269,13 +294,12 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
     };
   }
 
-  const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
-  if (invalid) {
+  if (!cleanDisplayMetadataString(item.label)) {
     return {
       itemId: isUsableMetadataString(item.id) ? item.id : "",
       path: isUsableMetadataString(item.path) ? item.path : "",
       reason: "blocked-path",
-      detail: `정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: ${invalid[0]}`
+      detail: "정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: label"
     };
   }
   if (typeof item.sizeBytes !== "number" || !Number.isFinite(item.sizeBytes)) {
@@ -415,18 +439,29 @@ async function attemptItem(
 ): Promise<AttemptOutcome> {
   const metadataSkip = validateCleanupItemMetadata(item);
   if (metadataSkip) return { skipped: metadataSkip };
-
-  if (overlapsManagedUserData(context.userDataDir, item.path)) {
+  const cleanupItem = cleanupItemWithDisplayMetadata(item);
+  if (!cleanupItem) {
     return {
       skipped: {
         itemId: item.id,
         path: item.path,
         reason: "blocked-path",
+        detail: "정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: label"
+      }
+    };
+  }
+
+  if (overlapsManagedUserData(context.userDataDir, cleanupItem.path)) {
+    return {
+      skipped: {
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
+        reason: "blocked-path",
         detail: "FormatBuddy 앱 데이터 영역이라 자동 정리하지 않았어요."
       }
     };
   }
-  const pathKindMetadataSkip = validateRequiredCleanupPathKindMetadata(item);
+  const pathKindMetadataSkip = validateRequiredCleanupPathKindMetadata(cleanupItem);
   if (pathKindMetadataSkip) return { skipped: pathKindMetadataSkip };
 
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
@@ -434,48 +469,48 @@ async function attemptItem(
   // restore bin. Older cached plans may still contain it as selectable,
   // so refuse it here too and never route to Clear-RecycleBin.
   if (
-    item.categoryId === "recycle-bin" &&
-    item.path === RECYCLE_BIN_SENTINEL_PATH
+    cleanupItem.categoryId === "recycle-bin" &&
+    cleanupItem.path === RECYCLE_BIN_SENTINEL_PATH
   ) {
     return {
       skipped: {
-        itemId: item.id,
-        path: item.path,
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
         reason: "blocked-path",
         detail: "Windows 휴지통은 포맷버디 30일 복구함으로 옮길 수 없어 직접 확인만 안내해요."
       }
     };
   }
 
-  const preMeasureSkip = await validateLivePath(item, home);
+  const preMeasureSkip = await validateLivePath(cleanupItem, home);
   if (preMeasureSkip) return { skipped: preMeasureSkip };
-  const kindSkip = await validateLivePathKind(item);
+  const kindSkip = await validateLivePathKind(cleanupItem);
   if (kindSkip) return { skipped: kindSkip };
 
-  let actualSize = item.sizeBytes;
-  const measured = await deps.statSize(item.path);
+  let actualSize = cleanupItem.sizeBytes;
+  const measured = await deps.statSize(cleanupItem.path);
   if (measured === null) {
-    if (await pathExists(item.path)) {
+    if (await pathExists(cleanupItem.path)) {
       return {
         skipped: {
-          itemId: item.id,
-          path: item.path,
+          itemId: cleanupItem.id,
+          path: cleanupItem.path,
           reason: "blocked-path",
           detail: "파일을 안전하게 확인하지 못해서 자동 정리하지 않았어요. 너무 깊은 폴더나 권한 문제가 있을 수 있어요."
         }
       };
     }
     return {
-      skipped: { itemId: item.id, path: item.path, reason: "not-found" }
+      skipped: { itemId: cleanupItem.id, path: cleanupItem.path, reason: "not-found" }
     };
   }
   actualSize = Math.max(0, measured);
 
-  const preRemoveSkip = await validateLivePath(item, home);
+  const preRemoveSkip = await validateLivePath(cleanupItem, home);
   if (preRemoveSkip) return { skipped: preRemoveSkip };
 
   try {
-    const trashEntry = mode === "trash" ? await deps.trashItem(item, actualSize, context) : undefined;
+    const trashEntry = mode === "trash" ? await deps.trashItem(cleanupItem, actualSize, context) : undefined;
     if (mode === "trash") {
       if (!trashEntry?.id) {
         throw new Error("FormatBuddy restore entry was not created");
@@ -487,8 +522,8 @@ async function attemptItem(
         throw new Error("FormatBuddy restore expiry was not created");
       }
     }
-    if (mode === "permanent") await deps.permanentRemove(item.path);
-    if (await pathExists(item.path)) {
+    if (mode === "permanent") await deps.permanentRemove(cleanupItem.path);
+    if (await pathExists(cleanupItem.path)) {
       throw new Error("Source path still exists after cleanup");
     }
     if (mode === "trash") {
@@ -512,10 +547,10 @@ async function attemptItem(
       await assertManagedTrashEntryManifest({
         userDataDir: context.userDataDir,
         entryId: trashEntry.id,
-        itemId: item.id,
-        categoryId: item.categoryId,
+        itemId: cleanupItem.id,
+        categoryId: cleanupItem.categoryId,
         sizeBytes: actualSize,
-        originalPath: item.path,
+        originalPath: cleanupItem.path,
         storedPath: trashEntry.storedPath,
         expiresAt: trashEntry.expiresAt,
         now: context.now
@@ -523,10 +558,10 @@ async function attemptItem(
     }
     return {
       removed: {
-        itemId: item.id,
-        path: item.path,
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
         sizeBytes: actualSize,
-        categoryId: item.categoryId,
+        categoryId: cleanupItem.categoryId,
         mode,
         succeeded: true,
         trashEntryId: trashEntry?.id,
@@ -536,8 +571,8 @@ async function attemptItem(
   } catch (err) {
     return {
       skipped: {
-        itemId: item.id,
-        path: item.path,
+        itemId: cleanupItem.id,
+        path: cleanupItem.path,
         reason: "execute-failed",
         detail: (err as Error).message
       }
