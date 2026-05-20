@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import type {
   CleanupItem,
   CleanupTrashEntry,
+  CleanupTrashPurgeResult,
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot
 } from "../src/shared/types";
@@ -826,6 +827,36 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("reports not found when a missing stored item is pruned despite index write failure", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+    await rm(entry.storedPath, { force: true });
+
+    const trashRoot = __testing.trashRoot(fx.userData);
+    await chmod(trashRoot, 0o500);
+    let result: CleanupTrashRestoreResult;
+    try {
+      result = await restoreTrashEntry({
+        userDataDir: fx.userData,
+        entryId: entry.id
+      });
+    } finally {
+      await chmod(trashRoot, 0o700).catch(() => {});
+    }
+
+    expect(result.status).toBe("not-found");
+    expect(result.message).toMatch(/찾지 못했어요/);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
   it("does not report restore success when the restore-bin entry folder still exists", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });
@@ -1234,6 +1265,38 @@ describe("FormatBuddy Trash", () => {
     expect(purged.purgedBytes).toBe(5);
     expect(purged.purgedEntryIds).toEqual([entry.id]);
     expect(existsSync(entry.storedPath)).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("reports expired purge success when only the final index write fails", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const trashRoot = __testing.trashRoot(fx.userData);
+    await chmod(trashRoot, 0o500);
+    let purged: CleanupTrashPurgeResult;
+    try {
+      purged = await purgeExpiredTrash({
+        userDataDir: fx.userData,
+        now: () => new Date("2026-06-18T00:00:01.000Z")
+      });
+    } finally {
+      await chmod(trashRoot, 0o700).catch(() => {});
+    }
+
+    expect(purged.purgedCount).toBe(1);
+    expect(purged.failedEntryIds).toEqual([]);
+    expect(purged.purgedEntryIds).toEqual([entry.id]);
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(false);
     const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
     expect(snapshot.entries).toHaveLength(0);
   });

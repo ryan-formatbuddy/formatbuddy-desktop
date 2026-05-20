@@ -951,7 +951,7 @@ export async function restoreTrashEntry(
 
   if (!(await exists(entry.storedPath))) {
     index.entries = index.entries.filter((e) => e.id !== entry.id);
-    await saveIndex(options.userDataDir, index);
+    await saveIndexOrKeepManifestFallback(options.userDataDir, index);
     return {
       entryId: entry.id,
       status: "missing-stored-item",
@@ -1135,7 +1135,7 @@ export async function purgeExpiredTrash(
   }
 
   if (purge.length > 0) {
-    await saveIndex(options.userDataDir, { ...index, entries: keep });
+    await saveIndexOrKeepManifestFallback(options.userDataDir, { ...index, entries: keep });
   } else {
     // Ensure the folder exists once the feature has been touched.
     await mkdir(itemsRoot(options.userDataDir), { recursive: true }).catch(() => {});
