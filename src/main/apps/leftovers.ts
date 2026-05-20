@@ -27,13 +27,15 @@ import type {
   CleanupItem,
   CleanupSkippedItem,
   InstalledApp,
+  StartupAutoDisabledEntry,
   StartupAutoEntry
 } from "@shared/types";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedInstallFolderPathPart, findLinkedPathPart } from "../cleanup/pathSafety";
 import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
-import { disableStartupFolderEntry } from "../startup/folderToggle";
+import { disableStartupFolderEntry, isSafeStartupDisabledId } from "../startup/folderToggle";
 import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
@@ -73,6 +75,8 @@ interface CleanupAppLeftoversOptions {
 }
 
 const PLAN_TTL_MS = 5 * 60 * 1000;
+const DAY_MS = 86_400_000;
+const RESTORE_BIN_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
 const MAX_SHORTCUT_SCAN_DEPTH = 5;
@@ -450,6 +454,20 @@ function isOptionalPlanSizeBytes(value: unknown): value is number | null | undef
 function isOptionalPlanTimestamp(value: unknown): value is string | null | undefined {
   if (value === undefined || value === null) return true;
   return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
+}
+
+function isValidIsoDateString(value: unknown): value is string {
+  return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
+}
+
+function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMs)) return false;
+  const earliestAllowed =
+    now.getTime() + RESTORE_BIN_RETENTION_DAYS * DAY_MS - RESTORE_BIN_EXPIRY_CLOCK_SKEW_MS;
+  const latestAllowed =
+    now.getTime() + RESTORE_BIN_RETENTION_DAYS * DAY_MS + RESTORE_BIN_EXPIRY_CLOCK_SKEW_MS;
+  return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
 }
 
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
@@ -1331,6 +1349,32 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
     : "execute-failed";
 }
 
+async function assertStartupHoldingCleanupResult(options: {
+  entry: StartupAutoDisabledEntry;
+  sourcePath: string;
+  now?: () => Date;
+}): Promise<void> {
+  if (!isSafeStartupDisabledId(options.entry.id)) {
+    throw new Error("FormatBuddy startup holding entry id is not safe");
+  }
+  if (options.entry.originalPath !== options.sourcePath) {
+    throw new Error("FormatBuddy startup holding original path does not match the cleaned item");
+  }
+  if (!isValidIsoDateString(options.entry.expiresAt)) {
+    throw new Error("FormatBuddy startup holding expiry was not created");
+  }
+  if (!isWithinRestoreBinWindow(options.entry.expiresAt, options.now?.() ?? new Date())) {
+    throw new Error("FormatBuddy startup holding expiry is outside the 30-day window");
+  }
+  const sourceStillExists = await fs.lstat(options.sourcePath).then(
+    () => true,
+    () => false
+  );
+  if (sourceStillExists) {
+    throw new Error("Startup source path still exists after app leftover cleanup");
+  }
+}
+
 function leftoverChangedSincePlan(
   planned: AppLeftoverPath,
   measured: Awaited<ReturnType<typeof measurePath>>
@@ -1682,6 +1726,11 @@ export async function cleanupAppLeftovers(
           });
           continue;
         }
+        await assertStartupHoldingCleanupResult({
+          entry: disabled.entry,
+          sourcePath: path.path,
+          now: options.now
+        });
         removedItems.push({
           itemId: path.id,
           path: path.path,
