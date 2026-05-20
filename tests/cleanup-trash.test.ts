@@ -259,6 +259,36 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
   });
 
+  it.each([
+    ["item id", () => ({ id: "" })],
+    ["item id whitespace", () => ({ id: "  " })],
+    ["source path control", (source: string) => ({ path: `${source}\n` })],
+    ["label", () => ({ label: "" })],
+    ["label control", () => ({ label: "old.tmp\rmore" })],
+    ["category", () => ({ categoryId: "" })]
+  ] as Array<[string, (source: string) => Partial<Record<keyof CleanupItem, unknown>>]>)(
+    "refuses to create a restore-bin entry from unusable cleanup metadata: %s",
+    async (_label, makePatch) => {
+      const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+      await mkdir(join(source, ".."), { recursive: true });
+      await writeFile(source, "hello", "utf8");
+      const patch = makePatch(source);
+
+      await expect(
+        moveToFormatBuddyTrash({
+          userDataDir: fx.userData,
+          item: { ...makeItem(source), ...patch } as CleanupItem,
+          sizeBytes: 5,
+          home: fx.home,
+          now: () => new Date("2026-05-19T00:00:00.000Z")
+        })
+      ).rejects.toThrow("cleanup-trash refuses unusable source metadata");
+
+      expect(existsSync(source)).toBe(true);
+      expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+    }
+  );
+
   it("refuses to move a source path through a symbolic-link parent", async () => {
     if (process.platform === "win32") return;
     const tempDir = join(fx.home, "AppData", "Local", "Temp");

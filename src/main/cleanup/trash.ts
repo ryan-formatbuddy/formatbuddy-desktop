@@ -166,6 +166,20 @@ function coerceIndex(value: unknown): PersistedTrashIndex {
   };
 }
 
+function assertUsableCleanupItemMetadata(item: CleanupItem): void {
+  const required: Array<[string, unknown]> = [
+    ["item id", item.id],
+    ["source path", item.path],
+    ["label", item.label],
+    ["category", item.categoryId]
+  ];
+
+  const invalid = required.find(([, value]) => !isUsableMetadataString(value));
+  if (invalid) {
+    throw new Error(`cleanup-trash refuses unusable source metadata: ${invalid[0]}`);
+  }
+}
+
 async function loadIndex(userDataDir: string): Promise<PersistedTrashIndex> {
   const linkedIndex = await findLinkedPathPart(indexPath(userDataDir), userDataDir, true);
   if (linkedIndex) {
@@ -559,6 +573,8 @@ function expiryFor(now: Date): string {
 export async function moveToFormatBuddyTrash(
   options: MoveToTrashOptions
 ): Promise<CleanupTrashEntry> {
+  assertUsableCleanupItemMetadata(options.item);
+
   const sourceDecision = evaluatePath(options.item.path, {
     allowRoots: [options.item.path],
     home: options.home
@@ -597,8 +613,8 @@ export async function moveToFormatBuddyTrash(
     storedPath,
     label: options.item.label,
     categoryId: options.item.categoryId,
-    appName: options.item.appName ?? null,
-    appPublisher: options.item.appPublisher ?? null,
+    appName: isUsableMetadataString(options.item.appName) ? options.item.appName : null,
+    appPublisher: isUsableMetadataString(options.item.appPublisher) ? options.item.appPublisher : null,
     sizeBytes: Math.max(0, Math.round(options.sizeBytes)),
     createdAt: now.toISOString(),
     expiresAt: expiryFor(now)
