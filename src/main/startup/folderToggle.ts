@@ -103,7 +103,7 @@ function isUnderRoot(childPath: string, rootPath: string): boolean {
   return child === root || child.startsWith(`${root}\\`);
 }
 
-function isManagedStartupStoredPath(
+export function isManagedStartupStoredPath(
   userDataDir: string,
   disabledId: string,
   candidatePath: string

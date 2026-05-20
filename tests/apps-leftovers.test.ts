@@ -1404,6 +1404,87 @@ describe("planAppLeftovers", () => {
     await expect(fs.readFile(startupShortcut, "utf8")).resolves.toBe("shortcut");
   });
 
+  it("does not count a startup-folder cleanup as successful without a stored holding file", async () => {
+    const startupShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Startup",
+      "Acme Notes.lnk"
+    );
+    await fs.mkdir(dirname(startupShortcut), { recursive: true });
+    await fs.writeFile(startupShortcut, "shortcut", "utf8");
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "startup-folder|acme-notes",
+        kind: "startup-folder",
+        name: "Acme Notes.lnk",
+        path: startupShortcut,
+        publisher: "Acme Corp.",
+        origin: dirname(startupShortcut)
+      }
+    ];
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === startupShortcut)!;
+    const missingStoredPath = join(
+      fx.root,
+      "userdata",
+      "formatbuddy-startup-disabled",
+      "items",
+      "safe-startup-holding",
+      "files",
+      "Acme Notes.lnk"
+    );
+    const disableStartupFolderEntry = vi.fn(async () => {
+      await fs.rm(startupShortcut, { force: true });
+      return {
+        status: "disabled" as const,
+        message: "ok",
+        entry: {
+          id: "safe-startup-holding",
+          entryId: "startup-folder|acme-notes",
+          name: "Acme Notes.lnk",
+          originalPath: startupShortcut,
+          storedPath: missingStoredPath,
+          origin: dirname(startupShortcut),
+          disabledAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z",
+          contentHash: {
+            algorithm: "sha256" as const,
+            value: "a".repeat(64)
+          },
+          integrityStatus: "verified" as const
+        }
+      };
+    });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        disableStartupFolderEntry
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    const skipped = result.skippedItems.find((item) => item.itemId === path.id);
+    expect(skipped).toMatchObject({ reason: "execute-failed" });
+    expect(skipped?.detail).toMatch(/stored|보관|holding/i);
+  });
+
   it("surfaces service and scheduled-task traces as protected app deletion leftovers", async () => {
     const startupEntries: StartupAutoEntry[] = [
       {

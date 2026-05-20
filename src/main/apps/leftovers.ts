@@ -35,7 +35,11 @@ import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedInstallFolderPathPart, findLinkedPathPart } from "../cleanup/pathSafety";
 import { assertManagedTrashEntryManifest, moveToFormatBuddyTrash } from "../cleanup/trash";
-import { disableStartupFolderEntry, isSafeStartupDisabledId } from "../startup/folderToggle";
+import {
+  disableStartupFolderEntry,
+  isManagedStartupStoredPath,
+  isSafeStartupDisabledId
+} from "../startup/folderToggle";
 import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
@@ -468,6 +472,12 @@ function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {
   const latestAllowed =
     now.getTime() + RESTORE_BIN_RETENTION_DAYS * DAY_MS + RESTORE_BIN_EXPIRY_CLOCK_SKEW_MS;
   return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
+}
+
+function isValidSha256ContentHash(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const raw = value as Partial<NonNullable<StartupAutoDisabledEntry["contentHash"]>>;
+  return raw.algorithm === "sha256" && typeof raw.value === "string" && /^[a-f0-9]{64}$/.test(raw.value);
 }
 
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
@@ -1352,10 +1362,17 @@ function skipReasonFromTrashError(message: string): CleanupSkippedItem["reason"]
 async function assertStartupHoldingCleanupResult(options: {
   entry: StartupAutoDisabledEntry;
   sourcePath: string;
+  userDataDir: string;
   now?: () => Date;
 }): Promise<void> {
   if (!isSafeStartupDisabledId(options.entry.id)) {
     throw new Error("FormatBuddy startup holding entry id is not safe");
+  }
+  if (!isStrictPlanString(options.entry.storedPath)) {
+    throw new Error("FormatBuddy startup holding stored path was not created");
+  }
+  if (!isManagedStartupStoredPath(options.userDataDir, options.entry.id, options.entry.storedPath)) {
+    throw new Error("FormatBuddy startup holding stored path is outside the managed holding bin");
   }
   if (options.entry.originalPath !== options.sourcePath) {
     throw new Error("FormatBuddy startup holding original path does not match the cleaned item");
@@ -1372,6 +1389,13 @@ async function assertStartupHoldingCleanupResult(options: {
   );
   if (sourceStillExists) {
     throw new Error("Startup source path still exists after app leftover cleanup");
+  }
+  if (options.entry.integrityStatus !== "verified" || !isValidSha256ContentHash(options.entry.contentHash)) {
+    throw new Error("FormatBuddy startup holding integrity was not verified");
+  }
+  const storedStat = await fs.lstat(options.entry.storedPath).catch(() => null);
+  if (!storedStat || !storedStat.isFile() || storedStat.isSymbolicLink()) {
+    throw new Error("FormatBuddy startup holding stored file was not created");
   }
 }
 
@@ -1729,6 +1753,7 @@ export async function cleanupAppLeftovers(
         await assertStartupHoldingCleanupResult({
           entry: disabled.entry,
           sourcePath: path.path,
+          userDataDir: options.userDataDir,
           now: options.now
         });
         removedItems.push({
