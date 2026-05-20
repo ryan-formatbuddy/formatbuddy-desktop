@@ -285,6 +285,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     [registryEntries]
   );
   const totalEntryCount = entries.length + registryEntries.length + startupEntries.length;
+  const hasPartialLoadIssue = Boolean(error);
   const sortedRestoreItems = useMemo(() => {
     const items: RestoreListItem[] = [
       ...entries.map((entry) => ({
@@ -475,7 +476,9 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
 
   const headerSummary = useMemo(() => {
     if (!snapshot || !registrySnapshot || !startupSnapshot) return "복구함 불러오는 중...";
-    if (totalEntryCount === 0) return "복구함이 비어 있어요.";
+    if (totalEntryCount === 0) {
+      return hasPartialLoadIssue ? "불러온 복구 항목은 아직 없어요." : "복구함이 비어 있어요.";
+    }
     const totalBytes = snapshot.totalBytes + registryBytes;
     const appTraceCount = registryEntries.filter(
       (entry) => entry.backupKind !== "startup-value"
@@ -497,7 +500,8 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     registryEntries,
     registryBytes,
     startupEntries.length,
-    totalEntryCount
+    totalEntryCount,
+    hasPartialLoadIssue
   ]);
 
   const expirySummary = useMemo(
@@ -606,7 +610,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         )}
       </section>
 
-      {snapshot && registrySnapshot && startupSnapshot && totalEntryCount === 0 && (
+      {snapshot && registrySnapshot && startupSnapshot && totalEntryCount === 0 && !hasPartialLoadIssue && (
         <section className="fb-card fb-anim-fade">
           <h3 style={{ marginTop: 0 }}>복구함이 비어 있어요</h3>
           <p>

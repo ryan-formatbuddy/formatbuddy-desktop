@@ -188,6 +188,10 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("emptyTrashSnapshot");
     expect(source).toContain("emptyRegistrySnapshot");
     expect(source).toContain("emptyStartupSnapshot");
+    expect(source).toContain("hasPartialLoadIssue");
+    expect(source).toContain("불러온 복구 항목은 아직 없어요");
+    expect(source).toContain("totalEntryCount === 0 && !hasPartialLoadIssue");
     expect(source).not.toContain("await Promise.all([");
+    expect(source).not.toContain("snapshot && registrySnapshot && startupSnapshot && totalEntryCount === 0 && (");
   });
 });
