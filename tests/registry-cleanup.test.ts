@@ -289,6 +289,58 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not report a registry key cleanup as restorable when the backup file disappears after deletion", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    let exportedBackupPath = "";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        exportedBackupPath = backupPath;
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        await rm(exportedBackupPath, { force: true });
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/백업|backup|보이지|찾지/i);
+
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("does not report a registry key cleanup as restorable when metadata disappears after deletion", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    let exportedBackupPath = "";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        exportedBackupPath = backupPath;
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        await rm(join(dirname(exportedBackupPath), "meta.json"), { force: true });
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/백업|backup|정보|확인|찾지/i);
+
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("does not keep a registry backup entry when the startup value still exists after deletion", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const valueName = "Acme Notes";
@@ -315,6 +367,40 @@ describe("registry leftover cleanup", () => {
         runner
       })
     ).rejects.toThrow(/still exists|아직 남아/);
+
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("does not report a startup value cleanup as restorable when the backup file disappears after deletion", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    let exportedBackupPath = "";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        exportedBackupPath = backupPath;
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        await rm(exportedBackupPath, { force: true });
+      })
+    };
+
+    await expect(
+      backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        valueName,
+        runner
+      })
+    ).rejects.toThrow(/백업|backup|보이지|찾지/i);
 
     expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);

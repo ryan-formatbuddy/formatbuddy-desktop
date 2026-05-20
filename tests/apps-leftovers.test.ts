@@ -1063,6 +1063,49 @@ describe("planAppLeftovers", () => {
     expect(result.skippedItems[0].detail).toMatch(/export failed/);
   });
 
+  it("does not count a registry leftover as successful when the backup disappears after deletion", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp.", registryKeyPath }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    let exportedBackupPath = "";
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        exportedBackupPath = backupPath;
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        await fs.rm(exportedBackupPath, { force: true });
+      })
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        registryRunner
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.totalFreedBytes).toBe(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: registryKeyPath,
+      reason: "execute-failed"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/백업|backup|보이지|찾지/i);
+  });
+
   it("does not create generic leftover groups when the app folders do not exist", async () => {
     const snapshot = await planAppLeftovers(
       [{ name: "Obscure Notes", publisher: "Tiny Vendor" }],

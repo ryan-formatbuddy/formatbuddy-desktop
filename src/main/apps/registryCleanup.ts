@@ -523,21 +523,11 @@ export async function backupAndDeleteRegistryKey(options: {
     if (runner.keyExists && (await runner.keyExists(keyPath))) {
       throw new Error("Registry key still exists after deletion");
     }
+    return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
-
-  return {
-    id,
-    keyPath,
-    backupPath,
-    sizeBytes,
-    appName,
-    appPublisher,
-    createdAt,
-    expiresAt
-  };
 }
 
 export async function backupAndDeleteRegistryValue(options: {
@@ -602,23 +592,11 @@ export async function backupAndDeleteRegistryValue(options: {
     if (runner.valueExists && (await runner.valueExists(keyPath, valueName))) {
       throw new Error("Registry value still exists after deletion");
     }
+    return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
     throw err;
   }
-
-  return {
-    id,
-    keyPath,
-    backupKind: "startup-value",
-    valueName,
-    backupPath,
-    sizeBytes,
-    appName,
-    appPublisher,
-    createdAt,
-    expiresAt
-  };
 }
 
 function isValidIso(value: unknown): value is string {
@@ -631,6 +609,15 @@ async function readRegistryBackupEntry(
 ): Promise<RegistryBackupEntry | null> {
   const result = await readRegistryBackupEntryForRestore(userDataDir, backupId);
   return result.kind === "entry" ? result.entry : null;
+}
+
+async function assertRegistryBackupEntryStillRestorable(
+  userDataDir: string,
+  backupId: string
+): Promise<RegistryBackupEntry> {
+  const result = await readRegistryBackupEntryForRestore(userDataDir, backupId);
+  if (result.kind === "entry") return result.entry;
+  throw new Error(result.result.message);
 }
 
 type RegistryBackupReadResult =
