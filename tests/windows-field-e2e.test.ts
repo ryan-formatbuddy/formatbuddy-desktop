@@ -20,7 +20,10 @@ import {
   disableStartupFolderEntry,
   restoreStartupFolderEntry
 } from "../src/main/startup/folderToggle";
-import { restoreRegistryBackup } from "../src/main/apps/registryCleanup";
+import {
+  backupAndDeleteRegistryKey,
+  restoreRegistryBackup
+} from "../src/main/apps/registryCleanup";
 
 const execFileAsync = promisify(execFile);
 const RUN_FIELD_E2E =
@@ -28,6 +31,8 @@ const RUN_FIELD_E2E =
 const fieldDescribe = RUN_FIELD_E2E ? describe : describe.skip;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
+const UNINSTALL_KEY =
+  `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${FIELD_VALUE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
 
 function cleanupItem(path: string): CleanupItem {
@@ -92,6 +97,15 @@ async function registryValueExists(): Promise<boolean> {
   }
 }
 
+async function registryKeyExists(keyPath: string): Promise<boolean> {
+  try {
+    await runReg(["query", keyPath]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function scheduledTaskExists(taskName: string): Promise<boolean> {
   try {
     await runSchtasks(["/Query", "/TN", taskName]);
@@ -108,6 +122,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
 
   afterEach(async () => {
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
+    await runReg(["delete", UNINSTALL_KEY, "/f"]).catch(() => {});
     await runSchtasks(["/Delete", "/TN", FIELD_TASK_NAME, "/F"]).catch(() => {});
     if (root) rmSync(root, { recursive: true, force: true });
   });
@@ -222,5 +237,60 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
 
     expect(deleted.status).toBe("deleted");
     expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(false);
+  }, 45_000);
+
+  it("backs up, removes, and restores an isolated uninstall registry key", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-registry-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:00:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:05:00.000Z");
+
+    await runReg([
+      "add",
+      UNINSTALL_KEY,
+      "/v",
+      "DisplayName",
+      "/t",
+      "REG_SZ",
+      "/d",
+      FIELD_VALUE_NAME,
+      "/f"
+    ]);
+    await runReg([
+      "add",
+      UNINSTALL_KEY,
+      "/v",
+      "Publisher",
+      "/t",
+      "REG_SZ",
+      "/d",
+      "FormatBuddy Field E2E",
+      "/f"
+    ]);
+    expect(await registryKeyExists(UNINSTALL_KEY)).toBe(true);
+
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: UNINSTALL_KEY,
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.backupKind ?? "key").toBe("key");
+    expect(backup.expiresAt).toBe("2026-06-19T11:00:00.000Z");
+    expect(backup.contentHash?.algorithm).toBe("sha256");
+    expect(await registryKeyExists(UNINSTALL_KEY)).toBe(false);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.keyPath).toBe(UNINSTALL_KEY);
+    expect(await registryKeyExists(UNINSTALL_KEY)).toBe(true);
+    const restoredKey = await runReg(["query", UNINSTALL_KEY, "/v", "DisplayName"]);
+    expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
   }, 45_000);
 });

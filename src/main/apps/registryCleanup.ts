@@ -237,6 +237,27 @@ async function hashFile(path: string): Promise<string> {
   return createHash("sha256").update(content).digest("hex");
 }
 
+async function readRegistryBackupText(path: string): Promise<string> {
+  const content = await fs.readFile(path);
+  if (content.length >= 2 && content[0] === 0xff && content[1] === 0xfe) {
+    return content.subarray(2).toString("utf16le").replace(/^\uFEFF/, "");
+  }
+  if (content.length >= 3 && content[0] === 0xef && content[1] === 0xbb && content[2] === 0xbf) {
+    return content.subarray(3).toString("utf8").replace(/^\uFEFF/, "");
+  }
+  const sample = content.subarray(0, Math.min(content.length, 128));
+  let oddNulls = 0;
+  let oddSlots = 0;
+  for (let i = 1; i < sample.length; i += 2) {
+    oddSlots += 1;
+    if (sample[i] === 0) oddNulls += 1;
+  }
+  if (oddSlots > 0 && oddNulls / oddSlots > 0.6) {
+    return content.toString("utf16le").replace(/^\uFEFF/, "");
+  }
+  return content.toString("utf8").replace(/^\uFEFF/, "");
+}
+
 function isValidRegistryBackupContentHash(
   value: unknown
 ): value is NonNullable<RegistryBackupEntry["contentHash"]> {
@@ -439,7 +460,7 @@ async function assertRestorableRegistryBackupFile(
     throw new Error("앱 삭제 흔적 백업 파일이 비어 있어 정리하지 않았어요.");
   }
 
-  const content = await fs.readFile(backupPath, "utf8");
+  const content = await readRegistryBackupText(backupPath);
   const head = content.slice(0, 256).trimStart();
   if (!/^Windows Registry Editor Version\s+\d+(?:\.\d+)?/i.test(head) && !/^REGEDIT4\b/i.test(head)) {
     throw new Error("앱 삭제 흔적 백업 파일이 레지스트리 백업 형식이 아니라 정리하지 않았어요.");

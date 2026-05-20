@@ -174,6 +174,32 @@ describe("registry leftover cleanup", () => {
     });
   });
 
+  it("accepts UTF-16LE registry export files from reg.exe before deleting a selected key", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const utf16Content = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from(registryBackupContentFor(keyPath), "utf16le")
+    ]);
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, utf16Content);
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    expect(result.sizeBytes).toBe(utf16Content.byteLength);
+    expect(result.contentHash?.value).toMatch(/^[a-f0-9]{64}$/);
+    expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
+  });
+
   it("cleans registry backup app labels with control characters before writing metadata", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {
