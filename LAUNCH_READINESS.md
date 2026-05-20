@@ -50,7 +50,7 @@
 |---|------|---|------|------|
 | C1 | Windows 코드 사이닝 결정 (EV / OV / MS Store / 무) | **P0** | ❌ | deferred |
 | C2 | `electron-updater verifyUpdateCodeSignature` 활성화 (C1 후) | P1 | ✅ | 비활성 |
-| C3 | npm audit / Dependabot / Snyk 정기 자동 검사 | P1 | ✅ | 없음 |
+| C3 | npm audit / Dependabot / Snyk 정기 자동 검사 | P1 | ✅ | npm audit 0 ✅ (D-381) / Dependabot · Snyk 정기 자동화 없음 |
 | C4 | SBOM (Software Bill of Materials) | P3 | ✅ | 없음 |
 | C5 | Codex 정기 사이클 (작지 끝마다 1회) | P2 | ✅ | 5회 누적 |
 | C6 | 개인정보처리방침 (한국어) | **P0** | 부분 (초안) | `docs/PRIVACY_POLICY.md` |
