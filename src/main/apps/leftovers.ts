@@ -433,6 +433,15 @@ function isOptionalStrictPlanString(value: unknown): value is string | null | un
   return value === undefined || value === null || value === "" || isStrictPlanString(value);
 }
 
+function isOptionalPlanSizeBytes(value: unknown): value is number | null | undefined {
+  return value === undefined || value === null || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+function isOptionalPlanTimestamp(value: unknown): value is string | null | undefined {
+  if (value === undefined || value === null) return true;
+  return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
+}
+
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
   return (
     value === "folder" ||
@@ -1031,12 +1040,15 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (!isStrictPlanString(path.id)) invalid.push("path id");
     if (!isStrictPlanString(path.path)) invalid.push("path");
     if (!isSafeLeftoverPathKind(path.kind)) invalid.push("kind");
+    if (typeof path.exists !== "boolean") invalid.push("exists");
+    if (!isOptionalPlanSizeBytes(path.sizeBytes)) invalid.push("size");
+    if (!isOptionalPlanTimestamp(path.lastModifiedAt)) invalid.push("modified timestamp");
     if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
     if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
     if (group && !isSafeLeftoverGroupSource(group.source)) invalid.push("source");
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalStrictPlanString(path.registryValueName)) invalid.push("registry value name");
-    if (!isOptionalUsablePlanString(path.protectedBy)) invalid.push("protection reason");
+    if (!isOptionalStrictPlanString(path.protectedBy)) invalid.push("protection reason");
     if (
       path.kind === "startup-registry" &&
       (typeof path.registryValueName !== "string" ||
