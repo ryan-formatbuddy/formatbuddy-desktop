@@ -23,4 +23,15 @@ describe("SecurityCenter copy", () => {
     expect(source).not.toContain("if (!window.fb?.runDefenderQuickScan) return;");
     expect(source).not.toContain('onClick={() => void window.fb?.runActionCommand("start windowsdefender:")}');
   });
+
+  it("keeps Defender raw status and quick scan details out of the user-facing copy", () => {
+    const source = readFileSync(SECURITY_CENTER_PAGE, "utf8");
+
+    expect(source).toContain("quickScanDetailLabel");
+    expect(source).toContain("threatActionLabel");
+    expect(source).toContain("Windows 보안 검사를 시작하지 못했어요");
+    expect(source).toContain("Windows 보안에서 다시 확인해주세요");
+    expect(source).not.toContain('{lastResult.detail ? ` (${lastResult.detail})` : ""}');
+    expect(source).not.toContain('return `Windows 처리: ${record.rawStatus ?? "알 수 없음"}`;');
+  });
 });

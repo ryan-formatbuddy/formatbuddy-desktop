@@ -47,7 +47,7 @@ function severityLabel(severity: DefenderThreatRecord["severity"]): string {
   }
 }
 
-function actionLabel(record: DefenderThreatRecord): string {
+function threatActionLabel(record: DefenderThreatRecord): string {
   // Pure read-out. We never claim FormatBuddy did anything to the threat.
   switch (record.actionStatus) {
     case "cleaned":
@@ -63,7 +63,40 @@ function actionLabel(record: DefenderThreatRecord): string {
     case "no-action":
       return "Windows 처리: 동작 없음";
     case "unknown":
-      return `Windows 처리: ${record.rawStatus ?? "알 수 없음"}`;
+      return "Windows 보안에서 다시 확인해주세요";
+  }
+}
+
+function quickScanDetailLabel(result: DefenderQuickScanResult): string | null {
+  const detail = result.detail?.toLowerCase() ?? "";
+
+  if (
+    detail.includes("access") ||
+    detail.includes("denied") ||
+    detail.includes("eacces") ||
+    detail.includes("eperm")
+  ) {
+    return "권한이 부족해서 시작하지 못했어요. Windows 보안 화면에서 직접 확인해주세요.";
+  }
+  if (detail.includes("enoent") || detail.includes("spawn") || detail.includes("powershell")) {
+    return "Windows 보안 검사를 시작하지 못했어요. Windows 보안 화면에서 직접 실행해주세요.";
+  }
+  if (detail.includes("executionpolicy") || detail.includes("script")) {
+    return "Windows 설정 때문에 실행이 막혔어요. Windows 보안 화면에서 직접 확인해주세요.";
+  }
+  if (detail.includes("timeout")) {
+    return "응답이 늦어서 잠시 멈췄어요. Windows 보안 화면에서 이어서 확인해주세요.";
+  }
+
+  switch (result.status) {
+    case "blocked":
+      return "Windows 보안에서 직접 확인해주세요.";
+    case "spawn-failed":
+      return "Windows 보안 검사를 시작하지 못했어요. Windows 보안 화면에서 직접 실행해주세요.";
+    case "unavailable":
+      return "이 PC에서는 자동 확인을 지원하지 않아요. Windows 보안 화면에서 직접 확인해주세요.";
+    case "launched":
+      return null;
   }
 }
 
@@ -165,6 +198,8 @@ function QuickScanCard({
   lastResult?: DefenderQuickScanResult;
   busy: boolean;
 }) {
+  const quickScanDetail = lastResult ? quickScanDetailLabel(lastResult) : null;
+
   return (
     <article className="fb-card fb-anim-slide fb-card-hover" style={{ marginBottom: 16 }}>
       <h2 style={{ marginTop: 0 }}>빠른 검사 시작</h2>
@@ -187,7 +222,7 @@ function QuickScanCard({
       {lastResult && (
         <p style={{ marginTop: 12, fontSize: 13 }}>
           {lastResult.message}
-          {lastResult.detail ? ` (${lastResult.detail})` : ""}
+          {quickScanDetail ? ` ${quickScanDetail}` : ""}
         </p>
       )}
     </article>
@@ -251,7 +286,7 @@ function ThreatsPanel({
                   ? new Date(record.detectionTime).toLocaleString("ko-KR")
                   : "탐지 시각 정보 없음"}
               </div>
-              <div style={{ opacity: 0.75 }}>{actionLabel(record)}</div>
+              <div style={{ opacity: 0.75 }}>{threatActionLabel(record)}</div>
               <div style={{ opacity: 0.6, fontSize: 12 }}>{severityLabel(record.severity)}</div>
               {record.resources && record.resources.length > 0 && (
                 <details style={{ marginTop: 4 }}>
