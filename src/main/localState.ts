@@ -174,6 +174,11 @@ export async function getAppStateSnapshot(userDataDir: string): Promise<AppState
   };
 }
 
+export async function getLatestScanAt(userDataDir: string): Promise<string | undefined> {
+  const state = await loadState(userDataDir);
+  return state.history[0]?.generatedAt;
+}
+
 export async function recordScanResult(
   userDataDir: string,
   report: ScanReport,

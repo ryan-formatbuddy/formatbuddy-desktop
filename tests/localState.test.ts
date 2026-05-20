@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   buildHistoryEntry,
   getAppStateSnapshot,
+  getLatestScanAt,
   recordScanResult,
   updateIgnoreList
 } from "../src/main/localState";
@@ -113,6 +114,20 @@ describe("localState", () => {
 
       const snapshot = await getAppStateSnapshot(dir);
       expect(snapshot.ignoreList.cleanupItemIds).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns the latest persisted scan time for reminder decisions after restart", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fb-latest-scan-test-"));
+    try {
+      const first = reportWith("safe", "2026-05-18T01:00:00.000Z");
+      await recordScanResult(dir, first, generateRecommendation(first));
+      const second = reportWith("busy", "2026-05-18T02:00:00.000Z");
+      await recordScanResult(dir, second, generateRecommendation(second));
+
+      await expect(getLatestScanAt(dir)).resolves.toBe("2026-05-18T02:00:00.000Z");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

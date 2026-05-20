@@ -180,7 +180,7 @@ import {
   shutdownAutoUpdater
 } from "./updater";
 import { buildHtmlReport, buildHtmlReportFilename } from "./htmlReport";
-import { getAppStateSnapshot, recordScanResult, updateIgnoreList } from "./localState";
+import { getAppStateSnapshot, getLatestScanAt, recordScanResult, updateIgnoreList } from "./localState";
 import { ensureSafeOutputFilePath } from "./safeOutputPath";
 import type { Recommendation, ScanReport } from "@shared/types";
 
@@ -387,7 +387,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
 async function runReminderTick(): Promise<void> {
   try {
     const prefs = await loadMonitorPrefs(app.getPath("userData"));
-    const lastScanAt = getLastScan()?.report.generatedAt;
+    const lastScanAt = getLastScan()?.report.generatedAt ?? (await getLatestScanAt(app.getPath("userData")));
     const decision = shouldRemind(prefs, lastScanAt, new Date());
     if (!decision.show) return;
     if (!Notification.isSupported()) return;
