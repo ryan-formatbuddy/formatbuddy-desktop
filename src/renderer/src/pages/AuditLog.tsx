@@ -127,11 +127,13 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const removedCount = numberDetail(detail, "removedCount") ?? arrayCountDetail(detail, "removedItems");
   const failedCount = auditFailureDetailCount(detail);
   const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems");
+  const restorableCount = auditRestorableDetailCount(detail);
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
 
   if (purgedCount !== null && purgedCount > 0) lines.push(`비운 항목 ${purgedCount}개`);
   if (removedCount > 0) lines.push(`정리한 항목 ${removedCount}개`);
+  if (restorableCount > 0) lines.push(`30일 안에 되돌릴 수 있는 항목 ${restorableCount}개`);
   if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
   if (skippedCount > 0) lines.push(`건드리지 않은 항목 ${skippedCount}개`);
   if (purgedBytes !== null && purgedBytes > 0) {

@@ -106,10 +106,19 @@ describe("AuditLog copy", () => {
 
     expect(source).toContain("auditDetailLines");
     expect(source).toContain("비운 항목");
+    expect(source).toContain("30일 안에 되돌릴 수 있는 항목");
     expect(source).toContain("아직 남아 있는 항목");
     expect(source).toContain("확보한 공간");
     expect(source).not.toContain("JSON.stringify(entry.detail");
     expect(source).not.toContain("<pre");
+  });
+
+  it("shows a friendly restorable count across files, app traces, and disabled startup items", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("const restorableCount = auditRestorableDetailCount(detail)");
+    expect(source).toContain("restorableCount > 0");
+    expect(source).toContain("30일 안에 되돌릴 수 있는 항목 ${restorableCount}개");
   });
 
   it("reads count details from numeric audit fields before legacy arrays", () => {
