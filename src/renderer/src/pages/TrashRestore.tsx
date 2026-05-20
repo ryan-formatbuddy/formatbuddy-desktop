@@ -363,7 +363,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           <div>
             <strong>복구함 관리</strong>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              모두 되돌릴 수 있어요. 30일이 지난 항목은 앱이 알아서 정리해요.
+              복구 가능한 항목만 되돌려요. 30일이 지난 항목은 앱이 알아서 정리해요.
             </div>
           </div>
           <Button
@@ -372,7 +372,11 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             onClick={() => void onRestoreAll()}
             disabled={Boolean(busy) || totalRestorableCount === 0}
           >
-            {busy === "restore-all" ? "되돌리는 중..." : "모두 원래 자리로"}
+            {busy === "restore-all"
+              ? "되돌리는 중..."
+              : totalRestorableCount === totalEntryCount
+                ? "모두 원래 자리로"
+                : "가능한 항목만 원래 자리로"}
           </Button>
         </div>
         {expiryMessage && (

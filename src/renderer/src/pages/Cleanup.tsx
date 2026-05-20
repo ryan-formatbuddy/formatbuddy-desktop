@@ -257,7 +257,7 @@ function ConfirmDialog({
           선택한 <strong>{selectedCount}개</strong> 항목, 총 <strong>{formatBytes(selectedBytes)}</strong>을 정리해요.
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          30일 동안 포맷버디 복구함에 보관해요. 그 전에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동으로 비워요.
+          30일 동안 포맷버디 복구함에 보관해요. 보관 기간 안에는 앱 안에서 원래 위치로 되돌릴 수 있고, 30일 뒤 자동으로 비워요.
         </p>
         <p style={{ fontSize: 12, opacity: 0.7 }}>
           보호 경로를 한 번 더 확인하고 진행해요. 같은 이름 파일이나 잠긴 파일은 건드리지 않아요.
@@ -370,7 +370,7 @@ function ResultPanel({
       </div>
       {result.mode === "trash" && removedCount > 0 && (
         <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
-          정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요. 마음이 바뀌면 이 화면에서 되돌릴 수 있어요.
+          정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요. 보관 기간 안에는 이 화면에서 되돌릴 수 있어요.
         </p>
       )}
       {restoreRecentMessage && (
@@ -446,7 +446,7 @@ function TrashPanel({
         </div>
       </header>
       <p style={{ fontSize: 13, opacity: 0.75, margin: "8px 0 0" }}>
-        정리한 파일은 바로 사라지지 않아요. 30일 동안 여기서 되돌릴 수 있고, 기간이 지나면 포맷버디가 자동으로 비워요.
+        정리한 파일은 바로 사라지지 않아요. 보관 기간 안에는 여기서 되돌릴 수 있고, 기간이 지나면 포맷버디가 자동으로 비워요.
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
         {sample.map((entry) => (

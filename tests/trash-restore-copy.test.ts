@@ -95,6 +95,14 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain('{days === 0 ? "오늘 만료"');
   });
 
+  it("does not promise that every restore-bin item can be restored when expired items may remain", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("복구 가능한 항목만");
+    expect(source).toContain("가능한 항목만 원래 자리로");
+    expect(source).not.toContain("모두 되돌릴 수 있어요");
+  });
+
   it("shows friendly toasts instead of silently returning when restore bridges are missing", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 

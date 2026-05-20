@@ -23,6 +23,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("다음 항목은");
     expect(source).toContain("30일 동안 포맷버디 복구함에 보관해요");
     expect(source).toContain("30일 뒤 자동으로 비워요");
+    expect(source).toContain("보관 기간 안에는");
     expect(source).not.toContain("{snapshot.retentionDays}일 뒤 자동으로 비워요");
   });
 
