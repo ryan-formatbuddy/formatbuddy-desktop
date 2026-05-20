@@ -23,6 +23,8 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   LargeFileCandidate,
+  RegistryBackupSnapshot,
+  StartupAutoDisabledSnapshot,
   ScanReport
 } from "@shared/types";
 
@@ -75,6 +77,22 @@ function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
   const days = daysUntilTrashExpiry(nextExpiryAt);
   if (isTrashEntryExpired(nextExpiryAt)) return "보관 기간이 지난 항목이 있어요";
   return `다음 항목은 ${days}일 뒤 비워요`;
+}
+
+function registryBackupBytes(snapshot?: RegistryBackupSnapshot): number {
+  return snapshot?.entries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0) ?? 0;
+}
+
+function registryBackupKindCounts(snapshot?: RegistryBackupSnapshot): {
+  appBackupCount: number;
+  startupBackupCount: number;
+} {
+  const entries = snapshot?.entries ?? [];
+  const appBackupCount = entries.filter((entry) => entry.backupKind !== "startup-value").length;
+  return {
+    appBackupCount,
+    startupBackupCount: entries.length - appBackupCount
+  };
 }
 
 function cleanupHistoryDateLabel(value: string): string {
@@ -583,16 +601,32 @@ function TrashEntryRow({
 
 function TrashPanel({
   snapshot,
+  registrySnapshot,
+  startupSnapshot,
   onRestore,
   onOpenTrashRestore
 }: {
   snapshot?: CleanupTrashSnapshot;
+  registrySnapshot?: RegistryBackupSnapshot;
+  startupSnapshot?: StartupAutoDisabledSnapshot;
   onRestore: (entryId: string) => void;
   onOpenTrashRestore: () => void;
 }) {
-  if (!snapshot || snapshot.entries.length === 0) return null;
-  const sample = snapshot.entries.slice(0, 4);
-  const hidden = snapshot.entries.length - sample.length;
+  const fileEntries = snapshot?.entries ?? [];
+  const { appBackupCount, startupBackupCount } = registryBackupKindCounts(registrySnapshot);
+  const heldStartupCount = startupSnapshot?.entries.length ?? 0;
+  const totalCount = fileEntries.length + appBackupCount + startupBackupCount + heldStartupCount;
+  if (totalCount === 0) return null;
+
+  const sample = fileEntries.slice(0, 4);
+  const hidden = fileEntries.length - sample.length;
+  const totalBytes = (snapshot?.totalBytes ?? 0) + registryBackupBytes(registrySnapshot);
+  const summaryParts = [
+    fileEntries.length > 0 ? `정리 파일 ${fileEntries.length}개` : "",
+    appBackupCount > 0 ? `앱 삭제 흔적 ${appBackupCount}개` : "",
+    startupBackupCount > 0 ? `시작 항목 백업 ${startupBackupCount}개` : "",
+    heldStartupCount > 0 ? `잠시 꺼둔 시작 항목 ${heldStartupCount}개` : ""
+  ].filter(Boolean);
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
       <header
@@ -607,24 +641,32 @@ function TrashPanel({
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
-            {snapshot.entries.length}개 · {formatBytes(snapshot.totalBytes)} 보관 중 · {trashSnapshotExpiryLabel(snapshot)}
+            전체 {totalCount}개 · {formatBytes(totalBytes)} 보관 중
+            {snapshot ? ` · ${trashSnapshotExpiryLabel(snapshot)}` : ""}
           </small>
         </div>
+        <Button variant="ghost" size="sm" onClick={onOpenTrashRestore}>
+          전체 복구함 열기
+        </Button>
       </header>
       <p style={{ fontSize: 13, opacity: 0.75, margin: "8px 0 0" }}>
-        정리한 파일은 바로 사라지지 않아요. 보관 기간 안에는 여기서 되돌릴 수 있고, 기간이 지나면 포맷버디가 자동으로 비워요.
+        {summaryParts.join(" · ")}를 30일 동안 보관하고 있어요. 정리 파일은 여기서 바로 되돌릴 수 있고,
+        앱 삭제 흔적과 시작 항목은 전체 복구함에서 같이 확인할 수 있어요.
       </p>
-      <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
-        {sample.map((entry) => (
-          <TrashEntryRow key={entry.id} entry={entry} onRestore={onRestore} />
-        ))}
-      </ul>
+      {sample.length > 0 ? (
+        <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
+          {sample.map((entry) => (
+            <TrashEntryRow key={entry.id} entry={entry} onRestore={onRestore} />
+          ))}
+        </ul>
+      ) : (
+        <p style={{ fontSize: 12, opacity: 0.66, margin: "10px 0 0" }}>
+          지금은 정리 파일보다 앱 삭제 흔적이나 시작 항목 보관분이 남아 있어요.
+        </p>
+      )}
       {hidden > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
           <small style={{ opacity: 0.6 }}>나머지 {hidden}개도 전체 복구함에서 바로 볼 수 있어요.</small>
-          <Button variant="ghost" size="sm" onClick={onOpenTrashRestore}>
-            전체 복구함 열기
-          </Button>
         </div>
       )}
     </article>
@@ -704,6 +746,8 @@ export function Cleanup({
   const [phase, setPhase] = useState<Phase>({ kind: "planning" });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [trashSnapshot, setTrashSnapshot] = useState<CleanupTrashSnapshot | undefined>();
+  const [registrySnapshot, setRegistrySnapshot] = useState<RegistryBackupSnapshot | undefined>();
+  const [startupSnapshot, setStartupSnapshot] = useState<StartupAutoDisabledSnapshot | undefined>();
   const [trashMessage, setTrashMessage] = useState<string | undefined>();
   const [cleanupHistory, setCleanupHistory] = useState<CleanupHistorySnapshot | undefined>();
   const [historyMessage, setHistoryMessage] = useState<string | undefined>();
@@ -713,17 +757,50 @@ export function Cleanup({
   const largeFiles = useMemo<LargeFileCandidate[]>(() => report?.largeFiles ?? [], [report]);
 
   const loadTrash = useCallback(async () => {
-    if (!window.fb?.getCleanupTrash) {
+    const bridge = window.fb;
+    if (!bridge) {
+      setTrashSnapshot(undefined);
+      setRegistrySnapshot(undefined);
+      setStartupSnapshot(undefined);
       setTrashMessage("복구함 목록을 연결하지 못했어요. 정리는 계속할 수 있고, 포맷버디를 다시 열면 복구함을 다시 확인할 수 있어요.");
       return;
     }
-    try {
-      const snapshot = await window.fb.getCleanupTrash();
-      setTrashSnapshot(snapshot);
-      setTrashMessage(undefined);
-    } catch {
-      setTrashMessage("복구함 목록을 불러오지 못했어요. 정리는 계속할 수 있고, 잠시 뒤 다시 확인해볼게요.");
+
+    const fileTask = Promise.resolve().then(() => bridge.getCleanupTrash());
+    const registryTask = Promise.resolve().then(() => bridge.getRegistryBackups());
+    const startupTask = Promise.resolve().then(() => bridge.listDisabledStartupAuto());
+
+    const [file, registry, startup] = await Promise.allSettled([
+      fileTask,
+      registryTask,
+      startupTask
+    ]);
+    const failedLabels: string[] = [];
+
+    if (file.status === "fulfilled") {
+      setTrashSnapshot(file.value);
+    } else {
+      setTrashSnapshot(undefined);
+      failedLabels.push("정리 파일");
     }
+    if (registry.status === "fulfilled") {
+      setRegistrySnapshot(registry.value);
+    } else {
+      setRegistrySnapshot(undefined);
+      failedLabels.push("앱 삭제 흔적");
+    }
+    if (startup.status === "fulfilled") {
+      setStartupSnapshot(startup.value);
+    } else {
+      setStartupSnapshot(undefined);
+      failedLabels.push("잠시 꺼둔 시작 항목");
+    }
+
+    setTrashMessage(
+      failedLabels.length > 0
+        ? `${failedLabels.join(", ")} 복구 목록을 지금 불러오지 못했어요. 정리는 계속할 수 있고, 전체 복구함에서 다시 확인할 수 있어요.`
+        : undefined
+    );
   }, []);
 
   const loadHistory = useCallback(async () => {
@@ -918,6 +995,8 @@ export function Cleanup({
 
       <TrashPanel
         snapshot={trashSnapshot}
+        registrySnapshot={registrySnapshot}
+        startupSnapshot={startupSnapshot}
         onRestore={restoreFromTrash}
         onOpenTrashRestore={onOpenTrashRestore}
       />

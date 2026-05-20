@@ -12,6 +12,20 @@ describe("Cleanup copy", () => {
     expect(source).toContain("전체 복구함 열기");
   });
 
+  it("summarizes the full restore bin, not only file cleanup entries", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("RegistryBackupSnapshot");
+    expect(source).toContain("StartupAutoDisabledSnapshot");
+    expect(source).toContain("getRegistryBackups");
+    expect(source).toContain("listDisabledStartupAuto");
+    expect(source).toContain("registryBackupKindCounts");
+    expect(source).toContain("전체 {totalCount}개");
+    expect(source).toContain("앱 삭제 흔적과 시작 항목은 전체 복구함에서 같이 확인할 수 있어요");
+    expect(source).toContain("지금은 정리 파일보다 앱 삭제 흔적이나 시작 항목 보관분이 남아 있어요");
+    expect(source).not.toContain("if (!snapshot || snapshot.entries.length === 0) return null;");
+  });
+
   it("keeps the cleanup screen focused on the 30-day restore bin flow", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 
