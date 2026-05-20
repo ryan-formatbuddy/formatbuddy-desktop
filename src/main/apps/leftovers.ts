@@ -86,6 +86,8 @@ interface CleanupAppLeftoversOptions {
   registryRunner?: RegistryCleanupRunner;
   disableStartupFolderEntry?: typeof disableStartupFolderEntry;
   recordCleanupExecution?: typeof recordCleanupExecution;
+  currentInstalledApps?: InstalledApp[];
+  currentInstalledAppsKnown?: boolean;
   onFollowupCleaned?: (app: Pick<InstalledApp, "name" | "publisher">) => void | Promise<void>;
 }
 
@@ -1370,6 +1372,30 @@ function isStillInstalled(
   return installedAppKeys.has(appIdentityKey(app)) || installedAppNames.has(appNameKey(app));
 }
 
+function currentInstallGuardForGroup(
+  group: AppLeftoverGroup | undefined,
+  options: Pick<CleanupAppLeftoversOptions, "currentInstalledApps" | "currentInstalledAppsKnown">
+): "not-checked" | "not-installed" | "installed" | "unknown" {
+  if (!group || group.source !== "uninstall-launched" || group.cleanupState !== "removed-confirmed") {
+    return "not-checked";
+  }
+  if (options.currentInstalledAppsKnown === false) return "unknown";
+  if (!options.currentInstalledApps) return "not-checked";
+
+  const normalizedCurrentApps = options.currentInstalledApps
+    .map(normalizeAppForPlan)
+    .filter((app): app is InstalledApp => app !== null);
+  const installedAppKeys = new Set(normalizedCurrentApps.map(appIdentityKey));
+  const installedAppNames = new Set(normalizedCurrentApps.map(appNameKey));
+  return isStillInstalled(
+    { name: group.appName, publisher: group.publisher ?? null },
+    installedAppKeys,
+    installedAppNames
+  )
+    ? "installed"
+    : "not-installed";
+}
+
 function followupGroupIsFullyResolved(
   group: AppLeftoverGroup,
   selectedIds: Set<string>,
@@ -1798,6 +1824,25 @@ export async function cleanupAppLeftovers(
           group.cleanupState === "still-installed"
             ? "아직 앱 목록에 있어요. 다시 점검으로 제거 완료를 확인한 뒤 정리해주세요."
             : "제거 완료 여부를 아직 확인하지 못했어요. 다시 점검 후 정리해주세요."
+      });
+      continue;
+    }
+    const currentInstallGuard = currentInstallGuardForGroup(group, options);
+    if (currentInstallGuard === "unknown") {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: "앱 제거 완료 여부를 지금 다시 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
+      });
+      continue;
+    }
+    if (currentInstallGuard === "installed") {
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "blocked-path",
+        detail: "앱이 다시 설치된 상태예요. 제거가 끝난 뒤 다시 점검하고 정리해주세요."
       });
       continue;
     }

@@ -82,6 +82,7 @@ import { normalizeStartupFolderRestoreRequest } from "./startup/folderToggleRequ
 import { purgeExpiredStartupFolderEntriesWithAudit } from "./startup/folderToggleAudit";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
+import { probeInstalledAppsForLeftoverGuard } from "./apps/installedAppsProbe";
 import {
   listRegistryBackups,
   restoreRegistryBackup
@@ -1111,8 +1112,16 @@ function registerIpc() {
         }).catch((err) => {
           log.warn("startup-disabled:purge-before-app-leftovers failed:", (err as Error).message);
         });
+        const currentInstalledAppsProbe = await probeInstalledAppsForLeftoverGuard()
+          .then((apps) => ({ known: true as const, apps }))
+          .catch((err) => {
+            log.warn("apps:leftovers current install guard unavailable:", (err as Error).message);
+            return { known: false as const, apps: [] };
+          });
         const result = await cleanupAppLeftovers(safeLeftoversRequest, {
           userDataDir,
+          currentInstalledApps: currentInstalledAppsProbe.apps,
+          currentInstalledAppsKnown: currentInstalledAppsProbe.known,
           onFollowupCleaned: async (cleanedApp) => {
             forgetRecentlyUninstallLaunchedApp(cleanedApp);
             await forgetUninstallFollowup(userDataDir, cleanedApp).catch((err) => {

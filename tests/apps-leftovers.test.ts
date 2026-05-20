@@ -2486,6 +2486,80 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("refuses to clean app leftovers when the app was installed again after the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: slack,
+      reason: "blocked-path",
+      detail: "앱이 다시 설치된 상태예요. 제거가 끝난 뒤 다시 점검하고 정리해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+    const trash = await getTrashSnapshot({ userDataDir: join(fx.root, "userdata") });
+    expect(trash.entries).toEqual([]);
+  });
+
+  it("refuses to clean app leftovers when current install state could not be checked", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        currentInstalledAppsKnown: false,
+        currentInstalledApps: []
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: slack,
+      reason: "blocked-path",
+      detail: "앱 제거 완료 여부를 지금 다시 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+    const trash = await getTrashSnapshot({ userDataDir: join(fx.root, "userdata") });
+    expect(trash.entries).toEqual([]);
+  });
+
   it("refuses to clean app leftovers when the folder changed after the plan", async () => {
     const slack = join(fx.roaming, "Slack");
     const cacheFile = join(slack, "cache.bin");
