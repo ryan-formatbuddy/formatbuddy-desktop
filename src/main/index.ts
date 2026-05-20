@@ -310,6 +310,21 @@ function restorePointAuditSummary(result: RestorePointResult, actionDescription:
   }
 }
 
+function defenderQuickScanAuditSummary(result: DefenderQuickScanResult): string {
+  switch (result.status) {
+    case "launched":
+      return "Windows 보안 빠른 검사를 시작했어요. 결과는 Windows 보안에서 확인하세요.";
+    case "blocked":
+      return "Windows 보안 빠른 검사는 Windows에서만 실행할 수 있어요.";
+    case "spawn-failed":
+      return "Windows 보안 빠른 검사를 시작하지 못했어요. Windows 보안 화면에서 직접 실행해주세요.";
+    case "unavailable":
+      return "이 PC에서는 Windows 보안 빠른 검사를 자동으로 시작하지 못했어요. Windows 보안 화면에서 직접 확인해주세요.";
+    default:
+      return "Windows 보안 빠른 검사 상태를 확인했어요. 결과는 Windows 보안에서 확인해주세요.";
+  }
+}
+
 /**
  * Best-effort restore point trigger. Reads prefs each call so a user
  * who just toggled "취소" sees the new behavior immediately. Never
@@ -1200,12 +1215,7 @@ function registerIpc() {
     await appendAuditEntry(app.getPath("userData"), {
       category: "defender",
       action: result.status,
-      summary:
-        result.status === "launched"
-          ? "Windows 보안 빠른 검사를 시작했어요. 결과는 Windows 보안에서 확인하세요."
-          : result.status === "blocked"
-            ? "Windows 보안 빠른 검사를 시작하지 못했어요."
-            : `Windows 보안 빠른 검사 결과: ${result.status}`,
+      summary: defenderQuickScanAuditSummary(result),
       detail: { status: result.status, detail: result.detail }
     }).catch((e) => log.warn("audit append (defender) failed:", (e as Error).message));
     return result;
