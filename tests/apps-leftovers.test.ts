@@ -2046,6 +2046,52 @@ describe("planAppLeftovers", () => {
     expect(trash.entries).toEqual([]);
   });
 
+  it("refuses to clean an app leftover folder when it became a file after the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    const cacheFile = join(slack, "cache.bin");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(cacheFile, "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const plannedTime = new Date(path.lastModifiedAt!);
+    expect(path).toMatchObject({ kind: "folder", sizeBytes: 3 });
+
+    await fs.rm(slack, { recursive: true, force: true });
+    await fs.writeFile(slack, "abc", "utf8");
+    await fs.utimes(slack, plannedTime, plannedTime);
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: slack,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/종류|폴더|다시 점검/);
+    await expect(fs.readFile(slack, "utf8")).resolves.toBe("abc");
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toEqual([]);
+  });
+
   it("notifies the caller to close the uninstall follow-up after a successful leftover cleanup", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });

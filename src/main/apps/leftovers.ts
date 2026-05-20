@@ -1354,6 +1354,41 @@ function leftoverChangedSincePlan(
   return false;
 }
 
+function expectedLeftoverLiveKind(path: AppLeftoverPath): "file" | "directory" | undefined {
+  if (path.kind === "folder" || path.kind === "install-folder" || path.kind === "shortcut-folder") {
+    return "directory";
+  }
+  if (path.kind === "shortcut" || path.kind === "startup-folder") return "file";
+  return undefined;
+}
+
+async function leftoverLiveKind(path: string): Promise<"file" | "directory" | "other" | null> {
+  try {
+    const stat = await fs.lstat(path);
+    if (stat.isFile()) return "file";
+    if (stat.isDirectory()) return "directory";
+    return "other";
+  } catch {
+    return null;
+  }
+}
+
+async function leftoverKindChangedSincePlan(path: AppLeftoverPath): Promise<boolean> {
+  const expected = expectedLeftoverLiveKind(path);
+  if (!expected) return false;
+  const actual = await leftoverLiveKind(path.path);
+  return actual !== null && actual !== expected;
+}
+
+function skipChangedLeftoverKind(path: AppLeftoverPath): CleanupSkippedItem {
+  return {
+    itemId: path.id,
+    path: path.path,
+    reason: "blocked-path",
+    detail: "점검했던 앱 잔여 항목 종류가 바뀌었어요. 다시 점검한 뒤 정리해주세요."
+  };
+}
+
 function assertSelectedLeftoverPlanMetadataUsable(
   snapshot: AppLeftoversSnapshot,
   selectedIds: Set<string>
@@ -1620,6 +1655,10 @@ export async function cleanupAppLeftovers(
         });
         continue;
       }
+      if (await leftoverKindChangedSincePlan(path)) {
+        skippedItems.push(skipChangedLeftoverKind(path));
+        continue;
+      }
 
       try {
         const disableStartup = options.disableStartupFolderEntry ?? disableStartupFolderEntry;
@@ -1719,6 +1758,10 @@ export async function cleanupAppLeftovers(
         reason: "blocked-path",
         detail: CHANGED_LEFTOVER_PROTECTION
       });
+      continue;
+    }
+    if (await leftoverKindChangedSincePlan(path)) {
+      skippedItems.push(skipChangedLeftoverKind(path));
       continue;
     }
     if (path.kind === "shortcut-folder") {
