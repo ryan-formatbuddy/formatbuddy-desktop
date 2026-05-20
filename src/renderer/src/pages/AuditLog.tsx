@@ -45,6 +45,13 @@ function isAuditWarning(entry: AuditEntry): boolean {
   return entry.action.includes("-failed-") || entry.summary.includes("못했어요");
 }
 
+function isRestoreBinAuditEntry(entry: AuditEntry): boolean {
+  return (
+    entry.category === "cleanup" &&
+    (entry.action === "trash" || entry.action === "app-leftovers-trash")
+  );
+}
+
 function auditActionLabel(entry: AuditEntry): string {
   if (entry.action.includes("expired-purge-failed")) return "30일 자동 비움 확인";
   if (entry.action.includes("expired-purge")) return "30일 자동 비움";
@@ -257,7 +264,7 @@ export function AuditLog({ onBack }: AuditLogProps) {
                 아직 비우지 못한 항목은 복구함에 남겨뒀어요. 다음 자동 비움 때 한 번 더 확인해요.
               </small>
             )}
-            {entry.category === "cleanup" && entry.action === "trash" && (
+            {isRestoreBinAuditEntry(entry) && (
               <small style={{ display: "block", opacity: 0.65, marginTop: 4 }}>
                 되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.
               </small>
