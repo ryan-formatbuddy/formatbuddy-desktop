@@ -5,10 +5,11 @@ import { dirname, join } from "node:path";
 import {
   cleanupAppLeftovers,
   planAppLeftovers,
-  __resetLeftoversPlanCacheForTests
+  __resetLeftoversPlanCacheForTests,
+  __testing as leftoversTesting
 } from "../src/main/apps/leftovers";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
-import { getTrashSnapshot } from "../src/main/cleanup/trash";
+import { getTrashSnapshot, __testing as trashTesting } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
@@ -340,6 +341,53 @@ describe("planAppLeftovers", () => {
     });
     expect(trash.entries[0].originalPath).toBe(localLowFolder);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("rolls back an unverified app-leftover trash move only through a normal original parent", async () => {
+    const userDataDir = join(fx.root, "userdata");
+    const entryId = "entry-safe";
+    const originalPath = join(fx.roaming, "Acme Notes", "cache.bin");
+    const storedPath = trashTesting.storedPathFor(userDataDir, entryId, originalPath);
+    await fs.mkdir(dirname(storedPath), { recursive: true });
+    await fs.writeFile(storedPath, "cached", "utf8");
+
+    await leftoversTesting.cleanupUnverifiedTrashMove({
+      userDataDir,
+      originalPath,
+      trashEntry: { id: entryId, storedPath },
+      rollbackBoundary: fx.home
+    });
+
+    await expect(fs.readFile(originalPath, "utf8")).resolves.toBe("cached");
+    await expect(fs.stat(storedPath)).rejects.toThrow();
+    await expect(fs.stat(trashTesting.entryDir(userDataDir, entryId))).rejects.toThrow();
+  });
+
+  it("keeps an unverified app-leftover trash move in the restore bin when the original parent is a link", async () => {
+    if (process.platform === "win32") return;
+    const userDataDir = join(fx.root, "userdata");
+    const entryId = "entry-linked-parent";
+    const originalParent = join(fx.roaming, "Acme Notes");
+    const originalPath = join(originalParent, "cache.bin");
+    const outsideParent = join(fx.root, "outside-rollback");
+    const storedPath = trashTesting.storedPathFor(userDataDir, entryId, originalPath);
+    await fs.mkdir(dirname(storedPath), { recursive: true });
+    await fs.writeFile(storedPath, "cached", "utf8");
+    await fs.mkdir(dirname(originalParent), { recursive: true });
+    await fs.mkdir(outsideParent, { recursive: true });
+    await fs.symlink(outsideParent, originalParent, "dir");
+
+    await leftoversTesting.cleanupUnverifiedTrashMove({
+      userDataDir,
+      originalPath,
+      trashEntry: { id: entryId, storedPath },
+      rollbackBoundary: fx.home
+    });
+
+    await expect(fs.readFile(storedPath, "utf8")).resolves.toBe("cached");
+    await expect(fs.readdir(outsideParent)).resolves.toEqual([]);
+    const parentStat = await fs.lstat(originalParent);
+    expect(parentStat.isSymbolicLink()).toBe(true);
   });
 
   it("finds nested publisher/app folders for apps outside the built-in dictionary", async () => {

@@ -37,6 +37,7 @@ import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
 import { findLinkedInstallFolderPathPart, findLinkedPathPart } from "../cleanup/pathSafety";
 import {
   assertManagedTrashEntryManifest,
+  findLinkedManagedTrashStoredPath,
   isManagedTrashEntryStoredPath,
   moveToFormatBuddyTrash
 } from "../cleanup/trash";
@@ -1430,11 +1431,25 @@ async function cleanupUnverifiedTrashMove(options: {
   userDataDir: string;
   originalPath: string;
   trashEntry?: Pick<CleanupTrashEntry, "id" | "storedPath">;
+  rollbackBoundary?: string;
 }): Promise<void> {
   const { trashEntry } = options;
   if (!trashEntry || !isManagedTrashEntryStoredPath(options.userDataDir, trashEntry.id, trashEntry.storedPath)) {
     return;
   }
+  const linkedStoredPath = await findLinkedManagedTrashStoredPath(
+    options.userDataDir,
+    trashEntry.id,
+    trashEntry.storedPath
+  );
+  if (linkedStoredPath) return;
+
+  const linkedOriginalParent = await findLinkedPathPart(
+    options.originalPath,
+    options.rollbackBoundary ?? dirname(options.originalPath)
+  );
+  if (linkedOriginalParent) return;
+
   const storedExists = await fs.lstat(trashEntry.storedPath).then(
     () => true,
     () => false
@@ -1451,6 +1466,11 @@ async function cleanupUnverifiedTrashMove(options: {
 
   const entryRoot = dirname(dirname(trashEntry.storedPath));
   await fs.rm(entryRoot, { recursive: true, force: true }).catch(() => {});
+}
+
+function rollbackBoundaryForPath(path: string, env: LeftoverEnv): string {
+  const roots = [env.home, env.programData];
+  return roots.find((root) => isAtOrInside(path, root)) ?? dirname(path);
 }
 
 async function assertStartupHoldingCleanupResult(options: {
@@ -2032,7 +2052,8 @@ export async function cleanupAppLeftovers(
       await cleanupUnverifiedTrashMove({
         userDataDir: options.userDataDir,
         originalPath: cleanupItem.path,
-        trashEntry
+        trashEntry,
+        rollbackBoundary: rollbackBoundaryForPath(cleanupItem.path, cached.env)
       }).catch(() => {});
       skippedItems.push({
         itemId: cleanupItem.id,
@@ -2103,4 +2124,11 @@ export function __resetLeftoversPlanCacheForTests(): void {
   PLAN_CACHE.clear();
 }
 
-export const __testing = { RULES, defaultEnv, measurePath, PLAN_TTL_MS };
+export const __testing = {
+  RULES,
+  defaultEnv,
+  measurePath,
+  PLAN_TTL_MS,
+  cleanupUnverifiedTrashMove,
+  rollbackBoundaryForPath
+};
