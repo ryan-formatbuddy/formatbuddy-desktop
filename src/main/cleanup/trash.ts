@@ -76,6 +76,17 @@ function storedPathFor(userDataDir: string, entryId: string, originalPath: strin
   return join(entryDir(userDataDir, entryId), "files", base);
 }
 
+function overlapsManagedUserData(userDataDir: string, candidatePath: string): boolean {
+  const managed = normalizePath(resolve(userDataDir));
+  const candidate = normalizePath(resolve(candidatePath));
+  if (!managed || !candidate) return false;
+  return (
+    candidate === managed ||
+    candidate.startsWith(`${managed}\\`) ||
+    managed.startsWith(`${candidate}\\`)
+  );
+}
+
 export function isSafeTrashEntryId(entryId: unknown): entryId is string {
   return (
     isUsableMetadataString(entryId) &&
@@ -575,6 +586,10 @@ export async function moveToFormatBuddyTrash(
 ): Promise<CleanupTrashEntry> {
   assertUsableCleanupItemMetadata(options.item);
 
+  if (overlapsManagedUserData(options.userDataDir, options.item.path)) {
+    throw new Error("cleanup-trash refuses FormatBuddy managed data path (포맷버디 앱 데이터)");
+  }
+
   const sourceDecision = evaluatePath(options.item.path, {
     allowRoots: [options.item.path],
     home: options.home
@@ -713,6 +728,16 @@ export async function restoreTrashEntry(
       entryId: entry.id,
       status: "missing-stored-item",
       message: "복구할 파일이 이미 사라졌어요.",
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
+  if (overlapsManagedUserData(options.userDataDir, entry.originalPath)) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: "원래 위치가 FormatBuddy 앱 데이터 영역이라 자동으로 되돌리지 않았어요.",
       originalPath: entry.originalPath,
       entry
     };

@@ -259,6 +259,49 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
   });
 
+  it("refuses to move FormatBuddy's own user data into the restore bin", async () => {
+    const source = join(fx.userData, "formatbuddy-state.json");
+    await mkdir(dirname(source), { recursive: true });
+    await writeFile(source, "state stays put", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 14,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/FormatBuddy|포맷버디|managed data|앱 데이터/i);
+
+    expect(await readFile(source, "utf8")).toBe("state stays put");
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
+  it("refuses to move a folder that contains FormatBuddy's own user data", async () => {
+    const source = fx.root;
+    const statePath = join(fx.userData, "formatbuddy-state.json");
+    await mkdir(dirname(statePath), { recursive: true });
+    await writeFile(statePath, "state stays put", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: {
+          ...makeItem(source),
+          label: "formatbuddy-root",
+          sizeBytes: 14
+        },
+        sizeBytes: 14,
+        home: fx.home,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/FormatBuddy|포맷버디|managed data|앱 데이터/i);
+
+    expect(await readFile(statePath, "utf8")).toBe("state stays put");
+    expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+  });
+
   it.each([
     ["item id", () => ({ id: "" })],
     ["item id whitespace", () => ({ id: "  " })],
@@ -1124,6 +1167,37 @@ describe("FormatBuddy Trash", () => {
     expect(result.status).toBe("blocked-path");
     expect(result.originalPath).toBe(blockedOriginalPath);
     expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
+  it("refuses restore when the manifest originalPath points into FormatBuddy user data", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const blockedOriginalPath = join(fx.userData, "formatbuddy-state.json");
+    await writeFile(
+      join(__testing.entryDir(fx.userData, entry.id), "manifest.json"),
+      JSON.stringify({ ...entry, originalPath: blockedOriginalPath }, null, 2),
+      "utf8"
+    );
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/FormatBuddy|포맷버디|managed data|앱 데이터/i);
+    expect(result.originalPath).toBe(blockedOriginalPath);
+    expect(existsSync(entry.storedPath)).toBe(true);
+    expect(existsSync(blockedOriginalPath)).toBe(false);
   });
 
   it("refuses restore when the manifest originalPath is relative", async () => {
