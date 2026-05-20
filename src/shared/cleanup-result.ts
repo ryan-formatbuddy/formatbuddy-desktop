@@ -122,6 +122,7 @@ export function summarizeRegistryBackupRestoreResults(
   const restoredAppBackups = restored.filter((item) => !isStartupRegistryBackup(item.entry)).length;
   const restoredStartupBackups = restored.filter((item) => isStartupRegistryBackup(item.entry)).length;
   const notFound = results.filter((item) => item.status === "not-found").length;
+  const expired = results.filter((item) => item.status === "expired").length;
   const unsafePath = results.filter((item) => item.status === "blocked-path").length;
   const missingBackup = results.filter((item) => item.status === "missing-backup").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
@@ -134,6 +135,7 @@ export function summarizeRegistryBackupRestoreResults(
     parts.push(`시작 항목 백업 ${restoredStartupBackups}개를 되돌렸어요.`);
   }
   if (notFound > 0) parts.push(`${notFound}개는 백업 목록에서 찾지 못했어요.`);
+  if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
   if (missingBackup > 0) parts.push(`${missingBackup}개는 백업 파일을 찾지 못했어요.`);
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);

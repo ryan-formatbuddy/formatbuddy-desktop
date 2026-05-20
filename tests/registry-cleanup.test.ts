@@ -834,6 +834,39 @@ describe("registry leftover cleanup", () => {
     await expect(readFile(result.backupPath, "utf8")).rejects.toThrow();
   });
 
+  it("does not restore an expired registry backup even when automatic purge cannot remove it yet", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      runner,
+      removeEntryDir: async () => {
+        throw new Error("backup folder is busy");
+      }
+    });
+
+    expect(restored.status).toBe("expired");
+    expect(restored.message).toMatch(/30일|기간/);
+    expect(runner.importFile).not.toHaveBeenCalled();
+    await expect(readFile(result.backupPath, "utf8")).resolves.toContain("Windows Registry");
+  });
+
   it("restores a registry backup and removes it from the 30-day bin", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const calls: string[] = [];

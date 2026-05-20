@@ -153,11 +153,12 @@ describe("Cleanup result undo helper", () => {
     const results: RegistryBackupRestoreResult[] = [
       { backupId: "a", status: "not-found", message: "missing" },
       { backupId: "b", status: "missing-backup", message: "missing file" },
-      { backupId: "c", status: "restore-failed", message: "failed" }
+      { backupId: "c", status: "restore-failed", message: "failed" },
+      { backupId: "d", status: "expired", message: "expired" }
     ];
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
-      "1개는 백업 목록에서 찾지 못했어요. 1개는 백업 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
+      "1개는 백업 목록에서 찾지 못했어요. 1개는 30일 보관 기간이 지나 되돌릴 수 없어요. 1개는 백업 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
     );
   });
 

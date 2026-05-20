@@ -841,6 +841,7 @@ export interface RegistryBackupRestoreRequest {
 export type RegistryBackupRestoreStatus =
   | "restored"
   | "not-found"
+  | "expired"
   | "blocked-path"
   | "missing-backup"
   | "restore-failed";

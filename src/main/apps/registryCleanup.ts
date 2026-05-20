@@ -98,6 +98,17 @@ function canonicalRegistryBackupExpiry(createdAt: string): string {
   return registryBackupExpiry(new Date(createdAt));
 }
 
+function isOutsideRegistryBackupRestorableWindow(
+  entry: Pick<RegistryBackupEntry, "createdAt" | "expiresAt">,
+  now: Date
+): boolean {
+  const createdAt = Date.parse(entry.createdAt);
+  if (Number.isFinite(createdAt) && createdAt > now.getTime()) return true;
+
+  const expiresAt = Date.parse(entry.expiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now.getTime();
+}
+
 function cleanOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -891,14 +902,20 @@ export async function purgeExpiredRegistryBackups(options: {
         typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
           ? canonicalRegistryBackupExpiry(meta.createdAt)
           : meta.expiresAt;
-      const expiresAt = Date.parse(effectiveExpiresAt);
-      const createdAt =
-        typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
-          ? Date.parse(meta.createdAt)
-          : null;
-      const movedIntoFuture =
-        typeof createdAt === "number" && createdAt > now.getTime();
-      if (!Number.isFinite(expiresAt) || (!movedIntoFuture && expiresAt > now.getTime())) continue;
+      if (
+        !isOutsideRegistryBackupRestorableWindow(
+          {
+            createdAt:
+              typeof meta.createdAt === "string" && isValidIso(meta.createdAt)
+                ? meta.createdAt
+                : now.toISOString(),
+            expiresAt: effectiveExpiresAt
+          },
+          now
+        )
+      ) {
+        continue;
+      }
       const entryBytes = await measureRegistryBackupPurgeBytes(entryDir);
       await removeEntryDir(entryDir, entry.name);
       if (await pathExists(entryDir)) {
@@ -940,12 +957,23 @@ export async function restoreRegistryBackup(options: {
 
   await purgeExpiredRegistryBackups({
     userDataDir: options.userDataDir,
-    now: options.now
+    now: options.now,
+    removeEntryDir: options.removeEntryDir
   });
 
   const readResult = await readRegistryBackupEntryForRestore(options.userDataDir, options.backupId);
   if (readResult.kind === "restore-result") return readResult.result;
   const { entry } = readResult;
+  const now = options.now?.() ?? new Date();
+  if (isOutsideRegistryBackupRestorableWindow(entry, now)) {
+    return {
+      backupId: entry.id,
+      status: "expired",
+      message: "30일 보관 기간이 지나서 되돌릴 수 없어요. 자동 비움이 아직 끝나지 않았다면 다음 확인 때 다시 비울게요.",
+      keyPath: entry.keyPath,
+      entry
+    };
+  }
 
   const runner = options.runner ?? defaultRegistryCleanupRunner();
   const importFile = runner.importFile;
