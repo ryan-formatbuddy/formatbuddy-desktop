@@ -138,6 +138,42 @@ describe("registry leftover cleanup", () => {
     });
   });
 
+  it("drops registry backup app labels with control characters before writing metadata", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, REGISTRY_BACKUP_CONTENT, "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner,
+      app: { name: "Acme\nNotes", publisher: "Acme\0Corp." }
+    });
+
+    expect(result.appName).toBeUndefined();
+    expect(result.appPublisher).toBeUndefined();
+
+    const metaPath = join(
+      fx.userDataDir,
+      "formatbuddy-registry-backups",
+      "items",
+      result.id,
+      "meta.json"
+    );
+    const meta = JSON.parse(await readFile(metaPath, "utf8"));
+    expect(meta).not.toHaveProperty("appName");
+    expect(meta).not.toHaveProperty("appPublisher");
+
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries[0].appName).toBeUndefined();
+    expect(snapshot.entries[0].appPublisher).toBeUndefined();
+  });
+
   it("exports a value-only backup before deleting a startup registry value", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const valueName = "Acme Notes";

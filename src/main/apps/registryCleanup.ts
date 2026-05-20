@@ -113,6 +113,7 @@ function isOutsideRegistryBackupRestorableWindow(
 
 function cleanOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
+  if (/[\u0000-\u001f\u007f]/.test(value)) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   return trimmed.slice(0, 1024);
