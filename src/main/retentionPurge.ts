@@ -44,6 +44,10 @@ function coerceSafeIdList(value: unknown): string[] {
       typeof item !== "string" ||
       item.length === 0 ||
       item.trim() !== item ||
+      item === "." ||
+      item === ".." ||
+      /\s/.test(item) ||
+      /[\/\\]/.test(item) ||
       /[\u0000-\u001f\u007f]/.test(item)
     ) {
       continue;

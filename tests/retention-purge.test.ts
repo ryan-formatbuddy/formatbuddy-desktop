@@ -230,4 +230,53 @@ describe("retention purge scheduler", () => {
       "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개"
     );
   });
+
+  it("drops unsafe purge result ids before counting and logging failures", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 6,
+      purgedBytes: 42,
+      purgedEntryIds: ["trash-ok", "trash-ok", "../trash", "trash\\path", ".", ".."],
+      failedEntryIds: ["trash-busy", "trash/bad", " trash-padded"],
+      retentionDays: 30
+    } as unknown as CleanupTrashPurgeResult));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 4,
+      purgedBytes: 9,
+      purgedIds: ["reg-ok", "reg/path", ".."],
+      failedIds: ["reg-busy", "reg\\bad"],
+      retentionDays: 30
+    } as unknown as RegistryBackupPurgeResult));
+    const purgeStartupDisabled = vi.fn(async () => ({
+      purgedCount: 4,
+      purgedIds: ["startup-ok", "startup/path", "."],
+      failedIds: ["startup-busy", "startup\\bad"],
+      retentionDays: 30
+    } as unknown as StartupDisabledPurgeResult));
+    const logInfo = vi.fn();
+    const logWarn = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled,
+      logInfo,
+      logWarn
+    });
+
+    expect(result.trash?.purgedEntryIds).toEqual(["trash-ok"]);
+    expect(result.trash?.failedEntryIds).toEqual(["trash-busy"]);
+    expect(result.registryBackups?.purgedIds).toEqual(["reg-ok"]);
+    expect(result.registryBackups?.failedIds).toEqual(["reg-busy"]);
+    expect(result.startupDisabled?.purgedIds).toEqual(["startup-ok"]);
+    expect(result.startupDisabled?.failedIds).toEqual(["startup-busy"]);
+    expect(result.failed).toEqual([
+      { kind: "trash", message: "파일 복구함 1개를 아직 비우지 못했어요." },
+      { kind: "registry-backups", message: "앱 삭제 흔적 백업 1개를 아직 비우지 못했어요." },
+      { kind: "startup-disabled", message: "잠시 꺼둔 시작 항목 1개를 아직 비우지 못했어요." }
+    ]);
+    expect(logInfo).toHaveBeenCalledWith(
+      "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개"
+    );
+  });
 });
