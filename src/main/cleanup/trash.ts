@@ -131,7 +131,7 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (typeof raw.storedPath !== "string") return null;
   if (typeof raw.label !== "string") return null;
   if (typeof raw.categoryId !== "string") return null;
-  if (typeof raw.sizeBytes !== "number") return null;
+  if (typeof raw.sizeBytes !== "number" || !Number.isFinite(raw.sizeBytes)) return null;
   if (!validIso(raw.createdAt)) return null;
   if (!validIso(raw.expiresAt)) return null;
   return {

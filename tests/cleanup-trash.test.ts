@@ -1475,6 +1475,26 @@ describe("FormatBuddy Trash", () => {
     expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual([]);
   });
 
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects non-finite trash sizes while coercing stored metadata",
+    (sizeBytes) => {
+      const entry = {
+        id: "safe-entry",
+        itemId: "item-1",
+        originalPath: join(fx.home, "restored.tmp"),
+        storedPath: join(__testing.itemsRoot(fx.userData), "safe-entry", "files", "old.tmp"),
+        label: "old.tmp",
+        categoryId: "temp-user",
+        sizeBytes,
+        createdAt: "2026-05-19T00:00:00.000Z",
+        expiresAt: "2026-06-18T00:00:00.000Z"
+      };
+
+      expect(__testing.coerceEntry(entry)).toBeNull();
+      expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual([]);
+    }
+  );
+
   it("ignores index entries without a matching entry manifest", async () => {
     const entryDir = __testing.entryDir(fx.userData, "index-only");
     const storedPath = join(entryDir, "files", "old.tmp");
