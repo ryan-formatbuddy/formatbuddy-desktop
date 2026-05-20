@@ -1458,22 +1458,62 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(outside, "utf8")).toBe("outside stays put");
   });
 
-  it("rejects unsafe trash entry ids while coercing stored metadata", () => {
-    const entry = {
-      id: "../outside",
-      itemId: "item-1",
-      originalPath: join(fx.home, "restored.tmp"),
-      storedPath: join(__testing.itemsRoot(fx.userData), "safe", "files", "old.tmp"),
-      label: "old.tmp",
-      categoryId: "temp-user",
-      sizeBytes: 5,
-      createdAt: "2026-05-19T00:00:00.000Z",
-      expiresAt: "2026-06-18T00:00:00.000Z"
-    };
+  it.each(["../outside", "", "  ", "bad\nid", "bad\\id"])(
+    "rejects unsafe trash entry ids while coercing stored metadata: %s",
+    (id) => {
+      const entry = {
+        id,
+        itemId: "item-1",
+        originalPath: join(fx.home, "restored.tmp"),
+        storedPath: join(__testing.itemsRoot(fx.userData), "safe", "files", "old.tmp"),
+        label: "old.tmp",
+        categoryId: "temp-user",
+        sizeBytes: 5,
+        createdAt: "2026-05-19T00:00:00.000Z",
+        expiresAt: "2026-06-18T00:00:00.000Z"
+      };
 
-    expect(__testing.coerceEntry(entry)).toBeNull();
-    expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual([]);
-  });
+      expect(__testing.coerceEntry(entry)).toBeNull();
+      expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual(
+        []
+      );
+    }
+  );
+
+  it.each([
+    ["itemId", ""],
+    ["itemId", "  "],
+    ["originalPath", ""],
+    ["originalPath", "   "],
+    ["originalPath", `C:\\Users\\Ryan\\bad\u0000path.tmp`],
+    ["storedPath", ""],
+    ["storedPath", `C:\\Users\\Ryan\\bad\npath.tmp`],
+    ["label", ""],
+    ["label", "old.tmp\rmore"],
+    ["categoryId", ""],
+    ["categoryId", "   "]
+  ] as Array<[("itemId" | "originalPath" | "storedPath" | "label" | "categoryId"), string]>)(
+    "rejects unusable trash metadata strings while coercing stored metadata: %s",
+    (field, value) => {
+      const entry = {
+        id: "safe-entry",
+        itemId: "item-1",
+        originalPath: join(fx.home, "restored.tmp"),
+        storedPath: join(__testing.itemsRoot(fx.userData), "safe-entry", "files", "old.tmp"),
+        label: "old.tmp",
+        categoryId: "temp-user",
+        sizeBytes: 5,
+        createdAt: "2026-05-19T00:00:00.000Z",
+        expiresAt: "2026-06-18T00:00:00.000Z",
+        [field]: value
+      };
+
+      expect(__testing.coerceEntry(entry)).toBeNull();
+      expect(__testing.coerceIndex({ version: 1, retentionDays: 30, entries: [entry] }).entries).toEqual(
+        []
+      );
+    }
+  );
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
     "rejects non-finite trash sizes while coercing stored metadata",

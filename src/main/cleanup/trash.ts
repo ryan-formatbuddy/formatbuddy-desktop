@@ -78,8 +78,8 @@ function storedPathFor(userDataDir: string, entryId: string, originalPath: strin
 
 export function isSafeTrashEntryId(entryId: unknown): entryId is string {
   return (
-    typeof entryId === "string" &&
-    entryId.length > 0 &&
+    isUsableMetadataString(entryId) &&
+    entryId.trim() === entryId &&
     entryId !== "." &&
     entryId !== ".." &&
     !entryId.includes("/") &&
@@ -94,6 +94,10 @@ function emptyIndex(): PersistedTrashIndex {
 
 function validIso(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function isUsableMetadataString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function canonicalExpiry(createdAt: string): string {
@@ -126,11 +130,11 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CleanupTrashEntry>;
   if (!isSafeTrashEntryId(raw.id)) return null;
-  if (typeof raw.itemId !== "string") return null;
-  if (typeof raw.originalPath !== "string") return null;
-  if (typeof raw.storedPath !== "string") return null;
-  if (typeof raw.label !== "string") return null;
-  if (typeof raw.categoryId !== "string") return null;
+  if (!isUsableMetadataString(raw.itemId)) return null;
+  if (!isUsableMetadataString(raw.originalPath)) return null;
+  if (!isUsableMetadataString(raw.storedPath)) return null;
+  if (!isUsableMetadataString(raw.label)) return null;
+  if (!isUsableMetadataString(raw.categoryId)) return null;
   if (typeof raw.sizeBytes !== "number" || !Number.isFinite(raw.sizeBytes)) return null;
   if (!validIso(raw.createdAt)) return null;
   if (!validIso(raw.expiresAt)) return null;
@@ -141,8 +145,8 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
     storedPath: raw.storedPath,
     label: raw.label,
     categoryId: raw.categoryId,
-    appName: typeof raw.appName === "string" ? raw.appName : null,
-    appPublisher: typeof raw.appPublisher === "string" ? raw.appPublisher : null,
+    appName: isUsableMetadataString(raw.appName) ? raw.appName : null,
+    appPublisher: isUsableMetadataString(raw.appPublisher) ? raw.appPublisher : null,
     sizeBytes: Math.max(0, Math.round(raw.sizeBytes)),
     createdAt: raw.createdAt,
     expiresAt: canonicalExpiry(raw.createdAt)
