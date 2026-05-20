@@ -317,10 +317,18 @@ describe("runUninstall", () => {
 
   it.each([
     ["MSI quiet flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /quiet"],
+    ["MSI quiet assignment flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /quiet=true"],
     ["MSI no-ui flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /qn"],
+    ["MSI no-ui reboot prompt flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /qn+"],
+    ["MSI basic-ui flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /qb"],
+    ["MSI passive assignment flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /passive=1"],
     ["Inno silent flag", '"C:\\Program Files\\Friendly Tool\\unins000.exe" /VERYSILENT'],
     ["NSIS silent flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" /S'],
-    ["GNU quiet flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --quiet']
+    ["NSIS silent assignment flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" /S=true'],
+    ["GNU quiet flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --quiet'],
+    ["GNU quiet assignment flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --quiet=true'],
+    ["GNU silent assignment flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --silent=true'],
+    ["single-dash silent assignment flag", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" -silent=true']
   ])("blocks %s so app removal always stays user-confirmed", async (_label, command) => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
 

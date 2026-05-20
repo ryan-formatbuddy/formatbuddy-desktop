@@ -125,9 +125,25 @@ function commandTokens(command: string): string[] {
 }
 
 function hasSilentUninstallSwitch(command: string): boolean {
-  const silentSwitches = new Set([
+  const exactSilentSwitches = new Set([
     "/q",
     "/qn",
+    "/qb",
+    "/quiet",
+    "/passive",
+    "/s",
+    "/silent",
+    "/verysilent",
+    "/suppressmsgboxes",
+    "-q",
+    "-quiet",
+    "-silent",
+    "--quiet",
+    "--silent",
+    "--unattended"
+  ]);
+
+  const assignmentSilentSwitches = new Set([
     "/quiet",
     "/passive",
     "/s",
@@ -144,7 +160,15 @@ function hasSilentUninstallSwitch(command: string): boolean {
 
   return commandTokens(command)
     .slice(1)
-    .some((token) => silentSwitches.has(token.toLowerCase()));
+    .some((token) => {
+      const normalized = token.toLowerCase();
+      const baseSwitch = normalized.split(/[=:]/, 1)[0] ?? normalized;
+      return (
+        exactSilentSwitches.has(normalized) ||
+        assignmentSilentSwitches.has(baseSwitch) ||
+        /^\/q[nbrf]?[+!]*$/i.test(normalized)
+      );
+    });
 }
 
 export function isUnsafeUninstallCommand(command: string): boolean {
