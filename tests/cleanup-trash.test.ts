@@ -184,6 +184,24 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(join(source, "user-note.txt"), "utf8")).toBe("private");
   });
 
+  it("refuses an app-install-folder trusted source anywhere under the user home", async () => {
+    const source = join(fx.home, "Work", "Program Files", "Acme Notes");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "work-note.txt"), "private", "utf8");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 7,
+        home: fx.home,
+        trustedSource: { kind: "app-install-folder", allowRoots: [source] },
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/personal|개인|user|home|사용자/i);
+    expect(await readFile(join(source, "work-note.txt"), "utf8")).toBe("private");
+  });
+
   it("recovers a moved item when the trash index was blocked by a link", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

@@ -137,7 +137,10 @@ function personalInstallFolderProtection(rawPath: string, home?: string): string
     join(home, "Music")
   ];
   const root = personalRoots.find((candidate) => isAtOrInside(rawPath, candidate));
-  return root ? `개인 폴더 안의 앱 설치 폴더는 자동 정리하지 않아요: ${root}` : undefined;
+  if (root) return `개인 폴더 안의 앱 설치 폴더는 자동 정리하지 않아요: ${root}`;
+  return isAtOrInside(rawPath, home)
+    ? `사용자 폴더 안의 앱 설치 폴더는 자동 정리하지 않아요: ${home}`
+    : undefined;
 }
 
 function commonAncestorPath(leftPath: string, rightPath: string): string | undefined {

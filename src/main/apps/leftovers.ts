@@ -937,7 +937,9 @@ async function installLocationLeftoverPaths(
 
   const info = await pathInfo(installLocation, env);
   const installStat = await fs.lstat(installLocation).catch(() => null);
-  const personalProtection = personalInstallLocationProtection(installLocation, env);
+  const personalProtection =
+    personalInstallLocationProtection(installLocation, env) ??
+    userHomeProgramFilesAliasProtection(installLocation, app, env);
   const linkedInstallPath = await findLinkedInstallFolderPathPart(installLocation);
   const trustedInstallFolder =
     !personalProtection &&
@@ -975,6 +977,16 @@ function personalInstallLocationProtection(raw: string, env: LeftoverEnv): strin
 
   return personalRoots.some((root) => isAtOrInside(raw, root))
     ? PERSONAL_INSTALL_LOCATION_PROTECTION
+    : undefined;
+}
+
+function userHomeProgramFilesAliasProtection(
+  raw: string,
+  app: InstalledApp,
+  env: LeftoverEnv
+): string | undefined {
+  return isTrustedInstallFolderPath(raw, app) && isAtOrInside(raw, env.home)
+    ? "사용자 폴더 안의 Program Files처럼 보이는 경로라 자동 정리하지 않아요."
     : undefined;
 }
 
