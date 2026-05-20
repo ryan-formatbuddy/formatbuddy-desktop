@@ -106,16 +106,20 @@ describe("cleanup policy wiring", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
     const policyIndex = source.indexOf("const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request)");
+    const trashPurgeIndex = source.indexOf("purgeExpiredTrashWithAudit({", policyIndex);
     const registryPurgeIndex = source.indexOf("purgeExpiredRegistryBackupsWithAudit({", policyIndex);
     const startupPurgeIndex = source.indexOf("purgeExpiredStartupFolderEntriesWithAudit({", policyIndex);
     const cleanupIndex = source.indexOf("cleanupAppLeftovers(safeLeftoversRequest", policyIndex);
 
     expect(policyIndex).toBeGreaterThanOrEqual(0);
-    expect(registryPurgeIndex).toBeGreaterThan(policyIndex);
+    expect(trashPurgeIndex).toBeGreaterThan(policyIndex);
+    expect(registryPurgeIndex).toBeGreaterThan(trashPurgeIndex);
     expect(startupPurgeIndex).toBeGreaterThan(registryPurgeIndex);
     expect(cleanupIndex).toBeGreaterThan(startupPurgeIndex);
+    expect(source.indexOf('trigger: "app-leftovers"', trashPurgeIndex)).toBeGreaterThan(trashPurgeIndex);
     expect(source.indexOf('trigger: "app-leftovers"', registryPurgeIndex)).toBeGreaterThan(registryPurgeIndex);
     expect(source.indexOf('trigger: "app-leftovers"', startupPurgeIndex)).toBeGreaterThan(startupPurgeIndex);
+    expect(source).toContain("cleanup-trash:purge-before-app-leftovers failed");
     expect(source).toContain("startup-disabled:purge-before-app-leftovers failed");
   });
 

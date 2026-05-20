@@ -6,6 +6,7 @@ export type TrashPurgeAuditTrigger =
   | "startup"
   | "scheduled"
   | "cleanup-plan"
+  | "app-leftovers"
   | "trash-list"
   | "restore"
   | "manual";

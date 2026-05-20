@@ -1086,6 +1086,12 @@ function registerIpc() {
       try {
         const safeLeftoversRequest = enforceAppLeftoversCleanupPolicy(request);
         await maybeCreateRestorePoint("앱 잔여 폴더 정리");
+        await purgeExpiredTrashWithAudit({
+          userDataDir,
+          trigger: "app-leftovers"
+        }).catch((err) => {
+          log.warn("cleanup-trash:purge-before-app-leftovers failed:", (err as Error).message);
+        });
         await purgeExpiredRegistryBackupsWithAudit({
           userDataDir,
           trigger: "app-leftovers"
