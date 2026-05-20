@@ -14,7 +14,7 @@
 import { promises as fs } from "node:fs";
 import type { Dirent, Stats } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type {
   AppLeftoverGroup,
@@ -720,6 +720,7 @@ function shortcutNameMatchesApp(filePath: string, names: string[]): boolean {
 function shortcutRoots(env: LeftoverEnv): string[] {
   return [
     join(env.home, "Desktop"),
+    join(dirname(env.home), "Public", "Desktop"),
     join(env.roaming, "Microsoft", "Windows", "Start Menu", "Programs"),
     join(env.programData, "Microsoft", "Windows", "Start Menu", "Programs")
   ];

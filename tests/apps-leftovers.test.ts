@@ -366,6 +366,7 @@ describe("planAppLeftovers", () => {
 
   it("finds desktop and start-menu shortcut leftovers for recently uninstalled apps", async () => {
     const desktopShortcut = join(fx.home, "Desktop", "Acme Notes.lnk");
+    const publicDesktopShortcut = join(dirname(fx.home), "Public", "Desktop", "Acme Notes Shared.lnk");
     const startMenuShortcut = join(
       fx.roaming,
       "Microsoft",
@@ -377,8 +378,10 @@ describe("planAppLeftovers", () => {
     );
     const unrelatedShortcut = join(fx.home, "Desktop", "Other Tool.lnk");
     await fs.mkdir(dirname(desktopShortcut), { recursive: true });
+    await fs.mkdir(dirname(publicDesktopShortcut), { recursive: true });
     await fs.mkdir(dirname(startMenuShortcut), { recursive: true });
     await fs.writeFile(desktopShortcut, "shortcut", "utf8");
+    await fs.writeFile(publicDesktopShortcut, "shortcut", "utf8");
     await fs.writeFile(startMenuShortcut, "shortcut", "utf8");
     await fs.writeFile(unrelatedShortcut, "shortcut", "utf8");
 
@@ -392,7 +395,7 @@ describe("planAppLeftovers", () => {
       .filter((p) => p.kind === "shortcut")
       .map((p) => p.path)
       .sort();
-    expect(shortcutPaths).toEqual([desktopShortcut, startMenuShortcut].sort());
+    expect(shortcutPaths).toEqual([desktopShortcut, publicDesktopShortcut, startMenuShortcut].sort());
   });
 
   it("finds a recently uninstalled app's install folder even outside AppData roots", async () => {
@@ -497,6 +500,42 @@ describe("planAppLeftovers", () => {
       now: () => new Date("2026-05-20T00:00:00.000Z")
     });
     expect(trash.entries[0].originalPath).toBe(startMenuShortcut);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("moves all-user desktop shortcut leftovers into the 30-day trash", async () => {
+    const publicDesktopShortcut = join(dirname(fx.home), "Public", "Desktop", "Acme Notes.lnk");
+    await fs.mkdir(dirname(publicDesktopShortcut), { recursive: true });
+    await fs.writeFile(publicDesktopShortcut, "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === publicDesktopShortcut)!;
+    expect(path).toMatchObject({ kind: "shortcut", exists: true });
+    expect(path.protectedBy).toBeUndefined();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    await expect(fs.stat(publicDesktopShortcut)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0].originalPath).toBe(publicDesktopShortcut);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
