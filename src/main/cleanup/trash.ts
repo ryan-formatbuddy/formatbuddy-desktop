@@ -596,6 +596,10 @@ async function trashEntryIntegrityStatus(
   return actualContentHash === entry.contentHash.value ? "verified" : "changed";
 }
 
+function changedTrashEntry(entry: CleanupTrashEntry): CleanupTrashEntry {
+  return { ...entry, integrityStatus: "changed" };
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
@@ -891,9 +895,9 @@ export async function restoreTrashEntry(
     return {
       entryId: entry.id,
       status: "blocked-path",
-      message: "복구함 안의 저장물 크기가 기록과 달라 자동으로 되돌리지 않았어요. 다시 점검해 주세요.",
+      message: "복구함 안의 파일 크기가 바뀐 것 같아요. 안전을 위해 자동으로 되돌리지 않았어요.",
       originalPath: entry.originalPath,
-      entry
+      entry: changedTrashEntry(entry)
     };
   }
   if (entry.contentHash) {
@@ -902,9 +906,9 @@ export async function restoreTrashEntry(
       return {
         entryId: entry.id,
         status: "blocked-path",
-        message: "복구함 안의 저장물 내용이 기록과 달라 자동으로 되돌리지 않았어요. 다시 점검해 주세요.",
+        message: "복구함 안의 파일 내용이 바뀐 것 같아요. 안전을 위해 자동으로 되돌리지 않았어요.",
         originalPath: entry.originalPath,
-        entry
+        entry: changedTrashEntry(entry)
       };
     }
   }

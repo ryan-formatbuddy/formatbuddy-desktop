@@ -4,6 +4,7 @@ import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { CleanupItem } from "../src/shared/types";
+import { summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
   assertManagedTrashEntryManifest,
@@ -951,6 +952,10 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("blocked-path");
     expect(result.message).toMatch(/크기|size|복구함/);
+    expect(result.entry?.integrityStatus).toBe("changed");
+    expect(summarizeTrashRestoreResults([result])).toBe(
+      "1개는 복구함 안의 파일이 바뀐 것 같아 되돌리지 않았어요."
+    );
     await expect(lstat(source)).rejects.toThrow();
     await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("hello and more bytes");
   });
@@ -975,6 +980,10 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("blocked-path");
     expect(result.message).toMatch(/내용|hash|해시|복구함/);
+    expect(result.entry?.integrityStatus).toBe("changed");
+    expect(summarizeTrashRestoreResults([result])).toBe(
+      "1개는 복구함 안의 파일이 바뀐 것 같아 되돌리지 않았어요."
+    );
     await expect(lstat(source)).rejects.toThrow();
     await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("jello");
   });
