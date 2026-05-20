@@ -175,6 +175,28 @@ describe("cleanup execution log coercion", () => {
     ]);
   });
 
+  it("does not count a trash cleanup item without a restore handle as cleaned", () => {
+    const entry = buildLogEntry({
+      mode: "trash",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "orphan-trash-result",
+          path: join(dir, "orphan.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true
+        }
+      ],
+      skippedItems: []
+    });
+
+    expect(entry.removedCount).toBe(0);
+    expect(entry.totalFreedBytes).toBe(0);
+    expect(entry.categories).toEqual([]);
+  });
+
   it("separates user-unselected cleanup candidates from actual skipped items", () => {
     const entry = buildLogEntry({
       mode: "trash",

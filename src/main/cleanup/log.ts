@@ -128,6 +128,11 @@ function countedFreedBytes(item: CleanupExecutedItem): number {
   return item.sizeBytes;
 }
 
+function isRestorableExecutedItem(item: CleanupExecutedItem): boolean {
+  if (!item.succeeded || item.mode !== "trash") return false;
+  return Boolean(item.trashEntryId || item.registryBackupId || item.startupDisabledId);
+}
+
 async function loadLog(userDataDir: string): Promise<PersistedLog> {
   const linkedLog = await findLinkedPathPart(logPath(userDataDir), userDataDir, true);
   if (linkedLog) {
@@ -175,7 +180,7 @@ export function buildLogEntry(args: {
 }): CleanupLogEntry {
   const breakdownMap = new Map<string, CleanupCategoryBreakdown>();
   for (const item of args.removedItems) {
-    if (!item.succeeded) continue;
+    if (!isRestorableExecutedItem(item)) continue;
     const bytesFreed = countedFreedBytes(item);
     const existing = breakdownMap.get(item.categoryId);
     if (existing) {
@@ -200,7 +205,7 @@ export function buildLogEntry(args: {
     executedAt: args.executedAt ?? new Date().toISOString(),
     mode: args.mode,
     totalFreedBytes,
-    removedCount: args.removedItems.filter((i) => i.succeeded).length,
+    removedCount: args.removedItems.filter(isRestorableExecutedItem).length,
     skippedCount: args.skippedItems.filter((item) => item.reason !== "not-selected").length,
     notSelectedCount: args.skippedItems.filter((item) => item.reason === "not-selected").length,
     categories: Array.from(breakdownMap.values())
