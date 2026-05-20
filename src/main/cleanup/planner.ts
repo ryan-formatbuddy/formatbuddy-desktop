@@ -406,7 +406,7 @@ const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
     id: "temp-user",
     label: "사용자 임시 파일",
     description: "%TEMP%와 LocalAppData\\Temp 폴더에서 7일 이상 손대지 않은 파일이에요.",
-    safetyNote: "Windows가 다시 만들 수 있는 파일이지만, 휴지통으로 보내요.",
+    safetyNote: "Windows가 다시 만들 수 있는 파일이지만, 포맷버디 복구함으로 보내요.",
     riskLevel: "safe"
   },
   "temp-windows": {

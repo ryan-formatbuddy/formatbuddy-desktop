@@ -69,7 +69,10 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("permanently delete");
     expect(source).not.toContain("치료/제거");
     expect(source).not.toContain("백신처럼 위협 직접 치료");
+    expect(source).not.toContain("복구 보관함");
+    expect(source).not.toContain("휴지통 이동");
     expect(source).toContain("30일 뒤 자동으로 비워요");
+    expect(source).toContain("사용자 명시 선택 + 복구함 보관");
   });
 
   it("uses one user-facing name for Windows security on the permissions screen", () => {
