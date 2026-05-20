@@ -51,6 +51,7 @@ function canonicalRegistryKeyForComparison(keyPath: string): string {
 }
 
 export function isSafeUninstallRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
   const normalized = normalizeRegistryKeyPath(keyPath);
   if (!normalized) return false;
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
@@ -69,6 +70,7 @@ function isSafeRegistryValueName(valueName: string): boolean {
 }
 
 export function isSafeStartupRegistryValuePath(keyPath: string, valueName: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
   const normalized = normalizeRegistryKeyPath(keyPath);
   if (!normalized) return false;
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
@@ -481,10 +483,10 @@ export async function backupAndDeleteRegistryKey(options: {
   runner?: RegistryCleanupRunner;
   app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
-  const keyPath = normalizeRegistryKeyPath(options.keyPath);
-  if (!isSafeUninstallRegistryKeyPath(keyPath)) {
+  if (!isSafeUninstallRegistryKeyPath(options.keyPath)) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
+  const keyPath = normalizeRegistryKeyPath(options.keyPath);
 
   const createdAtDate = options.now?.() ?? new Date();
   const createdAt = createdAtDate.toISOString();
@@ -546,11 +548,11 @@ export async function backupAndDeleteRegistryValue(options: {
   runner?: RegistryCleanupRunner;
   app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
-  const keyPath = normalizeRegistryKeyPath(options.keyPath);
-  const valueName = options.valueName.trim();
-  if (!isSafeStartupRegistryValuePath(keyPath, valueName)) {
+  if (!isSafeStartupRegistryValuePath(options.keyPath, options.valueName)) {
     throw new Error("지원하는 시작 항목 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
+  const keyPath = normalizeRegistryKeyPath(options.keyPath);
+  const valueName = options.valueName;
 
   const createdAtDate = options.now?.() ?? new Date();
   const createdAt = createdAtDate.toISOString();

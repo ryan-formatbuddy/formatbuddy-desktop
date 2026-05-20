@@ -1187,7 +1187,7 @@ export async function cleanupAppLeftovers(
 
     if (path.kind === "startup-registry") {
       try {
-        const valueName = path.registryValueName?.trim();
+        const valueName = path.registryValueName;
         if (!valueName) {
           throw new Error("시작 항목 레지스트리 값 이름을 확인하지 못했어요.");
         }

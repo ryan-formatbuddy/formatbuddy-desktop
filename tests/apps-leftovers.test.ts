@@ -857,6 +857,134 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems).toHaveLength(1);
   });
 
+  it("rejects whitespace-padded startup registry value names before consuming the leftover plan", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "registry|acme-notes",
+        kind: "registry",
+        name: valueName,
+        path: "C:\\Acme\\Acme.exe",
+        registryKeyPath: keyPath,
+        registryValueName: valueName,
+        publisher: "Acme Corp.",
+        origin: "HKCU Run"
+      }
+    ];
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.kind === "startup-registry")!;
+    const originalValueName = path.registryValueName;
+    path.registryValueName = ` ${valueName}`;
+
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        {
+          userDataDir: join(fx.root, "userdata"),
+          registryRunner
+        }
+      )
+    ).rejects.toThrow(/leftover plan metadata|startup registry value|registry value name/);
+
+    expect(registryRunner.exportValue).not.toHaveBeenCalled();
+    expect(registryRunner.deleteValue).not.toHaveBeenCalled();
+
+    path.registryValueName = originalValueName;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        registryRunner
+      }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
+  it("rejects whitespace-padded registry key paths before consuming the leftover plan", async () => {
+    const registryKeyPath =
+      "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          registryKeyPath
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === registryKeyPath)!;
+    const originalPath = path.path;
+    path.path = `${registryKeyPath} `;
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        {
+          userDataDir: join(fx.root, "userdata"),
+          registryRunner
+        }
+      )
+    ).rejects.toThrow(/leftover plan metadata|uninstall registry key|registry key/);
+
+    expect(registryRunner.exportKey).not.toHaveBeenCalled();
+    expect(registryRunner.deleteKey).not.toHaveBeenCalled();
+
+    path.path = originalPath;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        registryRunner
+      }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
   it("keeps multiple startup registry values under the same Run key as separate cleanup choices", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     const startupEntries: StartupAutoEntry[] = [

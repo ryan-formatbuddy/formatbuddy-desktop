@@ -71,6 +71,16 @@ describe("registry leftover cleanup", () => {
     ).toBe(true);
     expect(
       isSafeUninstallRegistryKeyPath(
+        " HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeUninstallRegistryKeyPath(
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes "
+      )
+    ).toBe(false);
+    expect(
+      isSafeUninstallRegistryKeyPath(
         "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
       )
     ).toBe(false);
@@ -95,6 +105,12 @@ describe("registry leftover cleanup", () => {
         "Acme Notes"
       )
     ).toBe(true);
+    expect(
+      isSafeStartupRegistryValuePath(
+        " HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        "Acme Notes"
+      )
+    ).toBe(false);
     expect(
       isSafeStartupRegistryValuePath(
         "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Acme Notes",
@@ -325,6 +341,55 @@ describe("registry leftover cleanup", () => {
 
     expect(runner.deleteValue).not.toHaveBeenCalled();
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
+  it("does not delete when the uninstall registry key has whitespace padding", async () => {
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath: " HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes",
+        runner
+      })
+    ).rejects.toThrow(/지원하는 앱 제거 레지스트리 위치|registry/i);
+
+    expect(runner.exportKey).not.toHaveBeenCalled();
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+  });
+
+  it("does not delete when the startup registry value name has whitespace padding", async () => {
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        valueName: " Acme Notes",
+        runner
+      })
+    ).rejects.toThrow(/지원하는 시작 항목 레지스트리 위치|registry/i);
+
+    expect(runner.exportValue).not.toHaveBeenCalled();
+    expect(runner.deleteValue).not.toHaveBeenCalled();
   });
 
   it("does not delete when the registry backup export fails", async () => {
