@@ -90,6 +90,11 @@ import {
 import { purgeExpiredRegistryBackupsWithAudit } from "./apps/registryBackupAudit";
 import { canLaunchUninstall, runUninstall } from "./apps/uninstaller";
 import { appUninstallAuditSummary } from "./apps/uninstallAudit";
+import {
+  currentInstallCheckUnavailableResult,
+  currentInstalledAppMatchesCachedTarget,
+  currentInstallTargetNotFoundResult
+} from "./apps/uninstallCurrentGuard";
 import { enforceAppUninstallRequestPolicy } from "./apps/uninstallRequestPolicy";
 import {
   forgetUninstallFollowup,
@@ -1194,12 +1199,27 @@ function registerIpc() {
         };
       }
       const matchedApp = findInstalledApp(safeUninstallRequest.appName, safeUninstallRequest.publisher);
-      if (canLaunchUninstall(safeUninstallRequest, matchedApp)) {
-        await maybeCreateRestorePoint(`앱 제거 (${safeUninstallRequest.appName})`, "APPLICATION_UNINSTALL");
+      let result: AppUninstallResult | null = null;
+      const launchable = canLaunchUninstall(safeUninstallRequest, matchedApp);
+      if (launchable && matchedApp) {
+        try {
+          const currentInstalledApps = await probeInstalledAppsForLeftoverGuard();
+          if (!currentInstalledAppMatchesCachedTarget(matchedApp, currentInstalledApps)) {
+            result = currentInstallTargetNotFoundResult(safeUninstallRequest);
+          }
+        } catch (err) {
+          log.warn("apps:uninstall current install guard unavailable:", (err as Error).message);
+          result = currentInstallCheckUnavailableResult(safeUninstallRequest);
+        }
       }
-      const result = await runUninstall(safeUninstallRequest, {
-        findApp: () => matchedApp
-      });
+      if (!result) {
+        if (launchable) {
+          await maybeCreateRestorePoint(`앱 제거 (${safeUninstallRequest.appName})`, "APPLICATION_UNINSTALL");
+        }
+        result = await runUninstall(safeUninstallRequest, {
+          findApp: () => matchedApp
+        });
+      }
       if (result.status === "launched" && matchedApp) {
         rememberRecentlyUninstallLaunchedApp(matchedApp);
         await rememberUninstallFollowup(userDataDir, matchedApp).catch((err) => {
