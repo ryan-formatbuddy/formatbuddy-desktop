@@ -37,6 +37,10 @@ const MAX_THREAT_TEXT_LENGTH = 160;
 const MAX_THREAT_RESOURCE_LENGTH = 260;
 const MAX_THREAT_STATUS_LENGTH = 80;
 
+type CloudProtectionState = NonNullable<DefenderLiveStatus["cloudProtection"]>;
+type ToggleAuditState = "disabled" | "enabled" | "audit" | "unknown";
+type ControlledFolderAccessState = NonNullable<DefenderLiveStatus["controlledFolderAccess"]>;
+
 export interface PowerShellRunResult {
   stdout: string;
   stderr: string;
@@ -150,6 +154,47 @@ function cleanDefenderText(value: unknown, maxLength: number): string | null {
   return cleaned.slice(0, maxLength);
 }
 
+function cleanSettingToken(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function cloudProtectionFrom(raw: unknown): CloudProtectionState {
+  const token = cleanSettingToken(raw);
+  if (token === "0" || token.includes("disabled") || token === "none") return "disabled";
+  if (token === "1" || token.includes("basic")) return "basic";
+  if (token === "2" || token.includes("advanced")) return "advanced";
+  return "unknown";
+}
+
+function toggleAuditStateFrom(raw: unknown): ToggleAuditState {
+  const token = cleanSettingToken(raw);
+  if (token === "0" || token.includes("disabled")) return "disabled";
+  if (token === "1" || token.includes("enabled")) return "enabled";
+  if (token === "2" || token.includes("audit")) return "audit";
+  return "unknown";
+}
+
+function controlledFolderAccessFrom(raw: unknown): ControlledFolderAccessState {
+  const token = cleanSettingToken(raw);
+  if (token === "0" || token.includes("disabled")) return "disabled";
+  if (token === "1" || token === "enabled") return "enabled";
+  if (token === "2" || token.includes("auditmode")) return "audit";
+  if (token === "3" || token.includes("blockdisk")) return "block-disk";
+  if (token === "4" || token.includes("auditdisk")) return "audit-disk";
+  if (token.includes("audit")) return "audit";
+  return "unknown";
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiveStatus> {
   const platform = deps.platform ?? process.platform;
   if (platform !== "win32") {
@@ -161,8 +206,11 @@ export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiv
   }
 
   const command =
-    "Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled," +
-    "IsTamperProtected,AntivirusSignatureLastUpdated,QuickScanEndTime,FullScanEndTime | ConvertTo-Json -Compress";
+    "$status = Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled," +
+    "IsTamperProtected,AntivirusSignatureLastUpdated,QuickScanEndTime,FullScanEndTime; " +
+    "$pref = $null; try { $pref = Get-MpPreference | Select-Object MAPSReporting,PUAProtection," +
+    "EnableControlledFolderAccess,EnableNetworkProtection } catch { }; " +
+    "[ordered]@{Status=$status;Preference=$pref} | ConvertTo-Json -Depth 4 -Compress";
 
   const result = await deps.shell.run(command, { timeoutMs: 10_000 });
   if (result.timedOut) {
@@ -191,20 +239,26 @@ export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiv
     };
   }
 
+  const statusRaw = asRecord(raw.Status) ?? raw;
+  const preferenceRaw = asRecord(raw.Preference) ?? raw;
   const now = deps.now?.() ?? new Date();
-  const signatureUpdated = parsePsDate(raw.AntivirusSignatureLastUpdated);
-  const quickEnd = parsePsDate(raw.QuickScanEndTime);
-  const fullEnd = parsePsDate(raw.FullScanEndTime);
+  const signatureUpdated = parsePsDate(statusRaw.AntivirusSignatureLastUpdated);
+  const quickEnd = parsePsDate(statusRaw.QuickScanEndTime);
+  const fullEnd = parsePsDate(statusRaw.FullScanEndTime);
 
   return {
     capturedAt: isoNow(deps),
     available: true,
     antivirusEnabled:
-      typeof raw.AntivirusEnabled === "boolean" ? raw.AntivirusEnabled : null,
+      typeof statusRaw.AntivirusEnabled === "boolean" ? statusRaw.AntivirusEnabled : null,
     realTimeProtectionEnabled:
-      typeof raw.RealTimeProtectionEnabled === "boolean" ? raw.RealTimeProtectionEnabled : null,
+      typeof statusRaw.RealTimeProtectionEnabled === "boolean" ? statusRaw.RealTimeProtectionEnabled : null,
     tamperProtectionEnabled:
-      typeof raw.IsTamperProtected === "boolean" ? raw.IsTamperProtected : null,
+      typeof statusRaw.IsTamperProtected === "boolean" ? statusRaw.IsTamperProtected : null,
+    cloudProtection: cloudProtectionFrom(preferenceRaw.MAPSReporting),
+    puaProtection: toggleAuditStateFrom(preferenceRaw.PUAProtection),
+    controlledFolderAccess: controlledFolderAccessFrom(preferenceRaw.EnableControlledFolderAccess),
+    networkProtection: toggleAuditStateFrom(preferenceRaw.EnableNetworkProtection),
     signatureAgeDays: daysBetween(signatureUpdated, now),
     lastQuickScanDaysAgo: daysBetween(quickEnd, now),
     lastFullScanDaysAgo: daysBetween(fullEnd, now)
@@ -396,6 +450,9 @@ export const __testing = {
   MAX_THREAT_RESOURCE_LENGTH,
   MAX_THREAT_STATUS_LENGTH,
   cleanDefenderText,
+  cloudProtectionFrom,
+  toggleAuditStateFrom,
+  controlledFolderAccessFrom,
   resourceListFrom,
   recordsFrom,
   actionFromDefender,

@@ -1309,6 +1309,15 @@ export interface DefenderLiveStatus {
   antivirusEnabled?: boolean | null;
   realTimeProtectionEnabled?: boolean | null;
   tamperProtectionEnabled?: boolean | null;
+  /**
+   * Read-only Windows security posture from Get-MpPreference. FormatBuddy
+   * never changes these settings; it only explains what Windows currently
+   * reports so users know which protection layers deserve a look.
+   */
+  cloudProtection?: "disabled" | "basic" | "advanced" | "unknown";
+  puaProtection?: "disabled" | "enabled" | "audit" | "unknown";
+  controlledFolderAccess?: "disabled" | "enabled" | "audit" | "block-disk" | "audit-disk" | "unknown";
+  networkProtection?: "disabled" | "enabled" | "audit" | "unknown";
   signatureAgeDays?: number | null;
   lastQuickScanDaysAgo?: number | null;
   lastFullScanDaysAgo?: number | null;

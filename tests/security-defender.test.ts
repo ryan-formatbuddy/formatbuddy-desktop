@@ -74,6 +74,18 @@ describe("severityFromDefender", () => {
   });
 });
 
+describe("Defender protection preference mapping", () => {
+  it("maps cloud protection, unwanted app blocking, folder protection, and network protection states", () => {
+    expect(__testing.cloudProtectionFrom(0)).toBe("disabled");
+    expect(__testing.cloudProtectionFrom(1)).toBe("basic");
+    expect(__testing.cloudProtectionFrom(2)).toBe("advanced");
+    expect(__testing.toggleAuditStateFrom("Enabled")).toBe("enabled");
+    expect(__testing.toggleAuditStateFrom("AuditMode")).toBe("audit");
+    expect(__testing.controlledFolderAccessFrom("BlockDiskModificationOnly")).toBe("block-disk");
+    expect(__testing.controlledFolderAccessFrom("AuditDiskModificationOnly")).toBe("audit-disk");
+  });
+});
+
 describe("getDefenderStatus", () => {
   it("returns unavailable on non-Windows", async () => {
     const shell = makeRunner();
@@ -85,8 +97,42 @@ describe("getDefenderStatus", () => {
 
   it("parses Get-MpComputerStatus JSON into a live status object", async () => {
     const stdout = JSON.stringify({
+      Status: {
+        AntivirusEnabled: true,
+        RealTimeProtectionEnabled: true,
+        IsTamperProtected: true,
+        AntivirusSignatureLastUpdated: "2026-05-18T00:00:00.000Z",
+        QuickScanEndTime: "2026-05-17T00:00:00.000Z",
+        FullScanEndTime: "2026-05-12T00:00:00.000Z"
+      },
+      Preference: {
+        MAPSReporting: 2,
+        PUAProtection: 1,
+        EnableControlledFolderAccess: 2,
+        EnableNetworkProtection: 0
+      }
+    });
+    const shell = makeRunner({
+      run: vi.fn().mockResolvedValue({ stdout, stderr: "", code: 0, timedOut: false })
+    });
+    const result = await getDefenderStatus({ shell, platform: "win32", now: fixedNow });
+    expect(result.available).toBe(true);
+    expect(result.antivirusEnabled).toBe(true);
+    expect(result.realTimeProtectionEnabled).toBe(true);
+    expect(result.tamperProtectionEnabled).toBe(true);
+    expect(result.cloudProtection).toBe("advanced");
+    expect(result.puaProtection).toBe("enabled");
+    expect(result.controlledFolderAccess).toBe("audit");
+    expect(result.networkProtection).toBe("disabled");
+    expect(result.signatureAgeDays).toBe(1);
+    expect(result.lastQuickScanDaysAgo).toBe(2);
+    expect(result.lastFullScanDaysAgo).toBe(7);
+  });
+
+  it("keeps old flat Defender status JSON compatible when preferences are missing", async () => {
+    const stdout = JSON.stringify({
       AntivirusEnabled: true,
-      RealTimeProtectionEnabled: true,
+      RealTimeProtectionEnabled: false,
       IsTamperProtected: true,
       AntivirusSignatureLastUpdated: "2026-05-18T00:00:00.000Z",
       QuickScanEndTime: "2026-05-17T00:00:00.000Z",
@@ -97,12 +143,9 @@ describe("getDefenderStatus", () => {
     });
     const result = await getDefenderStatus({ shell, platform: "win32", now: fixedNow });
     expect(result.available).toBe(true);
-    expect(result.antivirusEnabled).toBe(true);
-    expect(result.realTimeProtectionEnabled).toBe(true);
-    expect(result.tamperProtectionEnabled).toBe(true);
-    expect(result.signatureAgeDays).toBe(1);
-    expect(result.lastQuickScanDaysAgo).toBe(2);
-    expect(result.lastFullScanDaysAgo).toBe(7);
+    expect(result.realTimeProtectionEnabled).toBe(false);
+    expect(result.cloudProtection).toBe("unknown");
+    expect(result.puaProtection).toBe("unknown");
   });
 
   it("keeps Defender status failures friendly when the Windows security query fails", async () => {

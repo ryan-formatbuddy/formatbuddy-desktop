@@ -47,6 +47,51 @@ function severityLabel(severity: DefenderThreatRecord["severity"]): string {
   }
 }
 
+function cloudProtectionLabel(value: DefenderLiveStatus["cloudProtection"]): string {
+  switch (value) {
+    case "disabled":
+      return "꺼짐";
+    case "basic":
+      return "기본";
+    case "advanced":
+      return "강화";
+    default:
+      return "—";
+  }
+}
+
+function protectionModeLabel(
+  value: DefenderLiveStatus["puaProtection"] | DefenderLiveStatus["networkProtection"]
+): string {
+  switch (value) {
+    case "enabled":
+      return "켜짐";
+    case "audit":
+      return "감사 모드";
+    case "disabled":
+      return "꺼짐";
+    default:
+      return "—";
+  }
+}
+
+function folderProtectionLabel(value: DefenderLiveStatus["controlledFolderAccess"]): string {
+  switch (value) {
+    case "enabled":
+      return "켜짐";
+    case "audit":
+      return "감사 모드";
+    case "block-disk":
+      return "디스크 변경 차단";
+    case "audit-disk":
+      return "디스크 변경 감사";
+    case "disabled":
+      return "꺼짐";
+    default:
+      return "—";
+  }
+}
+
 function threatActionLabel(record: DefenderThreatRecord): string {
   // Pure read-out. We never claim FormatBuddy did anything to the threat.
   switch (record.actionStatus) {
@@ -181,6 +226,18 @@ function StatusPanel({
                 : "—"}
           </li>
           <li style={{ padding: "4px 0" }}>
+            <strong>클라우드 보호</strong>: {cloudProtectionLabel(state.data.cloudProtection)}
+          </li>
+          <li style={{ padding: "4px 0" }}>
+            <strong>원치 않는 앱 차단</strong>: {protectionModeLabel(state.data.puaProtection)}
+          </li>
+          <li style={{ padding: "4px 0" }}>
+            <strong>랜섬웨어 폴더 보호</strong>: {folderProtectionLabel(state.data.controlledFolderAccess)}
+          </li>
+          <li style={{ padding: "4px 0" }}>
+            <strong>네트워크 보호</strong>: {protectionModeLabel(state.data.networkProtection)}
+          </li>
+          <li style={{ padding: "4px 0" }}>
             <strong>시그니처 업데이트</strong>: {dayLabel(state.data.signatureAgeDays)}
           </li>
           <li style={{ padding: "4px 0" }}>
@@ -190,6 +247,11 @@ function StatusPanel({
             <strong>최근 전체 검사</strong>: {dayLabel(state.data.lastFullScanDaysAgo)}
           </li>
         </ul>
+      )}
+      {state.data && state.data.available && (
+        <p style={{ fontSize: 12, opacity: 0.68, marginBottom: 0 }}>
+          보호 설정은 Windows가 관리해요. 포맷버디는 꺼져 보이는 항목을 알려주고, 바꾸려면 Windows 보안 화면으로 이어드려요.
+        </p>
       )}
     </article>
   );
