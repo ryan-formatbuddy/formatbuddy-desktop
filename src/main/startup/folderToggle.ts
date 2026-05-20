@@ -1,10 +1,12 @@
 /**
- * Safe startup-folder toggle.
+ * Safe startup auto-start toggle.
  *
- * We only support files that Windows loads from the Startup folders.
- * Registry Run keys, services, and scheduled tasks stay read-only until
- * they have separate rules, because disabling the wrong one can break
- * login, networking, or security software.
+ * We support two low-risk surfaces:
+ *   - files that Windows loads from the Startup folders
+ *   - app Run/RunOnce registry values that can be backed up as .reg files
+ *
+ * Services and scheduled tasks stay read-only because disabling the
+ * wrong one can break login, networking, or security software.
  */
 import { createHash } from "node:crypto";
 import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
@@ -19,6 +21,11 @@ import type {
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { normalizePath } from "../cleanup/blocklist";
 import { findLinkedDescendant, findLinkedPathPart } from "../cleanup/pathSafety";
+import {
+  backupAndDeleteRegistryValue,
+  isRegistryBackupPreservedError,
+  type RegistryCleanupRunner
+} from "../apps/registryCleanup";
 
 export const STARTUP_DISABLED_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 const STARTUP_DISABLED_DIR = "formatbuddy-startup-disabled";
@@ -32,6 +39,7 @@ export interface StartupFolderToggleRuntime {
 
 export interface DisableStartupFolderEntryOptions extends StartupFolderToggleRuntime {
   entry: StartupAutoEntry;
+  registryRunner?: RegistryCleanupRunner;
 }
 
 export interface RestoreStartupFolderEntryOptions extends StartupFolderToggleRuntime {
@@ -86,8 +94,12 @@ function cleanDisplayMetadataString(value: unknown): string | undefined {
   return trimmed.slice(0, 1024);
 }
 
+function errorMessageText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error ?? "");
+}
+
 function friendlyStartupToggleDetail(error: unknown, fallback: string): string {
-  const message = error instanceof Error ? error.message : String(error ?? "");
+  const message = errorMessageText(error);
   if (/access|denied|eacces|eperm|permission/i.test(message)) {
     return "startup-toggle-permission-denied";
   }
@@ -447,10 +459,67 @@ export async function disableStartupFolderEntry(
   options: DisableStartupFolderEntryOptions
 ): Promise<StartupFolderToggleResult> {
   const { entry, userDataDir } = options;
+  if (entry.kind === "registry") {
+    if (
+      !isStrictMetadataString(entry.id) ||
+      !isStrictMetadataString(entry.registryKeyPath) ||
+      !isStrictMetadataString(entry.registryValueName)
+    ) {
+      return {
+        status: "blocked-path",
+        message: "시작 항목 정보가 안전하지 않아 건드리지 않았어요."
+      };
+    }
+
+    try {
+      const registryBackup = await backupAndDeleteRegistryValue({
+        userDataDir,
+        keyPath: entry.registryKeyPath,
+        valueName: entry.registryValueName,
+        now: options.now,
+        runner: options.registryRunner,
+        app: {
+          name: entry.name,
+          publisher: entry.publisher
+        }
+      });
+      return {
+        status: "disabled",
+        message:
+          "이제 PC 켤 때 자동으로 같이 뜨지 않게 보관했어요. 30일 안에는 복구함에서 다시 되돌릴 수 있어요.",
+        registryBackup,
+        registryBackupId: registryBackup.id,
+        expiresAt: registryBackup.expiresAt
+      };
+    } catch (err) {
+      if (isRegistryBackupPreservedError(err)) {
+        return {
+          status: "disabled",
+          message:
+            "시작 항목은 꺼졌고, 되돌릴 백업은 30일 복구함에 남겨뒀어요. 다음 조회에서 한 번 더 확인할게요.",
+          registryBackupId: err.backup.id,
+          expiresAt: err.backup.expiresAt,
+          detail: "startup-registry-backup-preserved"
+        };
+      }
+      if (/지원하는 시작 항목 레지스트리 위치|registry.*not safe|value.*not safe/i.test(errorMessageText(err))) {
+        return {
+          status: "blocked-path",
+          message: "시작 항목 정보가 안전하지 않아 건드리지 않았어요.",
+          detail: "startup-toggle-blocked-path"
+        };
+      }
+      return {
+        status: "failed",
+        message: "시작 항목을 끄는 중 문제가 생겼어요. Windows 설정은 그대로 두려고 멈췄어요.",
+        detail: friendlyStartupToggleDetail(err, "startup-registry-disable-failed")
+      };
+    }
+  }
   if (entry.kind !== "startup-folder") {
     return {
       status: "unsupported-kind",
-      message: "이 항목은 아직 앱에서 끌 수 없어요. 시작 프로그램 폴더 항목부터 안전하게 지원해요."
+      message: "이 항목은 아직 앱에서 끌 수 없어요. 시작 폴더와 앱 시작 설정부터 안전하게 지원해요."
     };
   }
   if (

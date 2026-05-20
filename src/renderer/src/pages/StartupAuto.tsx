@@ -23,7 +23,7 @@ const KIND_LABEL: Record<StartupAutoKind, string> = {
 };
 
 const KIND_HINT: Record<StartupAutoKind, string> = {
-  registry: "대부분 앱 설정에서 켜고 끌 수 있어요. 지금은 이름과 위치를 먼저 보여드려요.",
+  registry: "앱이 PC 켤 때 같이 뜨도록 등록한 항목이에요. 안전하게 확인되는 항목은 30일 복구함에 백업하고 잠시 끌 수 있어요.",
   "startup-folder": "여기는 포맷버디가 가장 안전하게 잠시 꺼둘 수 있는 영역이에요.",
   "scheduled-task": "업데이트나 동기화처럼 정해진 조건에 맞춰 켜지는 항목이에요. 아직은 보기만 해요.",
   service: "프린터, 보안, 드라이버처럼 Windows와 가까운 항목이에요. 실수 방지를 위해 보기만 해요."
@@ -55,7 +55,8 @@ function shortStatus(snapshot: StartupAutoSnapshot | null): string {
 }
 
 function canDisable(entry: StartupAutoEntry): boolean {
-  return entry.kind === "startup-folder" && Boolean(entry.path);
+  if (entry.kind === "startup-folder") return Boolean(entry.path);
+  return entry.kind === "registry" && Boolean(entry.registryKeyPath && entry.registryValueName);
 }
 
 function disabledEntryIntegrityLabel(entry: StartupAutoDisabledEntry): string {
@@ -113,6 +114,7 @@ function StartupDisableConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const isRegistryEntry = entry.kind === "registry";
   return (
     <div
       role="dialog"
@@ -148,8 +150,9 @@ function StartupDisableConfirmDialog({
           {entry.publisher ? ` ${entry.publisher} 항목이에요.` : ""}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          파일은 포맷버디 안에 30일 동안 보관해요. 마음이 바뀌면 복구함이나 이 화면에서 다시
-          PC 켤 때 같이 뜨게 되돌릴 수 있어요.
+          {isRegistryEntry
+            ? "시작 설정은 포맷버디 복구함에 30일 동안 백업해요. 마음이 바뀌면 복구함에서 다시 PC 켤 때 같이 뜨게 되돌릴 수 있어요."
+            : "파일은 포맷버디 안에 30일 동안 보관해요. 마음이 바뀌면 복구함이나 이 화면에서 다시 PC 켤 때 같이 뜨게 되돌릴 수 있어요."}
         </p>
         <PathLine path={entry.path} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 16 }}>

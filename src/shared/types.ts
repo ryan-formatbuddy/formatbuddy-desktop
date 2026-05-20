@@ -990,10 +990,11 @@ export interface WifiExportRequest {
  *                          AND triggered at logon / boot
  *   - service            : Get-Service where StartType -in @('Automatic','AutomaticDelayedStart')
  *
- * Startup-folder toggle is intentionally narrower than this inventory:
- * app UI may move only startup-folder files into a local FormatBuddy
- * holding area. Registry, scheduled-task, and service toggles require
- * separate safety rules and are still read-only.
+ * Toggle is intentionally narrower than this inventory:
+ * app UI may move startup-folder files into a local FormatBuddy holding
+ * area, and may back up safe Run/RunOnce registry values before turning
+ * them off. Scheduled-task and service toggles require separate safety
+ * rules and are still read-only.
  */
 export type StartupAutoKind =
   | "registry"
@@ -1084,6 +1085,10 @@ export interface StartupFolderToggleResult {
   status: StartupFolderToggleStatus;
   message: string;
   entry?: StartupAutoDisabledEntry;
+  /** Present when a registry startup value was backed up before being turned off. */
+  registryBackup?: RegistryBackupEntry;
+  registryBackupId?: string;
+  expiresAt?: string;
   detail?: string;
 }
 

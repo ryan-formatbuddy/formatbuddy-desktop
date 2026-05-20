@@ -39,4 +39,14 @@ describe("StartupAuto copy", () => {
     expect(source).toContain("runConfirmedDisable");
     expect(source).not.toContain("window.confirm(");
   });
+
+  it("explains registry startup items without registry jargon in the main hint", () => {
+    const source = readFileSync(STARTUP_AUTO_PAGE, "utf8");
+
+    expect(source).toContain("앱이 PC 켤 때 같이 뜨도록 등록한 항목이에요.");
+    expect(source).toContain("entry.kind === \"registry\"");
+    expect(source).toContain("entry.registryKeyPath && entry.registryValueName");
+    expect(source).toContain("시작 설정은 포맷버디 복구함에 30일 동안 백업해요.");
+    expect(source).not.toContain("HKCU Run");
+  });
 });

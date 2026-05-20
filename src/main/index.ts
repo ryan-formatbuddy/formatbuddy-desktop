@@ -840,7 +840,7 @@ function registerIpc() {
           message: "지금 목록에서 해당 시작 항목을 찾지 못했어요. 다시 조회한 뒤 시도해주세요."
         };
       }
-      if (entry.kind === "startup-folder") {
+      if (entry.kind === "startup-folder" || entry.kind === "registry") {
         await maybeCreateRestorePoint(`시작 항목 끄기 (${entry.name})`);
       }
       const result = await disableStartupFolderEntry({ userDataDir, entry });
@@ -855,9 +855,12 @@ function registerIpc() {
         detail: {
           entryId: entry.id,
           disabledId: result.entry?.id,
+          registryBackupId: result.registryBackupId,
           status: result.status,
           name: entry.name,
-          originalPath: result.entry?.originalPath
+          originalPath: result.entry?.originalPath,
+          registryKeyPath: entry.registryKeyPath,
+          registryValueName: entry.registryValueName
         }
       }).catch((e) => log.warn("audit append (startup-disable) failed:", (e as Error).message));
       return result;

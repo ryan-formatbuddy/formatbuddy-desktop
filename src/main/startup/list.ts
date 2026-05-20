@@ -7,12 +7,13 @@
  *   2. It uses the same PowerShellRunner DI pattern as
  *      main/security/defender.ts, so we can unit-test the parser
  *      without spawning powershell.exe.
- *   3. Toggle (Disable/Enable) lands in a follow-up round. Keeping
- *      enumerate isolated means the toggle work won't need to refactor
- *      this surface.
+ *   3. Toggle support stays narrower than inventory. Startup-folder
+ *      files and safe Run/RunOnce registry values can be held in the
+ *      30-day restore bin; scheduled tasks and services remain read-only.
  *
  * Safety:
- *   - We never auto-disable. This pass is purely descriptive.
+ *   - We never auto-disable. This pass is inventory-only; explicit
+ *     toggle requests go through separate guarded IPC handlers.
  *   - Windows critical services (ones with DelayedAutoStart that
  *     match a hard allowlist on Microsoft Defender, Windows Update,
  *     Themes, etc.) are NOT filtered out -- the user must see them so

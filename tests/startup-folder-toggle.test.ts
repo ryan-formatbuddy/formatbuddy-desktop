@@ -30,6 +30,19 @@ function startupEntry(path: string, origin: string, name = "KakaoTalk.lnk"): Sta
   };
 }
 
+function registryEntry(): StartupAutoEntry {
+  return {
+    id: "registry|kakaotalk|c:\\kakao\\kakaotalk.exe",
+    kind: "registry",
+    name: "KakaoTalk",
+    path: "C:\\Kakao\\KakaoTalk.exe",
+    registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+    registryValueName: "KakaoTalk",
+    publisher: "Kakao Corp.",
+    origin: "앱이 스스로 등록한 항목"
+  };
+}
+
 function disabledIdFor(entry: StartupAutoEntry, now: Date): string {
   return createHash("sha1")
     .update(`${entry.id}|${now.toISOString()}`)
@@ -534,22 +547,85 @@ describe("startup folder toggle", () => {
     });
   });
 
-  it("only supports startup-folder entries", async () => {
+  it("backs up and turns off a registry startup entry for 30-day restore", async () => {
     const fx = makeFixture();
     roots.push(fx.root);
+    const calls: string[] = [];
 
     const result = await disableStartupFolderEntry({
       userDataDir: fx.userDataDir,
-      entry: {
-        id: "registry|test|c:\\app.exe",
-        kind: "registry",
-        name: "Registry App",
-        path: "C:\\app.exe",
-        origin: "HKCU Run"
+      entry: registryEntry(),
+      now: () => new Date("2026-05-20T10:00:00.000Z"),
+      registryRunner: {
+        exportKey: async () => {},
+        deleteKey: async () => {},
+        exportValue: async (keyPath, valueName, backupPath) => {
+          calls.push(`export:${keyPath}:${valueName}`);
+          writeFileSync(
+            backupPath,
+            [
+              "Windows Registry Editor Version 5.00",
+              "",
+              "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+              "\"KakaoTalk\"=\"C:\\\\Kakao\\\\KakaoTalk.exe\"",
+              ""
+            ].join("\r\n"),
+            "utf8"
+          );
+        },
+        deleteValue: async (keyPath, valueName) => {
+          calls.push(`delete:${keyPath}:${valueName}`);
+        },
+        valueExists: async () => false
       }
     });
 
-    expect(result.status).toBe("unsupported-kind");
+    expect(result.status).toBe("disabled");
+    expect(result.message).toContain("30일");
+    expect(result.message).toContain("복구함");
+    expect(result.registryBackupId).toBeTruthy();
+    expect(result.registryBackup).toMatchObject({
+      backupKind: "startup-value",
+      keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      valueName: "KakaoTalk",
+      appName: "KakaoTalk",
+      appPublisher: "Kakao Corp.",
+      expiresAt: "2026-06-19T10:00:00.000Z",
+      integrityStatus: "verified"
+    });
+    expect(readFileSync(result.registryBackup!.backupPath, "utf8")).toContain("\"KakaoTalk\"=");
+    expect(calls).toEqual([
+      "export:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run:KakaoTalk",
+      "delete:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run:KakaoTalk"
+    ]);
+  });
+
+  it("keeps services and scheduled tasks read-only", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+
+    for (const entry of [
+      {
+        id: "service|spooler|",
+        kind: "service" as const,
+        name: "Print Spooler",
+        origin: "Windows 서비스"
+      },
+      {
+        id: "scheduled-task|update|\\",
+        kind: "scheduled-task" as const,
+        name: "Updater",
+        origin: "작업 스케줄러",
+        enabled: true
+      }
+    ]) {
+      const result = await disableStartupFolderEntry({
+        userDataDir: fx.userDataDir,
+        entry
+      });
+
+      expect(result.status).toBe("unsupported-kind");
+    }
   });
 
   it("refuses to move a startup item when the source is a symbolic link", async () => {
