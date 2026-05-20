@@ -6,9 +6,10 @@ import type {
   RegistryBackupRestoreResult,
   StartupFolderToggleResult
 } from "./types";
+import { RESTORE_BIN_RETENTION_DAYS } from "./retention";
 
 const MS_PER_DAY = 86_400_000;
-const RESTORE_WINDOW_MS = 30 * MS_PER_DAY;
+const RESTORE_WINDOW_MS = RESTORE_BIN_RETENTION_DAYS * MS_PER_DAY;
 
 export interface TrashExpirySummary {
   nextExpiryDays: number | null;

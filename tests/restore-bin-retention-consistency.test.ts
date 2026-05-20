@@ -32,6 +32,13 @@ describe("restore-bin retention consistency", () => {
     );
   });
 
+  it("uses the shared retention promise when deciding recent restore results", () => {
+    const source = read("src/shared/cleanup-result.ts");
+
+    expect(source).toContain("RESTORE_BIN_RETENTION_DAYS * MS_PER_DAY");
+    expect(source).not.toContain("30 * MS_PER_DAY");
+  });
+
   it("does not reintroduce the old 60-day restore-bin promise in product surfaces", () => {
     const productSurfaces = [
       "README.md",
