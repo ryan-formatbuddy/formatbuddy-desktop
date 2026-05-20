@@ -14,7 +14,9 @@ import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteResult,
+  CleanupHistorySnapshot,
   CleanupItem,
+  CleanupLogEntry,
   CleanupPlan,
   CleanupRiskLevel,
   CleanupTrashEntry,
@@ -73,6 +75,26 @@ function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
   const days = daysUntilTrashExpiry(nextExpiryAt);
   if (isTrashEntryExpired(nextExpiryAt)) return "보관 기간이 지난 항목이 있어요";
   return `다음 항목은 ${days}일 뒤 비워요`;
+}
+
+function cleanupHistoryDateLabel(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "정리 기록";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function cleanupHistoryDetailLines(entry: CleanupLogEntry): string[] {
+  const lines: string[] = [];
+  if (entry.totalFreedBytes > 0) lines.push(`확보한 공간 ${formatBytes(entry.totalFreedBytes)}`);
+  if (entry.removedCount > 0) lines.push(`복구함으로 보낸 항목 ${entry.removedCount}개`);
+  if (entry.notSelectedCount > 0) lines.push(`선택하지 않은 후보 ${entry.notSelectedCount}개`);
+  if (entry.skippedCount > 0) lines.push(`건드리지 않은 항목 ${entry.skippedCount}개`);
+  return lines.length > 0 ? lines : ["처리한 항목은 없어요"];
 }
 
 function isChangedTrashEntry(entry: CleanupTrashEntry): boolean {
@@ -573,7 +595,15 @@ function TrashPanel({
   const hidden = snapshot.entries.length - sample.length;
   return (
     <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "baseline",
+          flexWrap: "wrap"
+        }}
+      >
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
@@ -601,6 +631,66 @@ function TrashPanel({
   );
 }
 
+function CleanupHistoryPanel({
+  snapshot,
+  message,
+  onOpenAuditLog
+}: {
+  snapshot?: CleanupHistorySnapshot;
+  message?: string;
+  onOpenAuditLog: () => void;
+}) {
+  const entries = snapshot?.entries.slice(0, 3) ?? [];
+  if (entries.length === 0 && !message) return null;
+
+  return (
+    <article className="fb-card fb-card-hover" style={{ marginBottom: 16 }}>
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "baseline",
+          flexWrap: "wrap"
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>최근 정리 기록</h2>
+          <small>이 PC에서 처리한 정리만 로컬로 남겨요.</small>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
+          활동 기록 보기
+        </Button>
+      </header>
+      {message && <p style={{ margin: "8px 0 0", fontSize: 13, opacity: 0.75 }}>{message}</p>}
+      {entries.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
+          {entries.map((entry) => (
+            <li
+              key={entry.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "10px 0",
+                borderTop: "1px solid var(--line)"
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <strong>{cleanupHistoryDateLabel(entry.executedAt)}</strong>
+                <div style={{ fontSize: 12, opacity: 0.72 }}>
+                  {cleanupHistoryDetailLines(entry).join(" · ")}
+                </div>
+              </div>
+              <small style={{ opacity: 0.62, whiteSpace: "nowrap" }}>30일 복구함</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </article>
+  );
+}
+
 export function Cleanup({
   report,
   isWindows,
@@ -615,6 +705,8 @@ export function Cleanup({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [trashSnapshot, setTrashSnapshot] = useState<CleanupTrashSnapshot | undefined>();
   const [trashMessage, setTrashMessage] = useState<string | undefined>();
+  const [cleanupHistory, setCleanupHistory] = useState<CleanupHistorySnapshot | undefined>();
+  const [historyMessage, setHistoryMessage] = useState<string | undefined>();
   const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
   const [recentRestoreMessage, setRecentRestoreMessage] = useState<string | undefined>();
 
@@ -634,6 +726,20 @@ export function Cleanup({
     }
   }, []);
 
+  const loadHistory = useCallback(async () => {
+    if (!window.fb?.getCleanupHistory) {
+      setHistoryMessage("최근 정리 기록을 연결하지 못했어요. 정리는 계속할 수 있어요.");
+      return;
+    }
+    try {
+      const snapshot = await window.fb.getCleanupHistory();
+      setCleanupHistory(snapshot);
+      setHistoryMessage(undefined);
+    } catch {
+      setHistoryMessage("최근 정리 기록을 불러오지 못했어요. 정리는 계속할 수 있어요.");
+    }
+  }, []);
+
   const startPlanning = useCallback(async () => {
     if (!window.fb?.planCleanup) {
       setPhase({ kind: "error", message: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요." });
@@ -644,11 +750,11 @@ export function Cleanup({
       const plan = await window.fb.planCleanup({ largeFiles });
       setSelected(defaultSelectionFor(plan));
       setPhase({ kind: "preview", plan });
-      await loadTrash();
+      await Promise.all([loadTrash(), loadHistory()]);
     } catch (err) {
       setPhase({ kind: "error", message: friendlyErrorMessage(err) });
     }
-  }, [largeFiles, loadTrash]);
+  }, [largeFiles, loadHistory, loadTrash]);
 
   useEffect(() => {
     if (!isWindows) {
@@ -726,11 +832,11 @@ export function Cleanup({
         mode: "trash"
       });
       setPhase({ kind: "result", plan, result });
-      await loadTrash();
+      await Promise.all([loadTrash(), loadHistory()]);
     } catch (err) {
       setPhase({ kind: "error", message: friendlyErrorMessage(err) });
     }
-  }, [loadTrash, phase, selected]);
+  }, [loadHistory, loadTrash, phase, selected]);
 
   const restoreRecentCleanup = useCallback(
     async (result: CleanupExecuteResult) => {
@@ -814,6 +920,12 @@ export function Cleanup({
         snapshot={trashSnapshot}
         onRestore={restoreFromTrash}
         onOpenTrashRestore={onOpenTrashRestore}
+      />
+
+      <CleanupHistoryPanel
+        snapshot={cleanupHistory}
+        message={historyMessage}
+        onOpenAuditLog={onOpenAuditLog}
       />
 
       {phase.kind === "planning" && (

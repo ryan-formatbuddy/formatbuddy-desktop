@@ -93,6 +93,17 @@ describe("Cleanup copy", () => {
     expect(source).toContain("정리 결과는 처리됐지만 활동 기록 저장은 못 했어요");
   });
 
+  it("surfaces recent cleanup history with unselected candidates separated", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("getCleanupHistory");
+    expect(source).toContain("최근 정리 기록");
+    expect(source).toContain("이 PC에서 처리한 정리만 로컬로 남겨요");
+    expect(source).toContain("entry.notSelectedCount");
+    expect(source).toContain("선택하지 않은 후보 ${entry.notSelectedCount}개");
+    expect(source).toContain("30일 복구함");
+  });
+
   it("renders cleanup result details as friendly lines instead of raw JSON", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 

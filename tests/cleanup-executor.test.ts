@@ -190,7 +190,17 @@ describe("executeCleanup", () => {
     expect(result.removedItems[0].trashEntryId).toBe(`trash-${chosen.id}`);
     expect(result.removedItems[0].expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(result.skippedItems.find((s) => s.itemId === other.id)?.reason).toBe("not-selected");
+    expect(result.logEntry.removedCount).toBe(1);
+    expect(result.logEntry.skippedCount).toBe(0);
+    expect(result.logEntry.notSelectedCount).toBe(1);
     expect(result.totalFreedBytes).toBeGreaterThan(0);
+
+    const history = await getCleanupHistory(fx.userData);
+    expect(history.entries[0]).toMatchObject({
+      removedCount: 1,
+      skippedCount: 0,
+      notSelectedCount: 1
+    });
   });
 
   it("permanent mode routes through permanentRemove instead of the recycle bin", async () => {
