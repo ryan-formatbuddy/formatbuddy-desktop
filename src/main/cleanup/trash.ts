@@ -125,7 +125,7 @@ function isOutsideRestorableWindow(entry: CleanupTrashEntry, now: Date): boolean
 function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CleanupTrashEntry>;
-  if (typeof raw.id !== "string") return null;
+  if (!isSafeTrashEntryId(raw.id)) return null;
   if (typeof raw.itemId !== "string") return null;
   if (typeof raw.originalPath !== "string") return null;
   if (typeof raw.storedPath !== "string") return null;
