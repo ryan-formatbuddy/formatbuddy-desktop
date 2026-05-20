@@ -68,10 +68,10 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   if (!detail) return [];
   const lines: string[] = [];
   const purgedCount = numberDetail(detail, "purgedCount");
-  const removedCount = arrayCountDetail(detail, "removedItems");
+  const removedCount = numberDetail(detail, "removedCount") ?? arrayCountDetail(detail, "removedItems");
   const failedCount =
     arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
-  const skippedCount = arrayCountDetail(detail, "skippedItems");
+  const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
 

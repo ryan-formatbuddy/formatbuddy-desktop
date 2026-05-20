@@ -35,6 +35,17 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("<pre");
   });
 
+  it("reads count details from numeric audit fields before legacy arrays", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain(
+      'const removedCount = numberDetail(detail, "removedCount") ?? arrayCountDetail(detail, "removedItems")'
+    );
+    expect(source).toContain(
+      'const skippedCount = numberDetail(detail, "skippedCount") ?? arrayCountDetail(detail, "skippedItems")'
+    );
+  });
+
   it("does not show zero-count audit detail lines as if they mattered", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
