@@ -478,6 +478,29 @@ async function writeRegistryBackupMetaFile(
   }
 }
 
+async function ensureRegistryBackupMetaFile(
+  entryDir: string,
+  metaPath: string,
+  payload: unknown
+): Promise<void> {
+  const linkedMeta = await findLinkedPathPart(metaPath, entryDir, true);
+  if (linkedMeta) {
+    throw new Error(`앱 삭제 흔적 백업 정보 파일이 링크라 정리하지 않았어요: ${linkedMeta}`);
+  }
+
+  try {
+    const stat = await fs.lstat(metaPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) {
+      throw new Error("앱 삭제 흔적 백업 정보 파일이 안전하지 않아 정리하지 않았어요.");
+    }
+    return;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+
+  await writeRegistryBackupMetaFile(entryDir, metaPath, payload);
+}
+
 export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
   return {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
@@ -517,30 +540,29 @@ export async function backupAndDeleteRegistryKey(options: {
   const appPublisher = cleanOptionalString(options.app?.publisher);
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
+  let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
 
   try {
     await runner.exportKey(keyPath, backupPath);
     sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath, keyPath);
     contentHash = { algorithm: "sha256", value: await hashFile(backupPath) };
-    await writeRegistryBackupMetaFile(
-      entryDir,
-      metaPath,
-      {
-        id,
-        keyPath,
-        backupPath,
-        sizeBytes,
-        contentHash,
-        appName,
-        appPublisher,
-        createdAt,
-        expiresAt
-      }
-    );
+    metaPayload = {
+      id,
+      keyPath,
+      backupPath,
+      sizeBytes,
+      contentHash,
+      appName,
+      appPublisher,
+      createdAt,
+      expiresAt
+    };
+    await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     await runner.deleteKey(keyPath);
     if (runner.keyExists && (await runner.keyExists(keyPath))) {
       throw new Error("Registry key still exists after deletion");
     }
+    await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
@@ -578,6 +600,7 @@ export async function backupAndDeleteRegistryValue(options: {
   const appPublisher = cleanOptionalString(options.app?.publisher);
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
+  let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
 
   if (!exportValue || !deleteValue) {
     throw new Error("시작 항목 레지스트리 값을 백업할 준비가 되지 않았어요.");
@@ -592,27 +615,25 @@ export async function backupAndDeleteRegistryValue(options: {
       valueName
     );
     contentHash = { algorithm: "sha256", value: await hashFile(backupPath) };
-    await writeRegistryBackupMetaFile(
-      entryDir,
-      metaPath,
-      {
-        id,
-        keyPath,
-        valueName,
-        backupKind: "startup-value",
-        backupPath,
-        sizeBytes,
-        contentHash,
-        appName,
-        appPublisher,
-        createdAt,
-        expiresAt
-      }
-    );
+    metaPayload = {
+      id,
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      backupPath,
+      sizeBytes,
+      contentHash,
+      appName,
+      appPublisher,
+      createdAt,
+      expiresAt
+    };
+    await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     await deleteValue(keyPath, valueName);
     if (runner.valueExists && (await runner.valueExists(keyPath, valueName))) {
       throw new Error("Registry value still exists after deletion");
     }
+    await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
   } catch (err) {
     await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
