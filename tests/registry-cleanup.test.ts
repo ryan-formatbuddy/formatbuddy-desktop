@@ -1549,6 +1549,41 @@ describe("registry leftover cleanup", () => {
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
   });
 
+  it("keeps registry import restore failures friendly", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => {
+        throw new Error(
+          "reg.exe import failed at C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\backup.reg"
+        );
+      })
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      runner
+    });
+
+    expect(restored.status).toBe("restore-failed");
+    expect(restored.message).toMatch(/되돌리지 못했어요|백업 파일/);
+    expect(restored.message).not.toMatch(
+      /reg\.exe|import failed|C:\\Users|AppData|FormatBuddy|backup\.reg/i
+    );
+    const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
+  });
+
   it("does not report a registry backup as restored when its restore-bin folder still exists", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {
@@ -1755,6 +1790,7 @@ describe("registry leftover cleanup", () => {
 
     expect(restored.status).toBe("blocked-path");
     expect(restored.message).toMatch(/레지스트리 백업|registry backup|위치/);
+    expect(restored.message).not.toMatch(/HKCU|HKEY_CURRENT_USER|C:\\Temp/i);
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 
@@ -1852,6 +1888,7 @@ describe("registry leftover cleanup", () => {
 
     expect(restored.status).toBe("blocked-path");
     expect(restored.message).toMatch(/레지스트리 백업|registry backup|위치/);
+    expect(restored.message).not.toMatch(/HKCU|HKEY_CURRENT_USER|C:\\Temp/i);
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 

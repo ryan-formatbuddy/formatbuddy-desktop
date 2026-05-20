@@ -1208,6 +1208,7 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("blocked-path");
     expect(result.message).toMatch(/링크/);
+    expect(result.message).not.toContain(outside);
     expect(existsSync(join(outside, "Local", "Temp", "old.tmp"))).toBe(false);
     expect(existsSync(entry.storedPath)).toBe(true);
   });
@@ -1241,6 +1242,7 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("blocked-path");
     expect(result.message).toMatch(/링크/);
+    expect(result.message).not.toContain(outside);
     expect(existsSync(join(outside, "Temp", "old-system.tmp"))).toBe(false);
     expect(existsSync(entry.storedPath)).toBe(true);
   });
@@ -1269,6 +1271,8 @@ describe("FormatBuddy Trash", () => {
     });
 
     expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/링크/);
+    expect(result.message).not.toContain(outside);
     await expect(lstat(source)).rejects.toThrow();
     await expect(readFile(outside, "utf8")).resolves.toBe("outside");
     const storedStat = await lstat(entry.storedPath);
@@ -1405,6 +1409,7 @@ describe("FormatBuddy Trash", () => {
 
     expect(result.status).toBe("blocked-path");
     expect(result.message).toMatch(/링크/);
+    expect(result.message).not.toContain(outsideItems);
     expect(await readFile(storedPath, "utf8")).toBe("outside should stay in trash target");
     expect(existsSync(originalPath)).toBe(false);
   });
@@ -1903,6 +1908,8 @@ describe("FormatBuddy Trash", () => {
     });
 
     expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/보호 경로/);
+    expect(result.message).not.toContain(blockedOriginalPath);
     expect(result.originalPath).toBe(blockedOriginalPath);
     expect(existsSync(entry.storedPath)).toBe(true);
   });
@@ -1932,6 +1939,8 @@ describe("FormatBuddy Trash", () => {
     });
 
     expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/보호 경로/);
+    expect(result.message).not.toContain(blockedOriginalPath);
     expect(result.originalPath).toBe(blockedOriginalPath);
     expect(existsSync(entry.storedPath)).toBe(true);
   });

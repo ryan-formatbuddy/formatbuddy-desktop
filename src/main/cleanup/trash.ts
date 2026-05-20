@@ -1051,7 +1051,7 @@ export async function restoreTrashEntry(
     return {
       entryId: options.entryId,
       status: "blocked-path",
-      message: `복구함 폴더가 링크라 자동으로 되돌리지 않았어요: ${linkedItemsRoot}`
+      message: "복구함 폴더가 링크라 자동으로 되돌리지 않았어요."
     };
   }
 
@@ -1108,7 +1108,7 @@ export async function restoreTrashEntry(
     return {
       entryId: entry.id,
       status: "blocked-path",
-      message: `복구함 안의 저장물이 링크라 자동으로 되돌리지 않았어요: ${linkedStoredPath}`,
+      message: "복구함 안의 저장물이 링크라 자동으로 되돌리지 않았어요.",
       originalPath: entry.originalPath,
       entry
     };
@@ -1152,7 +1152,7 @@ export async function restoreTrashEntry(
     return {
       entryId: entry.id,
       status: "blocked-path",
-      message: `원래 위치가 보호 경로라 자동으로 되돌리지 않았어요: ${restoreDecision.blockedBy ?? "보호 경로"}`,
+      message: "원래 위치가 보호 경로라 자동으로 되돌리지 않았어요.",
       originalPath: entry.originalPath,
       entry
     };
@@ -1166,7 +1166,7 @@ export async function restoreTrashEntry(
     return {
       entryId: entry.id,
       status: "blocked-path",
-      message: `원래 위치의 상위 폴더가 링크라 자동으로 되돌리지 않았어요: ${linkedParent}`,
+      message: "원래 위치의 상위 폴더가 링크라 자동으로 되돌리지 않았어요.",
       originalPath: entry.originalPath,
       entry
     };

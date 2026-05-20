@@ -174,6 +174,64 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+function errorMessageText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err ?? "");
+}
+
+function friendlyRegistryBackupBlockedMessage(
+  err: unknown,
+  entry?: Pick<RegistryBackupEntry, "backupKind">
+): string {
+  const label = entry ? registryBackupKindLabel(entry) : "앱 삭제 흔적 백업";
+  const raw = errorMessageText(err);
+  if (/링크|symbolic|symlink/i.test(raw)) {
+    return `${label} 파일이 링크라 자동으로 되돌리지 않았어요.`;
+  }
+  if (/형식|REGEDIT4|Registry Editor/i.test(raw)) {
+    return `${label} 파일 형식을 확인하지 못해 자동으로 되돌리지 않았어요.`;
+  }
+  if (/위치|section|expected|다른 키/i.test(raw)) {
+    return `${label} 파일의 위치가 맞지 않아 자동으로 되돌리지 않았어요.`;
+  }
+  if (/값 삭제|삭제 항목/i.test(raw)) {
+    return `${label} 파일에 지우기 값이 섞여 있어 자동으로 되돌리지 않았어요.`;
+  }
+  if (/되돌릴 값|시작 항목 값/i.test(raw)) {
+    return `${label} 파일에서 되돌릴 값을 확인하지 못해 자동으로 되돌리지 않았어요.`;
+  }
+  if (/바뀐|changed|hash|무결성/i.test(raw)) {
+    return `${label} 파일이 바뀐 것 같아 자동으로 되돌리지 않았어요.`;
+  }
+  if (/비어|empty/i.test(raw)) {
+    return `${label} 파일이 비어 있어 자동으로 되돌리지 않았어요.`;
+  }
+  if (/보이지|없|not found|ENOENT/i.test(raw)) {
+    return `${label} 파일이 보이지 않아 자동으로 되돌리지 않았어요.`;
+  }
+  return `${label} 파일을 안전하게 확인하지 못해 자동으로 되돌리지 않았어요.`;
+}
+
+function friendlyRegistryRestoreFailureMessage(
+  err: unknown,
+  entry: Pick<RegistryBackupEntry, "backupKind">
+): string {
+  const label = registryBackupKindLabel(entry);
+  const raw = errorMessageText(err);
+  if (/아직.*되살아나지|still missing|not restored/i.test(raw)) {
+    return `${label}을 아직 되돌리지 못했어요. 복원 결과를 확인하지 못했어요.`;
+  }
+  if (/still exists|folder is busy|busy|locked|EBUSY|ENOTEMPTY|사용 중|잠금/i.test(raw)) {
+    return `${label}은 되돌렸지만 복구함 기록을 아직 지우지 못했어요. 다음 확인 때 다시 정리할게요.`;
+  }
+  if (/denied|access|permission|EACCES|EPERM|권한/i.test(raw)) {
+    return `${label}을 되돌릴 권한이 부족했어요. Windows에서 한 번 더 확인해주세요.`;
+  }
+  if (/reg\.exe|import|failed|backup\.reg|ENOENT|not found|cannot/i.test(raw)) {
+    return `${label}을 되돌리지 못했어요. 백업 파일을 다시 확인해주세요.`;
+  }
+  return `${label}을 되돌리지 못했어요. 다시 시도하거나 Windows 설정에서 직접 확인해주세요.`;
+}
+
 async function hashFile(path: string): Promise<string> {
   const content = await fs.readFile(path);
   return createHash("sha256").update(content).digest("hex");
@@ -917,7 +975,7 @@ async function readRegistryBackupEntryForRestore(
         result: {
           backupId,
           status: "blocked-path",
-          message: (err as Error).message,
+          message: friendlyRegistryBackupBlockedMessage(err, entry),
           keyPath: entry.keyPath,
           entry
         }
@@ -1295,11 +1353,10 @@ export async function restoreRegistryBackup(options: {
       entry
     };
   } catch (err) {
-    const label = registryBackupKindLabel(entry);
     return {
       backupId: entry.id,
       status: "restore-failed",
-      message: `${label} 되돌리기 중 문제가 생겼어요: ${(err as Error).message}`,
+      message: friendlyRegistryRestoreFailureMessage(err, entry),
       keyPath: entry.keyPath,
       entry
     };
