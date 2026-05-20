@@ -3,6 +3,11 @@ import {
   RETENTION_PURGE_INTERVAL_MS,
   runRetentionPurgeTick
 } from "../src/main/retentionPurge";
+import type {
+  CleanupTrashPurgeResult,
+  RegistryBackupPurgeResult,
+  StartupDisabledPurgeResult
+} from "../src/shared/types";
 
 describe("retention purge scheduler", () => {
   it("purges file trash and app deletion backups on the scheduled tick", async () => {
@@ -160,6 +165,69 @@ describe("retention purge scheduler", () => {
     expect(result.startupDisabled?.purgedCount).toBe(1);
     expect(logInfo).toHaveBeenCalledWith(
       "30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 0개, 잠시 꺼둔 시작 항목 1개"
+    );
+  });
+
+  it("normalizes malformed purge results before logging counts", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 999,
+      purgedBytes: Number.NaN,
+      purgedEntryIds: ["trash-ok"],
+      failedEntryIds: ["trash-busy"],
+      retentionDays: -1
+    } as unknown as CleanupTrashPurgeResult));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: -4,
+      purgedBytes: Number.POSITIVE_INFINITY,
+      purgedIds: ["reg-ok"],
+      failedIds: ["reg-busy"],
+      retentionDays: Number.NaN
+    } as unknown as RegistryBackupPurgeResult));
+    const purgeStartupDisabled = vi.fn(async () => ({
+      purgedCount: Number.NaN,
+      purgedIds: ["startup-ok"],
+      failedIds: ["startup-busy"],
+      retentionDays: 0
+    } as unknown as StartupDisabledPurgeResult));
+    const logInfo = vi.fn();
+    const logWarn = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled,
+      logInfo,
+      logWarn
+    });
+
+    expect(result.trash).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: 0,
+      purgedEntryIds: ["trash-ok"],
+      failedEntryIds: ["trash-busy"],
+      retentionDays: 30
+    });
+    expect(result.registryBackups).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: 0,
+      purgedIds: ["reg-ok"],
+      failedIds: ["reg-busy"],
+      retentionDays: 30
+    });
+    expect(result.startupDisabled).toMatchObject({
+      purgedCount: 1,
+      purgedIds: ["startup-ok"],
+      failedIds: ["startup-busy"],
+      retentionDays: 30
+    });
+    expect(result.failed).toEqual([
+      { kind: "trash", message: "파일 복구함 1개를 아직 비우지 못했어요." },
+      { kind: "registry-backups", message: "앱 삭제 흔적 백업 1개를 아직 비우지 못했어요." },
+      { kind: "startup-disabled", message: "잠시 꺼둔 시작 항목 1개를 아직 비우지 못했어요." }
+    ]);
+    expect(logInfo).toHaveBeenCalledWith(
+      "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개"
     );
   });
 });

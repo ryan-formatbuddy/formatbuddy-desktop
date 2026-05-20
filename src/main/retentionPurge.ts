@@ -4,6 +4,7 @@ import type {
   RestoreBinPurgeResult,
   StartupDisabledPurgeResult
 } from "@shared/types";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 
 export const RETENTION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -22,6 +23,79 @@ export type RetentionPurgeTickResult = RestoreBinPurgeResult;
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function coerceNonNegativeInteger(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(value));
+}
+
+function coerceRetentionDays(value: unknown): number {
+  const days = coerceNonNegativeInteger(value);
+  return days > 0 ? days : RESTORE_BIN_RETENTION_DAYS;
+}
+
+function coerceSafeIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    if (
+      typeof item !== "string" ||
+      item.length === 0 ||
+      item.trim() !== item ||
+      /[\u0000-\u001f\u007f]/.test(item)
+    ) {
+      continue;
+    }
+    if (seen.has(item)) continue;
+    seen.add(item);
+    ids.push(item);
+  }
+  return ids;
+}
+
+function coerceOptionalSafeIdList(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? coerceSafeIdList(value) : undefined;
+}
+
+function normalizeTrashPurgeResult(result: CleanupTrashPurgeResult): CleanupTrashPurgeResult {
+  const purgedEntryIds = coerceSafeIdList(result.purgedEntryIds);
+  return {
+    ...result,
+    purgedCount: purgedEntryIds.length,
+    purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
+    purgedEntryIds,
+    failedEntryIds: coerceOptionalSafeIdList(result.failedEntryIds),
+    retentionDays: coerceRetentionDays(result.retentionDays)
+  };
+}
+
+function normalizeRegistryBackupPurgeResult(
+  result: RegistryBackupPurgeResult
+): RegistryBackupPurgeResult {
+  const purgedIds = coerceSafeIdList(result.purgedIds);
+  return {
+    ...result,
+    purgedCount: purgedIds.length,
+    purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
+    purgedIds,
+    failedIds: coerceOptionalSafeIdList(result.failedIds),
+    retentionDays: coerceRetentionDays(result.retentionDays)
+  };
+}
+
+function normalizeStartupDisabledPurgeResult(
+  result: StartupDisabledPurgeResult
+): StartupDisabledPurgeResult {
+  const purgedIds = coerceSafeIdList(result.purgedIds);
+  return {
+    ...result,
+    purgedCount: purgedIds.length,
+    purgedIds,
+    failedIds: coerceOptionalSafeIdList(result.failedIds),
+    retentionDays: coerceRetentionDays(result.retentionDays)
+  };
 }
 
 function recordPartialTrashFailure(
@@ -63,7 +137,7 @@ export async function runRetentionPurgeTick(
   const result: RetentionPurgeTickResult = { failed: [] };
 
   try {
-    result.trash = await deps.purgeTrash(deps.trigger);
+    result.trash = normalizeTrashPurgeResult(await deps.purgeTrash(deps.trigger));
     recordPartialTrashFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
@@ -72,7 +146,9 @@ export async function runRetentionPurgeTick(
   }
 
   try {
-    result.registryBackups = await deps.purgeRegistryBackups(deps.trigger);
+    result.registryBackups = normalizeRegistryBackupPurgeResult(
+      await deps.purgeRegistryBackups(deps.trigger)
+    );
     recordPartialRegistryBackupFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
@@ -82,7 +158,9 @@ export async function runRetentionPurgeTick(
 
   if (deps.purgeStartupDisabled) {
     try {
-      result.startupDisabled = await deps.purgeStartupDisabled(deps.trigger);
+      result.startupDisabled = normalizeStartupDisabledPurgeResult(
+        await deps.purgeStartupDisabled(deps.trigger)
+      );
       recordPartialStartupDisabledFailure(result, deps);
     } catch (err) {
       const message = errorMessage(err);
