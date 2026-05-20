@@ -32,13 +32,13 @@ export function friendlyErrorMessage(input: unknown): string {
 
   // Integrity / staging — surface first because these are real refusal cases.
   if (/integrity check failed/i.test(message)) {
-    return "진단 스크립트가 변조된 것 같아 실행을 멈췄어요. 포맷버디를 다시 설치해주세요.";
+    return "Windows 점검 도구가 바뀐 것 같아 실행을 멈췄어요. 포맷버디를 다시 설치해주세요.";
   }
   if (/integrity manifest missing/i.test(message)) {
     return "포맷버디 내부 확인 파일이 없어요. 다시 설치해주세요.";
   }
   if (/refusing to spawn/i.test(message)) {
-    return "진단 스크립트를 안전하게 준비하지 못해 실행을 보류했어요. 다시 시도해주세요.";
+    return "Windows 점검을 안전하게 준비하지 못해 실행을 보류했어요. 다시 시도해주세요.";
   }
 
   // App cleanup / restore bin. These use internal manifest files too, but
@@ -89,11 +89,10 @@ export function friendlyErrorMessage(input: unknown): string {
   // Windows command runner exit codes
   const psExit = message.match(/powershell exited with code (-?\d+)/i);
   if (psExit) {
-    const exitCode = psExit[1];
     if (/access.*denied|cannot.*be.*loaded|execution.*policy/i.test(message)) {
       return "Windows 실행 권한이 막혔어요. 관리자 권한으로 다시 실행해보세요.";
     }
-    return `Windows 작업이 코드 ${exitCode}로 멈췄어요. 다시 시도하거나 PC를 잠깐 재시작해주세요.`;
+    return "Windows 점검이 중간에 멈췄어요. 다시 시도하거나 PC를 잠깐 재시작해주세요.";
   }
 
   // Raw result parsing

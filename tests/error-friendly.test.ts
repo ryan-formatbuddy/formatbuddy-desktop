@@ -10,7 +10,7 @@ describe("friendlyErrorMessage", () => {
 
   it("maps integrity violations", () => {
     expect(friendlyErrorMessage("integrity check failed (expected abc, got def)")).toMatch(
-      /변조된 것 같아/
+      /점검 도구가 바뀐/
     );
     expect(friendlyErrorMessage("integrity manifest missing: /tmp/x")).toMatch(/확인 파일이 없어요/);
     expect(friendlyErrorMessage("refusing to spawn")).toMatch(/실행을 보류했어요/);
@@ -66,9 +66,9 @@ describe("friendlyErrorMessage", () => {
   });
 
   it("maps Windows command exits and access-denied", () => {
-    expect(friendlyErrorMessage("PowerShell exited with code 1. stderr: ...")).toMatch(
-      /Windows 작업이 코드 1로 멈췄어요/
-    );
+    const genericExit = friendlyErrorMessage("PowerShell exited with code 1. stderr: ...");
+    expect(genericExit).toMatch(/Windows 점검이 중간에 멈췄어요/);
+    expect(genericExit).not.toMatch(/PowerShell|코드 1|터미널|명령어/);
     expect(friendlyErrorMessage("PowerShell exited with code 1. stderr: access is denied")).toMatch(
       /관리자 권한으로/
     );
