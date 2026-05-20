@@ -1,11 +1,19 @@
 import type { AppUninstallRequest } from "@shared/types";
 
 function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim() === value &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
 }
 
-function isOptionalString(value: unknown): value is string | null | undefined {
-  return value === undefined || value === null || typeof value === "string";
+function isOptionalDisplayString(value: unknown): value is string | null | undefined {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "string") return false;
+  if (value.length === 0) return true;
+  return value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 export function enforceAppUninstallRequestPolicy(
@@ -14,7 +22,7 @@ export function enforceAppUninstallRequestPolicy(
   if (!isNonEmptyString(request?.appName)) {
     throw new Error("앱 제거 대상을 확인하지 못했어요. 다시 점검한 뒤 앱을 선택해주세요.");
   }
-  if (!isOptionalString(request.publisher)) {
+  if (!isOptionalDisplayString(request.publisher)) {
     throw new Error("앱 제거 정보를 확인하지 못했어요. 다시 점검한 뒤 앱을 선택해주세요.");
   }
   if (request.mode === "quiet") {

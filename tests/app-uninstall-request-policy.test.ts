@@ -40,6 +40,14 @@ describe("enforceAppUninstallRequestPolicy", () => {
     ).toThrow(/앱 제거 대상/);
   });
 
+  it("blocks padded or control-character app names before uninstall can start", () => {
+    for (const appName of [" Slack", "Slack ", "Slack\nBeta", "Slack\tBeta"]) {
+      expect(() =>
+        enforceAppUninstallRequestPolicy({ ...request(), appName })
+      ).toThrow(/앱 제거 대상/);
+    }
+  });
+
   it("blocks malformed publisher and mode values", () => {
     expect(() =>
       enforceAppUninstallRequestPolicy({
@@ -54,6 +62,18 @@ describe("enforceAppUninstallRequestPolicy", () => {
         mode: "silent"
       } as unknown as AppUninstallRequest)
     ).toThrow(/앱 제거 방식/);
+  });
+
+  it("blocks padded or control-character publisher values before uninstall can start", () => {
+    for (const publisher of [
+      " Slack Technologies",
+      "Slack Technologies ",
+      "Slack\nTechnologies"
+    ]) {
+      expect(() =>
+        enforceAppUninstallRequestPolicy({ ...request(), publisher })
+      ).toThrow(/앱 제거 정보를 확인하지 못했어요/);
+    }
   });
 
   it("blocks quiet uninstall requests at the product IPC boundary", () => {
