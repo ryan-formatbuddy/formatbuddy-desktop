@@ -105,6 +105,39 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
+  it("records the actual stored size when the caller passes a stale size", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: { ...makeItem(source), sizeBytes: 999 },
+      sizeBytes: 999,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    expect(entry.sizeBytes).toBe(5);
+    await assertManagedTrashEntryManifest({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      itemId: entry.itemId,
+      categoryId: entry.categoryId,
+      sizeBytes: 5,
+      originalPath: source,
+      storedPath: entry.storedPath,
+      expiresAt: entry.expiresAt,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.totalBytes).toBe(5);
+    expect(snapshot.entries[0].sizeBytes).toBe(5);
+    expect(snapshot.entries[0].integrityStatus).toBe("verified");
+  });
+
   it("refuses an app-install-folder trusted source when the source is not a folder", async () => {
     const source = join(fx.root, "Program Files", "Acme Notes");
     await mkdir(dirname(source), { recursive: true });

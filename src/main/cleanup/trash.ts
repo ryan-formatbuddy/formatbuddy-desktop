@@ -897,23 +897,46 @@ export async function moveToFormatBuddyTrash(
     throw err;
   }
 
+  const finalizedEntry: CleanupTrashEntry = {
+    ...entry,
+    sizeBytes: await measureStoredPath(storedPath),
+    contentHash: {
+      algorithm: "sha256",
+      value: await hashPath(storedPath)
+    }
+  };
+  await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
+  await writeFile(join(targetDir, "manifest.json"), JSON.stringify(finalizedEntry, null, 2), "utf8");
+  await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
+  await assertManagedTrashEntryManifest({
+    userDataDir: options.userDataDir,
+    entryId: finalizedEntry.id,
+    itemId: finalizedEntry.itemId,
+    categoryId: finalizedEntry.categoryId,
+    sizeBytes: finalizedEntry.sizeBytes,
+    originalPath: finalizedEntry.originalPath,
+    storedPath: finalizedEntry.storedPath,
+    expiresAt: finalizedEntry.expiresAt,
+    now: options.now
+  });
+
   const index = await loadIndex(options.userDataDir);
-  index.entries = [entry, ...index.entries.filter((e) => e.id !== entry.id)];
+  index.entries = [finalizedEntry, ...index.entries.filter((e) => e.id !== finalizedEntry.id)];
   const indexSaveStatus = await saveIndexOrKeepManifestFallback(options.userDataDir, index);
   if (indexSaveStatus === "manifest-fallback") {
     await assertManagedTrashEntryManifest({
       userDataDir: options.userDataDir,
-      entryId: entry.id,
-      itemId: entry.itemId,
-      categoryId: entry.categoryId,
-      sizeBytes: entry.sizeBytes,
-      originalPath: entry.originalPath,
-      storedPath: entry.storedPath,
-      expiresAt: entry.expiresAt,
+      entryId: finalizedEntry.id,
+      itemId: finalizedEntry.itemId,
+      categoryId: finalizedEntry.categoryId,
+      sizeBytes: finalizedEntry.sizeBytes,
+      originalPath: finalizedEntry.originalPath,
+      storedPath: finalizedEntry.storedPath,
+      expiresAt: finalizedEntry.expiresAt,
       now: options.now
     });
   }
-  return entry;
+  return finalizedEntry;
 }
 
 export async function getTrashSnapshot(
