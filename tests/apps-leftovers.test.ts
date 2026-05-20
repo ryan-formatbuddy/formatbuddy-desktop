@@ -101,6 +101,29 @@ describe("planAppLeftovers", () => {
     expect(path?.sizeBytes).toBe(12);
   });
 
+  it("finds generic LocalLow leftovers even for apps with built-in rules", async () => {
+    const slackLocalLow = join(fx.localLow, "Slack");
+    await fs.mkdir(slackLocalLow, { recursive: true });
+    await fs.writeFile(join(slackLocalLow, "webview-cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: {
+          roaming: fx.roaming,
+          localAppData: fx.localAppData,
+          localLow: fx.localLow,
+          programData: fx.programData
+        }
+      }
+    );
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === slackLocalLow);
+    expect(path).toMatchObject({ kind: "folder", exists: true });
+    expect(path?.protectedBy).toBeUndefined();
+  });
+
   it("marks leftover folders containing symbolic links as protected", async () => {
     if (process.platform === "win32") return;
     const slack = join(fx.roaming, "Slack");

@@ -1013,6 +1013,7 @@ export async function planAppLeftovers(
     for (const builder of rule.paths) {
       paths.push({ ...(await pathInfo(builder(env), env)), kind: "folder" });
     }
+    paths.push(...(await genericLeftoverPaths(app, env)));
     paths.push(...(await shortcutLeftoverPaths(app, env)));
     paths.push(...(await installLocationLeftoverPaths(app, env)));
     paths.push(...registryLeftoverPaths(app));
