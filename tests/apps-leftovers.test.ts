@@ -390,6 +390,27 @@ describe("planAppLeftovers", () => {
     expect(parentStat.isSymbolicLink()).toBe(true);
   });
 
+  it("refuses best-effort rollback moves through a linked destination parent at move time", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.root, "stored-cache.bin");
+    const linkedParent = join(fx.roaming, "Acme Notes");
+    const outsideParent = join(fx.root, "outside-move-target");
+    const destination = join(linkedParent, "cache.bin");
+    await fs.writeFile(source, "cached", "utf8");
+    await fs.mkdir(dirname(linkedParent), { recursive: true });
+    await fs.mkdir(outsideParent, { recursive: true });
+    await fs.symlink(outsideParent, linkedParent, "dir");
+
+    await expect(
+      leftoversTesting.movePathBestEffort(source, destination, {
+        destinationBoundary: fx.home
+      })
+    ).rejects.toThrow(/link/i);
+
+    await expect(fs.readFile(source, "utf8")).resolves.toBe("cached");
+    await expect(fs.readdir(outsideParent)).resolves.toEqual([]);
+  });
+
   it("keeps an unverified app-leftover trash move when a new item already exists at the original path", async () => {
     const userDataDir = join(fx.root, "userdata");
     const entryId = "entry-target-exists";

@@ -1414,8 +1414,19 @@ function preservedRegistryBackupSkipFields(err: unknown): Pick<
   };
 }
 
-async function movePathBestEffort(source: string, destination: string): Promise<void> {
+async function movePathBestEffort(
+  source: string,
+  destination: string,
+  options: { destinationBoundary?: string } = {}
+): Promise<void> {
   await fs.mkdir(dirname(destination), { recursive: true });
+  const linkedDestinationParent = await findLinkedPathPart(
+    destination,
+    options.destinationBoundary ?? dirname(destination)
+  );
+  if (linkedDestinationParent) {
+    throw new Error(`Rollback destination parent is a link: ${linkedDestinationParent}`);
+  }
   try {
     await fs.rename(source, destination);
     return;
@@ -1461,7 +1472,9 @@ async function cleanupUnverifiedTrashMove(options: {
     () => false
   );
   if (originalExists) return;
-  await movePathBestEffort(trashEntry.storedPath, options.originalPath);
+  await movePathBestEffort(trashEntry.storedPath, options.originalPath, {
+    destinationBoundary: options.rollbackBoundary ?? dirname(options.originalPath)
+  });
 
   const entryRoot = dirname(dirname(trashEntry.storedPath));
   await fs.rm(entryRoot, { recursive: true, force: true }).catch(() => {});
@@ -2129,5 +2142,6 @@ export const __testing = {
   measurePath,
   PLAN_TTL_MS,
   cleanupUnverifiedTrashMove,
+  movePathBestEffort,
   rollbackBoundaryForPath
 };
