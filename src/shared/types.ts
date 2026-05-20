@@ -630,7 +630,8 @@ export type CleanupCategoryId =
 
 export type CleanupRiskLevel = "safe" | "review" | "restricted";
 
-export type CleanupExecuteMode = "trash" | "permanent";
+export type CleanupProductExecuteMode = "trash";
+export type CleanupExecuteMode = CleanupProductExecuteMode | "permanent";
 
 export type CleanupSkipReason =
   | "blocked-path"
@@ -693,7 +694,8 @@ export interface CleanupExecuteRequest {
   planId: string;
   confirmationToken: string;
   selectedItemIds: string[];
-  mode: CleanupExecuteMode;
+  /** Product cleanup always routes through FormatBuddy's 30-day restore bin. */
+  mode: CleanupProductExecuteMode;
 }
 
 export interface CleanupExecutedItem {

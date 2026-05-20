@@ -15,7 +15,7 @@ import {
   __resetPlanCacheForTests
 } from "../src/main/cleanup/planner";
 import { getCleanupHistory } from "../src/main/cleanup/log";
-import type { CleanupPlan } from "../src/shared/types";
+import type { CleanupExecuteRequest, CleanupPlan } from "../src/shared/types";
 
 const TEN_DAYS_MS = 10 * 86_400_000;
 const THIRTY_DAYS_MS = 30 * 86_400_000;
@@ -72,6 +72,12 @@ function contentHashForText(text: string): { algorithm: "sha256"; value: string 
   hash.update("\0");
   hash.update(text, "utf8");
   return { algorithm: "sha256", value: hash.digest("hex") };
+}
+
+function maintenancePermanentRequest(
+  request: Omit<CleanupExecuteRequest, "mode">
+): CleanupExecuteRequest {
+  return { ...request, mode: "permanent" } as unknown as CleanupExecuteRequest;
 }
 
 function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
@@ -195,12 +201,11 @@ describe("executeCleanup", () => {
 
     const { deps, trashed, permanently } = makeSpyDeps();
     await executeCleanup(
-      {
+      maintenancePermanentRequest({
         planId: plan.planId,
         confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "permanent"
-      },
+        selectedItemIds: [item.id]
+      }),
       { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 
@@ -217,12 +222,11 @@ describe("executeCleanup", () => {
 
     await expect(
       executeCleanup(
-        {
+        maintenancePermanentRequest({
           planId: plan.planId,
           confirmationToken: plan.confirmationToken,
-          selectedItemIds: [item.id],
-          mode: "permanent"
-        },
+          selectedItemIds: [item.id]
+        }),
         { userDataDir: fx.userData, deps, home: fx.home }
       )
     ).rejects.toThrow(/30일 복구함|permanent mode/i);
@@ -247,12 +251,11 @@ describe("executeCleanup", () => {
     await fs.writeFile(join(outside, "old1.tmp"), "outside", "utf8");
 
     const result = await executeCleanup(
-      {
+      maintenancePermanentRequest({
         planId: plan.planId,
         confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "permanent"
-      },
+        selectedItemIds: [item.id]
+      }),
       {
         userDataDir: fx.userData,
         deps: defaultDeps(fx.userData),
@@ -289,12 +292,11 @@ describe("executeCleanup", () => {
     });
 
     const result = await executeCleanup(
-      {
+      maintenancePermanentRequest({
         planId: plan.planId,
         confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "permanent"
-      },
+        selectedItemIds: [item.id]
+      }),
       { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 
@@ -1582,12 +1584,11 @@ describe("executeCleanup", () => {
     });
 
     const result = await executeCleanup(
-      {
+      maintenancePermanentRequest({
         planId: plan.planId,
         confirmationToken: plan.confirmationToken,
-        selectedItemIds: [item.id],
-        mode: "permanent"
-      },
+        selectedItemIds: [item.id]
+      }),
       { userDataDir: fx.userData, deps, home: fx.home, allowPermanentForMaintenance: true }
     );
 

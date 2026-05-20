@@ -5,13 +5,13 @@ import {
 } from "../src/main/cleanup/policy";
 import type { AppLeftoversCleanupRequest, CleanupExecuteRequest } from "../src/shared/types";
 
-function request(mode: CleanupExecuteRequest["mode"]): CleanupExecuteRequest {
+function request(mode: unknown): CleanupExecuteRequest {
   return {
     planId: "plan",
     confirmationToken: "token",
     selectedItemIds: ["item"],
     mode
-  };
+  } as CleanupExecuteRequest;
 }
 
 function leftoversRequest(): AppLeftoversCleanupRequest {

@@ -468,6 +468,7 @@ export async function executeCleanup(
   request: CleanupExecuteRequest,
   options: ExecuteCleanupOptions
 ): Promise<CleanupExecuteResult> {
+  const mode = (request as { mode?: unknown }).mode;
   if (!isNonEmptyString(request?.planId) || !isNonEmptyString(request?.confirmationToken)) {
     throw new Error("cleanup:execute requires planId and confirmationToken");
   }
@@ -492,10 +493,10 @@ export async function executeCleanup(
   if (hasDuplicates(request.selectedItemIds)) {
     throw new Error("cleanup:execute requires selectedItemIds to be unique without duplicates");
   }
-  if (request.mode !== "trash" && request.mode !== "permanent") {
-    throw new Error(`cleanup:execute received invalid mode ${request.mode}`);
+  if (mode !== "trash" && mode !== "permanent") {
+    throw new Error(`cleanup:execute received invalid mode ${String(mode)}`);
   }
-  if (request.mode === "permanent" && !options.allowPermanentForMaintenance) {
+  if (mode === "permanent" && !options.allowPermanentForMaintenance) {
     throw new Error("cleanup:execute permanent mode is blocked. 포맷버디 정리는 30일 복구함으로만 보내요.");
   }
 
@@ -533,7 +534,7 @@ export async function executeCleanup(
   for (const id of selectedIds) {
     const item = itemIndex.get(id);
     if (!item) continue;
-    const outcome = await attemptItem(item, request.mode, options.deps, home, {
+    const outcome = await attemptItem(item, mode, options.deps, home, {
       userDataDir: options.userDataDir,
       home,
       now: options.now
@@ -559,7 +560,7 @@ export async function executeCleanup(
 
   const executedAt = options.now?.().toISOString() ?? new Date().toISOString();
   const logEntry = buildLogEntry({
-    mode: request.mode,
+    mode,
     executedAt,
     removedItems,
     skippedItems
@@ -578,7 +579,7 @@ export async function executeCleanup(
   return {
     planId: plan.planId,
     executedAt,
-    mode: request.mode,
+    mode,
     totalFreedBytes,
     removedItems,
     skippedItems,
