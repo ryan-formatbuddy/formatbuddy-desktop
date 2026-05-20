@@ -1207,6 +1207,8 @@ export interface AppLeftoverPath {
   startupEntryName?: string | null;
   /** Original Startup folder root when kind === "startup-folder". */
   startupOrigin?: string | null;
+  /** Service / scheduled-task provenance when kind === "startup-entry". */
+  startupEntryKind?: StartupAutoKind | null;
   registryValueName?: string | null;
   exists: boolean;
   sizeBytes?: number | null;

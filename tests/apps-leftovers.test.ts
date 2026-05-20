@@ -1743,8 +1743,45 @@ describe("planAppLeftovers", () => {
       "Windows 서비스: Acme Notes Helper",
       "작업 스케줄러: Acme Notes Update"
     ]);
+    expect(traces.map((path) => path.startupEntryKind)).toEqual(["service", "scheduled-task"]);
+    expect(traces.map((path) => path.startupEntryName)).toEqual([
+      "Acme Notes Helper",
+      "Acme Notes Update"
+    ]);
+    expect(traces.map((path) => path.startupOrigin)).toEqual(["Windows 서비스", "작업 스케줄러"]);
     expect(traces.every((path) => path.exists)).toBe(true);
     expect(traces.every((path) => path.protectedBy?.includes("시작 항목"))).toBe(true);
+  });
+
+  it("rejects tampered manual startup trace metadata before cleanup", async () => {
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries: [
+        {
+          id: "service|acme-notes",
+          kind: "service",
+          name: "Acme Notes Helper",
+          publisher: "Acme Corp.",
+          origin: "Windows 서비스",
+          enabled: true
+        }
+      ]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.kind === "startup-entry")!;
+    path.startupEntryKind = "registry";
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/startup entry kind|leftover plan metadata/);
   });
 
   it("backs up and deletes a selected startup registry value after uninstall follow-up", async () => {

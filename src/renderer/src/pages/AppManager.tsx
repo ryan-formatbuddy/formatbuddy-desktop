@@ -102,6 +102,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
     case "startup-registry":
       return "시작 항목";
     case "startup-entry":
+      if (path.startupEntryKind === "service") return "서비스";
+      if (path.startupEntryKind === "scheduled-task") return "예약 작업";
       return "시작 흔적";
     case "shortcut":
     case "shortcut-folder":

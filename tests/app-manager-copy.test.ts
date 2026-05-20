@@ -256,6 +256,10 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("leftoverPathNeedsManualCheck");
+    expect(source).toContain('path.startupEntryKind === "service"');
+    expect(source).toContain('path.startupEntryKind === "scheduled-task"');
+    expect(source).toContain("서비스");
+    expect(source).toContain("예약 작업");
     expect(source).toContain("수동 확인 흔적");
     expect(source).toContain("수동 확인");
     expect(source).toContain("서비스·예약 작업 같은");

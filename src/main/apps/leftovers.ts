@@ -1164,6 +1164,10 @@ async function startupLeftoverPaths(
       id: makePathId(`startup-entry:${entry.id}:${label}`),
       kind: "startup-entry",
       path: label,
+      startupEntryId: entry.id,
+      startupEntryName: entryName,
+      startupEntryKind: entry.kind,
+      startupOrigin: entryOrigin,
       exists: true,
       sizeBytes: null,
       lastModifiedAt: null,
@@ -1664,6 +1668,14 @@ function assertSelectedLeftoverPlanMetadataUsable(
       if (!isStrictPlanString(path.startupEntryId)) invalid.push("startup entry id");
       if (!cleanDisplayText(path.startupEntryName)) invalid.push("startup entry name");
       if (!isStrictPlanString(path.startupOrigin)) invalid.push("startup origin");
+    }
+    if (path.kind === "startup-entry") {
+      if (!isStrictPlanString(path.startupEntryId)) invalid.push("startup entry id");
+      if (!cleanDisplayText(path.startupEntryName)) invalid.push("startup entry name");
+      if (!cleanDisplayText(path.startupOrigin)) invalid.push("startup origin");
+      if (path.startupEntryKind !== "service" && path.startupEntryKind !== "scheduled-task") {
+        invalid.push("startup entry kind");
+      }
     }
     if (
       path.kind === "startup-registry" &&

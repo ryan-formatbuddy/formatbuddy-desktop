@@ -58,6 +58,7 @@ describe("AppManager leftover summary", () => {
             {
               id: "manual-trace",
               kind: "startup-entry",
+              startupEntryKind: "scheduled-task",
               path: "작업 스케줄러: Manual Trace Update",
               exists: true,
               protectedBy: "서비스·예약 작업은 수동 확인이 필요해요."
