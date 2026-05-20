@@ -87,4 +87,13 @@ describe("Cleanup copy", () => {
     expect(source).not.toContain("JSON.stringify(");
     expect(source).not.toContain("<pre");
   });
+
+  it("does not surface internal restore-bin detail strings in cleanup result details", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("friendlyCleanupDetail");
+    expect(source).toContain("복구함 정보를 확인하지 못했어요");
+    expect(source).toContain("30일 보관 기간을 확인하지 못했어요");
+    expect(source).not.toContain('item.detail ? ` · ${item.detail}` : ""');
+  });
 });

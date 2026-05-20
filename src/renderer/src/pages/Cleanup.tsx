@@ -300,6 +300,35 @@ function cleanupSkipReasonLabel(reason: CleanupSkippedResultItem["reason"]): str
   }
 }
 
+function friendlyCleanupDetail(detail?: string): string {
+  if (!detail) return "";
+  const lower = detail.toLowerCase();
+
+  if (/30-day|30일|expiry|만료/.test(lower)) {
+    return "30일 보관 기간을 확인하지 못했어요";
+  }
+  if (/manifest|복구함 정보/.test(lower)) {
+    return "복구함 정보를 확인하지 못했어요";
+  }
+  if (/stored trash path|restore entry|managed restore bin|restore bin/.test(lower)) {
+    return "복구함 저장 위치를 안전하게 확인하지 못했어요";
+  }
+  if (/link|symbolic|링크/.test(lower)) {
+    return "링크 경로라 안전 확인이 필요해요";
+  }
+  if (/access|permission|eacces|eperm|권한/.test(lower)) {
+    return "권한이 부족해서 처리하지 못했어요";
+  }
+  if (/locked|busy|사용 중|잠금/.test(lower)) {
+    return "다른 프로그램이 사용 중이라 처리하지 못했어요";
+  }
+  if (/still exists|아직 남아/.test(lower)) {
+    return "정리 후에도 항목이 남아 있어요";
+  }
+
+  return "상세 확인이 필요해요";
+}
+
 function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
   const succeededCount = result.removedItems.filter((item) => item.succeeded).length;
   const restorableCount = restorableTrashEntryIds(result).length;
@@ -328,8 +357,8 @@ function cleanupRemovedItemLines(result: CleanupExecuteResult): string[] {
 function cleanupSkippedItemLines(result: CleanupExecuteResult): string[] {
   const skipped = result.skippedItems.filter((item) => item.reason !== "not-selected");
   const sample = skipped.slice(0, 6).map((item: CleanupSkippedResultItem) => {
-    const detail = item.detail ? ` · ${item.detail}` : "";
-    return `${cleanupPathLabel(item.path)} · ${cleanupSkipReasonLabel(item.reason)}${detail}`;
+    const detail = friendlyCleanupDetail(item.detail);
+    return `${cleanupPathLabel(item.path)} · ${cleanupSkipReasonLabel(item.reason)}${detail ? ` · ${detail}` : ""}`;
   });
   const hidden = skipped.length - sample.length;
   if (hidden > 0) sample.push(`외 ${hidden}개 항목은 건드리지 않았어요.`);
