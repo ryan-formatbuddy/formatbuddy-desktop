@@ -217,6 +217,71 @@ describe("Cleanup result undo helper", () => {
     );
   });
 
+  it("omits expired entries from recent restore helpers when expiry data is present", () => {
+    const now = Date.parse("2026-06-18T00:00:01.000Z");
+    const result: CleanupExecuteResult = {
+      planId: "plan-expiry",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      mode: "trash",
+      totalFreedBytes: 4,
+      skippedItems: [],
+      logEntry: {
+        id: "log-expiry",
+        executedAt: "2026-05-19T00:00:00.000Z",
+        mode: "trash",
+        totalFreedBytes: 4,
+        removedCount: 4,
+        skippedCount: 0,
+        categories: []
+      },
+      removedItems: [
+        {
+          itemId: "expired-file",
+          path: "C:\\Temp\\expired-file.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "expired-file",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "fresh-file",
+          path: "C:\\Temp\\fresh-file.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "fresh-file",
+          expiresAt: "2026-06-19T00:00:00.000Z"
+        },
+        {
+          itemId: "expired-registry",
+          path: "HKCU\\Software\\ExpiredApp",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "expired-registry",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "fresh-registry",
+          path: "HKCU\\Software\\FreshApp",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "fresh-registry",
+          expiresAt: "2026-06-19T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(restorableTrashEntryIds(result, now)).toEqual(["fresh-file"]);
+    expect(restorableRegistryBackupIds(result, now)).toEqual(["fresh-registry"]);
+  });
+
   it("returns an empty expiry summary for an empty trash bin", () => {
     expect(trashExpirySummary([], Date.parse("2026-05-19T00:00:00.000Z"))).toEqual({
       nextExpiryDays: null,

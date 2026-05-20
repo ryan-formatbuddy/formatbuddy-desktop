@@ -74,16 +74,32 @@ export function trashExpirySummary(
   };
 }
 
-export function restorableTrashEntryIds(result: CleanupExecuteResult): string[] {
+function executedItemStillWithinRestoreWindow(expiresAt: string | undefined, now: number): boolean {
+  return !expiresAt || !isTrashEntryExpired(expiresAt, now);
+}
+
+export function restorableTrashEntryIds(result: CleanupExecuteResult, now = Date.now()): string[] {
   return result.removedItems
-    .filter((item) => item.succeeded && item.mode === "trash" && Boolean(item.trashEntryId))
+    .filter(
+      (item) =>
+        item.succeeded &&
+        item.mode === "trash" &&
+        Boolean(item.trashEntryId) &&
+        executedItemStillWithinRestoreWindow(item.expiresAt, now)
+    )
     .map((item) => item.trashEntryId)
     .filter((id): id is string => typeof id === "string");
 }
 
-export function restorableRegistryBackupIds(result: CleanupExecuteResult): string[] {
+export function restorableRegistryBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
   return result.removedItems
-    .filter((item) => item.succeeded && item.mode === "trash" && Boolean(item.registryBackupId))
+    .filter(
+      (item) =>
+        item.succeeded &&
+        item.mode === "trash" &&
+        Boolean(item.registryBackupId) &&
+        executedItemStillWithinRestoreWindow(item.expiresAt, now)
+    )
     .map((item) => item.registryBackupId)
     .filter((id): id is string => typeof id === "string");
 }
