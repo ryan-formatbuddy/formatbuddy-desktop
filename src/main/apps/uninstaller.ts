@@ -80,6 +80,7 @@ export type UnsafeUninstallCommandKind =
   | "shell-host"
   | "script-file"
   | "unquoted-spaced-path"
+  | "remote-or-url"
   | "silent-mode"
   | "cmd-syntax"
   | "unclosed-quote";
@@ -115,6 +116,15 @@ function startsWithUnquotedSpacedExecutablePath(command: string): boolean {
   if (exeIndex === -1) return false;
   const executablePath = trimmed.slice(0, exeIndex + 4);
   return /\s/.test(executablePath);
+}
+
+function referencesRemoteOrUrl(command: string): boolean {
+  const first = firstCommandPart(command);
+  if (first.startsWith("\\\\")) return true;
+  return commandTokens(command).some((token) =>
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(token) ||
+    /=\s*[a-z][a-z0-9+.-]*:\/\//i.test(token)
+  );
 }
 
 function commandTokens(command: string): string[] {
@@ -259,6 +269,7 @@ export function unsafeUninstallCommandKind(command: string): UnsafeUninstallComm
   if (BLOCKED_UNINSTALL_COMMAND_HOSTS.has(commandHost(command))) return "shell-host";
   if (targetsBlockedScriptFile(command)) return "script-file";
   if (startsWithUnquotedSpacedExecutablePath(command)) return "unquoted-spaced-path";
+  if (referencesRemoteOrUrl(command)) return "remote-or-url";
   if (hasSilentUninstallSwitch(command)) return "silent-mode";
 
   for (const char of command) {
@@ -289,6 +300,8 @@ export function blockedUninstallMessage(command: string): string {
       return "스크립트 파일을 실행하는 제거 명령이라 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "unquoted-spaced-path":
       return "경로에 공백이 있는데 따옴표가 없어 Windows가 다르게 해석할 수 있어요. Windows 설정에서 직접 제거해주세요.";
+    case "remote-or-url":
+      return "로컬 PC 안의 제거 명령인지 확인하기 어려워 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "silent-mode":
       return "조용히 제거되는 옵션이 들어 있어 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 확인하며 제거해주세요.";
     case "unclosed-quote":
