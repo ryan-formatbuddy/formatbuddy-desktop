@@ -123,6 +123,16 @@ function cleanOptionalString(value: unknown): string | undefined {
   return trimmed.slice(0, 1024);
 }
 
+function cleanDisplayString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 1024);
+}
+
 function registryBackupItemsRoot(userDataDir: string): string {
   return join(userDataDir, "formatbuddy-registry-backups", "items");
 }
@@ -536,8 +546,8 @@ export async function backupAndDeleteRegistryKey(options: {
   const backupPath = join(entryDir, "backup.reg");
   const metaPath = join(entryDir, "meta.json");
   const runner = options.runner ?? defaultRegistryCleanupRunner();
-  const appName = cleanOptionalString(options.app?.name);
-  const appPublisher = cleanOptionalString(options.app?.publisher);
+  const appName = cleanDisplayString(options.app?.name);
+  const appPublisher = cleanDisplayString(options.app?.publisher);
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
   let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
@@ -596,8 +606,8 @@ export async function backupAndDeleteRegistryValue(options: {
   const runner = options.runner ?? defaultRegistryCleanupRunner();
   const exportValue = runner.exportValue ?? defaultRegistryCleanupRunner().exportValue;
   const deleteValue = runner.deleteValue ?? defaultRegistryCleanupRunner().deleteValue;
-  const appName = cleanOptionalString(options.app?.name);
-  const appPublisher = cleanOptionalString(options.app?.publisher);
+  const appName = cleanDisplayString(options.app?.name);
+  const appPublisher = cleanDisplayString(options.app?.publisher);
   let sizeBytes = 0;
   let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
   let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
@@ -794,8 +804,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "startup-value";
     entry.valueName = valueName ?? null;
   }
-  const appName = cleanOptionalString(raw.appName);
-  const appPublisher = cleanOptionalString(raw.appPublisher);
+  const appName = cleanDisplayString(raw.appName);
+  const appPublisher = cleanDisplayString(raw.appPublisher);
   if (appName) entry.appName = appName;
   if (appPublisher) entry.appPublisher = appPublisher;
 
@@ -1181,20 +1191,21 @@ export async function restoreRegistryBackup(options: {
     if (await pathExists(restoredEntryDir)) {
       throw new Error("Registry backup restore entry still exists after restore");
     }
-    const appName = cleanOptionalString(entry.appName);
+    const appName = cleanDisplayString(entry.appName);
+    const appPublisher = cleanDisplayString(entry.appPublisher) ?? null;
     if (appName) {
       const backupKind = entry.backupKind === "startup-value" ? "startup-value" : "key";
       const restoredApp: RegistryBackupRestoredApp =
         backupKind === "startup-value"
           ? {
               name: appName,
-              publisher: entry.appPublisher ?? null,
+              publisher: appPublisher,
               backupKind,
               ...(entry.valueName ? { valueName: entry.valueName } : {})
             }
           : {
               name: appName,
-              publisher: entry.appPublisher ?? null,
+              publisher: appPublisher,
               backupKind,
               registryKeyPath: entry.keyPath
             };

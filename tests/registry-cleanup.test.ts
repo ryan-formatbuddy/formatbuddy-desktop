@@ -174,7 +174,7 @@ describe("registry leftover cleanup", () => {
     });
   });
 
-  it("drops registry backup app labels with control characters before writing metadata", async () => {
+  it("cleans registry backup app labels with control characters before writing metadata", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {
       exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
@@ -191,8 +191,8 @@ describe("registry leftover cleanup", () => {
       app: { name: "Acme\nNotes", publisher: "Acme\0Corp." }
     });
 
-    expect(result.appName).toBeUndefined();
-    expect(result.appPublisher).toBeUndefined();
+    expect(result.appName).toBe("Acme Notes");
+    expect(result.appPublisher).toBe("Acme Corp.");
 
     const metaPath = join(
       fx.userDataDir,
@@ -202,12 +202,12 @@ describe("registry leftover cleanup", () => {
       "meta.json"
     );
     const meta = JSON.parse(await readFile(metaPath, "utf8"));
-    expect(meta).not.toHaveProperty("appName");
-    expect(meta).not.toHaveProperty("appPublisher");
+    expect(meta.appName).toBe("Acme Notes");
+    expect(meta.appPublisher).toBe("Acme Corp.");
 
     const snapshot = await listRegistryBackups({ userDataDir: fx.userDataDir });
-    expect(snapshot.entries[0].appName).toBeUndefined();
-    expect(snapshot.entries[0].appPublisher).toBeUndefined();
+    expect(snapshot.entries[0].appName).toBe("Acme Notes");
+    expect(snapshot.entries[0].appPublisher).toBe("Acme Corp.");
   });
 
   it("exports a value-only backup before deleting a startup registry value", async () => {
