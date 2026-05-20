@@ -44,6 +44,10 @@ export interface MoveToTrashOptions {
   sizeBytes: number;
   home?: string;
   now?: () => Date;
+  trustedSource?: {
+    kind: "app-shortcut";
+    allowRoots: string[];
+  };
 }
 
 export interface TrashRuntimeOptions {
@@ -86,6 +90,31 @@ function overlapsManagedUserData(userDataDir: string, candidatePath: string): bo
     candidate.startsWith(`${managed}\\`) ||
     managed.startsWith(`${candidate}\\`)
   );
+}
+
+function isAtOrInside(rawPath: string, rawRoot: string): boolean {
+  const path = normalizePath(rawPath);
+  const root = normalizePath(rawRoot);
+  if (!path || !root) return false;
+  return path === root || path.startsWith(`${root}\\`);
+}
+
+function trustedSourceAllows(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): boolean {
+  if (!trusted || trusted.kind !== "app-shortcut") return false;
+  const normalized = normalizePath(rawPath);
+  if (!normalized.endsWith(".lnk")) return false;
+  if (
+    normalized.endsWith("\\microsoft\\windows\\start menu\\programs\\startup") ||
+    normalized.includes("\\microsoft\\windows\\start menu\\programs\\startup\\")
+  ) {
+    return false;
+  }
+  return trusted.allowRoots.some((root) => isAtOrInside(rawPath, root));
+}
+
+function trustedSourceBoundary(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): string | undefined {
+  if (!trustedSourceAllows(rawPath, trusted)) return undefined;
+  return trusted?.allowRoots.find((root) => isAtOrInside(rawPath, root));
 }
 
 function commonAncestorPath(leftPath: string, rightPath: string): string | undefined {
@@ -751,7 +780,7 @@ export async function moveToFormatBuddyTrash(
     allowRoots: [options.item.path],
     home: options.home
   });
-  if (!sourceDecision.allowed) {
+  if (!sourceDecision.allowed && !trustedSourceAllows(options.item.path, options.trustedSource)) {
     throw new Error(
       `cleanup-trash refuses protected source path: ${sourceDecision.blockedBy ?? "blocked-path"}`
     );
@@ -759,7 +788,7 @@ export async function moveToFormatBuddyTrash(
 
   const linkedSource = await findLinkedPathPart(
     options.item.path,
-    options.home ?? options.item.path,
+    trustedSourceBoundary(options.item.path, options.trustedSource) ?? options.home ?? options.item.path,
     true
   );
   if (linkedSource) {

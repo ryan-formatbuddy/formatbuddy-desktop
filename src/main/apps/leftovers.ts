@@ -727,6 +727,14 @@ function isStartupShortcutFolder(path: string): boolean {
   );
 }
 
+function isShortcutPathAllowed(path: string, env: LeftoverEnv): boolean {
+  return (
+    path.toLowerCase().endsWith(".lnk") &&
+    !isStartupShortcutFolder(path) &&
+    shortcutRoots(env).some((root) => isAtOrInside(path, root))
+  );
+}
+
 async function findShortcutFiles(
   root: string,
   names: string[],
@@ -786,7 +794,16 @@ async function shortcutLeftoverPaths(
       const key = normalizePath(shortcutPath);
       if (seen.has(key)) continue;
       seen.add(key);
-      paths.push({ ...(await pathInfo(shortcutPath, env)), kind: "shortcut" });
+      const info = await pathInfo(shortcutPath, env);
+      paths.push({
+        ...info,
+        protectedBy: isShortcutPathAllowed(shortcutPath, env)
+          ? info.protectedBy && !info.protectedBy.includes("ProgramData\\Microsoft")
+            ? info.protectedBy
+            : undefined
+          : info.protectedBy ?? "지원하는 바로가기 위치가 아니라 자동 정리하지 않아요.",
+        kind: "shortcut"
+      });
     }
   }
   return paths;
@@ -1487,7 +1504,10 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
-    const decision = evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
+    const shortcutAllowed = path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env);
+    const decision = shortcutAllowed
+      ? { allowed: true as const }
+      : evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
     if (!decision.allowed) {
       skippedItems.push({
         itemId: path.id,
@@ -1537,6 +1557,9 @@ export async function cleanupAppLeftovers(
         item: cleanupItem,
         sizeBytes: cleanupItem.sizeBytes,
         home: cached.env.home,
+        trustedSource: shortcutAllowed
+          ? { kind: "app-shortcut", allowRoots: shortcutRoots(cached.env) }
+          : undefined,
         now: options.now
       });
       await assertManagedTrashEntryManifest({
