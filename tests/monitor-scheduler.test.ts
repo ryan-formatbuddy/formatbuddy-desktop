@@ -41,6 +41,19 @@ describe("monitorScheduler", () => {
     );
   });
 
+  it.each([
+    ["relative path", "FormatBuddy.exe"],
+    ["network share", "\\\\server\\share\\FormatBuddy.exe"],
+    ["URL", "https://example.com/FormatBuddy.exe"],
+    ["script file", "C:\\Program Files\\FormatBuddy\\FormatBuddy.ps1"],
+    ["shell control", "C:\\Program Files\\FormatBuddy & Tools\\FormatBuddy.exe"],
+    ["environment expansion", "C:\\Program Files\\%USERNAME%\\FormatBuddy.exe"]
+  ])("rejects scheduled scan app paths that are not a local exe: %s", (_label, appPath) => {
+    expect(() => scheduledAutoScanTaskRunValue(appPath)).toThrow(
+      "Invalid FormatBuddy app path"
+    );
+  });
+
   it("returns a failed scheduler result instead of throwing for unsafe app paths", async () => {
     const fakeRunner = runner();
     const result = await reconcileScheduledAutoScan({

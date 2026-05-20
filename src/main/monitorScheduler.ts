@@ -34,7 +34,15 @@ function sanitizeDetail(value: string | undefined): string | undefined {
 
 function assertSafeAppPath(appPath: string): string {
   const trimmed = appPath.trim();
-  if (!trimmed || trimmed.includes("\"") || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+  if (
+    !trimmed ||
+    trimmed.includes("\"") ||
+    /[\u0000-\u001f\u007f]/.test(trimmed) ||
+    /[%!^&|<>]/.test(trimmed) ||
+    /^\\\\/.test(trimmed) ||
+    /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ||
+    !/^[a-z]:\\.+\.exe$/i.test(trimmed)
+  ) {
     throw new Error("Invalid FormatBuddy app path for scheduled scan.");
   }
   return trimmed;
