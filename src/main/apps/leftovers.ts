@@ -953,6 +953,15 @@ function allPaths(snapshot: AppLeftoversSnapshot): AppLeftoverPath[] {
   return snapshot.groups.flatMap((group) => group.paths);
 }
 
+function selectableLeftoverPath(group: AppLeftoverGroup, path: AppLeftoverPath): boolean {
+  return (
+    group.source === "uninstall-launched" &&
+    group.cleanupState === "removed-confirmed" &&
+    path.exists &&
+    !path.protectedBy
+  );
+}
+
 function groupForPath(snapshot: AppLeftoversSnapshot, pathId: string): AppLeftoverGroup | undefined {
   return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId));
 }
@@ -980,9 +989,9 @@ function followupGroupIsFullyResolved(
 ): boolean {
   if (!group || group.source !== "uninstall-launched") return false;
   if (group.cleanupState !== "removed-confirmed") return false;
-  const existingPaths = group.paths.filter((path) => path.exists);
-  if (existingPaths.length === 0) return false;
-  return existingPaths.every((path) => selectedIds.has(path.id) && resolvedPathIds.has(path.id));
+  const selectablePaths = group.paths.filter((path) => selectableLeftoverPath(group, path));
+  if (selectablePaths.length === 0) return false;
+  return selectablePaths.every((path) => selectedIds.has(path.id) && resolvedPathIds.has(path.id));
 }
 
 function rememberResolvedFollowupGroup(
@@ -1452,6 +1461,17 @@ export async function cleanupAppLeftovers(
         path: cleanupItem.path,
         reason: skipReasonFromTrashError(message),
         detail: message
+      });
+    }
+  }
+
+  for (const group of cached.snapshot.groups) {
+    for (const path of group.paths) {
+      if (selectedIds.has(path.id) || !selectableLeftoverPath(group, path)) continue;
+      skippedItems.push({
+        itemId: path.id,
+        path: path.path,
+        reason: "not-selected"
       });
     }
   }

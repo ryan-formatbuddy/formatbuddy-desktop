@@ -116,6 +116,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("폴더와 시작 항목은 복구함에 30일 동안 보관해요");
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
+    expect(source).toContain("선택하지 않은 후보");
+    expect(source).toContain("그대로 남겨뒀어요");
   });
 
   it("includes failed app-leftover removed items in the failed or skipped count", () => {

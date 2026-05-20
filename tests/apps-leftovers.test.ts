@@ -1469,6 +1469,9 @@ describe("planAppLeftovers", () => {
     );
 
     expect(result.removedItems).toHaveLength(1);
+    expect(result.skippedItems).toEqual([
+      { itemId: expect.any(String), path: localSlack, reason: "not-selected" }
+    ]);
     expect(onFollowupCleaned).not.toHaveBeenCalled();
     await expect(fs.stat(roamingSlack)).rejects.toThrow();
     await expect(fs.stat(localSlack)).resolves.toBeTruthy();

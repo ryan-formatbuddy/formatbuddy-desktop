@@ -106,6 +106,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
     result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+  const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
   const lines: string[] = [];
 
   if (folderCount > 0) {
@@ -119,6 +120,9 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   }
   if (untouchedCount > 0) {
     lines.push(`건드리지 않은 항목 ${untouchedCount}개는 그대로 뒀어요.`);
+  }
+  if (notSelectedCount > 0) {
+    lines.push(`선택하지 않은 후보 ${notSelectedCount}개는 그대로 남겨뒀어요.`);
   }
 
   return lines;
