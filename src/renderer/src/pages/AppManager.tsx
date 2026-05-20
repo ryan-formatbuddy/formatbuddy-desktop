@@ -3,6 +3,7 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
   canCleanupLeftoverGroup,
+  leftoverPathNeedsManualCheck,
   selectableLeftoverPathIds,
   summarizeLeftoverSnapshot
 } from "@shared/app-leftovers";
@@ -340,7 +341,8 @@ function LeftoverPanel({
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
         아직 설치된 앱 데이터 {leftoverSummary.installedLocked}개, 보호 경로 {leftoverSummary.protected}개,
-        제거 확인 전 {leftoverSummary.notChecked}개, 지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
+        서비스·예약 작업 같은 수동 확인 흔적 {leftoverSummary.manualCheck}개, 제거 확인 전 {leftoverSummary.notChecked}개,
+        지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
       {state.loading && !result && (
         <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
@@ -551,7 +553,7 @@ function LeftoverGroupCard({
                 title={path.protectedBy}
                 style={{ fontSize: 11, color: "#a36400" }}
               >
-                보호됨
+                {leftoverPathNeedsManualCheck(path) ? "수동 확인" : "보호됨"}
               </span>
             )}
           </li>

@@ -200,6 +200,15 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("leftoverDisplayPath(path)} 선택");
   });
 
+  it("separates manual startup traces from protected leftover paths", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("leftoverPathNeedsManualCheck");
+    expect(source).toContain("수동 확인 흔적");
+    expect(source).toContain("수동 확인");
+    expect(source).toContain("서비스·예약 작업 같은");
+  });
+
   it("does not show raw IPC errors in app cleanup messages", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

@@ -49,17 +49,32 @@ describe("AppManager leftover summary", () => {
               exists: true
             }
           ]
+        },
+        {
+          appName: "Manual Trace",
+          source: "uninstall-launched",
+          cleanupState: "removed-confirmed",
+          paths: [
+            {
+              id: "manual-trace",
+              kind: "startup-entry",
+              path: "작업 스케줄러: Manual Trace Update",
+              exists: true,
+              protectedBy: "서비스·예약 작업은 수동 확인이 필요해요."
+            }
+          ]
         }
       ]
     };
 
     expect(summarizeLeftoverSnapshot(snapshot)).toEqual({
-      total: 5,
+      total: 6,
       selectable: 1,
       protected: 1,
       missing: 1,
       installedLocked: 1,
-      notChecked: 1
+      notChecked: 1,
+      manualCheck: 1
     });
     expect(selectableLeftoverPathIds(snapshot)).toEqual(new Set(["selectable"]));
   });

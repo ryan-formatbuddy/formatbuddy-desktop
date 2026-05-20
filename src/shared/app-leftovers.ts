@@ -1,4 +1,4 @@
-import type { AppLeftoverGroup, AppLeftoversSnapshot } from "./types";
+import type { AppLeftoverGroup, AppLeftoverPath, AppLeftoversSnapshot } from "./types";
 
 export function canCleanupLeftoverGroup(group: AppLeftoverGroup): boolean {
   return group.source === "uninstall-launched" && group.cleanupState === "removed-confirmed";
@@ -24,6 +24,7 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
   missing: number;
   installedLocked: number;
   notChecked: number;
+  manualCheck: number;
 } {
   const stats = {
     total: 0,
@@ -31,13 +32,15 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
     protected: 0,
     missing: 0,
     installedLocked: 0,
-    notChecked: 0
+    notChecked: 0,
+    manualCheck: 0
   };
 
   for (const group of snapshot.groups) {
     for (const path of group.paths) {
       stats.total += 1;
       if (!path.exists) stats.missing += 1;
+      else if (leftoverPathNeedsManualCheck(path)) stats.manualCheck += 1;
       else if (path.protectedBy) stats.protected += 1;
       else if (group.source !== "uninstall-launched" || group.cleanupState === "still-installed") {
         stats.installedLocked += 1;
@@ -48,4 +51,13 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
   }
 
   return stats;
+}
+
+export function leftoverPathNeedsManualCheck(
+  path: Pick<AppLeftoverPath, "kind" | "protectedBy">
+): boolean {
+  return (
+    path.kind === "startup-entry" ||
+    (path.kind === "startup-registry" && Boolean(path.protectedBy))
+  );
 }
