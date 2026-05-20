@@ -1280,7 +1280,7 @@ describe("planAppLeftovers", () => {
       {
         id: "startup-folder|acme-notes",
         kind: "startup-folder",
-        name: "Acme Notes.lnk",
+        name: "Acme\nNotes.lnk",
         path: startupShortcut,
         publisher: "Acme Corp.",
         origin: dirname(startupShortcut)
@@ -1345,6 +1345,7 @@ describe("planAppLeftovers", () => {
     });
     expect(disabled.entries[0]).toMatchObject({
       id: result.removedItems[0].startupDisabledId,
+      name: "Acme Notes.lnk",
       originalPath: startupShortcut,
       origin: dirname(startupShortcut),
       expiresAt: "2026-06-18T00:00:00.000Z",

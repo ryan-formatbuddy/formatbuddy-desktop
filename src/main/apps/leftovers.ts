@@ -1100,13 +1100,15 @@ async function startupLeftoverPaths(
   for (const entry of entries) {
     if (!startupTextMatchesApp(entry, app)) continue;
     if (entry.kind === "startup-folder" && entry.path) {
+      const startupEntryName = cleanDisplayText(entry.name);
+      if (!startupEntryName) continue;
       const info = await pathInfo(entry.path, env);
       paths.push({
         ...info,
         id: makePathId(`startup-folder:${entry.id}:${entry.path}`),
         kind: "startup-folder",
         startupEntryId: entry.id,
-        startupEntryName: entry.name,
+        startupEntryName,
         startupOrigin: entry.origin
       });
       continue;
@@ -1515,7 +1517,7 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (!isOptionalStrictPlanString(path.protectedBy)) invalid.push("protection reason");
     if (path.kind === "startup-folder") {
       if (!isStrictPlanString(path.startupEntryId)) invalid.push("startup entry id");
-      if (!isStrictPlanString(path.startupEntryName)) invalid.push("startup entry name");
+      if (!cleanDisplayText(path.startupEntryName)) invalid.push("startup entry name");
       if (!isStrictPlanString(path.startupOrigin)) invalid.push("startup origin");
     }
     if (
@@ -1718,11 +1720,11 @@ export async function cleanupAppLeftovers(
 
     if (path.kind === "startup-folder") {
       const startupEntryId = path.startupEntryId;
-      const startupEntryName = path.startupEntryName;
+      const startupEntryName = cleanDisplayText(path.startupEntryName);
       const startupOrigin = path.startupOrigin;
       if (
         !isStrictPlanString(startupEntryId) ||
-        !isStrictPlanString(startupEntryName) ||
+        !startupEntryName ||
         !isStrictPlanString(startupOrigin)
       ) {
         skippedItems.push({
