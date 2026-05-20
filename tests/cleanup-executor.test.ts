@@ -317,6 +317,48 @@ describe("executeCleanup", () => {
     expect(result.totalFreedBytes).toBe(0);
   });
 
+  it("blocks unusable cleanup item metadata before measuring or moving files", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    item.label = "old.tmp\nmore";
+
+    const statCalls = { value: 0 };
+    const trashCalls = { value: 0 };
+    const { deps } = makeSpyDeps({
+      statSize: async () => {
+        statCalls.value += 1;
+        return 4096;
+      },
+      trashItem: async () => {
+        trashCalls.value += 1;
+        throw new Error("trash should not be called");
+      }
+    });
+
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: item.id,
+      path: targetFile,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/정리 항목 정보|metadata/i);
+    expect(statCalls.value).toBe(0);
+    expect(trashCalls.value).toBe(0);
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+  });
+
   it("measures selected folders by their file contents, not directory metadata", async () => {
     const folder = join(fx.tempDir, "old-cache");
     await fs.mkdir(join(folder, "nested"), { recursive: true });

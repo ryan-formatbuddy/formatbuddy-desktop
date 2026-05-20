@@ -196,6 +196,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
+function isUsableMetadataString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
 function isTrimmedString(value: string): boolean {
   return value.trim() === value;
 }
@@ -211,6 +215,33 @@ function isValidIsoDateString(value: unknown): value is string {
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
+}
+
+function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | undefined {
+  const required: Array<[string, unknown]> = [
+    ["item id", item.id],
+    ["source path", item.path],
+    ["label", item.label],
+    ["category", item.categoryId]
+  ];
+  const invalid = required.find(([, value]) => !isUsableMetadataString(value));
+  if (invalid) {
+    return {
+      itemId: isUsableMetadataString(item.id) ? item.id : "",
+      path: isUsableMetadataString(item.path) ? item.path : "",
+      reason: "blocked-path",
+      detail: `정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: ${invalid[0]}`
+    };
+  }
+  if (typeof item.sizeBytes !== "number" || !Number.isFinite(item.sizeBytes)) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "정리 항목 용량 정보가 안전하지 않아 자동 정리하지 않았어요."
+    };
+  }
+  return undefined;
 }
 
 async function validateLivePath(
@@ -260,6 +291,9 @@ async function attemptItem(
   home: string,
   context: { userDataDir: string; home?: string; now?: () => Date }
 ): Promise<AttemptOutcome> {
+  const metadataSkip = validateCleanupItemMetadata(item);
+  if (metadataSkip) return { skipped: metadataSkip };
+
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
   // real filesystem path that FormatBuddy can move into its own 30-day
   // restore bin. Older cached plans may still contain it as selectable,
