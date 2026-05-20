@@ -411,6 +411,37 @@ describe("registry leftover cleanup", () => {
     await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
   });
 
+  it("does not delete when the registry backup export contains a delete section", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            "Windows Registry Editor Version 5.00",
+            "",
+            "[-HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes]",
+            ""
+          ].join("\r\n"),
+          "utf8"
+        );
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+
+    await expect(
+      backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        runner
+      })
+    ).rejects.toThrow(/레지스트리 백업|registry backup|위치/i);
+
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    await expect(readdir(__testing.registryBackupItemsRoot(fx.userDataDir))).resolves.toEqual([]);
+  });
+
   it("does not delete when the registry backup export writes through a symbolic link", async () => {
     if (process.platform === "win32") return;
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
@@ -1276,6 +1307,43 @@ describe("registry leftover cleanup", () => {
         "[HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
         "\"Acme\"=\"C:\\\\Temp\\\\acme.exe\""
       ].join("\n"),
+      "utf8"
+    );
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/레지스트리 백업|registry backup|위치/);
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
+  it("does not import a registry backup when the reg file contains a delete section", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+    await writeFile(
+      result.backupPath,
+      [
+        "Windows Registry Editor Version 5.00",
+        "",
+        "[-HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes]",
+        ""
+      ].join("\r\n"),
       "utf8"
     );
 

@@ -349,6 +349,7 @@ function registryBackupSectionsMatchExpectedKey(content: string, expectedKeyPath
     if (!line.startsWith("[")) continue;
     const match = /^\[(-?)([^\]]+)\]$/.exec(line);
     if (!match) return false;
+    if (match[1] === "-") return false;
     const sectionKey = canonicalRegistryKeyForComparison(match[2]);
     if (sectionKey !== expected && !sectionKey.startsWith(`${expected}\\`)) {
       return false;
