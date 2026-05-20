@@ -290,6 +290,37 @@ describe("planAppLeftovers", () => {
     );
   });
 
+  it("finds desktop and start-menu shortcut leftovers for recently uninstalled apps", async () => {
+    const desktopShortcut = join(fx.home, "Desktop", "Acme Notes.lnk");
+    const startMenuShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme",
+      "Acme Notes Helper.lnk"
+    );
+    const unrelatedShortcut = join(fx.home, "Desktop", "Other Tool.lnk");
+    await fs.mkdir(dirname(desktopShortcut), { recursive: true });
+    await fs.mkdir(dirname(startMenuShortcut), { recursive: true });
+    await fs.writeFile(desktopShortcut, "shortcut", "utf8");
+    await fs.writeFile(startMenuShortcut, "shortcut", "utf8");
+    await fs.writeFile(unrelatedShortcut, "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+
+    const shortcutPaths = snapshot.groups[0].paths
+      .filter((p) => p.kind === "shortcut")
+      .map((p) => p.path)
+      .sort();
+    expect(shortcutPaths).toEqual([desktopShortcut, startMenuShortcut].sort());
+  });
+
   it("finds a recently uninstalled app's install folder even outside AppData roots", async () => {
     const installFolder = join(fx.localAppData, "Programs", "Acme Notes");
     await fs.mkdir(installFolder, { recursive: true });
@@ -313,6 +344,43 @@ describe("planAppLeftovers", () => {
       source: "uninstall-launched"
     });
     expect(snapshot.groups[0].paths.some((p) => p.path === installFolder && p.exists)).toBe(true);
+  });
+
+  it("moves a selected shortcut leftover into the 30-day trash after uninstall follow-up", async () => {
+    const desktopShortcut = join(fx.home, "Desktop", "Acme Notes.lnk");
+    await fs.mkdir(dirname(desktopShortcut), { recursive: true });
+    await fs.writeFile(desktopShortcut, "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === desktopShortcut)!;
+    expect(path.kind).toBe("shortcut");
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    await expect(fs.stat(desktopShortcut)).rejects.toThrow();
+
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toHaveLength(1);
+    expect(trash.entries[0].originalPath).toBe(desktopShortcut);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
   it("moves a selected install folder leftover into the 30-day trash after uninstall follow-up", async () => {

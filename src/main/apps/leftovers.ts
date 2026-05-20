@@ -14,7 +14,7 @@
 import { promises as fs } from "node:fs";
 import type { Dirent, Stats } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type {
   AppLeftoverGroup,
@@ -74,6 +74,8 @@ interface CleanupAppLeftoversOptions {
 const PLAN_TTL_MS = 5 * 60 * 1000;
 const MAX_LEFTOVER_DEPTH = 8;
 const MAX_LEFTOVER_ITEMS = 50_000;
+const MAX_SHORTCUT_SCAN_DEPTH = 5;
+const MAX_SHORTCUT_SCAN_ITEMS = 10_000;
 const PLAN_CACHE = new Map<string, CachedLeftoversPlan>();
 const LINKED_LEFTOVER_PROTECTION = "링크가 포함된 잔여 폴더라 자동 정리하지 않아요.";
 const DEEP_LEFTOVER_PROTECTION = "폴더가 너무 깊어서 자동 정리하지 않아요.";
@@ -447,6 +449,7 @@ function isOptionalPlanTimestamp(value: unknown): value is string | null | undef
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
   return (
     value === "folder" ||
+    value === "shortcut" ||
     value === "registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
@@ -684,6 +687,111 @@ async function genericLeftoverPaths(
   return paths;
 }
 
+function shortcutMatchNames(app: InstalledApp): string[] {
+  return genericFolderNames(app)
+    .map((name) => cleanGenericName(name).toLowerCase())
+    .filter(Boolean);
+}
+
+function shortcutNameMatchesApp(filePath: string, names: string[]): boolean {
+  if (!filePath.toLowerCase().endsWith(".lnk")) return false;
+  const rawBaseName = basename(filePath).replace(/\.lnk$/i, "");
+  const normalizedBaseName = cleanGenericName(rawBaseName).toLowerCase();
+  const compactBaseName = normalizedBaseName.replace(/\s+/g, "");
+  if (!normalizedBaseName || !compactBaseName) return false;
+
+  return names.some((name) => {
+    const compactName = name.replace(/\s+/g, "");
+    return (
+      normalizedBaseName === name ||
+      compactBaseName === compactName ||
+      normalizedBaseName.includes(name) ||
+      compactBaseName.includes(compactName)
+    );
+  });
+}
+
+function shortcutRoots(env: LeftoverEnv): string[] {
+  return [
+    join(env.home, "Desktop"),
+    join(env.roaming, "Microsoft", "Windows", "Start Menu", "Programs"),
+    join(env.programData, "Microsoft", "Windows", "Start Menu", "Programs")
+  ];
+}
+
+function isStartupShortcutFolder(path: string): boolean {
+  const normalized = normalizePath(path);
+  return (
+    normalized.endsWith("\\microsoft\\windows\\start menu\\programs\\startup") ||
+    normalized.includes("\\microsoft\\windows\\start menu\\programs\\startup\\")
+  );
+}
+
+async function findShortcutFiles(
+  root: string,
+  names: string[],
+  depth = 0,
+  counter = { count: 0 }
+): Promise<string[]> {
+  if (depth > MAX_SHORTCUT_SCAN_DEPTH || counter.count >= MAX_SHORTCUT_SCAN_ITEMS) return [];
+  if (isStartupShortcutFolder(root)) return [];
+
+  let stat: Stats;
+  try {
+    stat = await fs.lstat(root);
+  } catch {
+    return [];
+  }
+  if (stat.isSymbolicLink()) return [];
+  if (stat.isFile()) {
+    counter.count += 1;
+    return shortcutNameMatchesApp(root, names) ? [root] : [];
+  }
+  if (!stat.isDirectory()) return [];
+
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const found: string[] = [];
+  for (const entry of entries) {
+    if (counter.count >= MAX_SHORTCUT_SCAN_ITEMS) break;
+    if (entry.isSymbolicLink()) continue;
+    const child = join(root, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...(await findShortcutFiles(child, names, depth + 1, counter)));
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    counter.count += 1;
+    if (shortcutNameMatchesApp(child, names)) found.push(child);
+  }
+  return found;
+}
+
+async function shortcutLeftoverPaths(
+  app: InstalledApp,
+  env: LeftoverEnv
+): Promise<AppLeftoverPath[]> {
+  const names = shortcutMatchNames(app);
+  if (names.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  const seen = new Set<string>();
+  for (const root of shortcutRoots(env)) {
+    for (const shortcutPath of await findShortcutFiles(root, names)) {
+      const key = normalizePath(shortcutPath);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      paths.push({ ...(await pathInfo(shortcutPath, env)), kind: "shortcut" });
+    }
+  }
+  return paths;
+}
+
 async function installLocationLeftoverPaths(
   app: InstalledApp,
   env: LeftoverEnv
@@ -859,6 +967,7 @@ export async function planAppLeftovers(
       if (seenLabels.has(app.name)) continue;
       const paths = uniqueLeftoverPaths([
         ...(await genericLeftoverPaths(app, env)),
+        ...(await shortcutLeftoverPaths(app, env)),
         ...(await installLocationLeftoverPaths(app, env)),
         ...registryLeftoverPaths(app),
         ...(await startupLeftoverPaths(app, env, options.startupEntries))
@@ -881,6 +990,7 @@ export async function planAppLeftovers(
     for (const builder of rule.paths) {
       paths.push({ ...(await pathInfo(builder(env), env)), kind: "folder" });
     }
+    paths.push(...(await shortcutLeftoverPaths(app, env)));
     paths.push(...(await installLocationLeftoverPaths(app, env)));
     paths.push(...registryLeftoverPaths(app));
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));

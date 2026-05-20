@@ -99,6 +99,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "시작 항목";
     case "startup-entry":
       return "시작 흔적";
+    case "shortcut":
+      return "바로가기";
     case "folder":
     default:
       return path.exists ? formatBytes(path.sizeBytes) : "없음";

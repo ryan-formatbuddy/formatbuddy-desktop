@@ -1174,17 +1174,17 @@ export interface AppManagerSnapshot {
   /** Items the user agent chose to hide (system components, mostly). */
   hiddenSystemCount: number;
   /**
-   * Apps whose Windows uninstall wizard was opened in the last 24h.
+   * Apps whose Windows uninstall window was opened in the last 24h.
    * We keep just (name, publisher) so the follow-up leftover scan can
    * surface them; no command strings or install paths are persisted.
-   * This does NOT prove the app was removed — the wizard may be canceled.
+   * This does NOT prove the app was removed — the user may cancel the window.
    */
   recentlyUninstallLaunched: AppUninstallFollowUpItem[];
 }
 
 export interface AppLeftoverPath {
   id: string;
-  kind?: "folder" | "registry" | "startup-folder" | "startup-registry" | "startup-entry";
+  kind?: "folder" | "shortcut" | "registry" | "startup-folder" | "startup-registry" | "startup-entry";
   path: string;
   /** Original StartupAutoEntry id when kind === "startup-folder". */
   startupEntryId?: string | null;
