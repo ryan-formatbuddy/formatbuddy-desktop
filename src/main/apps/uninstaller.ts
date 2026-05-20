@@ -124,8 +124,8 @@ function referencesRemoteOrUrl(command: string): boolean {
   const first = firstCommandPart(command);
   if (first.startsWith("\\\\")) return true;
   return commandTokens(command).some((token) =>
-    /^[a-z][a-z0-9+.-]*:\/\//i.test(token) ||
-    /=\s*[a-z][a-z0-9+.-]*:\/\//i.test(token)
+    /^['"]?[a-z][a-z0-9+.-]*:\/\//i.test(token) ||
+    /=\s*['"]?[a-z][a-z0-9+.-]*:\/\//i.test(token)
   );
 }
 

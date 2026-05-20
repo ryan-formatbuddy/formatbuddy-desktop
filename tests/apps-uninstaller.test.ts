@@ -608,7 +608,11 @@ describe("runUninstall", () => {
   it.each([
     ["UNC uninstaller", '"\\\\server\\share\\Friendly Tool\\uninstall.exe" /remove'],
     ["URL package", "MsiExec.exe /X https://example.com/friendly-tool.msi"],
-    ["URL argument", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=https://example.com/remove']
+    ["URL argument", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=https://example.com/remove'],
+    [
+      "single-quoted URL argument",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=\'https://example.com/remove\''
+    ]
   ])("blocks uninstall strings that reference a remote %s", async (_label, command) => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
 
