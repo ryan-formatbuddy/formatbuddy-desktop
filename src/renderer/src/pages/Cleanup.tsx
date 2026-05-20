@@ -75,6 +75,10 @@ function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
   return `다음 항목은 ${days}일 뒤 비워요`;
 }
 
+function isChangedTrashEntry(entry: CleanupTrashEntry): boolean {
+  return entry.integrityStatus === "changed";
+}
+
 function defaultSelectionFor(plan: CleanupPlan): Set<string> {
   const selected = new Set<string>();
   for (const category of plan.categories) {
@@ -491,6 +495,7 @@ function TrashEntryRow({
   onRestore: (entryId: string) => void;
 }) {
   const isExpired = isTrashEntryExpired(entry.expiresAt);
+  const isChanged = isChangedTrashEntry(entry);
 
   return (
     <li
@@ -513,14 +518,23 @@ function TrashEntryRow({
         <div style={{ fontSize: 11, opacity: 0.55, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {entry.originalPath}
         </div>
+        {isChanged && (
+          <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 650, marginTop: 4 }}>
+            복구함 안의 파일이 바뀐 것 같아요.
+          </div>
+        )}
       </div>
       <Button
         variant="secondary"
         size="sm"
         onClick={() => onRestore(entry.id)}
-        disabled={isExpired}
+        disabled={isExpired || isChanged}
       >
-        {isExpired ? "보관 기간이 지나 되돌릴 수 없어요" : "되돌리기"}
+        {isExpired
+          ? "보관 기간이 지나 되돌릴 수 없어요"
+          : isChanged
+            ? "복구함 안 파일 확인 필요"
+            : "되돌리기"}
       </Button>
     </li>
   );
