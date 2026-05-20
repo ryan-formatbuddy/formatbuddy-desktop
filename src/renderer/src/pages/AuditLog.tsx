@@ -45,6 +45,7 @@ function isAuditWarning(entry: AuditEntry): boolean {
   return (
     entry.action.includes("-failed-") ||
     entry.summary.includes("못했어요") ||
+    auditRestoreNeedsAttention(entry) ||
     auditFailureDetailCount(entry.detail) > 0
   );
 }
@@ -71,9 +72,18 @@ function numberDetail(detail: Record<string, unknown>, key: string): number | nu
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function stringDetail(detail: AuditEntry["detail"], key: string): string | null {
+  const value = detail?.[key];
+  return typeof value === "string" ? value : null;
+}
+
 function arrayCountDetail(detail: Record<string, unknown>, key: string): number {
   const value = detail[key];
   return Array.isArray(value) ? value.length : 0;
+}
+
+function auditRestoreNeedsAttention(entry: AuditEntry): boolean {
+  return entry.action.includes("restore") && stringDetail(entry.detail, "status") !== "restored";
 }
 
 function auditFailureDetailCount(detail: AuditEntry["detail"]): number {

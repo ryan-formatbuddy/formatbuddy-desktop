@@ -33,6 +33,15 @@ describe("AuditLog copy", () => {
     expect(source).toContain("auditFailureDetailCount(entry.detail) > 0");
   });
 
+  it("marks non-restored restore audit entries as check-needed", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("function auditRestoreNeedsAttention(entry: AuditEntry): boolean");
+    expect(source).toContain('entry.action.includes("restore")');
+    expect(source).toContain('stringDetail(entry.detail, "status") !== "restored"');
+    expect(source).toContain("auditRestoreNeedsAttention(entry)");
+  });
+
   it("keeps restore-bin warning text separate from general failure text", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
