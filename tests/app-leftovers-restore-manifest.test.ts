@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -25,6 +26,15 @@ function makeFixture(): Fixture {
     userDataDir: join(root, "userdata"),
     cleanup: () => rmSync(root, { recursive: true, force: true })
   };
+}
+
+function contentHashForText(text: string): { algorithm: "sha256"; value: string } {
+  const hash = createHash("sha256");
+  hash.update("file\0");
+  hash.update("");
+  hash.update("\0");
+  hash.update(text, "utf8");
+  return { algorithm: "sha256", value: hash.digest("hex") };
 }
 
 describe("cleanupAppLeftovers restore manifest validation", () => {
@@ -223,6 +233,7 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
                   label: options.item.label,
                   categoryId: options.item.categoryId,
                   sizeBytes: options.item.sizeBytes,
+                  contentHash: contentHashForText("abc"),
                   createdAt: "2026-05-19T00:00:00.000Z",
                   expiresAt
                 },

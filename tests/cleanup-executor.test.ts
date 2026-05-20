@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -64,6 +65,15 @@ async function planWithOneTempFile(fx: Fixture, filePath: string): Promise<Clean
   });
 }
 
+function contentHashForText(text: string): { algorithm: "sha256"; value: string } {
+  const hash = createHash("sha256");
+  hash.update("file\0");
+  hash.update("");
+  hash.update("\0");
+  hash.update(text, "utf8");
+  return { algorithm: "sha256", value: hash.digest("hex") };
+}
+
 function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   deps: ExecutorDeps;
   trashed: string[];
@@ -81,7 +91,8 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
       const entryId = `trash-${item.id}`;
       const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", entryId, "files", "stored");
       await fs.mkdir(join(storedPath, ".."), { recursive: true });
-      await fs.writeFile(storedPath, "x".repeat(Math.max(0, Math.round(sizeBytes))), "utf8");
+      const storedText = "x".repeat(Math.max(0, Math.round(sizeBytes)));
+      await fs.writeFile(storedPath, storedText, "utf8");
       await fs.writeFile(
         join(context.userDataDir, "formatbuddy-trash", "items", entryId, "manifest.json"),
         JSON.stringify(
@@ -93,6 +104,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
             label: item.label,
             categoryId: item.categoryId,
             sizeBytes,
+            contentHash: contentHashForText(storedText),
             createdAt,
             expiresAt: trashExpiresAt
           },

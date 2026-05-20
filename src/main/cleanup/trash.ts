@@ -521,11 +521,12 @@ export async function assertManagedTrashEntryManifest(options: {
   if (actualStoredSizeBytes !== entry.sizeBytes) {
     throw new Error("FormatBuddy restore manifest stored size does not match the restore entry");
   }
-  if (entry.contentHash) {
-    const actualContentHash = await hashPath(entry.storedPath);
-    if (actualContentHash !== entry.contentHash.value) {
-      throw new Error("FormatBuddy restore manifest stored hash does not match the restore entry");
-    }
+  if (!entry.contentHash) {
+    throw new Error("FormatBuddy restore manifest stored hash was not created");
+  }
+  const actualContentHash = await hashPath(entry.storedPath);
+  if (actualContentHash !== entry.contentHash.value) {
+    throw new Error("FormatBuddy restore manifest stored hash does not match the restore entry");
   }
 }
 
