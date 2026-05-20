@@ -656,6 +656,7 @@ describe("planAppLeftovers", () => {
     expect(result.removedItems[0]).toMatchObject({
       itemId: path.id,
       path: startupShortcut,
+      sizeBytes: 0,
       categoryId: "app-leftovers",
       mode: "trash",
       succeeded: true,
@@ -663,6 +664,10 @@ describe("planAppLeftovers", () => {
     });
     expect(result.removedItems[0].startupDisabledId).toBeTruthy();
     expect(result.removedItems[0].trashEntryId).toBeUndefined();
+    expect(result.totalFreedBytes).toBe(0);
+    expect(result.logEntry.categories).toEqual([
+      { categoryId: "app-leftovers", bytesFreed: 0, itemCount: 1 }
+    ]);
     await expect(fs.stat(startupShortcut)).rejects.toThrow();
 
     const trash = await getTrashSnapshot({

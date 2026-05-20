@@ -96,6 +96,48 @@ describe("cleanup execution log coercion", () => {
     });
   });
 
+  it("does not count registry backups or startup holding items as freed disk space", () => {
+    const entry = buildLogEntry({
+      mode: "trash",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "registry-1",
+          path: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme",
+          sizeBytes: 4096,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: "registry-backup-1"
+        },
+        {
+          itemId: "startup-1",
+          path: join(dir, "Startup", "Acme.lnk"),
+          sizeBytes: 2048,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "startup-disabled-1"
+        },
+        {
+          itemId: "folder-1",
+          path: join(dir, "AppData", "Local", "Acme"),
+          sizeBytes: 12,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "trash-1"
+        }
+      ],
+      skippedItems: []
+    });
+
+    expect(entry.totalFreedBytes).toBe(12);
+    expect(entry.categories).toEqual([
+      { categoryId: "app-leftovers", bytesFreed: 12, itemCount: 3 }
+    ]);
+  });
+
   it("refuses to persist non-restore-bin cleanup history entries", async () => {
     const entry = buildLogEntry({
       mode: "permanent",

@@ -121,6 +121,11 @@ function coerceLog(value: unknown): PersistedLog {
   };
 }
 
+function countedFreedBytes(item: CleanupExecutedItem): number {
+  if (item.registryBackupId || item.startupDisabledId) return 0;
+  return item.sizeBytes;
+}
+
 async function loadLog(userDataDir: string): Promise<PersistedLog> {
   const linkedLog = await findLinkedPathPart(logPath(userDataDir), userDataDir, true);
   if (linkedLog) {
@@ -169,14 +174,15 @@ export function buildLogEntry(args: {
   const breakdownMap = new Map<string, CleanupCategoryBreakdown>();
   for (const item of args.removedItems) {
     if (!item.succeeded) continue;
+    const bytesFreed = countedFreedBytes(item);
     const existing = breakdownMap.get(item.categoryId);
     if (existing) {
-      existing.bytesFreed += item.sizeBytes;
+      existing.bytesFreed += bytesFreed;
       existing.itemCount += 1;
     } else {
       breakdownMap.set(item.categoryId, {
         categoryId: item.categoryId,
-        bytesFreed: item.sizeBytes,
+        bytesFreed,
         itemCount: 1
       });
     }

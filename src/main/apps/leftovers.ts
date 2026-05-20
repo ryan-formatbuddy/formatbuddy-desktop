@@ -1322,7 +1322,7 @@ export async function cleanupAppLeftovers(
         removedItems.push({
           itemId: path.id,
           path: path.path,
-          sizeBytes: Math.max(0, Math.round(measured.sizeBytes ?? 0)),
+          sizeBytes: 0,
           categoryId: "app-leftovers",
           mode: "trash",
           succeeded: true,
