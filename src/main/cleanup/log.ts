@@ -20,13 +20,14 @@ import type {
   CleanupLogEntry,
   CleanupSkippedItem
 } from "@shared/types";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { normalizePath } from "./blocklist";
 import { findLinkedPathPart } from "./pathSafety";
 
 const LOG_FILE = "formatbuddy-cleanup-log.json";
 const MAX_ENTRIES = 100;
 const MS_PER_DAY = 86_400_000;
-const RESTORE_WINDOW_MS = 30 * MS_PER_DAY;
+const RESTORE_WINDOW_MS = RESTORE_BIN_RETENTION_DAYS * MS_PER_DAY;
 
 interface PersistedLog {
   version: 1;

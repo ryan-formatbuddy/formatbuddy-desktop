@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = join(__dirname, "..");
 
-const USER_HELP_DOCS = ["docs/FAQ.md", "docs/USER_GUIDE.md"];
+const USER_HELP_DOCS = ["docs/FAQ.md", "docs/USER_GUIDE.md", "docs/PRIVACY_POLICY.md"];
 
 describe("user help docs copy", () => {
   it("keeps backup and restore wording approachable", () => {
