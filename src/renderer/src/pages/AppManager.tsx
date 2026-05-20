@@ -195,16 +195,20 @@ function appLeftoverSkippedPreviewLines(
 
 function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const cleanedCount = result.removedItems.filter((item) => item.succeeded).length;
+  const preservedBackupCount = preservedRegistryBackupIds(result).length;
   const restorableCount =
     restorableTrashEntryIds(result).length +
     restorableRegistryBackupIds(result).length +
-    preservedRegistryBackupIds(result).length +
+    preservedBackupCount +
     restorableStartupDisabledIds(result).length;
 
   if (cleanedCount > 0 && restorableCount > 0) {
     return `${cleanedCount}개를 정리했고, ${restorableCount}개는 30일 안에 되돌릴 수 있어요.`;
   }
   if (cleanedCount > 0) return `${cleanedCount}개를 정리했어요.`;
+  if (preservedBackupCount > 0) {
+    return `정리 확인을 끝내지 못했지만 백업 ${preservedBackupCount}개는 30일 안에 되돌릴 수 있어요.`;
+  }
   return "이번 정리에서 처리된 항목은 없어요.";
 }
 
@@ -556,9 +560,6 @@ function LeftoverPanel({
       preservedRegistryBackupIds(result).length +
       restorableStartupDisabledIds(result).length
     : 0;
-  const cleanedCount = result
-    ? result.removedItems.filter((item) => item.succeeded).length
-    : 0;
   const failedRemovedCount = result
     ? result.removedItems.filter((item) => !item.succeeded).length
     : 0;
@@ -697,7 +698,7 @@ function LeftoverPanel({
               <Button variant="primary" size="sm" onClick={onRescan}>
                 다시 점검해서 효과 보기
               </Button>
-              {result.mode === "trash" && cleanedCount > 0 && (
+              {result.mode === "trash" && restorableCount > 0 && (
                 <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
                   복구함 보기
                 </Button>
