@@ -64,7 +64,8 @@ import {
 } from "./retentionPurge";
 import {
   createRestorePoint,
-  defaultRestorePointRunner
+  defaultRestorePointRunner,
+  type RestorePointResult
 } from "./cleanup/restorePoint";
 import { appendAuditEntry, getAuditSnapshot } from "./audit/log";
 import { defaultDriverBackupRunner, exportDrivers } from "./driver/backup";
@@ -292,6 +293,23 @@ function reconcileRetentionPurgeTimer(): void {
   }, RETENTION_PURGE_INTERVAL_MS);
 }
 
+function restorePointAuditSummary(result: RestorePointResult, actionDescription: string): string {
+  if (result.created) {
+    return `시스템 복원 지점을 만들었어요 (${actionDescription}).`;
+  }
+  switch (result.reason) {
+    case "non-windows":
+      return `이 기기에서는 시스템 복원 지점을 만들지 않아도 괜찮아요 (${actionDescription}).`;
+    case "timeout":
+      return `복원 지점 생성이 오래 걸려 안전 기록은 건너뛰었어요 (${actionDescription}). 작업은 계속 진행했어요.`;
+    case "spawn-failed":
+      return `Windows 복원 지점 도구를 열지 못해 안전 기록은 건너뛰었어요 (${actionDescription}). 작업은 계속 진행했어요.`;
+    case "ps-error":
+    default:
+      return `Windows가 복원 지점 생성을 허용하지 않았어요 (${actionDescription}). 작업은 계속 진행했어요.`;
+  }
+}
+
 /**
  * Best-effort restore point trigger. Reads prefs each call so a user
  * who just toggled "취소" sees the new behavior immediately. Never
@@ -324,9 +342,7 @@ async function maybeCreateRestorePoint(
     await appendAuditEntry(app.getPath("userData"), {
       category: "system",
       action: result.created ? "restore-point-created" : "restore-point-skipped",
-      summary: result.created
-        ? `시스템 복원 지점을 만들었어요 (${actionDescription}).`
-        : `시스템 복원 지점을 만들지 못했어요 (${actionDescription}, reason=${result.reason}).`,
+      summary: restorePointAuditSummary(result, actionDescription),
       detail: { ...result, actionDescription }
     }).catch(() => {});
   } catch (err) {
