@@ -53,7 +53,8 @@ function isAuditWarning(entry: AuditEntry): boolean {
 function isRestoreBinAuditEntry(entry: AuditEntry): boolean {
   return (
     entry.category === "cleanup" &&
-    (entry.action === "trash" || entry.action === "app-leftovers-trash")
+    (entry.action === "trash" || entry.action === "app-leftovers-trash") &&
+    auditRestorableDetailCount(entry.detail) > 0
   );
 }
 
@@ -91,6 +92,11 @@ function auditRestoreNeedsAttention(entry: AuditEntry): boolean {
 function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
   if (!detail) return 0;
   return arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
+}
+
+function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
+  if (!detail) return 0;
+  return arrayCountDetail(detail, "trashEntryIds") + arrayCountDetail(detail, "registryBackupIds");
 }
 
 function auditWarningMessage(entry: AuditEntry): string {

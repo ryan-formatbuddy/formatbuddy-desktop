@@ -79,6 +79,15 @@ describe("AuditLog copy", () => {
     expect(source).toContain("되돌리기는 안전 정리 센터의 포맷버디 복구함에서 할 수 있어요.");
   });
 
+  it("shows restore-bin guidance only when restorable ids are recorded", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("function auditRestorableDetailCount(detail: AuditEntry[\"detail\"]): number");
+    expect(source).toContain('arrayCountDetail(detail, "trashEntryIds")');
+    expect(source).toContain('arrayCountDetail(detail, "registryBackupIds")');
+    expect(source).toContain("auditRestorableDetailCount(entry.detail) > 0");
+  });
+
   it("renders audit details as friendly lines instead of raw JSON", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
