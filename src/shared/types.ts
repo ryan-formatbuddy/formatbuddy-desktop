@@ -1225,6 +1225,12 @@ export type AppLeftoverCleanupState =
 export interface AppLeftoverGroup {
   appName: string;
   publisher?: string | null;
+  /**
+   * Original app identity from Windows. appName may be a friendlier
+   * grouped label such as "Adobe", but cleanup guards must compare the
+   * real app name that opened the uninstall follow-up.
+   */
+  sourceAppName?: string | null;
   /** Installed now, or remembered from a Windows uninstaller launched recently. */
   source?: "installed" | "uninstall-launched";
   /**

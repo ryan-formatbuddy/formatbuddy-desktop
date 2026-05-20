@@ -2325,6 +2325,26 @@ describe("planAppLeftovers", () => {
     expect(snapshot.groups[0].paths.find((p) => p.path === slack)?.exists).toBe(true);
   });
 
+  it("keeps the original app identity when a leftover rule uses a grouped label", async () => {
+    const adobe = join(fx.roaming, "Adobe");
+    await fs.mkdir(adobe, { recursive: true });
+    await fs.writeFile(join(adobe, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0]).toMatchObject({
+      appName: "Adobe",
+      sourceAppName: "Adobe Photoshop 2024",
+      source: "uninstall-launched",
+      cleanupState: "removed-confirmed"
+    });
+  });
+
   it("locks a recently opened uninstall window while the latest scan still shows the app", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
@@ -2526,6 +2546,76 @@ describe("planAppLeftovers", () => {
     await expect(fs.stat(slack)).resolves.toBeTruthy();
     const trash = await getTrashSnapshot({ userDataDir: join(fx.root, "userdata") });
     expect(trash.entries).toEqual([]);
+  });
+
+  it("refuses grouped-rule leftovers when the original app was installed again after the plan", async () => {
+    const adobe = join(fx.roaming, "Adobe");
+    await fs.mkdir(adobe, { recursive: true });
+    await fs.writeFile(join(adobe, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === adobe)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: adobe,
+      reason: "blocked-path",
+      detail: "앱이 다시 설치된 상태예요. 제거가 끝난 뒤 다시 점검하고 정리해주세요."
+    });
+    await expect(fs.stat(adobe)).resolves.toBeTruthy();
+    const trash = await getTrashSnapshot({ userDataDir: join(fx.root, "userdata") });
+    expect(trash.entries).toEqual([]);
+  });
+
+  it("forgets grouped-rule follow-ups by original app identity after cleanup", async () => {
+    const adobe = join(fx.roaming, "Adobe");
+    await fs.mkdir(adobe, { recursive: true });
+    await fs.writeFile(join(adobe, "cache.bin"), "abc", "utf8");
+    const onFollowupCleaned = vi.fn();
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === adobe)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        onFollowupCleaned
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(onFollowupCleaned).toHaveBeenCalledWith({
+      name: "Adobe Photoshop 2024",
+      publisher: "Adobe Inc."
+    });
   });
 
   it("refuses to clean app leftovers when current install state could not be checked", async () => {
@@ -3414,6 +3504,45 @@ describe("planAppLeftovers", () => {
 
     snapshot.groups[0].source = originalSource;
     snapshot.groups[0].cleanupState = originalCleanupState;
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+    expect(result.removedItems).toHaveLength(1);
+  });
+
+  it("rejects uninstall follow-up plans without a source app identity before consuming the plan", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+    const originalSourceAppName = snapshot.groups[0].sourceAppName;
+    snapshot.groups[0].sourceAppName = " ";
+
+    await expect(
+      cleanupAppLeftovers(
+        {
+          planId: snapshot.planId,
+          confirmationToken: snapshot.confirmationToken,
+          selectedPathIds: [path.id]
+        },
+        { userDataDir: join(fx.root, "userdata") }
+      )
+    ).rejects.toThrow(/leftover plan metadata|source app name/);
+
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    snapshot.groups[0].sourceAppName = originalSourceAppName;
     const result = await cleanupAppLeftovers(
       {
         planId: snapshot.planId,

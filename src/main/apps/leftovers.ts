@@ -575,9 +575,12 @@ function makePathId(path: string): string {
 
 function planToken(planId: string, groups: AppLeftoverGroup[]): string {
   const tokenInput = groups
-    .map((group) =>
-      `${group.appName}:${group.paths.map((p) => `${p.id}:${p.exists ? 1 : 0}:${p.sizeBytes ?? 0}:${p.protectedBy ?? ""}`).join(",")}`
-    )
+    .map((group) => {
+      const pathToken = group.paths
+        .map((p) => `${p.id}:${p.exists ? 1 : 0}:${p.sizeBytes ?? 0}:${p.protectedBy ?? ""}`)
+        .join(",");
+      return `${group.appName}:${group.sourceAppName ?? ""}:${pathToken}`;
+    })
     .join("|");
   return createHash("sha256").update(`${planId}|${tokenInput}`).digest("hex");
 }
@@ -1256,6 +1259,7 @@ export async function planAppLeftovers(
       groups.push({
         appName: app.name,
         publisher: app.publisher,
+        sourceAppName: app.name,
         source,
         cleanupState,
         paths
@@ -1278,6 +1282,7 @@ export async function planAppLeftovers(
     groups.push({
       appName: rule.appLabel,
       publisher: app.publisher,
+      sourceAppName: app.name,
       source,
       cleanupState,
       paths: uniqueLeftoverPaths(paths)
@@ -1356,8 +1361,11 @@ function groupForPath(snapshot: AppLeftoversSnapshot, pathId: string): AppLeftov
   return snapshot.groups.find((group) => group.paths.some((path) => path.id === pathId));
 }
 
-function groupIdentityKey(group: Pick<AppLeftoverGroup, "appName" | "publisher">): string {
-  return `${(group.appName ?? "").trim().toLowerCase()}|${(group.publisher ?? "").trim().toLowerCase()}`;
+function groupIdentityKey(
+  group: Pick<AppLeftoverGroup, "appName" | "publisher" | "sourceAppName">
+): string {
+  const name = group.sourceAppName?.trim() || group.appName;
+  return `${name.trim().toLowerCase()}|${(group.publisher ?? "").trim().toLowerCase()}`;
 }
 
 function appNameKey(app: Pick<InstalledApp, "name">): string {
@@ -1387,11 +1395,7 @@ function currentInstallGuardForGroup(
     .filter((app): app is InstalledApp => app !== null);
   const installedAppKeys = new Set(normalizedCurrentApps.map(appIdentityKey));
   const installedAppNames = new Set(normalizedCurrentApps.map(appNameKey));
-  return isStillInstalled(
-    { name: group.appName, publisher: group.publisher ?? null },
-    installedAppKeys,
-    installedAppNames
-  )
+  return isStillInstalled(groupInstallIdentity(group), installedAppKeys, installedAppNames)
     ? "installed"
     : "not-installed";
 }
@@ -1415,12 +1419,20 @@ function rememberResolvedFollowupGroup(
   resolvedPathIds: Set<string>
 ): void {
   if (!followupGroupIsFullyResolved(group, selectedIds, resolvedPathIds)) return;
-  const name = group.appName?.trim();
+  const identity = groupInstallIdentity(group);
+  const name = identity.name?.trim();
   if (!name) return;
   groups.set(groupIdentityKey(group), {
     name,
-    publisher: group.publisher ?? null
+    publisher: identity.publisher ?? null
   });
+}
+
+function groupInstallIdentity(group: AppLeftoverGroup): Pick<InstalledApp, "name" | "publisher"> {
+  return {
+    name: group.sourceAppName?.trim() || group.appName,
+    publisher: group.publisher ?? null
+  };
 }
 
 function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): CleanupItem {
@@ -1750,6 +1762,14 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (!isOptionalPlanTimestamp(path.lastModifiedAt)) invalid.push("modified timestamp");
     if (!group || !isUsablePlanString(group.appName)) invalid.push("app name");
     if (group && !isOptionalUsablePlanString(group.publisher)) invalid.push("publisher");
+    if (
+      group &&
+      (group.source === "uninstall-launched"
+        ? !cleanDisplayText(group.sourceAppName)
+        : !isOptionalUsablePlanString(group.sourceAppName))
+    ) {
+      invalid.push("source app name");
+    }
     if (group && !isSafeLeftoverGroupSource(group.source)) invalid.push("source");
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalStrictPlanString(path.registryValueName)) invalid.push("registry value name");
@@ -1914,9 +1934,7 @@ export async function cleanupAppLeftovers(
           keyPath: path.path,
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
-          app: group
-            ? { name: group.appName, publisher: group.publisher ?? null }
-            : undefined
+          app: group ? groupInstallIdentity(group) : undefined
         });
         removedItems.push({
           itemId: path.id,
@@ -1962,9 +1980,7 @@ export async function cleanupAppLeftovers(
           valueName,
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
-          app: group
-            ? { name: group.appName, publisher: group.publisher ?? null }
-            : undefined
+          app: group ? groupInstallIdentity(group) : undefined
         });
         removedItems.push({
           itemId: path.id,
