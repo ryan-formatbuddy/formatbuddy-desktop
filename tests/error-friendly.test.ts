@@ -23,6 +23,23 @@ describe("friendlyErrorMessage", () => {
     expect(friendlyErrorMessage("Backup checklist file missing: ENOENT ...")).toMatch(/사라졌어요/);
   });
 
+  it("maps restore-bin manifest failures separately from backup checklist copy", () => {
+    const message = friendlyErrorMessage("FormatBuddy restore manifest was not created");
+
+    expect(message).toMatch(/복구함 정보/);
+    expect(message).not.toMatch(/빠진 파일 확인 목록/);
+  });
+
+  it("maps stale app-leftover cleanup plans to a retryable friendly message", () => {
+    const message = friendlyErrorMessage(
+      "apps:leftovers-cleanup could not match a current plan (expired, wrong token, or already executed)"
+    );
+
+    expect(message).toMatch(/잔여 항목/);
+    expect(message).toMatch(/새로/);
+    expect(message).not.toMatch(/planId|confirmationToken|token|executed/i);
+  });
+
   it("maps cancellation / abort", () => {
     expect(friendlyErrorMessage("Scan cancelled")).toMatch(/중간에 그만뒀어요/);
     expect(

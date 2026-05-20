@@ -41,6 +41,24 @@ export function friendlyErrorMessage(input: unknown): string {
     return "진단 스크립트를 안전하게 준비하지 못해 실행을 보류했어요. 다시 시도해주세요.";
   }
 
+  // App cleanup / restore bin. These use internal manifest files too, but
+  // they are not the backup checklist the user manually exports.
+  if (
+    /restore (bin )?manifest|restore manifest|restore entry|formatbuddy restore/i.test(message) ||
+    /복구함 정보|복구함 항목/.test(message)
+  ) {
+    return "복구함 정보를 안전하게 확인하지 못했어요. 해당 항목은 건드리지 않았어요.";
+  }
+  if (
+    /apps:leftovers-cleanup/i.test(message) &&
+    /plan|token|expired|already executed|selectedpathids|current plan/i.test(message)
+  ) {
+    return "잔여 항목 확인 시간이 지나서 다시 확인이 필요해요. 목록을 새로 불러온 뒤 다시 선택해주세요.";
+  }
+  if (/app leftover cleanup|leftover plan|잔여 폴더가 점검 후 바뀌었/i.test(message)) {
+    return "잔여 항목이 방금 바뀐 것 같아요. 목록을 새로 확인한 뒤 다시 정리해주세요.";
+  }
+
   // Backup checklist export specific
   if (/(manifest|backup checklist) file was not written|(manifest|backup checklist) file is empty/i.test(message)) {
     return "빠진 파일 확인 목록을 저장하지 못했어요. 다른 폴더를 선택해 다시 시도해보세요.";
