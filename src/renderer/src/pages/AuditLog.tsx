@@ -61,10 +61,12 @@ function isRestoreBinAuditEntry(entry: AuditEntry): boolean {
 function auditActionLabel(entry: AuditEntry): string {
   if (entry.action.includes("expired-purge-failed")) return "30일 자동 비움 확인";
   if (entry.action.includes("expired-purge")) return "30일 자동 비움";
+  if (entry.action.startsWith("restore-point-")) return "복원 지점";
   if (entry.action === "app-leftovers-trash") return "앱 잔여 정리";
   if (entry.action === "trash") return "복구함으로 이동";
   if (entry.action.startsWith("trash-restore-")) return "복구함 되돌리기";
   if (entry.action.startsWith("registry-backup-restore-")) return "앱 흔적 되돌리기";
+  if (entry.action.startsWith("startup-restore-")) return "시작 항목 되돌리기";
   if (entry.action.includes("restore")) return "되돌리기";
   if (entry.action.includes("defender")) return "Windows 보안 확인";
   return "활동 기록";
@@ -85,8 +87,16 @@ function arrayCountDetail(detail: Record<string, unknown>, key: string): number 
   return Array.isArray(value) ? value.length : 0;
 }
 
+function isActualRestoreAuditEntry(entry: AuditEntry): boolean {
+  return (
+    entry.action.startsWith("trash-restore-") ||
+    entry.action.startsWith("registry-backup-restore-") ||
+    entry.action.startsWith("startup-restore-")
+  );
+}
+
 function auditRestoreNeedsAttention(entry: AuditEntry): boolean {
-  return entry.action.includes("restore") && stringDetail(entry.detail, "status") !== "restored";
+  return isActualRestoreAuditEntry(entry) && stringDetail(entry.detail, "status") !== "restored";
 }
 
 function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
