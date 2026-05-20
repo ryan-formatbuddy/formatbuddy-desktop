@@ -30,6 +30,16 @@ export function daysUntilTrashExpiry(expiresAt: string, now = Date.now()): numbe
   return parseTrashExpiryDays(expiresAt, now) ?? 0;
 }
 
+export function isTrashEntryExpired(expiresAt: string, now = Date.now()): boolean {
+  const t = Date.parse(expiresAt);
+  return !Number.isFinite(t) || t <= now;
+}
+
+export function restoreEntryExpiryLabel(expiresAt: string, now = Date.now()): string {
+  if (isTrashEntryExpired(expiresAt, now)) return "보관 기간 지남";
+  return `${daysUntilTrashExpiry(expiresAt, now)}일 뒤 만료`;
+}
+
 export function sortTrashEntriesByExpiry<T extends { expiresAt: string; createdAt?: string; id?: string }>(
   entries: T[]
 ): T[] {

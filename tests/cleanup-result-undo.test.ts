@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   daysUntilTrashExpiry,
+  isTrashEntryExpired,
+  restoreEntryExpiryLabel,
   restorableRegistryBackupIds,
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
@@ -200,6 +202,19 @@ describe("Cleanup result undo helper", () => {
       expiringSoonCount: 2,
       todayCount: 1
     });
+  });
+
+  it("labels expired restore-bin entries as no longer restorable", () => {
+    const now = Date.parse("2026-06-18T00:00:01.000Z");
+
+    expect(isTrashEntryExpired("2026-06-18T00:00:00.000Z", now)).toBe(true);
+    expect(isTrashEntryExpired("2026-06-19T00:00:00.000Z", now)).toBe(false);
+    expect(restoreEntryExpiryLabel("2026-06-18T00:00:00.000Z", now)).toBe(
+      "보관 기간 지남"
+    );
+    expect(restoreEntryExpiryLabel("2026-06-19T00:00:00.000Z", now)).toBe(
+      "1일 뒤 만료"
+    );
   });
 
   it("returns an empty expiry summary for an empty trash bin", () => {

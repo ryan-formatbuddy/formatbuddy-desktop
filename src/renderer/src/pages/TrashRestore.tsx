@@ -3,8 +3,10 @@ import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  isTrashEntryExpired,
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
+  restoreEntryExpiryLabel,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
@@ -172,6 +174,11 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     ];
     return sortTrashEntriesByExpiry(items);
   }, [entries, registryEntries]);
+  const restorableRestoreItems = useMemo(
+    () => sortedRestoreItems.filter((item) => !isTrashEntryExpired(item.expiresAt)),
+    [sortedRestoreItems]
+  );
+  const totalRestorableCount = restorableRestoreItems.length;
 
   const onRestore = useCallback(
     async (entry: CleanupTrashEntry) => {
@@ -228,7 +235,16 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       setToast("되돌릴 항목이 없어요.");
       return;
     }
-    if ((!restoreCleanupTrash && entries.length > 0) || (!restoreRegistryBackup && registryEntries.length > 0)) {
+    if (totalRestorableCount === 0) {
+      setToast("보관 기간이 지난 항목만 남아 있어요. 다음 자동 비움 때 다시 정리할게요.");
+      return;
+    }
+    const restorableFileCount = restorableRestoreItems.filter((item) => item.kind === "file").length;
+    const restorableRegistryCount = restorableRestoreItems.length - restorableFileCount;
+    if (
+      (!restoreCleanupTrash && restorableFileCount > 0) ||
+      (!restoreRegistryBackup && restorableRegistryCount > 0)
+    ) {
       setToast("모두 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
       return;
     }
@@ -238,7 +254,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       const results: CleanupTrashRestoreResult[] = [];
       const registryResults: RegistryBackupRestoreResult[] = [];
       let restoreAllFailureCount = 0;
-      for (const item of sortedRestoreItems) {
+      for (const item of restorableRestoreItems) {
         if (item.kind === "file") {
           if (restoreCleanupTrash) {
             try {
@@ -264,7 +280,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     } finally {
       setBusy(null);
     }
-  }, [entries.length, load, registryEntries.length, sortedRestoreItems, totalEntryCount]);
+  }, [load, restorableRestoreItems, totalEntryCount, totalRestorableCount]);
 
   const headerSummary = useMemo(() => {
     if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
@@ -298,7 +314,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const expiryMessage = useMemo(() => {
     if (!snapshot || totalEntryCount === 0 || expirySummary.nextExpiryDays === null) return null;
     if (expirySummary.todayCount > 0) {
-      return `${expirySummary.todayCount}개가 오늘 비워질 예정이에요. 필요한 게 있으면 먼저 되돌려주세요.`;
+      return `${expirySummary.todayCount}개는 보관 기간이 지나 되돌릴 수 없어요. 앱이 다음 자동 비움 때 다시 정리해볼게요.`;
     }
     if (expirySummary.expiringSoonCount > 0) {
       return `${expirySummary.expiringSoonCount}개가 3일 안에 비워질 예정이에요. 오래된 항목부터 확인해볼게요.`;
@@ -354,7 +370,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             variant="secondary"
             size="sm"
             onClick={() => void onRestoreAll()}
-            disabled={Boolean(busy) || totalEntryCount === 0}
+            disabled={Boolean(busy) || totalRestorableCount === 0}
           >
             {busy === "restore-all" ? "되돌리는 중..." : "모두 원래 자리로"}
           </Button>
@@ -390,8 +406,10 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       )}
 
       {sortedRestoreItems.map((item, idx) => {
+        const isExpired = isTrashEntryExpired(item.expiresAt);
         const days = daysUntilTrashExpiry(item.expiresAt);
-        const isUrgent = days <= 3;
+        const isUrgent = !isExpired && days <= 3;
+        const expiryLabel = restoreEntryExpiryLabel(item.expiresAt);
         if (item.kind === "file") {
           const entry = item.entry;
           return (
@@ -433,7 +451,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                     fontWeight: isUrgent ? 600 : 400
                   }}
                 >
-                  {days === 0 ? "오늘 만료" : `${days}일 뒤 만료`}
+                  {expiryLabel}
                 </span>
               </header>
               <div style={{ fontSize: 13, opacity: 0.85 }}>{entry.originalPath}</div>
@@ -445,9 +463,13 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                   variant="primary"
                   size="sm"
                   onClick={() => void onRestore(entry)}
-                  disabled={Boolean(busy)}
+                  disabled={Boolean(busy) || isExpired}
                 >
-                  {busy === `file:${entry.id}` ? "되돌리는 중..." : "원래 자리로 되돌리기"}
+                  {isExpired
+                    ? "보관 기간이 지나 되돌릴 수 없어요"
+                    : busy === `file:${entry.id}`
+                      ? "되돌리는 중..."
+                      : "원래 자리로 되돌리기"}
                 </Button>
               </div>
             </article>
@@ -493,7 +515,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                   fontWeight: isUrgent ? 600 : 400
                 }}
               >
-                {days === 0 ? "오늘 만료" : `${days}일 뒤 만료`}
+                {expiryLabel}
               </span>
             </header>
             <div style={{ fontSize: 12, opacity: 0.65, marginTop: -2 }}>
@@ -510,11 +532,13 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 variant="primary"
                 size="sm"
                 onClick={() => void onRestoreRegistry(entry)}
-                disabled={Boolean(busy)}
+                disabled={Boolean(busy) || isExpired}
               >
-                {busy === `registry:${entry.id}`
-                  ? "되돌리는 중..."
-                  : registryBackupRestoreButtonLabel(entry)}
+                {isExpired
+                  ? "보관 기간이 지나 되돌릴 수 없어요"
+                  : busy === `registry:${entry.id}`
+                    ? "되돌리는 중..."
+                    : registryBackupRestoreButtonLabel(entry)}
               </Button>
             </div>
           </article>
