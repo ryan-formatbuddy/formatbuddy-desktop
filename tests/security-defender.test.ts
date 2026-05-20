@@ -222,6 +222,32 @@ describe("getThreatHistory", () => {
     expect(result.records[1].severity).toBe("severe");
   });
 
+  it("cleans Defender threat text before sending records to the UI", () => {
+    const records = __testing.recordsFrom({
+      ThreatID: "  threat-1\n ",
+      ThreatName: " Trojan\nFake\u0000Name ".repeat(20),
+      InitialDetectionTime: "2026-05-15T10:00:00.000Z",
+      Resources: [
+        " file:c:\\users\\ryan\\downloads\\bad.exe\r\nwith-note ",
+        "   ",
+        `file:c:\\${"deep\\".repeat(120)}bad.exe`
+      ],
+      SeverityID: 4,
+      MostRecentDetectionAction: " Quarantine\nDone\u0000 "
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].id).toBe("threat-1");
+    expect(records[0].threatName).not.toMatch(/[\u0000-\u001f\u007f]/);
+    expect(records[0].threatName?.length).toBeLessThanOrEqual(160);
+    expect(records[0].rawStatus).toBe("Quarantine Done");
+    expect(records[0].resources).toHaveLength(2);
+    for (const resource of records[0].resources ?? []) {
+      expect(resource).not.toMatch(/[\u0000-\u001f\u007f]/);
+      expect(resource.length).toBeLessThanOrEqual(260);
+    }
+  });
+
   it("caps threat records and related resources before sending them to the UI", async () => {
     const detections = Array.from({ length: __testing.MAX_THREAT_RECORDS + 7 }, (_, index) => ({
       ThreatID: index + 1,

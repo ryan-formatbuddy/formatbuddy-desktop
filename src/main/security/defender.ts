@@ -33,6 +33,9 @@ const WINDOWS_SECURITY_STATUS_UNAVAILABLE =
   "Windows 보안 상태를 가져오지 못했어요. Windows 보안 앱에서 직접 확인해주세요.";
 const WINDOWS_SECURITY_THREAT_HISTORY_UNAVAILABLE =
   "Windows 보안 기록을 가져오지 못했어요. Windows 보안 앱에서 직접 확인해주세요.";
+const MAX_THREAT_TEXT_LENGTH = 160;
+const MAX_THREAT_RESOURCE_LENGTH = 260;
+const MAX_THREAT_STATUS_LENGTH = 80;
 
 export interface PowerShellRunResult {
   stdout: string;
@@ -137,6 +140,16 @@ function quickScanFailureDetail(error: unknown): string {
   return "security-scan-start-failed";
 }
 
+function cleanDefenderText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const cleaned = String(value)
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  return cleaned.slice(0, maxLength);
+}
+
 export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiveStatus> {
   const platform = deps.platform ?? process.platform;
   if (platform !== "win32") {
@@ -231,15 +244,16 @@ export async function runQuickScan(deps: DefenderDeps): Promise<DefenderQuickSca
 function actionFromDefender(raw: unknown): { status: DefenderThreatActionSuccess; rawStatus?: string } {
   if (typeof raw === "string") {
     const lc = raw.toLowerCase();
-    if (lc.includes("clean")) return { status: "cleaned", rawStatus: raw };
-    if (lc.includes("quarantine")) return { status: "quarantined", rawStatus: raw };
-    if (lc.includes("remove")) return { status: "removed", rawStatus: raw };
-    if (lc.includes("allow")) return { status: "allowed", rawStatus: raw };
-    if (lc.includes("block")) return { status: "blocked", rawStatus: raw };
+    const rawStatus = cleanDefenderText(raw, MAX_THREAT_STATUS_LENGTH) ?? undefined;
+    if (lc.includes("clean")) return { status: "cleaned", rawStatus };
+    if (lc.includes("quarantine")) return { status: "quarantined", rawStatus };
+    if (lc.includes("remove")) return { status: "removed", rawStatus };
+    if (lc.includes("allow")) return { status: "allowed", rawStatus };
+    if (lc.includes("block")) return { status: "blocked", rawStatus };
     if (lc.includes("none") || lc.includes("noaction")) {
-      return { status: "no-action", rawStatus: raw };
+      return { status: "no-action", rawStatus };
     }
-    return { status: "unknown", rawStatus: raw };
+    return { status: "unknown", rawStatus };
   }
   if (typeof raw === "number") {
     // Defender numeric action codes — surface them but don't pretend
@@ -284,9 +298,8 @@ function severityFromDefender(raw: unknown): DefenderThreatRecord["severity"] {
 function resourceListFrom(raw: unknown): string[] | undefined {
   const list = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : [];
   const resources = list
-    .filter((r): r is string => typeof r === "string")
-    .map((r) => r.trim())
-    .filter(Boolean)
+    .map((r) => cleanDefenderText(r, MAX_THREAT_RESOURCE_LENGTH))
+    .filter((r): r is string => Boolean(r))
     .slice(0, MAX_THREAT_RESOURCES);
   return resources.length > 0 ? resources : undefined;
 }
@@ -301,9 +314,10 @@ function recordsFrom(parsed: unknown): DefenderThreatRecord[] {
     if (!item || typeof item !== "object") continue;
     const obj = item as Record<string, unknown>;
     const action = actionFromDefender(obj.MostRecentDetectionAction ?? obj.InitialDetectionAction);
+    const id = cleanDefenderText(obj.ThreatID ?? obj.DetectionID, MAX_THREAT_STATUS_LENGTH);
     out.push({
-      id: String(obj.ThreatID ?? obj.DetectionID ?? `${out.length}`),
-      threatName: typeof obj.ThreatName === "string" ? obj.ThreatName : null,
+      id: id ?? `${out.length}`,
+      threatName: cleanDefenderText(obj.ThreatName, MAX_THREAT_TEXT_LENGTH),
       detectionTime:
         parsePsDate(obj.InitialDetectionTime) ??
         parsePsDate(obj.LastThreatStatusChangeTime),
@@ -378,6 +392,10 @@ export const __testing = {
   daysBetween,
   MAX_THREAT_RECORDS,
   MAX_THREAT_RESOURCES,
+  MAX_THREAT_TEXT_LENGTH,
+  MAX_THREAT_RESOURCE_LENGTH,
+  MAX_THREAT_STATUS_LENGTH,
+  cleanDefenderText,
   resourceListFrom,
   recordsFrom,
   actionFromDefender,
