@@ -179,15 +179,13 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("clearInterval(retentionPurgeTimer)");
   });
 
-  it("uses the unified 30-day restore-bin purge for the manual purge IPC", () => {
+  it("keeps the 30-day restore-bin purge automatic instead of exposing manual emptying", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
-    const handlerIndex = source.indexOf("IpcChannels.cleanupTrashPurgeExpired");
     const unifiedPurgeIndex = source.indexOf("function runAppRetentionPurgeTick");
-    expect(handlerIndex).toBeGreaterThanOrEqual(0);
     expect(unifiedPurgeIndex).toBeGreaterThanOrEqual(0);
-    expect(source.indexOf("Promise<RestoreBinPurgeResult>", handlerIndex)).toBeGreaterThan(handlerIndex);
-    expect(source.indexOf('runAppRetentionPurgeTick("manual")', handlerIndex)).toBeGreaterThan(handlerIndex);
+    expect(source).not.toContain("IpcChannels.cleanupTrashPurgeExpired");
+    expect(source).not.toContain('runAppRetentionPurgeTick("manual")');
     expect(source.indexOf("purgeExpiredTrashWithAudit({", unifiedPurgeIndex)).toBeGreaterThan(unifiedPurgeIndex);
     expect(source.indexOf("purgeExpiredRegistryBackupsWithAudit({", unifiedPurgeIndex)).toBeGreaterThan(unifiedPurgeIndex);
     expect(source.indexOf("purgeExpiredStartupFolderEntriesWithAudit({", unifiedPurgeIndex)).toBeGreaterThan(unifiedPurgeIndex);

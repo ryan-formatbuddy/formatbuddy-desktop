@@ -38,7 +38,6 @@ import type {
   RegistryBackupRestoreRequest,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
-  RestoreBinPurgeResult,
   ScanError,
   ScanProgress,
   ScanReport,
@@ -162,9 +161,6 @@ const fb = {
     request: CleanupTrashRestoreRequest
   ): Promise<CleanupTrashRestoreResult> =>
     ipcRenderer.invoke(IpcChannels.cleanupTrashRestore, request),
-
-  purgeExpiredCleanupTrash: (): Promise<RestoreBinPurgeResult> =>
-    ipcRenderer.invoke(IpcChannels.cleanupTrashPurgeExpired),
 
   getRegistryBackups: (): Promise<RegistryBackupSnapshot> =>
     ipcRenderer.invoke(IpcChannels.registryBackupsList),

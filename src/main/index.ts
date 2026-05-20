@@ -1001,10 +1001,6 @@ function registerIpc() {
     }
   );
 
-  ipcMain.handle(IpcChannels.cleanupTrashPurgeExpired, async (): Promise<RestoreBinPurgeResult> => {
-    return runAppRetentionPurgeTick("manual");
-  });
-
   ipcMain.handle(IpcChannels.registryBackupsList, async (): Promise<RegistryBackupSnapshot> => {
     await purgeExpiredRegistryBackupsWithAudit({
       userDataDir: app.getPath("userData"),
