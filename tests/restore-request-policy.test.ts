@@ -16,6 +16,20 @@ describe("restore request policy", () => {
     expect(normalizeCleanupTrashRestoreRequest({ entryId: 123 })).toEqual({ entryId: "" });
   });
 
+  it("blocks unsafe cleanup trash restore ids at the request boundary", () => {
+    for (const entryId of [
+      "../outside",
+      "trash/id",
+      "trash\\id",
+      "  ",
+      " trash-1",
+      "trash-1 ",
+      "trash\nid"
+    ]) {
+      expect(normalizeCleanupTrashRestoreRequest({ entryId })).toEqual({ entryId: "" });
+    }
+  });
+
   it("keeps valid registry backup restore ids", () => {
     expect(normalizeRegistryBackupRestoreRequest({ backupId: "registry-1" })).toEqual({
       backupId: "registry-1"
@@ -27,5 +41,19 @@ describe("restore request policy", () => {
     expect(normalizeRegistryBackupRestoreRequest({ backupId: ["registry-1"] })).toEqual({
       backupId: ""
     });
+  });
+
+  it("blocks unsafe registry backup restore ids at the request boundary", () => {
+    for (const backupId of [
+      "../outside",
+      "registry/id",
+      "registry\\id",
+      "  ",
+      " registry-1",
+      "registry-1 ",
+      "registry\nid"
+    ]) {
+      expect(normalizeRegistryBackupRestoreRequest({ backupId })).toEqual({ backupId: "" });
+    }
   });
 });

@@ -9,14 +9,30 @@ function objectField(value: unknown, field: string): string {
   return typeof raw === "string" ? raw : "";
 }
 
+function isSafeRestoreRequestId(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.length > 0 &&
+    trimmed === value &&
+    value !== "." &&
+    value !== ".." &&
+    !/[\/\\\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function objectSafeId(value: unknown, field: string): string {
+  const raw = objectField(value, field);
+  return isSafeRestoreRequestId(raw) ? raw : "";
+}
+
 export function normalizeCleanupTrashRestoreRequest(
   request: unknown
 ): CleanupTrashRestoreRequest {
-  return { entryId: objectField(request, "entryId") };
+  return { entryId: objectSafeId(request, "entryId") };
 }
 
 export function normalizeRegistryBackupRestoreRequest(
   request: unknown
 ): RegistryBackupRestoreRequest {
-  return { backupId: objectField(request, "backupId") };
+  return { backupId: objectSafeId(request, "backupId") };
 }

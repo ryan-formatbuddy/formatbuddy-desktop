@@ -1274,13 +1274,23 @@ describe("registry leftover cleanup", () => {
       importFile: vi.fn(async () => undefined)
     };
 
-    const result = await restoreRegistryBackup({
-      userDataDir: fx.userDataDir,
-      backupId: "../outside",
-      runner
-    });
+    for (const backupId of [
+      "../outside",
+      "registry/id",
+      "registry\\id",
+      "  ",
+      " registry-1",
+      "registry-1 ",
+      "registry\nid"
+    ]) {
+      const result = await restoreRegistryBackup({
+        userDataDir: fx.userDataDir,
+        backupId,
+        runner
+      });
 
-    expect(result.status).toBe("blocked-path");
+      expect(result.status).toBe("blocked-path");
+    }
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 

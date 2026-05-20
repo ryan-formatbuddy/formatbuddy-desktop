@@ -77,14 +77,16 @@ export function isSafeStartupRegistryValuePath(keyPath: string, valueName: strin
 }
 
 export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
+  if (typeof backupId !== "string") return false;
+  const trimmed = backupId.trim();
   return (
-    typeof backupId === "string" &&
-    backupId.length > 0 &&
+    trimmed.length > 0 &&
+    trimmed === backupId &&
     backupId !== "." &&
     backupId !== ".." &&
     !backupId.includes("/") &&
     !backupId.includes("\\") &&
-    !backupId.includes("\0")
+    !/[\u0000-\u001f\u007f]/.test(backupId)
   );
 }
 
