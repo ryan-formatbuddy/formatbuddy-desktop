@@ -249,8 +249,12 @@ export async function recordCleanupExecution(
   if (!isPersistedCleanupMode(entry.mode)) {
     throw new Error("FormatBuddy cleanup history only records 30-day restore-bin cleanups");
   }
+  const normalizedEntry = coerceEntry(entry);
+  if (!normalizedEntry) {
+    throw new Error("FormatBuddy cleanup history entry is not safe to record");
+  }
   const log = await loadLog(userDataDir);
-  log.entries = [entry, ...log.entries].slice(0, MAX_ENTRIES);
+  log.entries = [normalizedEntry, ...log.entries].slice(0, MAX_ENTRIES);
   await saveLog(userDataDir, log);
   return { entries: log.entries };
 }

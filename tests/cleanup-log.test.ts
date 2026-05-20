@@ -381,6 +381,40 @@ describe("cleanup execution log coercion", () => {
     await expect(getCleanupHistory(dir)).resolves.toEqual({ entries: [] });
   });
 
+  it("normalizes cleanup history entries before returning or saving them", async () => {
+    const snapshot = await recordCleanupExecution(dir, {
+      id: "inflated-direct-entry",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      mode: "trash",
+      totalFreedBytes: 999_999,
+      removedCount: 99,
+      skippedCount: 2.2,
+      notSelectedCount: 3.1,
+      categories: [
+        { categoryId: "temp-user", bytesFreed: 12.4, itemCount: 1.2 },
+        { categoryId: "unknown-cleanup-category", bytesFreed: 999_999, itemCount: 9 }
+      ]
+    } as never);
+
+    expect(snapshot.entries).toEqual([
+      {
+        id: "inflated-direct-entry",
+        executedAt: "2026-05-19T00:00:00.000Z",
+        mode: "trash",
+        totalFreedBytes: 12,
+        removedCount: 1,
+        skippedCount: 2,
+        notSelectedCount: 3,
+        categories: [{ categoryId: "temp-user", bytesFreed: 12, itemCount: 1 }]
+      }
+    ]);
+
+    expect(readFileSync(join(dir, "formatbuddy-cleanup-log.json"), "utf8")).not.toContain(
+      "unknown-cleanup-category"
+    );
+    await expect(getCleanupHistory(dir)).resolves.toEqual(snapshot);
+  });
+
   it("does not write the cleanup execution log through a symbolic link", async () => {
     if (process.platform === "win32") return;
     const outsideLog = join(dir, "outside-cleanup-log.json");
