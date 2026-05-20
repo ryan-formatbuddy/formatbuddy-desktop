@@ -439,6 +439,64 @@ describe("runUninstall", () => {
   });
 
   it.each([
+    ["separated /x", "msiexec.exe /x {12345678-1234-1234-1234-123456789012}"],
+    ["long uninstall", "MsiExec.exe /uninstall {12345678-1234-1234-1234-123456789012}"]
+  ])("allows MSI uninstall intent with %s", async (_label, command) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "MSI Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "MSI Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("launched");
+    expect(spawnCmd).toHaveBeenCalledWith(command);
+  });
+
+  it.each([
+    ["install package", "MsiExec.exe /I{12345678-1234-1234-1234-123456789012}"],
+    ["package path", "MsiExec.exe /package C:\\Installers\\Friendly.msi"],
+    ["repair", "MsiExec.exe /fa{12345678-1234-1234-1234-123456789012}"],
+    ["no action", "MsiExec.exe"]
+  ])("blocks MSI commands that are not uninstall intent: %s", async (_label, command) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+
+    expect(
+      canLaunchUninstall(
+        { appName: "MSI Tool" },
+        { ...baseApp, name: "MSI Tool", uninstallString: command },
+        "win32"
+      )
+    ).toBe(false);
+
+    const result = await runUninstall(
+      { appName: "MSI Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "MSI Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/MSI|제거|Windows 설정/);
+    expect(result.message).not.toMatch(/PowerShell|명령 프롬프트|터미널/);
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ["MSI quiet flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /quiet"],
     ["MSI quiet assignment flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /quiet=true"],
     ["MSI no-ui flag", "MsiExec.exe /X{12345678-1234-1234-1234-123456789012} /qn"],

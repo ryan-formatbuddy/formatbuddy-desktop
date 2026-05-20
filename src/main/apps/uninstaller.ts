@@ -82,6 +82,7 @@ export type UnsafeUninstallCommandKind =
   | "unquoted-spaced-path"
   | "remote-or-url"
   | "relative-executable"
+  | "msi-not-uninstall"
   | "silent-mode"
   | "cmd-syntax"
   | "unclosed-quote";
@@ -134,6 +135,10 @@ function startsWithRelativeExecutable(command: string): boolean {
   if (/^[a-z]:[\\/]/i.test(first)) return false;
   if (first.startsWith("\\\\")) return false;
   return commandHost(command) !== "msiexec";
+}
+
+function isMsiExecCommand(command: string): boolean {
+  return commandHost(command) === "msiexec";
 }
 
 function commandTokens(command: string): string[] {
@@ -202,6 +207,17 @@ function hasSilentUninstallSwitch(command: string): boolean {
         assignmentSilentSwitches.has(baseSwitch) ||
         /^\/q[nbrf]?[+!]*$/i.test(normalized)
       );
+    });
+}
+
+function hasMsiUninstallIntent(command: string): boolean {
+  if (!isMsiExecCommand(command)) return true;
+
+  return commandTokens(command)
+    .slice(1)
+    .some((token) => {
+      const normalized = token.toLowerCase();
+      return normalized === "/x" || normalized.startsWith("/x{") || normalized === "/uninstall";
     });
 }
 
@@ -280,6 +296,7 @@ export function unsafeUninstallCommandKind(command: string): UnsafeUninstallComm
   if (startsWithUnquotedSpacedExecutablePath(command)) return "unquoted-spaced-path";
   if (referencesRemoteOrUrl(command)) return "remote-or-url";
   if (startsWithRelativeExecutable(command)) return "relative-executable";
+  if (!hasMsiUninstallIntent(command)) return "msi-not-uninstall";
   if (hasSilentUninstallSwitch(command)) return "silent-mode";
 
   for (const char of command) {
@@ -314,6 +331,8 @@ export function blockedUninstallMessage(command: string): string {
       return "로컬 PC 안의 제거 명령인지 확인하기 어려워 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "relative-executable":
       return "제거 프로그램의 전체 경로를 확인하기 어려워 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
+    case "msi-not-uninstall":
+      return "MSI 제거 명령인지 확인하기 어려워 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 제거해주세요.";
     case "silent-mode":
       return "조용히 제거되는 옵션이 들어 있어 FormatBuddy에서는 자동 실행하지 않아요. Windows 설정에서 직접 확인하며 제거해주세요.";
     case "unclosed-quote":
