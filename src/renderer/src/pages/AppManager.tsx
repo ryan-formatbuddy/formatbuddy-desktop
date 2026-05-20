@@ -35,6 +35,7 @@ interface AppManagerProps {
   onVerifyUninstall?: () => void;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
+  onOpenStartupAuto: () => void;
   autoOpenLeftovers?: boolean;
   notice?: string;
 }
@@ -279,7 +280,8 @@ function LeftoverPanel({
   restoreRecentBusy,
   restoreRecentMessage,
   onOpenTrashRestore,
-  onOpenAuditLog
+  onOpenAuditLog,
+  onOpenStartupAuto
 }: {
   state: LeftoverState;
   selected: Set<string>;
@@ -295,6 +297,7 @@ function LeftoverPanel({
   restoreRecentMessage?: string;
   onOpenTrashRestore: () => void;
   onOpenAuditLog: () => void;
+  onOpenStartupAuto: () => void;
 }) {
   if (state.loading && !state.snapshot && !result) {
     return (
@@ -395,6 +398,11 @@ function LeftoverPanel({
             >
               선택 해제
             </Button>
+            {leftoverSummary.manualCheck > 0 && (
+              <Button variant="ghost" size="sm" onClick={onOpenStartupAuto} disabled={busy}>
+                시작 항목에서 확인
+              </Button>
+            )}
             <Button
               variant="primary"
               size="sm"
@@ -571,6 +579,7 @@ export function AppManager({
   onVerifyUninstall,
   onOpenTrashRestore,
   onOpenAuditLog,
+  onOpenStartupAuto,
   autoOpenLeftovers,
   notice
 }: AppManagerProps) {
@@ -977,6 +986,7 @@ export function AppManager({
         restoreRecentMessage={recentRestoreMessage}
         onOpenTrashRestore={onOpenTrashRestore}
         onOpenAuditLog={onOpenAuditLog}
+        onOpenStartupAuto={onOpenStartupAuto}
       />
     </main>
   );

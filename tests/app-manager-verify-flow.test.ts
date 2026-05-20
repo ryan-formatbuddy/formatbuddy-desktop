@@ -16,6 +16,15 @@ describe("AppManager uninstall verification flow", () => {
     expect(source).toContain("onVerifyUninstall={() => void scanThenOpenApps()}");
   });
 
+  it("lets app cleanup jump to the startup review when manual traces remain", () => {
+    const appSource = readFileSync(APP_TSX, "utf8");
+    const managerSource = readFileSync(APP_MANAGER_TSX, "utf8");
+
+    expect(appSource).toContain("onOpenStartupAuto={() => setPhase({ kind: \"startup\" })}");
+    expect(managerSource).toContain("onOpenStartupAuto");
+    expect(managerSource).toContain("시작 항목에서 확인");
+  });
+
   it("auto-opens leftover candidates when returning from uninstall verification", () => {
     const source = readFileSync(APP_MANAGER_TSX, "utf8");
 

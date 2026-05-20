@@ -207,6 +207,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("수동 확인 흔적");
     expect(source).toContain("수동 확인");
     expect(source).toContain("서비스·예약 작업 같은");
+    expect(source).toContain("시작 항목에서 확인");
   });
 
   it("does not show raw IPC errors in app cleanup messages", () => {

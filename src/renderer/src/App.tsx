@@ -413,6 +413,7 @@ export function App() {
             onVerifyUninstall={() => void scanThenOpenApps()}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
+            onOpenStartupAuto={() => setPhase({ kind: "startup" })}
             autoOpenLeftovers={phase.autoOpenLeftovers}
             notice={phase.notice}
           />
