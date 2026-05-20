@@ -1,6 +1,7 @@
 import type {
   CleanupTrashPurgeResult,
   RegistryBackupPurgeResult,
+  RestoreBinPurgeKind,
   RestoreBinPurgeResult,
   StartupDisabledPurgeResult
 } from "@shared/types";
@@ -20,6 +21,12 @@ export interface RetentionPurgeTickDeps {
 }
 
 export type RetentionPurgeTickResult = RestoreBinPurgeResult;
+
+const PURGE_FAILURE_MESSAGES: Record<RestoreBinPurgeKind, string> = {
+  trash: "파일 복구함을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
+  "registry-backups": "앱 삭제 흔적 백업을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
+  "startup-disabled": "잠시 꺼둔 시작 항목을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+};
 
 function errorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
@@ -150,7 +157,7 @@ export async function runRetentionPurgeTick(
     recordPartialTrashFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
-    result.failed.push({ kind: "trash", message });
+    result.failed.push({ kind: "trash", message: PURGE_FAILURE_MESSAGES.trash });
     deps.logWarn?.(`30일 자동 비움 파일 복구함 실패: ${message}`);
   }
 
@@ -161,7 +168,10 @@ export async function runRetentionPurgeTick(
     recordPartialRegistryBackupFailure(result, deps);
   } catch (err) {
     const message = errorMessage(err);
-    result.failed.push({ kind: "registry-backups", message });
+    result.failed.push({
+      kind: "registry-backups",
+      message: PURGE_FAILURE_MESSAGES["registry-backups"]
+    });
     deps.logWarn?.(`30일 자동 비움 앱 삭제 흔적 백업 실패: ${message}`);
   }
 
@@ -173,7 +183,10 @@ export async function runRetentionPurgeTick(
       recordPartialStartupDisabledFailure(result, deps);
     } catch (err) {
       const message = errorMessage(err);
-      result.failed.push({ kind: "startup-disabled", message });
+      result.failed.push({
+        kind: "startup-disabled",
+        message: PURGE_FAILURE_MESSAGES["startup-disabled"]
+      });
       deps.logWarn?.(`30일 자동 비움 잠시 꺼둔 시작 항목 실패: ${message}`);
     }
   }

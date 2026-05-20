@@ -64,7 +64,12 @@ describe("retention purge scheduler", () => {
     expect(purgeRegistryBackups).toHaveBeenCalledWith("scheduled");
     expect(result.trash).toBeUndefined();
     expect(result.registryBackups?.purgedCount).toBe(1);
-    expect(result.failed).toEqual([{ kind: "trash", message: "trash unavailable" }]);
+    expect(result.failed).toEqual([
+      {
+        kind: "trash",
+        message: "파일 복구함을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+      }
+    ]);
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 실패: trash unavailable");
   });
 
@@ -89,9 +94,18 @@ describe("retention purge scheduler", () => {
     });
 
     expect(result.failed).toEqual([
-      { kind: "trash", message: "trash unavailable" },
-      { kind: "registry-backups", message: "registry bad message" },
-      { kind: "startup-disabled", message: "startup bad" }
+      {
+        kind: "trash",
+        message: "파일 복구함을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+      },
+      {
+        kind: "registry-backups",
+        message: "앱 삭제 흔적 백업을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+      },
+      {
+        kind: "startup-disabled",
+        message: "잠시 꺼둔 시작 항목을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+      }
     ]);
     expect(logWarn).toHaveBeenCalledWith("30일 자동 비움 파일 복구함 실패: trash unavailable");
     expect(logWarn).toHaveBeenCalledWith(
@@ -100,6 +114,30 @@ describe("retention purge scheduler", () => {
     expect(logWarn).toHaveBeenCalledWith(
       "30일 자동 비움 잠시 꺼둔 시작 항목 실패: startup bad"
     );
+  });
+
+  it("does not return raw local paths when an automatic emptying bucket fails", async () => {
+    const purgeTrash = vi.fn(async () => {
+      throw new Error("EPERM C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\formatbuddy-trash");
+    });
+    const purgeRegistryBackups = vi.fn(async () => {
+      throw new Error("EACCES C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\formatbuddy-registry-backups");
+    });
+    const purgeStartupDisabled = vi.fn(async () => {
+      throw new Error("ENOENT C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\formatbuddy-startup-disabled");
+    });
+
+    const result = await runRetentionPurgeTick({
+      trigger: "manual",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled
+    });
+
+    const returnedMessages = result.failed.map((item) => item.message).join("\n");
+    expect(returnedMessages).not.toContain("C:\\Users");
+    expect(returnedMessages).not.toContain("EPERM");
+    expect(returnedMessages).toContain("다음 자동 비움 때 다시 시도할게요");
   });
 
   it("records a warning when only some expired restore-bin items could not be emptied", async () => {
