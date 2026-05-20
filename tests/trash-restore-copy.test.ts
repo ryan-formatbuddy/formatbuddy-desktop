@@ -54,6 +54,8 @@ describe("TrashRestore copy", () => {
 
     expect(source).toContain("sortTrashEntriesByExpiry");
     expect(source).toContain("sortedRestoreItems");
+    expect(source).toContain("dedupeRestoreListItems");
+    expect(source).toContain("sortTrashEntriesByExpiry(dedupeRestoreListItems(items))");
     expect(source).toContain('kind: "file"');
     expect(source).toContain('kind: "registry"');
     expect(source).toContain('kind: "startup"');

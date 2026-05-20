@@ -211,6 +211,17 @@ function restoreListItemNeedsCheck(item: RestoreListItem): boolean {
   return trashEntryNeedsCheck(item.entry);
 }
 
+function dedupeRestoreListItems(items: RestoreListItem[]): RestoreListItem[] {
+  const seen = new Set<string>();
+  const unique: RestoreListItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
+}
+
 function startupDisabledChangedNotice(): string {
   return "보관된 시작 항목 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
 }
@@ -310,7 +321,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         createdAt: entry.disabledAt
       }))
     ];
-    return sortTrashEntriesByExpiry(items);
+    return sortTrashEntriesByExpiry(dedupeRestoreListItems(items));
   }, [entries, registryEntries, startupEntries]);
   const restorableRestoreItems = useMemo(
     () =>
