@@ -602,6 +602,35 @@ describe("FormatBuddy Trash", () => {
     ).rejects.toThrow(/stored.*size|size.*stored|복구함.*크기|크기.*복구함/i);
   });
 
+  it("does not accept a restore manifest when the stored item content changed at the same size", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    expect(entry.contentHash?.algorithm).toBe("sha256");
+    await writeFile(entry.storedPath, "jello", "utf8");
+
+    await expect(
+      assertManagedTrashEntryManifest({
+        userDataDir: fx.userData,
+        entryId: entry.id,
+        itemId: entry.itemId,
+        categoryId: entry.categoryId,
+        sizeBytes: entry.sizeBytes,
+        originalPath: entry.originalPath,
+        storedPath: entry.storedPath,
+        expiresAt: entry.expiresAt,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/stored.*hash|hash.*stored|내용|해시/i);
+  });
+
   it("removes a prewritten trash entry folder when the source disappears before move", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "gone.tmp");
     await mkdir(join(source, ".."), { recursive: true });
@@ -863,6 +892,30 @@ describe("FormatBuddy Trash", () => {
     expect(result.message).toMatch(/크기|size|복구함/);
     await expect(lstat(source)).rejects.toThrow();
     await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("hello and more bytes");
+  });
+
+  it("refuses restore when the stored trash item content changed at the same size", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+    await writeFile(entry.storedPath, "jello", "utf8");
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/내용|hash|해시|복구함/);
+    await expect(lstat(source)).rejects.toThrow();
+    await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("jello");
   });
 
   it("refuses restore when the managed trash parent folder is a symbolic link", async () => {

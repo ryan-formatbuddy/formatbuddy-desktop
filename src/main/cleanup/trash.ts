@@ -11,8 +11,8 @@
  */
 import { constants } from "node:fs";
 import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import { basename, dirname, join, parse, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { basename, dirname, join, parse, relative, resolve } from "node:path";
 import type {
   CleanupItem,
   CleanupTrashEntry,
@@ -141,6 +141,12 @@ function isUsableSizeBytes(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
+function isValidContentHash(value: unknown): value is NonNullable<CleanupTrashEntry["contentHash"]> {
+  if (!value || typeof value !== "object") return false;
+  const raw = value as Partial<NonNullable<CleanupTrashEntry["contentHash"]>>;
+  return raw.algorithm === "sha256" && typeof raw.value === "string" && /^[a-f0-9]{64}$/.test(raw.value);
+}
+
 function canonicalExpiry(createdAt: string): string {
   return expiryFor(new Date(createdAt));
 }
@@ -189,6 +195,7 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
     appName: isUsableMetadataString(raw.appName) ? raw.appName : null,
     appPublisher: isUsableMetadataString(raw.appPublisher) ? raw.appPublisher : null,
     sizeBytes: Math.max(0, Math.round(raw.sizeBytes)),
+    contentHash: isValidContentHash(raw.contentHash) ? raw.contentHash : null,
     createdAt: raw.createdAt,
     expiresAt: canonicalExpiry(raw.createdAt)
   } as CleanupTrashEntry;
@@ -514,6 +521,12 @@ export async function assertManagedTrashEntryManifest(options: {
   if (actualStoredSizeBytes !== entry.sizeBytes) {
     throw new Error("FormatBuddy restore manifest stored size does not match the restore entry");
   }
+  if (entry.contentHash) {
+    const actualContentHash = await hashPath(entry.storedPath);
+    if (actualContentHash !== entry.contentHash.value) {
+      throw new Error("FormatBuddy restore manifest stored hash does not match the restore entry");
+    }
+  }
 }
 
 async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashIndex> {
@@ -594,6 +607,43 @@ async function movePath(source: string, destination: string): Promise<void> {
   }
   await cp(source, destination, { recursive: true, force: false, errorOnExist: true });
   await rm(source, { recursive: true, force: true });
+}
+
+async function hashPath(path: string, root = path): Promise<string> {
+  const stat = await lstat(path);
+  if (stat.isSymbolicLink()) {
+    throw new Error(`Cannot hash linked restore item: ${path}`);
+  }
+
+  const relativePath = relative(root, path).replace(/\\/g, "/");
+  const hash = createHash("sha256");
+  if (stat.isFile()) {
+    hash.update("file\0");
+    hash.update(relativePath);
+    hash.update("\0");
+    hash.update(await readFile(path));
+    return hash.digest("hex");
+  }
+
+  if (!stat.isDirectory()) {
+    hash.update("other\0");
+    hash.update(relativePath);
+    hash.update("\0");
+    hash.update(String(stat.size));
+    return hash.digest("hex");
+  }
+
+  hash.update("dir\0");
+  hash.update(relativePath);
+  hash.update("\0");
+  const entries = await readdir(path, { withFileTypes: true });
+  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+    hash.update(entry.name);
+    hash.update("\0");
+    hash.update(await hashPath(join(path, entry.name), root));
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 async function notifyAppLeftoverRestored(
@@ -677,6 +727,10 @@ export async function moveToFormatBuddyTrash(
   await ensureUsableItemsRootForWrite(options.userDataDir);
   const targetDir = entryDir(options.userDataDir, entryId);
   const storedPath = storedPathFor(options.userDataDir, entryId, options.item.path);
+  const contentHash = {
+    algorithm: "sha256" as const,
+    value: await hashPath(options.item.path)
+  };
   const entry: CleanupTrashEntry = {
     id: entryId,
     itemId: options.item.id,
@@ -687,6 +741,7 @@ export async function moveToFormatBuddyTrash(
     appName: isUsableMetadataString(options.item.appName) ? options.item.appName : null,
     appPublisher: isUsableMetadataString(options.item.appPublisher) ? options.item.appPublisher : null,
     sizeBytes: Math.max(0, Math.round(options.sizeBytes)),
+    contentHash,
     createdAt: now.toISOString(),
     expiresAt: expiryFor(now)
   };
@@ -823,6 +878,18 @@ export async function restoreTrashEntry(
       originalPath: entry.originalPath,
       entry
     };
+  }
+  if (entry.contentHash) {
+    const actualContentHash = await hashPath(entry.storedPath).catch(() => null);
+    if (actualContentHash !== entry.contentHash.value) {
+      return {
+        entryId: entry.id,
+        status: "blocked-path",
+        message: "복구함 안의 저장물 내용이 기록과 달라 자동으로 되돌리지 않았어요. 다시 점검해 주세요.",
+        originalPath: entry.originalPath,
+        entry
+      };
+    }
   }
 
   const restoreDecision = evaluatePath(entry.originalPath, {

@@ -773,6 +773,10 @@ export interface CleanupTrashEntry {
   appName?: string | null;
   appPublisher?: string | null;
   sizeBytes: number;
+  contentHash?: {
+    algorithm: "sha256";
+    value: string;
+  } | null;
   createdAt: string;
   expiresAt: string;
 }
