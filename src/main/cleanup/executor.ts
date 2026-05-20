@@ -20,7 +20,7 @@
 import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   CleanupCategoryId,
   CleanupExecuteMode,
@@ -32,7 +32,7 @@ import type {
   CleanupSkipReason,
   CleanupSkippedItem
 } from "@shared/types";
-import { evaluatePath } from "./blocklist";
+import { evaluatePath, normalizePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
 import { consumePlan, peekPlan, RECYCLE_BIN_SENTINEL_PATH } from "./planner";
@@ -216,6 +216,17 @@ function isValidIsoDateString(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function overlapsManagedUserData(userDataDir: string, candidatePath: string): boolean {
+  const managed = normalizePath(resolve(userDataDir));
+  const candidate = normalizePath(resolve(candidatePath));
+  if (!managed || !candidate) return false;
+  return (
+    candidate === managed ||
+    candidate.startsWith(`${managed}\\`) ||
+    managed.startsWith(`${candidate}\\`)
+  );
+}
+
 interface AttemptOutcome {
   removed?: CleanupExecutedItem;
   skipped?: CleanupSkippedItem;
@@ -313,6 +324,17 @@ async function attemptItem(
 ): Promise<AttemptOutcome> {
   const metadataSkip = validateCleanupItemMetadata(item);
   if (metadataSkip) return { skipped: metadataSkip };
+
+  if (overlapsManagedUserData(context.userDataDir, item.path)) {
+    return {
+      skipped: {
+        itemId: item.id,
+        path: item.path,
+        reason: "blocked-path",
+        detail: "FormatBuddy 앱 데이터 영역이라 자동 정리하지 않았어요."
+      }
+    };
+  }
 
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
   // real filesystem path that FormatBuddy can move into its own 30-day

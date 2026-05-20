@@ -354,6 +354,96 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
   });
 
+  it("blocks FormatBuddy user data inside an individual cleanup attempt", async () => {
+    const targetFile = join(fx.userData, "formatbuddy-state.json");
+    await fs.mkdir(join(targetFile, ".."), { recursive: true });
+    await fs.writeFile(targetFile, "state stays put", "utf8");
+    const item = {
+      id: "state-file",
+      path: targetFile,
+      label: "formatbuddy-state.json",
+      sizeBytes: 15,
+      categoryId: "temp-user" as const,
+      riskLevel: "safe" as const,
+      reason: "테스트 항목"
+    };
+    const calls = { stat: 0, trash: 0, permanent: 0 };
+    const { deps } = makeSpyDeps({
+      statSize: async () => {
+        calls.stat += 1;
+        return 15;
+      },
+      trashItem: async () => {
+        calls.trash += 1;
+        throw new Error("trash should not be called");
+      },
+      permanentRemove: async () => {
+        calls.permanent += 1;
+        throw new Error("permanent remove should not be called");
+      }
+    });
+
+    const result = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
+
+    expect(result.removed).toBeUndefined();
+    expect(result.skipped).toMatchObject({
+      itemId: item.id,
+      path: targetFile,
+      reason: "blocked-path"
+    });
+    expect(result.skipped?.detail).toMatch(/FormatBuddy|포맷버디|앱 데이터|managed data/i);
+    expect(calls).toEqual({ stat: 0, trash: 0, permanent: 0 });
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("state stays put");
+  });
+
+  it("blocks cleanup attempts that would contain FormatBuddy user data", async () => {
+    const targetFile = join(fx.userData, "formatbuddy-state.json");
+    await fs.mkdir(join(targetFile, ".."), { recursive: true });
+    await fs.writeFile(targetFile, "state stays put", "utf8");
+    const item = {
+      id: "root-folder",
+      path: fx.root,
+      label: "root-folder",
+      sizeBytes: 15,
+      categoryId: "temp-user" as const,
+      riskLevel: "safe" as const,
+      reason: "테스트 항목"
+    };
+    const calls = { stat: 0, trash: 0, permanent: 0 };
+    const { deps } = makeSpyDeps({
+      statSize: async () => {
+        calls.stat += 1;
+        return 15;
+      },
+      trashItem: async () => {
+        calls.trash += 1;
+        throw new Error("trash should not be called");
+      },
+      permanentRemove: async () => {
+        calls.permanent += 1;
+        throw new Error("permanent remove should not be called");
+      }
+    });
+
+    const result = await executorTesting.attemptItem(item, "permanent", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
+
+    expect(result.removed).toBeUndefined();
+    expect(result.skipped).toMatchObject({
+      itemId: item.id,
+      path: fx.root,
+      reason: "blocked-path"
+    });
+    expect(result.skipped?.detail).toMatch(/FormatBuddy|포맷버디|앱 데이터|managed data/i);
+    expect(calls).toEqual({ stat: 0, trash: 0, permanent: 0 });
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("state stays put");
+  });
+
   it("refuses corrupted selected cleanup item metadata before consuming the plan", async () => {
     const targetFile = join(fx.tempDir, "old1.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
