@@ -474,10 +474,16 @@ function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {
   return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
 }
 
-function isValidSha256ContentHash(value: unknown): boolean {
+function isValidSha256ContentHash(
+  value: unknown
+): value is NonNullable<StartupAutoDisabledEntry["contentHash"]> {
   if (!value || typeof value !== "object") return false;
   const raw = value as Partial<NonNullable<StartupAutoDisabledEntry["contentHash"]>>;
   return raw.algorithm === "sha256" && typeof raw.value === "string" && /^[a-f0-9]{64}$/.test(raw.value);
+}
+
+async function hashStartupHoldingFile(path: string): Promise<string> {
+  return createHash("sha256").update(await fs.readFile(path)).digest("hex");
 }
 
 function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftoverPath["kind"]> {
@@ -1396,6 +1402,10 @@ async function assertStartupHoldingCleanupResult(options: {
   const storedStat = await fs.lstat(options.entry.storedPath).catch(() => null);
   if (!storedStat || !storedStat.isFile() || storedStat.isSymbolicLink()) {
     throw new Error("FormatBuddy startup holding stored file was not created");
+  }
+  const actualHash = await hashStartupHoldingFile(options.entry.storedPath);
+  if (actualHash !== options.entry.contentHash.value) {
+    throw new Error("FormatBuddy startup holding stored hash does not match the holding entry");
   }
 }
 
