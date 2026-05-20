@@ -10,11 +10,12 @@ import type {
   RegistryBackupSnapshot
 } from "@shared/types";
 import { registryBackupKindLabel } from "@shared/cleanup-result";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 import { normalizePath } from "../cleanup/blocklist";
 
-export const REGISTRY_BACKUP_RETENTION_DAYS = 30;
+export const REGISTRY_BACKUP_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 
 export interface RegistryCleanupRunner {
   exportKey: (keyPath: string, backupPath: string) => Promise<void>;

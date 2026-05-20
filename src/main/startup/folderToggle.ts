@@ -16,10 +16,11 @@ import type {
   StartupDisabledPurgeResult,
   StartupFolderToggleResult
 } from "@shared/types";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { normalizePath } from "../cleanup/blocklist";
 import { findLinkedPathPart } from "../cleanup/pathSafety";
 
-export const STARTUP_DISABLED_RETENTION_DAYS = 30;
+export const STARTUP_DISABLED_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 const STARTUP_DISABLED_DIR = "formatbuddy-startup-disabled";
 const ITEMS_DIR = "items";
 const META_FILE = "meta.json";

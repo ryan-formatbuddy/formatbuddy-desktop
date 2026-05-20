@@ -1,0 +1,1 @@
+export const RESTORE_BIN_RETENTION_DAYS = 30;

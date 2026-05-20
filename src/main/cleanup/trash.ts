@@ -20,10 +20,11 @@ import type {
   CleanupTrashRestoreResult,
   CleanupTrashSnapshot
 } from "@shared/types";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "./blocklist";
 import { findLinkedDescendant, findLinkedPathPart } from "./pathSafety";
 
-export const FORMATBUDDY_TRASH_RETENTION_DAYS = 30;
+export const FORMATBUDDY_TRASH_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 const DAY_MS = 86_400_000;
 const TRASH_EXPIRY_CLOCK_SKEW_MS = DAY_MS;
 
