@@ -242,6 +242,28 @@ describe("Cleanup result undo helper", () => {
     );
   });
 
+  it("summarizes legacy registry backups by backup kind", () => {
+    const results: RegistryBackupRestoreResult[] = [
+      {
+        backupId: "a",
+        status: "blocked-path",
+        message: "앱 삭제 흔적 백업 기록을 확인할 수 없어요",
+        entry: registryBackupEntry({ backupKind: "key", integrityStatus: "legacy" })
+      },
+      {
+        backupId: "b",
+        status: "blocked-path",
+        message: "시작 항목 백업 기록을 확인할 수 없어요",
+        entry: registryBackupEntry({ backupKind: "startup-value", integrityStatus: "legacy" })
+      },
+      { backupId: "c", status: "blocked-path", message: "blocked" }
+    ];
+
+    expect(summarizeRegistryBackupRestoreResults(results)).toBe(
+      "앱 삭제 흔적 백업 1개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요. 시작 항목 백업 1개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요. 1개는 안전 확인이 필요해 멈췄어요."
+    );
+  });
+
   it("summarizes mixed restore-all outcomes without hiding per-item failures", () => {
     const trashResults: CleanupTrashRestoreResult[] = [
       { entryId: "a", status: "restored", message: "ok" },

@@ -821,26 +821,40 @@ async function readRegistryBackupEntryForRestore(
         }
       };
     }
-    if (entry.contentHash) {
-      const actualHash = await hashFile(backupPath);
-      if (actualHash !== entry.contentHash.value) {
-        entry.integrityStatus = "changed";
-        if (options.allowChangedContent) {
-          return { kind: "entry", entry };
-        }
-        return {
-          kind: "restore-result",
-          result: {
-            backupId,
-            status: "blocked-path",
-            message: "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리지 않았어요.",
-            keyPath: entry.keyPath,
-            entry
-          }
-        };
+    if (!entry.contentHash) {
+      if (options.allowChangedContent) {
+        return { kind: "entry", entry };
       }
-      entry.integrityStatus = "verified";
+      const label = registryBackupKindLabel(entry);
+      return {
+        kind: "restore-result",
+        result: {
+          backupId,
+          status: "blocked-path",
+          message: `${label} 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않았어요.`,
+          keyPath: entry.keyPath,
+          entry
+        }
+      };
     }
+    const actualHash = await hashFile(backupPath);
+    if (actualHash !== entry.contentHash.value) {
+      entry.integrityStatus = "changed";
+      if (options.allowChangedContent) {
+        return { kind: "entry", entry };
+      }
+      return {
+        kind: "restore-result",
+        result: {
+          backupId,
+          status: "blocked-path",
+          message: "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리지 않았어요.",
+          keyPath: entry.keyPath,
+          entry
+        }
+      };
+    }
+    entry.integrityStatus = "verified";
     return { kind: "entry", entry };
   } catch {
     return {

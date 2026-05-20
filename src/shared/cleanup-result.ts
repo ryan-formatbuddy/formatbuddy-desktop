@@ -191,8 +191,16 @@ export function summarizeRegistryBackupRestoreResults(
   );
   const changedAppBackups = changedBackups.filter((item) => !isStartupRegistryBackup(item.entry)).length;
   const changedStartupBackups = changedBackups.filter((item) => isStartupRegistryBackup(item.entry)).length;
+  const legacyBackups = results.filter(
+    (item) => item.status === "blocked-path" && isLegacyBlockedRestore(item.message, item.entry)
+  );
+  const legacyAppBackups = legacyBackups.filter((item) => !isStartupRegistryBackup(item.entry)).length;
+  const legacyStartupBackups = legacyBackups.filter((item) => isStartupRegistryBackup(item.entry)).length;
   const unsafePath = results.filter(
-    (item) => item.status === "blocked-path" && !isChangedBlockedRestore(item.message, item.entry)
+    (item) =>
+      item.status === "blocked-path" &&
+      !isChangedBlockedRestore(item.message, item.entry) &&
+      !isLegacyBlockedRestore(item.message, item.entry)
   ).length;
   const missingBackup = results.filter((item) => item.status === "missing-backup").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
@@ -212,6 +220,12 @@ export function summarizeRegistryBackupRestoreResults(
   }
   if (changedStartupBackups > 0) {
     parts.push(`시작 항목 백업 ${changedStartupBackups}개는 백업 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
+  if (legacyAppBackups > 0) {
+    parts.push(`앱 삭제 흔적 백업 ${legacyAppBackups}개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요.`);
+  }
+  if (legacyStartupBackups > 0) {
+    parts.push(`시작 항목 백업 ${legacyStartupBackups}개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요.`);
   }
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);

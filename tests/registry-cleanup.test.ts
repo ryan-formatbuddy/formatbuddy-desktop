@@ -13,6 +13,7 @@ import {
   restoreRegistryBackup,
   __testing
 } from "../src/main/apps/registryCleanup";
+import { summarizeRegistryBackupRestoreResults } from "../src/shared/cleanup-result";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
 const ACME_UNINSTALL_KEY_PATH = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
@@ -1723,6 +1724,109 @@ describe("registry leftover cleanup", () => {
     });
     expect(restored.status).toBe("blocked-path");
     expect(restored.message).toMatch(/백업 파일이 바뀐 것 같아요|changed/i);
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy registry backup visible and blocks import", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(
+      join(__testing.registryBackupItemsRoot(fx.userDataDir), result.id, "meta.json"),
+      JSON.stringify({ ...result, contentHash: undefined }, null, 2),
+      "utf8"
+    );
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0]).toMatchObject({
+      id: result.id,
+      keyPath,
+      integrityStatus: "legacy"
+    });
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.entry?.integrityStatus).toBe("legacy");
+    expect(restored.message).toMatch(/백업 기록|오래된|다시 점검/);
+    expect(summarizeRegistryBackupRestoreResults([restored])).toBe(
+      "앱 삭제 흔적 백업 1개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요."
+    );
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps a legacy startup value backup visible and blocks import", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      runner,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(
+      join(__testing.registryBackupItemsRoot(fx.userDataDir), result.id, "meta.json"),
+      JSON.stringify({ ...result, contentHash: undefined }, null, 2),
+      "utf8"
+    );
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0]).toMatchObject({
+      id: result.id,
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      integrityStatus: "legacy"
+    });
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.entry?.integrityStatus).toBe("legacy");
+    expect(summarizeRegistryBackupRestoreResults([restored])).toBe(
+      "시작 항목 백업 1개는 백업 기록이 오래되어 자동으로 되돌리지 않았어요."
+    );
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 
