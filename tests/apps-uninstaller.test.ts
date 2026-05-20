@@ -609,6 +609,18 @@ describe("runUninstall", () => {
 
   it.each([
     ["UNC uninstaller", '"\\\\server\\share\\Friendly Tool\\uninstall.exe" /remove'],
+    [
+      "UNC argument",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.exe" "\\\\server\\share\\remove.dat"'
+    ],
+    [
+      "UNC assignment argument",
+      'MsiExec.exe /X{12345678-1234-1234-1234-123456789012} TRANSFORMS=\\\\server\\share\\remove.mst'
+    ],
+    [
+      "single-quoted UNC assignment argument",
+      '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=\'\\\\server\\share\\remove.dat\''
+    ],
     ["URL package", "MsiExec.exe /X https://example.com/friendly-tool.msi"],
     ["URL argument", '"C:\\Program Files\\Friendly Tool\\uninstall.exe" --source=https://example.com/remove'],
     [
