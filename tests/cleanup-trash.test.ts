@@ -306,10 +306,13 @@ describe("FormatBuddy Trash", () => {
   it.each([
     ["item id", () => ({ id: "" })],
     ["item id whitespace", () => ({ id: "  " })],
+    ["item id padded", () => ({ id: " item-1" })],
+    ["source path padded", (source: string) => ({ path: `${source} ` })],
     ["source path control", (source: string) => ({ path: `${source}\n` })],
     ["label", () => ({ label: "" })],
     ["label control", () => ({ label: "old.tmp\rmore" })],
-    ["category", () => ({ categoryId: "" })]
+    ["category", () => ({ categoryId: "" })],
+    ["category padded", () => ({ categoryId: " temp-user" })]
   ] as Array<[string, (source: string) => Partial<Record<keyof CleanupItem, unknown>>]>)(
     "refuses to create a restore-bin entry from unusable cleanup metadata: %s",
     async (_label, makePatch) => {

@@ -354,6 +354,46 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
   });
 
+  it("blocks whitespace-padded cleanup path metadata before stat or trash", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    await writeAged(targetFile, 4096, TEN_DAYS_MS);
+    const item = {
+      id: "temp-old1",
+      path: `${targetFile} `,
+      label: "old1.tmp",
+      sizeBytes: 4096,
+      categoryId: "temp-user" as const,
+      riskLevel: "safe" as const,
+      reason: "테스트 항목"
+    };
+    const calls = { stat: 0, trash: 0 };
+    const { deps } = makeSpyDeps({
+      statSize: async () => {
+        calls.stat += 1;
+        return 4096;
+      },
+      trashItem: async () => {
+        calls.trash += 1;
+        throw new Error("trash should not be called");
+      }
+    });
+
+    const result = await executorTesting.attemptItem(item, "trash", deps, fx.home, {
+      userDataDir: fx.userData,
+      home: fx.home
+    });
+
+    expect(result.removed).toBeUndefined();
+    expect(result.skipped).toMatchObject({
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path"
+    });
+    expect(result.skipped?.detail).toMatch(/정리 항목 정보|metadata/i);
+    expect(calls).toEqual({ stat: 0, trash: 0 });
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+  });
+
   it("blocks FormatBuddy user data inside an individual cleanup attempt", async () => {
     const targetFile = join(fx.userData, "formatbuddy-state.json");
     await fs.mkdir(join(targetFile, ".."), { recursive: true });

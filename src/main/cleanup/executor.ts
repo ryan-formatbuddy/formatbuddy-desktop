@@ -200,6 +200,10 @@ function isUsableMetadataString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+function isStrictMetadataString(value: unknown): value is string {
+  return isUsableMetadataString(value) && value.trim() === value;
+}
+
 function hasControlCharacters(value: string): boolean {
   return /[\u0000-\u001f\u007f]/.test(value);
 }
@@ -233,13 +237,22 @@ interface AttemptOutcome {
 }
 
 function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | undefined {
-  const required: Array<[string, unknown]> = [
+  const strictRequired: Array<[string, unknown]> = [
     ["item id", item.id],
     ["source path", item.path],
-    ["label", item.label],
     ["category", item.categoryId]
   ];
-  const invalid = required.find(([, value]) => !isUsableMetadataString(value));
+  const invalidStrict = strictRequired.find(([, value]) => !isStrictMetadataString(value));
+  if (invalidStrict) {
+    return {
+      itemId: isUsableMetadataString(item.id) ? item.id : "",
+      path: isUsableMetadataString(item.path) ? item.path : "",
+      reason: "blocked-path",
+      detail: `정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: ${invalidStrict[0]}`
+    };
+  }
+
+  const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
   if (invalid) {
     return {
       itemId: isUsableMetadataString(item.id) ? item.id : "",

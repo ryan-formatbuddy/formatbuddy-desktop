@@ -133,6 +133,10 @@ function isUsableMetadataString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+function isStrictMetadataString(value: unknown): value is string {
+  return isUsableMetadataString(value) && value.trim() === value;
+}
+
 function canonicalExpiry(createdAt: string): string {
   return expiryFor(new Date(createdAt));
 }
@@ -163,11 +167,11 @@ function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CleanupTrashEntry>;
   if (!isSafeTrashEntryId(raw.id)) return null;
-  if (!isUsableMetadataString(raw.itemId)) return null;
-  if (!isUsableMetadataString(raw.originalPath)) return null;
-  if (!isUsableMetadataString(raw.storedPath)) return null;
+  if (!isStrictMetadataString(raw.itemId)) return null;
+  if (!isStrictMetadataString(raw.originalPath)) return null;
+  if (!isStrictMetadataString(raw.storedPath)) return null;
   if (!isUsableMetadataString(raw.label)) return null;
-  if (!isUsableMetadataString(raw.categoryId)) return null;
+  if (!isStrictMetadataString(raw.categoryId)) return null;
   if (typeof raw.sizeBytes !== "number" || !Number.isFinite(raw.sizeBytes)) return null;
   if (!validIso(raw.createdAt)) return null;
   if (!validIso(raw.expiresAt)) return null;
@@ -200,14 +204,18 @@ function coerceIndex(value: unknown): PersistedTrashIndex {
 }
 
 function assertUsableCleanupItemMetadata(item: CleanupItem): void {
-  const required: Array<[string, unknown]> = [
+  const strictRequired: Array<[string, unknown]> = [
     ["item id", item.id],
     ["source path", item.path],
-    ["label", item.label],
     ["category", item.categoryId]
   ];
 
-  const invalid = required.find(([, value]) => !isUsableMetadataString(value));
+  const invalidStrict = strictRequired.find(([, value]) => !isStrictMetadataString(value));
+  if (invalidStrict) {
+    throw new Error(`cleanup-trash refuses unusable source metadata: ${invalidStrict[0]}`);
+  }
+
+  const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
   if (invalid) {
     throw new Error(`cleanup-trash refuses unusable source metadata: ${invalid[0]}`);
   }
