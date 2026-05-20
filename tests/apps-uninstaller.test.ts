@@ -581,6 +581,40 @@ describe("runUninstall", () => {
     expect(spawnCmd).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["bare uninstaller", "unins000.exe /remove"],
+    ["dot-relative uninstaller", ".\\unins000.exe /remove"],
+    ["parent-relative uninstaller", "..\\Friendly Tool\\uninstall.exe /remove"]
+  ])("blocks uninstall strings that start with a relative %s", async (_label, command) => {
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+
+    expect(
+      canLaunchUninstall(
+        { appName: "Friendly Tool" },
+        { ...baseApp, name: "Friendly Tool", uninstallString: command },
+        "win32"
+      )
+    ).toBe(false);
+
+    const result = await runUninstall(
+      { appName: "Friendly Tool" },
+      {
+        findApp: () => ({
+          ...baseApp,
+          name: "Friendly Tool",
+          uninstallString: command
+        }),
+        spawnCmd,
+        platform: "win32"
+      }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/경로|Windows 설정|직접 제거/);
+    expect(result.detail).toMatch(/unsafe-uninstall-command/);
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
   it("allows parentheses inside a quoted uninstaller path", async () => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
     const quoted = '"C:\\Program Files (x86)\\Friendly Tool\\unins000.exe" /remove';

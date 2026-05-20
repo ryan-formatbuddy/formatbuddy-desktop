@@ -219,8 +219,8 @@ describe("availability evaluator", () => {
   it("hides quiet uninstall choices and keeps the Windows window as the only launch path", () => {
     const result = __testing.evaluateAvailability({
       name: "Foo",
-      uninstallString: "uninstall.exe",
-      quietUninstallString: "uninstall.exe /S"
+      uninstallString: '"C:\\Program Files\\Foo\\uninstall.exe"',
+      quietUninstallString: '"C:\\Program Files\\Foo\\uninstall.exe" /S'
     });
     expect(result.availability).toBe("ready");
     expect(result.mode).toBe("interactive");
