@@ -513,6 +513,15 @@ function normalizeAppForPlan(app: InstalledApp): InstalledApp | null {
   };
 }
 
+function ruleForApp(app: InstalledApp): LeftoverRule | undefined {
+  const text = `${app.name} ${app.publisher ?? ""}`;
+  return RULES.find((rule) => rule.match.test(text));
+}
+
+function appMatchesRuleLabel(app: InstalledApp, label: string): boolean {
+  return ruleForApp(app)?.appLabel === label;
+}
+
 function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {
   const expiresAtMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresAtMs)) return false;
@@ -1235,16 +1244,19 @@ export async function planAppLeftovers(
   ];
 
   for (const { app, source } of candidates) {
+    const rule = ruleForApp(app);
     const cleanupState: AppLeftoverCleanupState | undefined =
       source === "uninstall-launched"
         ? !installedAppsKnown
           ? "not-checked"
-          : isStillInstalled(app, installedAppKeys, installedAppNames)
+          : isStillInstalled(app, installedAppKeys, installedAppNames) ||
+              (rule !== undefined &&
+                normalizedApps.some((installedApp) =>
+                  appMatchesRuleLabel(installedApp, rule.appLabel)
+                ))
             ? "still-installed"
             : "removed-confirmed"
         : undefined;
-    const text = `${app.name} ${app.publisher ?? ""}`;
-    const rule = RULES.find((r) => r.match.test(text));
     if (!rule) {
       if (seenLabels.has(app.name)) continue;
       const paths = uniqueLeftoverPaths([
@@ -1395,7 +1407,9 @@ function currentInstallGuardForGroup(
     .filter((app): app is InstalledApp => app !== null);
   const installedAppKeys = new Set(normalizedCurrentApps.map(appIdentityKey));
   const installedAppNames = new Set(normalizedCurrentApps.map(appNameKey));
-  return isStillInstalled(groupInstallIdentity(group), installedAppKeys, installedAppNames)
+  const installIdentity = groupInstallIdentity(group);
+  return isStillInstalled(installIdentity, installedAppKeys, installedAppNames) ||
+    normalizedCurrentApps.some((app) => appMatchesRuleLabel(app, group.appName))
     ? "installed"
     : "not-installed";
 }

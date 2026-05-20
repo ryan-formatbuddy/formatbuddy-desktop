@@ -2345,6 +2345,29 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("locks grouped-rule leftovers while a sibling app in the same family is still installed", async () => {
+    const adobe = join(fx.roaming, "Adobe");
+    await fs.mkdir(adobe, { recursive: true });
+    await fs.writeFile(join(adobe, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Adobe Illustrator 2024", publisher: "Adobe Inc." }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+        extraApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+      }
+    );
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0]).toMatchObject({
+      appName: "Adobe",
+      sourceAppName: "Adobe Photoshop 2024",
+      source: "uninstall-launched",
+      cleanupState: "still-installed"
+    });
+  });
+
   it("locks a recently opened uninstall window while the latest scan still shows the app", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
@@ -2570,6 +2593,43 @@ describe("planAppLeftovers", () => {
         userDataDir: join(fx.root, "userdata"),
         currentInstalledAppsKnown: true,
         currentInstalledApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: adobe,
+      reason: "blocked-path",
+      detail: "앱이 다시 설치된 상태예요. 제거가 끝난 뒤 다시 점검하고 정리해주세요."
+    });
+    await expect(fs.stat(adobe)).resolves.toBeTruthy();
+    const trash = await getTrashSnapshot({ userDataDir: join(fx.root, "userdata") });
+    expect(trash.entries).toEqual([]);
+  });
+
+  it("refuses grouped-rule leftovers when a sibling app in the same family was installed after the plan", async () => {
+    const adobe = join(fx.roaming, "Adobe");
+    await fs.mkdir(adobe, { recursive: true });
+    await fs.writeFile(join(adobe, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === adobe)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: [{ name: "Adobe Illustrator 2024", publisher: "Adobe Inc." }]
       }
     );
 
