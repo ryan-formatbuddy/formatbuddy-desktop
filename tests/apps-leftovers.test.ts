@@ -1108,6 +1108,46 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("keeps app leftover cleanup results when the uninstall follow-up update fails", async () => {
+    const slack = join(fx.roaming, "Slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        onFollowupCleaned: async () => {
+          throw new Error("followup store failed");
+        }
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.totalFreedBytes).toBeGreaterThan(0);
+    expect(result.followupPersistenceWarning).toMatch(/후속|followup store failed/i);
+    await expect(fs.stat(slack)).rejects.toThrow();
+
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries).toHaveLength(1);
+    expect(trash.entries[0].originalPath).toBe(slack);
+  });
+
   it("reports a blocked path when a leftover path starts going through a symbolic-link parent before cleanup", async () => {
     if (process.platform === "win32") return;
     const slack = join(fx.roaming, "Slack");

@@ -745,6 +745,8 @@ export interface CleanupExecuteResult {
   logEntry: CleanupLogEntry;
   /** Present when cleanup succeeded but the local history log could not be persisted. */
   logPersistenceWarning?: string;
+  /** Present when cleanup succeeded but the uninstall follow-up state could not be persisted. */
+  followupPersistenceWarning?: string;
 }
 
 export interface CleanupHistorySnapshot {

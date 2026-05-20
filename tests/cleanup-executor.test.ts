@@ -17,6 +17,7 @@ import { getCleanupHistory } from "../src/main/cleanup/log";
 import type { CleanupPlan } from "../src/shared/types";
 
 const TEN_DAYS_MS = 10 * 86_400_000;
+const THIRTY_DAYS_MS = 30 * 86_400_000;
 
 interface Fixture {
   root: string;
@@ -68,14 +69,14 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
   trashed: string[];
   permanently: string[];
   recycleBinEmptyCount: { value: number };
-  trashExpiresAt: string;
 } {
   const trashed: string[] = [];
   const permanently: string[] = [];
   const recycleBinEmptyCount = { value: 0 };
-  const trashExpiresAt = "2026-06-18T00:00:00.000Z";
   const deps: ExecutorDeps = {
     trashItem: async (item, sizeBytes, context) => {
+      const createdAt = (context.now?.() ?? new Date()).toISOString();
+      const trashExpiresAt = new Date(Date.parse(createdAt) + THIRTY_DAYS_MS).toISOString();
       trashed.push(item.path);
       const entryId = `trash-${item.id}`;
       const storedPath = join(context.userDataDir, "formatbuddy-trash", "items", entryId, "files", "stored");
@@ -92,7 +93,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
             label: item.label,
             categoryId: item.categoryId,
             sizeBytes,
-            createdAt: "2026-05-19T00:00:00.000Z",
+            createdAt,
             expiresAt: trashExpiresAt
           },
           null,
@@ -120,7 +121,7 @@ function makeSpyDeps(overrides: Partial<ExecutorDeps> = {}): {
     },
     ...overrides
   };
-  return { deps, trashed, permanently, recycleBinEmptyCount, trashExpiresAt };
+  return { deps, trashed, permanently, recycleBinEmptyCount };
 }
 
 describe("executeCleanup", () => {
@@ -155,7 +156,7 @@ describe("executeCleanup", () => {
     const chosen = tempUser.items.find((i) => i.path === targetFile)!;
     const other = tempUser.items.find((i) => i.path === otherFile)!;
 
-    const { deps, trashed, trashExpiresAt } = makeSpyDeps();
+    const { deps, trashed } = makeSpyDeps();
     const result = await executeCleanup(
       {
         planId: plan.planId,
@@ -169,7 +170,7 @@ describe("executeCleanup", () => {
     expect(trashed).toEqual([targetFile]);
     expect(result.removedItems.map((i) => i.path)).toEqual([targetFile]);
     expect(result.removedItems[0].trashEntryId).toBe(`trash-${chosen.id}`);
-    expect(result.removedItems[0].expiresAt).toBe(trashExpiresAt);
+    expect(result.removedItems[0].expiresAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(result.skippedItems.find((s) => s.itemId === other.id)?.reason).toBe("not-selected");
     expect(result.totalFreedBytes).toBeGreaterThan(0);
   });

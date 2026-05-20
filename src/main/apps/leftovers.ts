@@ -1259,9 +1259,17 @@ export async function cleanupAppLeftovers(
     const message = err instanceof Error ? err.message : String(err);
     logPersistenceWarning = `정리는 끝났지만 실행 기록을 저장하지 못했어요: ${message}`;
   }
+  let followupPersistenceWarning: string | undefined;
   if (options.onFollowupCleaned) {
     for (const cleanedApp of cleanedFollowupGroups.values()) {
-      await options.onFollowupCleaned(cleanedApp);
+      try {
+        await options.onFollowupCleaned(cleanedApp);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        followupPersistenceWarning = followupPersistenceWarning
+          ? `${followupPersistenceWarning}; ${message}`
+          : `정리는 끝났지만 제거 후 확인 상태를 저장하지 못했어요: ${message}`;
+      }
     }
   }
 
@@ -1273,7 +1281,8 @@ export async function cleanupAppLeftovers(
     removedItems,
     skippedItems,
     logEntry,
-    ...(logPersistenceWarning ? { logPersistenceWarning } : {})
+    ...(logPersistenceWarning ? { logPersistenceWarning } : {}),
+    ...(followupPersistenceWarning ? { followupPersistenceWarning } : {})
   };
 }
 
