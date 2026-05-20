@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import type { CleanupItem, CleanupTrashEntry } from "../src/shared/types";
+import type { CleanupItem, CleanupTrashEntry, CleanupTrashSnapshot } from "../src/shared/types";
 import { summarizeTrashRestoreResults } from "../src/shared/cleanup-result";
 import {
   FORMATBUDDY_TRASH_RETENTION_DAYS,
@@ -125,6 +125,40 @@ describe("FormatBuddy Trash", () => {
       now: () => new Date("2026-05-20T00:00:00.000Z")
     });
     expect(snapshot.entries.map((e) => e.id)).toContain(entry.id);
+  });
+
+  it("returns a moved item when the index write fails after the item is safely stored", async () => {
+    if (process.platform === "win32") return;
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+
+    const trashRoot = __testing.trashRoot(fx.userData);
+    await mkdir(__testing.itemsRoot(fx.userData), { recursive: true });
+    await chmod(trashRoot, 0o500);
+
+    let entry: CleanupTrashEntry;
+    let snapshot: CleanupTrashSnapshot;
+    try {
+      entry = await moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 5,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      });
+
+      expect(entry).toBeTruthy();
+      expect(existsSync(source)).toBe(false);
+      expect(existsSync(entry.storedPath)).toBe(true);
+      snapshot = await getTrashSnapshot({
+        userDataDir: fx.userData,
+        now: () => new Date("2026-05-20T00:00:00.000Z")
+      });
+    } finally {
+      await chmod(trashRoot, 0o700).catch(() => {});
+    }
+    expect(snapshot.entries.map((e) => e.id)).toContain(entry.id);
+    expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
   it("caps a recovered manifest expiry to the 30-day window", async () => {

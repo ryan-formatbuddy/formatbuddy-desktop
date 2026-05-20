@@ -4,7 +4,7 @@
  * Windows Recycle Bin is convenient but opaque: retention policy,
  * original-path metadata, and restore UX are owned by Explorer. For
  * "깔끔 삭제" we need product-grade guarantees:
- *   - every moved item has an index entry with originalPath
+ *   - every moved item has an index entry or recoverable manifest with originalPath
  *   - restore is one click from inside FormatBuddy
  *   - expired entries are permanently removed after 30 days
  *   - all bytes stay local under Electron userData
@@ -310,6 +310,22 @@ async function saveIndex(userDataDir: string, index: PersistedTrashIndex): Promi
   await writeFile(targetIndexPath, JSON.stringify(index, null, 2), "utf8");
 }
 
+async function saveIndexOrKeepManifestFallback(
+  userDataDir: string,
+  index: PersistedTrashIndex
+): Promise<"saved" | "manifest-fallback"> {
+  try {
+    await saveIndex(userDataDir, index);
+    return "saved";
+  } catch (err) {
+    const linkedRoot = await findLinkedPathPart(trashRoot(userDataDir), userDataDir, true).catch(
+      () => undefined
+    );
+    if (linkedRoot) throw err;
+    return "manifest-fallback";
+  }
+}
+
 async function isUsableItemsRoot(userDataDir: string): Promise<boolean> {
   const root = itemsRoot(userDataDir);
   const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
@@ -599,7 +615,7 @@ async function loadReconciledIndex(userDataDir: string): Promise<PersistedTrashI
 
   const next = { ...index, entries: recovered };
   const changed = JSON.stringify(index.entries) !== JSON.stringify(next.entries);
-  if (changed) await saveIndex(userDataDir, next);
+  if (changed) await saveIndexOrKeepManifestFallback(userDataDir, next);
   return next;
 }
 
@@ -626,7 +642,7 @@ async function pruneMissingStoredEntries(
 
   if (!changed) return index;
   const next = { ...index, entries };
-  await saveIndex(userDataDir, next);
+  await saveIndexOrKeepManifestFallback(userDataDir, next);
   return next;
 }
 
@@ -647,7 +663,7 @@ async function refreshStoredEntrySizes(
   if (!changed) return index;
 
   const next = { ...index, entries };
-  await saveIndex(userDataDir, next);
+  await saveIndexOrKeepManifestFallback(userDataDir, next);
   return next;
 }
 
@@ -843,7 +859,20 @@ export async function moveToFormatBuddyTrash(
 
   const index = await loadIndex(options.userDataDir);
   index.entries = [entry, ...index.entries.filter((e) => e.id !== entry.id)];
-  await saveIndex(options.userDataDir, index);
+  const indexSaveStatus = await saveIndexOrKeepManifestFallback(options.userDataDir, index);
+  if (indexSaveStatus === "manifest-fallback") {
+    await assertManagedTrashEntryManifest({
+      userDataDir: options.userDataDir,
+      entryId: entry.id,
+      itemId: entry.itemId,
+      categoryId: entry.categoryId,
+      sizeBytes: entry.sizeBytes,
+      originalPath: entry.originalPath,
+      storedPath: entry.storedPath,
+      expiresAt: entry.expiresAt,
+      now: options.now
+    });
+  }
   return entry;
 }
 
