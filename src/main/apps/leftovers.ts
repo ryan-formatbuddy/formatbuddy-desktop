@@ -1506,9 +1506,13 @@ async function cleanupUnverifiedTrashMove(options: {
 }
 
 function rollbackBoundaryForPath(path: string, env: LeftoverEnv): string {
+  return leftoverLinkBoundaryForPath(path, env);
+}
+
+function leftoverLinkBoundaryForPath(path: string, env: LeftoverEnv): string {
   const programFilesRoot = programFilesRootForPath(path, env);
   if (programFilesRoot) return programFilesRoot;
-  const roots = [env.home, env.programData];
+  const roots = [env.home, env.programData, join(dirname(env.home), "Public")];
   return roots.find((root) => isAtOrInside(path, root)) ?? dirname(path);
 }
 
@@ -1970,7 +1974,11 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
-    const linkedPathPart = await findLinkedPathPart(path.path, cached.env.home, true);
+    const linkedPathPart = await findLinkedPathPart(
+      path.path,
+      leftoverLinkBoundaryForPath(path.path, cached.env),
+      true
+    );
     if (linkedPathPart) {
       skippedItems.push({
         itemId: path.id,

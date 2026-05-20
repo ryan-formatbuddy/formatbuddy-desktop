@@ -2683,6 +2683,61 @@ describe("planAppLeftovers", () => {
     );
   });
 
+  it("reports a blocked path when an all-user shortcut root becomes a symbolic-link parent before cleanup", async () => {
+    if (process.platform === "win32") return;
+    const shortcutPath = join(
+      fx.programData,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme Notes.lnk"
+    );
+    await fs.mkdir(dirname(shortcutPath), { recursive: true });
+    await fs.writeFile(shortcutPath, "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === shortcutPath)!;
+    const plannedTime = new Date(path.lastModifiedAt!);
+
+    const outsideProgramData = join(fx.root, "outside-program-data");
+    const outsideShortcut = join(
+      outsideProgramData,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme Notes.lnk"
+    );
+    await fs.rm(fx.programData, { recursive: true, force: true });
+    await fs.mkdir(dirname(outsideShortcut), { recursive: true });
+    await fs.writeFile(outsideShortcut, "shortcut", "utf8");
+    await fs.utimes(outsideShortcut, plannedTime, plannedTime);
+    await fs.symlink(outsideProgramData, fx.programData, "dir");
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      { userDataDir: join(fx.root, "userdata") }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: shortcutPath,
+      reason: "blocked-path"
+    });
+    expect(result.skippedItems[0].detail).toMatch(/링크/);
+    await expect(fs.readFile(outsideShortcut, "utf8")).resolves.toBe("shortcut");
+  });
+
   it("discards an app leftover cleanup plan after a wrong confirmation token", async () => {
     const slack = join(fx.roaming, "Slack");
     await fs.mkdir(slack, { recursive: true });
