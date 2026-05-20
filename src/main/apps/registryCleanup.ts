@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type {
@@ -132,6 +132,19 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function hashFile(path: string): Promise<string> {
+  const content = await fs.readFile(path);
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function isValidRegistryBackupContentHash(
+  value: unknown
+): value is NonNullable<RegistryBackupEntry["contentHash"]> {
+  if (!value || typeof value !== "object") return false;
+  const raw = value as Partial<NonNullable<RegistryBackupEntry["contentHash"]>>;
+  return raw.algorithm === "sha256" && typeof raw.value === "string" && /^[a-f0-9]{64}$/.test(raw.value);
 }
 
 async function removeRegistryBackupStoreItem(root: string, name: string): Promise<boolean> {
@@ -501,10 +514,12 @@ export async function backupAndDeleteRegistryKey(options: {
   const appName = cleanOptionalString(options.app?.name);
   const appPublisher = cleanOptionalString(options.app?.publisher);
   let sizeBytes = 0;
+  let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
 
   try {
     await runner.exportKey(keyPath, backupPath);
     sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath, keyPath);
+    contentHash = { algorithm: "sha256", value: await hashFile(backupPath) };
     await writeRegistryBackupMetaFile(
       entryDir,
       metaPath,
@@ -513,6 +528,7 @@ export async function backupAndDeleteRegistryKey(options: {
         keyPath,
         backupPath,
         sizeBytes,
+        contentHash,
         appName,
         appPublisher,
         createdAt,
@@ -559,6 +575,7 @@ export async function backupAndDeleteRegistryValue(options: {
   const appName = cleanOptionalString(options.app?.name);
   const appPublisher = cleanOptionalString(options.app?.publisher);
   let sizeBytes = 0;
+  let contentHash: NonNullable<RegistryBackupEntry["contentHash"]> | null = null;
 
   if (!exportValue || !deleteValue) {
     throw new Error("시작 항목 레지스트리 값을 백업할 준비가 되지 않았어요.");
@@ -572,6 +589,7 @@ export async function backupAndDeleteRegistryValue(options: {
       keyPath,
       valueName
     );
+    contentHash = { algorithm: "sha256", value: await hashFile(backupPath) };
     await writeRegistryBackupMetaFile(
       entryDir,
       metaPath,
@@ -582,6 +600,7 @@ export async function backupAndDeleteRegistryValue(options: {
         backupKind: "startup-value",
         backupPath,
         sizeBytes,
+        contentHash,
         appName,
         appPublisher,
         createdAt,
@@ -736,6 +755,7 @@ async function readRegistryBackupEntryForRestore(
     keyPath: normalizeRegistryKeyPath(rawKeyPath),
     backupPath,
     sizeBytes: 0,
+    contentHash: isValidRegistryBackupContentHash(raw.contentHash) ? raw.contentHash : null,
     createdAt: raw.createdAt,
     expiresAt: canonicalRegistryBackupExpiry(raw.createdAt)
   };
@@ -792,6 +812,21 @@ async function readRegistryBackupEntryForRestore(
           entry
         }
       };
+    }
+    if (entry.contentHash) {
+      const actualHash = await hashFile(backupPath);
+      if (actualHash !== entry.contentHash.value) {
+        return {
+          kind: "restore-result",
+          result: {
+            backupId,
+            status: "blocked-path",
+            message: "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리지 않았어요.",
+            keyPath: entry.keyPath,
+            entry
+          }
+        };
+      }
     }
     return { kind: "entry", entry };
   } catch {

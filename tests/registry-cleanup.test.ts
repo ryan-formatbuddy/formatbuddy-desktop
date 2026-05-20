@@ -151,6 +151,8 @@ describe("registry leftover cleanup", () => {
     expect(runner.deleteKey).toHaveBeenCalledWith(keyPath);
     expect(result.sizeBytes).toBe(Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"));
     expect(result.expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    expect(result.contentHash?.algorithm).toBe("sha256");
+    expect(result.contentHash?.value).toMatch(/^[a-f0-9]{64}$/);
 
     const metaPath = join(
       fx.userDataDir,
@@ -165,6 +167,7 @@ describe("registry leftover cleanup", () => {
       keyPath,
       backupPath: result.backupPath,
       sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
+      contentHash: result.contentHash,
       createdAt: "2026-05-19T00:00:00.000Z",
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
@@ -897,6 +900,7 @@ describe("registry leftover cleanup", () => {
         keyPath,
         backupPath: result.backupPath,
         sizeBytes: Buffer.byteLength(REGISTRY_BACKUP_CONTENT, "utf8"),
+        contentHash: result.contentHash,
         createdAt: "2026-05-19T00:00:00.000Z",
         expiresAt: "2026-06-18T00:00:00.000Z"
       }
@@ -1596,6 +1600,38 @@ describe("registry leftover cleanup", () => {
 
     expect(restored.status).toBe("blocked-path");
     expect(restored.message).toMatch(/레지스트리 백업|registry backup|위치/);
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
+  it("does not import a registry backup when the same safe key backup content was changed", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+    await writeFile(
+      result.backupPath,
+      registryBackupContentFor(keyPath).replace('"Acme Notes"', '"Acme Notes Edited"'),
+      "utf8"
+    );
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/백업 파일이 바뀐 것 같아요|changed/i);
     expect(runner.importFile).not.toHaveBeenCalled();
   });
 

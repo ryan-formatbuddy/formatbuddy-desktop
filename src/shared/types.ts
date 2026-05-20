@@ -827,6 +827,10 @@ export interface RegistryBackupEntry {
   valueName?: string | null;
   backupPath: string;
   sizeBytes: number;
+  contentHash?: {
+    algorithm: "sha256";
+    value: string;
+  } | null;
   appName?: string | null;
   appPublisher?: string | null;
   createdAt: string;
