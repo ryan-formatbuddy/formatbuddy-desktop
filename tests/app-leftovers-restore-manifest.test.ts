@@ -101,7 +101,9 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
         },
         {
           userDataDir: fx.userDataDir,
-          now: () => new Date("2026-05-19T00:00:00.000Z")
+          now: () => new Date("2026-05-19T00:00:00.000Z"),
+          currentInstalledAppsKnown: true,
+          currentInstalledApps: []
         }
       );
 
@@ -189,7 +191,9 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
         },
         {
           userDataDir: fx.userDataDir,
-          now: () => new Date("2026-05-19T00:00:00.000Z")
+          now: () => new Date("2026-05-19T00:00:00.000Z"),
+          currentInstalledAppsKnown: true,
+          currentInstalledApps: []
         }
       );
 
@@ -277,7 +281,9 @@ describe("cleanupAppLeftovers restore manifest validation", () => {
         },
         {
           userDataDir: fx.userDataDir,
-          now: () => new Date("2026-05-19T00:00:00.000Z")
+          now: () => new Date("2026-05-19T00:00:00.000Z"),
+          currentInstalledAppsKnown: true,
+          currentInstalledApps: []
         }
       );
 

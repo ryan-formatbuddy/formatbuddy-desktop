@@ -3,7 +3,7 @@ import { promises as fs, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
-  cleanupAppLeftovers,
+  cleanupAppLeftovers as cleanupAppLeftoversBase,
   planAppLeftovers,
   __resetLeftoversPlanCacheForTests,
   __testing as leftoversTesting
@@ -19,6 +19,20 @@ import {
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
+
+type CleanupAppLeftoversRequestArg = Parameters<typeof cleanupAppLeftoversBase>[0];
+type CleanupAppLeftoversOptionsArg = Parameters<typeof cleanupAppLeftoversBase>[1];
+
+function cleanupAppLeftovers(
+  request: CleanupAppLeftoversRequestArg,
+  options: CleanupAppLeftoversOptionsArg
+) {
+  return cleanupAppLeftoversBase(request, {
+    currentInstalledAppsKnown: true,
+    currentInstalledApps: [],
+    ...options
+  });
+}
 
 function registryBackupContentFor(keyPath: string): string {
   const canonicalKeyPath = keyPath
@@ -2508,7 +2522,7 @@ describe("planAppLeftovers", () => {
     });
     const path = snapshot.groups[0].paths.find((p) => p.path === slack)!;
 
-    const result = await cleanupAppLeftovers(
+    const unsafeResult = await cleanupAppLeftoversBase(
       {
         planId: snapshot.planId,
         confirmationToken: snapshot.confirmationToken,
@@ -2517,6 +2531,35 @@ describe("planAppLeftovers", () => {
       {
         userDataDir: join(fx.root, "userdata"),
         now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(unsafeResult.removedItems).toHaveLength(0);
+    expect(unsafeResult.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      reason: "blocked-path",
+      detail: "앱 제거 완료 여부를 지금 다시 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
+    });
+    await expect(fs.stat(slack)).resolves.toBeTruthy();
+
+    const freshSnapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Slack", publisher: "Slack Technologies" }]
+    });
+    const freshPath = freshSnapshot.groups[0].paths.find((p) => p.path === slack)!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: freshSnapshot.planId,
+        confirmationToken: freshSnapshot.confirmationToken,
+        selectedPathIds: [freshPath.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        currentInstalledAppsKnown: true,
+        currentInstalledApps: []
       }
     );
 

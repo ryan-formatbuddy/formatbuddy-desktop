@@ -1404,7 +1404,7 @@ function currentInstallGuardForGroup(
     return "not-checked";
   }
   if (options.currentInstalledAppsKnown === false) return "unknown";
-  if (!options.currentInstalledApps) return "not-checked";
+  if (!options.currentInstalledApps) return "unknown";
 
   const normalizedCurrentApps = options.currentInstalledApps
     .map(normalizeAppForPlan)
