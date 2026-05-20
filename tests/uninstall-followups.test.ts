@@ -65,6 +65,33 @@ describe("persisted uninstall follow-ups", () => {
     expect(raw).not.toContain("123456");
   });
 
+  it("cleans display fields and drops unsafe paths before persisting follow-ups", async () => {
+    const now = Date.parse("2026-05-20T10:00:00.000Z");
+
+    await rememberUninstallFollowup(
+      userDataDir,
+      {
+        name: " Slack\nBeta ",
+        publisher: " Slack\tTechnologies ",
+        installLocation: "C:\\Program Files\\Slack\nBeta",
+        registryKeyPath: " HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Slack "
+      },
+      () => now
+    );
+
+    expect(await listUninstallFollowups(userDataDir, () => now + 1000)).toEqual([
+      {
+        name: "Slack Beta",
+        publisher: "Slack Technologies",
+        registryKeyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Slack"
+      }
+    ]);
+
+    const raw = readFileSync(join(userDataDir, UNINSTALL_FOLLOWUPS_FILE), "utf8");
+    expect(raw).not.toContain("\\n");
+    expect(raw).not.toContain("\\t");
+  });
+
   it("drops follow-ups outside the 24 hour handoff window", async () => {
     const now = Date.parse("2026-05-20T10:00:00.000Z");
     await rememberUninstallFollowup(

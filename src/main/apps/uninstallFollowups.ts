@@ -55,38 +55,49 @@ function mergeFollowupApp(base: InstalledApp, incoming: InstalledApp): Installed
   };
 }
 
-function cleanOptionalString(value: unknown): string | undefined {
+function cleanDisplayString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, MAX_FIELD_LENGTH);
+}
+
+function cleanMetadataString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (/[\u0000-\u001f\u007f]/.test(value)) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   return trimmed.slice(0, MAX_FIELD_LENGTH);
 }
 
 function sanitizeFollowupApp(app: InstalledApp): InstalledApp | null {
-  const name = cleanOptionalString(app.name);
+  const name = cleanDisplayString(app.name);
   if (!name) return null;
-  const publisher = cleanOptionalString(app.publisher) ?? null;
+  const publisher = cleanDisplayString(app.publisher) ?? null;
   return {
     name,
     publisher,
-    installLocation: cleanOptionalString(app.installLocation),
-    registryKeyPath: cleanOptionalString(app.registryKeyPath)
+    installLocation: cleanMetadataString(app.installLocation),
+    registryKeyPath: cleanMetadataString(app.registryKeyPath)
   };
 }
 
 function coerceFollowup(value: unknown): PersistedUninstallFollowup | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<PersistedUninstallFollowup>;
-  const name = cleanOptionalString(raw.name);
+  const name = cleanDisplayString(raw.name);
   if (!name) return null;
   if (typeof raw.rememberedAt !== "string" || !Number.isFinite(Date.parse(raw.rememberedAt))) {
     return null;
   }
   return {
     name,
-    publisher: cleanOptionalString(raw.publisher) ?? null,
-    installLocation: cleanOptionalString(raw.installLocation),
-    registryKeyPath: cleanOptionalString(raw.registryKeyPath),
+    publisher: cleanDisplayString(raw.publisher) ?? null,
+    installLocation: cleanMetadataString(raw.installLocation),
+    registryKeyPath: cleanMetadataString(raw.registryKeyPath),
     rememberedAt: raw.rememberedAt
   };
 }
