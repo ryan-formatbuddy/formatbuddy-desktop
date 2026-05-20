@@ -50,8 +50,11 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("진단 결과 파일(JSON)");
     expect(source).not.toContain("HKLM/HKCU");
     expect(source).not.toContain("formatbuddy-trash/items");
+    expect(source).not.toContain("텔레메트리");
     expect(source).toContain("Windows가 제공하는 기본 제거 화면으로 연결해요");
     expect(source).toContain("포맷버디 복구함 안에 30일 동안 보관해요");
+    expect(source).toContain("정리 파일·앱 삭제 흔적·잠시 꺼둔 시작 항목");
+    expect(source).toContain("앱 삭제 흔적과 시작 항목도 30일 안에 되돌릴 수 있게 따로 보관해요");
   });
 
   it("uses friendly 30-day restore-bin language instead of permanent-delete wording", () => {
