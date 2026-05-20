@@ -11,6 +11,7 @@ import {
 } from "../src/main/cleanup/executor";
 import {
   consumePlan,
+  peekPlan,
   planCleanup,
   __resetPlanCacheForTests
 } from "../src/main/cleanup/planner";
@@ -627,6 +628,47 @@ describe("executeCleanup", () => {
     expect(permanently).toEqual([]);
     await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
     expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
+  });
+
+  it("refuses relative selected cleanup paths before consuming the plan", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    const originalPath = item.path;
+    item.path = "old1.tmp";
+
+    const { deps, trashed, permanently } = makeSpyDeps();
+    await expect(
+      executeCleanup(
+        {
+          planId: plan.planId,
+          confirmationToken: plan.confirmationToken,
+          selectedItemIds: [item.id],
+          mode: "trash"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/absolute|source path|metadata/i);
+
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+    expect(peekPlan(plan.planId, plan.confirmationToken)).toBeDefined();
+
+    item.path = originalPath;
+    const retryResult = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(retryResult.removedItems).toHaveLength(1);
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeUndefined();
   });
 
   it("measures selected folders by their file contents, not directory metadata", async () => {

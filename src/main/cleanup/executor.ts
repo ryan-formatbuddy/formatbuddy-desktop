@@ -213,6 +213,16 @@ function isStrictMetadataString(value: unknown): value is string {
   return isUsableMetadataString(value) && value.trim() === value;
 }
 
+function isSupportedFilesystemPath(value: string): boolean {
+  let path = value.trim();
+  if (path.startsWith("\\\\?\\")) path = path.slice(4);
+  return /^[a-z]:[\\/]/i.test(path) || path.startsWith("\\\\") || path.startsWith("/");
+}
+
+function requiresSupportedFilesystemPath(item: CleanupItem): boolean {
+  return !(item.categoryId === "recycle-bin" && item.path === RECYCLE_BIN_SENTINEL_PATH);
+}
+
 function cleanDisplayMetadataString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value
@@ -291,6 +301,14 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
       path: isUsableMetadataString(item.path) ? item.path : "",
       reason: "blocked-path",
       detail: `정리 항목 정보가 안전하지 않아 자동 정리하지 않았어요: ${invalidStrict[0]}`
+    };
+  }
+  if (requiresSupportedFilesystemPath(item) && !isSupportedFilesystemPath(item.path)) {
+    return {
+      itemId: item.id,
+      path: item.path,
+      reason: "blocked-path",
+      detail: "정리 항목 경로가 절대경로가 아니라 자동 정리하지 않았어요."
     };
   }
 
