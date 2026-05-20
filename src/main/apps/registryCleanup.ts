@@ -337,10 +337,10 @@ async function assertRestorableRegistryBackupFile(
   if (expectedKeyPath && !registryBackupSectionsMatchExpectedKey(content, expectedKeyPath)) {
     throw new Error("앱 삭제 흔적 백업 파일의 레지스트리 위치가 달라 되돌리지 않았어요.");
   }
-  if (expectedKeyPath && !registryBackupContainsRestorableValueLine(content)) {
+  if (expectedKeyPath && !registryBackupContainsRestorableValueLine(content, expectedKeyPath)) {
     throw new Error("앱 삭제 흔적 백업 파일에 되돌릴 값이 없어 정리하지 않았어요.");
   }
-  if (expectedValueName && !registryBackupContainsOnlyValue(content, expectedValueName)) {
+  if (expectedValueName && !registryBackupContainsOnlyValue(content, expectedKeyPath, expectedValueName)) {
     throw new Error("앱 삭제 흔적 백업 파일의 시작 항목 값이 달라 되돌리지 않았어요.");
   }
 
@@ -372,24 +372,55 @@ function registryBackupContainsValueDeleteLine(content: string): boolean {
   });
 }
 
-function registryBackupContainsRestorableValueLine(content: string): boolean {
+function registryBackupLineSection(line: string): string | null | undefined {
+  if (!line.startsWith("[")) return undefined;
+  const match = /^\[(-?)([^\]]+)\]$/.exec(line);
+  if (!match || match[1] === "-") return null;
+  return canonicalRegistryKeyForComparison(match[2]);
+}
+
+function registryBackupSectionMatches(currentSection: string | null, expectedKeyPath: string): boolean {
+  const expected = canonicalRegistryKeyForComparison(expectedKeyPath);
+  return Boolean(currentSection && (currentSection === expected || currentSection.startsWith(`${expected}\\`)));
+}
+
+function registryBackupContainsRestorableValueLine(content: string, expectedKeyPath: string): boolean {
+  let currentSection: string | null = null;
   return content.split(/\r?\n/).some((rawLine) => {
     const line = rawLine.trim();
-    return /^@\s*=/.test(line) || /^"((?:\\"|[^"])*)"\s*=/.test(line);
+    const section = registryBackupLineSection(line);
+    if (section !== undefined) {
+      currentSection = section;
+      return false;
+    }
+    const isValueLine = /^@\s*=/.test(line) || /^"((?:\\"|[^"])*)"\s*=/.test(line);
+    return isValueLine && registryBackupSectionMatches(currentSection, expectedKeyPath);
   });
 }
 
-function registryBackupContainsOnlyValue(content: string, expectedValueName: string): boolean {
+function registryBackupContainsOnlyValue(
+  content: string,
+  expectedKeyPath: string | undefined,
+  expectedValueName: string
+): boolean {
   const escaped = expectedValueName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   let found = false;
+  let currentSection: string | null = null;
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line || /^Windows Registry Editor Version/i.test(line) || /^REGEDIT4\b/i.test(line)) {
       continue;
     }
-    if (line.startsWith("[") && line.endsWith("]")) continue;
+    const section = registryBackupLineSection(line);
+    if (section !== undefined) {
+      currentSection = section;
+      continue;
+    }
     const match = /^"((?:\\"|[^"])*)"=/.exec(line);
     if (!match) return false;
+    if (expectedKeyPath && !registryBackupSectionMatches(currentSection, expectedKeyPath)) {
+      return false;
+    }
     if (!new RegExp(`^${escaped}$`, "i").test(match[1].replace(/\\"/g, '"'))) {
       return false;
     }
