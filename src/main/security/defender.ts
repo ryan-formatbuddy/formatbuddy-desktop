@@ -128,6 +128,15 @@ function daysBetween(iso: string | null, now: Date): number | null {
   return Math.max(0, Math.floor((now.getTime() - t) / 86_400_000));
 }
 
+function quickScanFailureDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/access|denied|eacces|eperm|permission/i.test(message)) return "permission-denied";
+  if (/enoent|not\s+found|powershell/i.test(message)) return "windows-security-launcher-unavailable";
+  if (/executionpolicy|script|policy/i.test(message)) return "windows-policy-blocked";
+  if (/timeout|timed\s*out/i.test(message)) return "security-scan-timeout";
+  return "security-scan-start-failed";
+}
+
 export async function getDefenderStatus(deps: DefenderDeps): Promise<DefenderLiveStatus> {
   const platform = deps.platform ?? process.platform;
   if (platform !== "win32") {
@@ -214,7 +223,7 @@ export async function runQuickScan(deps: DefenderDeps): Promise<DefenderQuickSca
       status: "spawn-failed",
       startedAt,
       message: "Windows 보안 빠른 검사를 시작하지 못했어요. Windows 보안 앱에서 직접 확인해주세요.",
-      detail: (err as Error).message
+      detail: quickScanFailureDetail(err)
     };
   }
 }
@@ -372,5 +381,6 @@ export const __testing = {
   resourceListFrom,
   recordsFrom,
   actionFromDefender,
-  severityFromDefender
+  severityFromDefender,
+  quickScanFailureDetail
 };

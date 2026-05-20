@@ -155,7 +155,23 @@ describe("runQuickScan", () => {
     expect(result.status).toBe("spawn-failed");
     expect(result.message).toContain("Windows 보안");
     expect(result.message).not.toMatch(/PowerShell|명령 프롬프트|터미널/i);
-    expect(result.detail).toMatch(/EACCES/);
+    expect(result.detail).toBe("permission-denied");
+    expect(result.detail).not.toMatch(/EACCES|PowerShell|powershell|Start-MpScan/i);
+  });
+
+  it("normalizes quick scan launch errors to safe detail codes", () => {
+    expect(__testing.quickScanFailureDetail(new Error("powershell.exe ENOENT"))).toBe(
+      "windows-security-launcher-unavailable"
+    );
+    expect(__testing.quickScanFailureDetail(new Error("running scripts is disabled by ExecutionPolicy"))).toBe(
+      "windows-policy-blocked"
+    );
+    expect(__testing.quickScanFailureDetail(new Error("operation timed out"))).toBe(
+      "security-scan-timeout"
+    );
+    expect(__testing.quickScanFailureDetail(new Error("unexpected child process failure"))).toBe(
+      "security-scan-start-failed"
+    );
   });
 });
 

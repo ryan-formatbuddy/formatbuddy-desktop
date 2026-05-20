@@ -71,6 +71,7 @@ function quickScanDetailLabel(result: DefenderQuickScanResult): string | null {
   const detail = result.detail?.toLowerCase() ?? "";
 
   if (
+    detail.includes("permission-denied") ||
     detail.includes("access") ||
     detail.includes("denied") ||
     detail.includes("eacces") ||
@@ -78,13 +79,22 @@ function quickScanDetailLabel(result: DefenderQuickScanResult): string | null {
   ) {
     return "권한이 부족해서 시작하지 못했어요. Windows 보안 화면에서 직접 확인해주세요.";
   }
-  if (detail.includes("enoent") || detail.includes("spawn") || detail.includes("powershell")) {
+  if (
+    detail.includes("windows-security-launcher-unavailable") ||
+    detail.includes("enoent") ||
+    detail.includes("spawn") ||
+    detail.includes("powershell")
+  ) {
     return "Windows 보안 검사를 시작하지 못했어요. Windows 보안 화면에서 직접 실행해주세요.";
   }
-  if (detail.includes("executionpolicy") || detail.includes("script")) {
+  if (
+    detail.includes("windows-policy-blocked") ||
+    detail.includes("executionpolicy") ||
+    detail.includes("script")
+  ) {
     return "Windows 설정 때문에 실행이 막혔어요. Windows 보안 화면에서 직접 확인해주세요.";
   }
-  if (detail.includes("timeout")) {
+  if (detail.includes("security-scan-timeout") || detail.includes("timeout")) {
     return "응답이 늦어서 잠시 멈췄어요. Windows 보안 화면에서 이어서 확인해주세요.";
   }
 
