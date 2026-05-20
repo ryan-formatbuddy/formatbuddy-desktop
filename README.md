@@ -38,6 +38,24 @@ npm run build
 npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 ```
 
+## Windows field E2E
+
+Real Windows-only smoke test for the riskiest care path:
+
+```bash
+npm run field:e2e:win
+```
+
+This command intentionally runs only on Windows. It creates FormatBuddy-named
+temporary items, then verifies:
+
+- a cleanup file moves into the 30-day restore bin, restores, and auto-purges after expiry
+- a startup-folder item can be held for 30 days and restored
+- a dedicated HKCU Run value can be backed up, turned off, and restored
+
+It does not touch user files or existing startup values. It creates only
+`FormatBuddyFieldE2E_*` registry values and temporary files, then removes them.
+
 ## 검증 한계
 
 | 항목 | macOS에서 가능 | Windows 실기 필요 |
@@ -45,7 +63,7 @@ npm run dist:win     # → dist/FormatBuddy-Setup-X.Y.Z-x64.exe
 | 코드 컴파일 / lint / test | O | — |
 | Electron UI 렌더링 (mock scan) | O | — |
 | `.exe` 패키지 생성 (cross-build) | O | — |
-| 실제 Windows 점검 실행 | X | O |
+| 실제 Windows 점검 실행 | X | O (`npm run field:e2e:win` 포함) |
 | UAC 권한 흐름 | X | O |
 | Windows 폰트 렌더링 정확도 | X | O |
 
