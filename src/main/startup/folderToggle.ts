@@ -50,12 +50,16 @@ function entryDir(userDataDir: string, disabledId: string): string {
   return join(itemsRoot(userDataDir), disabledId);
 }
 
+function filesRoot(userDataDir: string, disabledId: string): string {
+  return join(entryDir(userDataDir, disabledId), "files");
+}
+
 function metaPath(userDataDir: string, disabledId: string): string {
   return join(entryDir(userDataDir, disabledId), META_FILE);
 }
 
 function storedPathFor(userDataDir: string, disabledId: string, originalPath: string): string {
-  return join(entryDir(userDataDir, disabledId), "files", basename(originalPath) || "startup-item");
+  return join(filesRoot(userDataDir, disabledId), basename(originalPath) || "startup-item");
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -87,6 +91,17 @@ function isUnderRoot(childPath: string, rootPath: string): boolean {
   const child = normalizePath(resolve(childPath));
   const root = normalizePath(resolve(rootPath));
   return child === root || child.startsWith(`${root}\\`);
+}
+
+function isManagedStartupStoredPath(
+  userDataDir: string,
+  disabledId: string,
+  candidatePath: string
+): boolean {
+  if (!isSafeStartupDisabledId(disabledId)) return false;
+  const candidate = normalizePath(resolve(candidatePath));
+  const root = normalizePath(resolve(filesRoot(userDataDir, disabledId)));
+  return candidate.startsWith(`${root}\\`);
 }
 
 function validIso(value: unknown): value is string {
@@ -196,10 +211,44 @@ async function isListableDisabledEntry(
 ): Promise<boolean> {
   const dir = entryDir(userDataDir, disabledId);
   if (entry.id !== disabledId) return false;
-  if (!isUnderRoot(entry.storedPath, dir)) return false;
+  if (!isManagedStartupStoredPath(userDataDir, disabledId, entry.storedPath)) return false;
   if (!isUnderRoot(entry.originalPath, entry.origin)) return false;
   if (await findLinkedPathPart(entry.storedPath, dir, true)) return false;
   return pathExists(entry.storedPath);
+}
+
+async function assertSafeStartupDisabledEntryForPurge(
+  userDataDir: string,
+  disabledId: string,
+  entry: StartupAutoDisabledEntry
+): Promise<string> {
+  if (!isSafeStartupDisabledId(disabledId) || entry.id !== disabledId) {
+    throw new Error("FormatBuddy startup holding purge id is not safe");
+  }
+
+  const root = normalizePath(resolve(itemsRoot(userDataDir)));
+  const dir = entryDir(userDataDir, disabledId);
+  const normalizedDir = normalizePath(resolve(dir));
+  if (!normalizedDir.startsWith(`${root}\\`)) {
+    throw new Error("FormatBuddy startup holding purge folder is outside the holding area");
+  }
+  if (!isManagedStartupStoredPath(userDataDir, disabledId, entry.storedPath)) {
+    throw new Error("FormatBuddy startup holding stored path is outside the holding entry");
+  }
+  if (!isUnderRoot(entry.originalPath, entry.origin)) {
+    throw new Error("FormatBuddy startup holding original path is outside the startup folder");
+  }
+
+  const linkedDir = await findLinkedPathPart(dir, userDataDir, true);
+  if (linkedDir) {
+    throw new Error(`FormatBuddy startup holding purge entry is a link: ${linkedDir}`);
+  }
+  const stat = await lstat(dir);
+  if (!stat.isDirectory()) {
+    throw new Error("FormatBuddy startup holding purge entry is not a folder");
+  }
+
+  return dir;
 }
 
 export async function listDisabledStartupFolderEntries(
@@ -383,12 +432,14 @@ export async function restoreStartupFolderEntry(
 
   const dir = entryDir(userDataDir, disabledId);
   if (isOutsideDisabledRetentionWindow(entry, options.now?.() ?? new Date())) {
-    const linkedDir = await findLinkedPathPart(dir, userDataDir, true);
-    if (linkedDir) {
+    let safeDir: string;
+    try {
+      safeDir = await assertSafeStartupDisabledEntryForPurge(userDataDir, disabledId, entry);
+    } catch (err) {
       return {
         status: "blocked-path",
-        message: "보관 위치가 안전하지 않아 자동으로 비우지 않았어요.",
-        detail: linkedDir,
+        message: "보관 기록의 경로가 안전하지 않아 자동으로 비우지 않았어요.",
+        detail: (err as Error).message,
         entry
       };
     }
@@ -396,8 +447,8 @@ export async function restoreStartupFolderEntry(
       options.removeEntryDir ??
       ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
     try {
-      await removeEntryDir(dir, entry);
-      if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
+      await removeEntryDir(safeDir, entry);
+      if (await pathExists(safeDir)) throw new Error("Expired startup holding entry still exists");
     } catch (err) {
       return {
         status: "failed",
@@ -413,7 +464,10 @@ export async function restoreStartupFolderEntry(
     };
   }
 
-  if (!isUnderRoot(entry.storedPath, dir) || !isUnderRoot(entry.originalPath, entry.origin)) {
+  if (
+    !isManagedStartupStoredPath(userDataDir, disabledId, entry.storedPath) ||
+    !isUnderRoot(entry.originalPath, entry.origin)
+  ) {
     return {
       status: "blocked-path",
       message: "보관 기록의 경로가 안전하지 않아 되돌리지 않았어요.",
@@ -523,15 +577,17 @@ export async function purgeExpiredStartupFolderEntries(
     if (!dirent.isDirectory()) continue;
     const entry = await readDisabledEntry(options.userDataDir, dirent.name);
     if (!entry || !isOutsideDisabledRetentionWindow(entry, now)) continue;
-    const dir = entryDir(options.userDataDir, dirent.name);
     try {
-      const linkedDir = await findLinkedPathPart(dir, options.userDataDir, true);
-      if (linkedDir) throw new Error(`Startup holding entry is a link: ${linkedDir}`);
+      const dir = await assertSafeStartupDisabledEntryForPurge(
+        options.userDataDir,
+        dirent.name,
+        entry
+      );
       await removeEntryDir(dir, entry);
       if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
       purgedIds.push(entry.id);
     } catch {
-      failedIds.push(dirent.name);
+      if (isSafeStartupDisabledId(dirent.name)) failedIds.push(dirent.name);
     }
   }
 
@@ -549,8 +605,11 @@ export const __testing = {
   ITEMS_DIR,
   META_FILE,
   entryDir,
+  filesRoot,
   itemsRoot,
   isUnderRoot,
   isSafeStartupDisabledId,
-  coerceDisabledEntry
+  isManagedStartupStoredPath,
+  coerceDisabledEntry,
+  assertSafeStartupDisabledEntryForPurge
 };

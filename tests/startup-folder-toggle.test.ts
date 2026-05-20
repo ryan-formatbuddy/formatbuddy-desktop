@@ -111,6 +111,68 @@ describe("startup folder toggle", () => {
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
   });
 
+  it("does not purge an expired startup holding record with a stored path outside the holding entry", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Slack.lnk");
+    const outside = join(fx.root, "outside-startup.lnk");
+    writeFileSync(source, "shortcut");
+    writeFileSync(outside, "outside stays put");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Slack.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    writeFileSync(
+      join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "meta.json"),
+      JSON.stringify({ ...disabled.entry, storedPath: outside }, null, 2),
+      "utf8"
+    );
+
+    const result = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(result).toMatchObject({
+      purgedCount: 0,
+      purgedIds: [],
+      failedIds: [disabled.entry!.id],
+      retentionDays: 30
+    });
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(true);
+    expect(readFileSync(outside, "utf8")).toBe("outside stays put");
+  });
+
+  it("blocks startup purge preflight when the expired holding entry folder is behind a link", async () => {
+    if (process.platform === "win32") return;
+    const fx = makeFixture();
+    roots.push(fx.root);
+    const disabledId = "expired-linked-startup";
+    const entryDir = __testing.entryDir(fx.userDataDir, disabledId);
+    const outsideEntryDir = join(fx.root, "outside-startup-entry");
+    const entry = {
+      id: disabledId,
+      entryId: "startup-folder|linked",
+      name: "Linked.lnk",
+      originalPath: join(fx.startupDir, "Linked.lnk"),
+      storedPath: join(__testing.filesRoot(fx.userDataDir, disabledId), "Linked.lnk"),
+      origin: fx.startupDir,
+      disabledAt: "2026-05-20T10:00:00.000Z",
+      expiresAt: "2026-06-19T10:00:00.000Z"
+    };
+
+    await mkdir(__testing.itemsRoot(fx.userDataDir), { recursive: true });
+    await mkdir(outsideEntryDir, { recursive: true });
+    symlinkSync(outsideEntryDir, entryDir, "dir");
+
+    await expect(
+      __testing.assertSafeStartupDisabledEntryForPurge(fx.userDataDir, disabledId, entry)
+    ).rejects.toThrow(/link|holding/i);
+  });
+
   it("does not restore a disabled startup item after the 30-day window", async () => {
     const fx = makeFixture();
     roots.push(fx.root);
@@ -134,6 +196,37 @@ describe("startup folder toggle", () => {
     expect(existsSync(source)).toBe(false);
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(false);
+  });
+
+  it("does not auto-empty an expired startup holding record when restore metadata points outside", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    const outside = join(fx.root, "outside-restore-startup.lnk");
+    writeFileSync(source, "shortcut");
+    writeFileSync(outside, "outside stays put");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    writeFileSync(
+      join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "meta.json"),
+      JSON.stringify({ ...disabled.entry, storedPath: outside }, null, 2),
+      "utf8"
+    );
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(true);
+    expect(readFileSync(outside, "utf8")).toBe("outside stays put");
   });
 
   it("does not report restore success when the holding entry folder still exists", async () => {
