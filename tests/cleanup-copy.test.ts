@@ -101,6 +101,10 @@ describe("Cleanup copy", () => {
     expect(source).toContain("recoverableRegistryBackupIds(result).length +");
     expect(source).toContain("restorableStartupDisabledIds(result).length");
     expect(source).toContain("const restorableCount = restorableCleanupResultCount(result)");
+    expect(source).toContain('result.mode === "trash" && restorableCount > 0');
+    expect(source).toContain("30일 안에 되돌릴 수 있는 항목은 포맷버디 복구함에서 다시 확인할 수 있어요");
+    expect(source).not.toContain('result.mode === "trash" && removedCount > 0');
+    expect(source).not.toContain("정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요");
   });
 
   it("shows friendly messages instead of silently returning when cleanup bridges are missing", () => {

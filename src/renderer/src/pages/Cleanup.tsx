@@ -516,7 +516,7 @@ function ResultPanel({
             빠르게 다시 보기
           </Button>
         )}
-        {result.mode === "trash" && removedCount > 0 && (
+        {result.mode === "trash" && restorableCount > 0 && (
           <Button variant="secondary" onClick={onOpenTrashRestore}>
             복구함 보기
           </Button>
@@ -537,9 +537,9 @@ function ResultPanel({
           처음으로
         </Button>
       </div>
-      {result.mode === "trash" && removedCount > 0 && (
+      {result.mode === "trash" && restorableCount > 0 && (
         <p style={{ fontSize: 12, opacity: 0.6, marginTop: 8 }}>
-          정리한 항목은 포맷버디 복구함에 30일 동안 보관돼요. 보관 기간 안에는 이 화면에서 되돌릴 수 있어요.
+          30일 안에 되돌릴 수 있는 항목은 포맷버디 복구함에서 다시 확인할 수 있어요.
         </p>
       )}
       {restoreRecentMessage && (
