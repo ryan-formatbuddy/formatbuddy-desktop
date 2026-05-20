@@ -226,6 +226,7 @@ let activeAbort: AbortController | null = null;
 let trayInstance: Tray | null = null;
 let reminderTimer: NodeJS.Timeout | null = null;
 let retentionPurgeTimer: NodeJS.Timeout | null = null;
+let retentionStartupPurgeStarted = false;
 const REMINDER_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 function focusMainWindow(): void {
@@ -334,6 +335,16 @@ function reconcileRetentionPurgeTimer(): void {
   retentionPurgeTimer = setInterval(() => {
     void runAppRetentionPurgeTick("scheduled");
   }, RETENTION_PURGE_INTERVAL_MS);
+}
+
+function startRetentionPurgeMaintenance(): void {
+  if (!retentionStartupPurgeStarted) {
+    retentionStartupPurgeStarted = true;
+    void runAppRetentionPurgeTick("startup").catch((err) => {
+      log.warn("retention:startup failed:", (err as Error).message);
+    });
+  }
+  reconcileRetentionPurgeTimer();
 }
 
 function restorePointAuditSummary(result: RestorePointResult, actionDescription: string): string {
@@ -1393,6 +1404,7 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   if (mainWindow) initAutoUpdater(mainWindow);
+  startRetentionPurgeMaintenance();
 
   void (async () => {
     try {
@@ -1425,8 +1437,6 @@ app.whenReady().then(() => {
         }
       }
       await reconcileReminderTimer();
-      await runAppRetentionPurgeTick("startup");
-      reconcileRetentionPurgeTimer();
       // Push the persisted update channel onto electron-updater. Initial
       // init() above used the default (stable) so this catches the case
       // where the user previously opted into beta.

@@ -173,10 +173,27 @@ describe("cleanup policy wiring", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
     expect(source).toContain("RETENTION_PURGE_INTERVAL_MS");
+    expect(source).toContain("retentionStartupPurgeStarted");
+    expect(source).toContain("startRetentionPurgeMaintenance()");
     expect(source).toContain("runAppRetentionPurgeTick(\"startup\")");
     expect(source).toContain("runAppRetentionPurgeTick(\"scheduled\")");
     expect(source).toContain("reconcileRetentionPurgeTimer()");
     expect(source).toContain("clearInterval(retentionPurgeTimer)");
+  });
+
+  it("starts restore-bin automatic emptying outside monitor initialization", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const appReadyIndex = source.indexOf("app.whenReady().then(() => {");
+    const retentionStartIndex = source.indexOf("startRetentionPurgeMaintenance();", appReadyIndex);
+    const monitorInitIndex = source.indexOf("const prefs = await loadMonitorPrefs", appReadyIndex);
+    const monitorInitCatchIndex = source.indexOf('log.warn("monitor:init failed:', monitorInitIndex);
+
+    expect(appReadyIndex).toBeGreaterThanOrEqual(0);
+    expect(retentionStartIndex).toBeGreaterThan(appReadyIndex);
+    expect(monitorInitIndex).toBeGreaterThan(retentionStartIndex);
+    expect(monitorInitCatchIndex).toBeGreaterThan(monitorInitIndex);
+    expect(source.indexOf("startRetentionPurgeMaintenance();", monitorInitIndex)).toBe(-1);
   });
 
   it("records restore-bin automatic emptying check failures in the user audit log", () => {
