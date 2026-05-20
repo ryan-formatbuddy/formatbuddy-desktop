@@ -25,6 +25,8 @@ import { findLinkedPathPart } from "./pathSafety";
 
 const LOG_FILE = "formatbuddy-cleanup-log.json";
 const MAX_ENTRIES = 100;
+const MS_PER_DAY = 86_400_000;
+const RESTORE_WINDOW_MS = 30 * MS_PER_DAY;
 
 interface PersistedLog {
   version: 1;
@@ -128,9 +130,35 @@ function countedFreedBytes(item: CleanupExecutedItem): number {
   return item.sizeBytes;
 }
 
-function isRestorableExecutedItem(item: CleanupExecutedItem): boolean {
+function isSafeRestoreHandle(value: string | undefined): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.trim() === value &&
+    value !== "." &&
+    value !== ".." &&
+    !/\s/.test(value) &&
+    !/[\/\\\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function withinRestoreWindow(expiresAt: string | undefined, executedAt: string): boolean {
+  if (!expiresAt) return false;
+  const expiryTime = Date.parse(expiresAt);
+  const executedTime = Date.parse(executedAt);
+  if (!Number.isFinite(expiryTime) || !Number.isFinite(executedTime)) return false;
+  if (expiryTime <= executedTime) return false;
+  return expiryTime - executedTime <= RESTORE_WINDOW_MS;
+}
+
+function isRestorableExecutedItem(item: CleanupExecutedItem, executedAt: string): boolean {
   if (!item.succeeded || item.mode !== "trash") return false;
-  return Boolean(item.trashEntryId || item.registryBackupId || item.startupDisabledId);
+  if (!withinRestoreWindow(item.expiresAt, executedAt)) return false;
+  return (
+    isSafeRestoreHandle(item.trashEntryId) ||
+    isSafeRestoreHandle(item.registryBackupId) ||
+    isSafeRestoreHandle(item.startupDisabledId)
+  );
 }
 
 async function loadLog(userDataDir: string): Promise<PersistedLog> {
@@ -178,9 +206,10 @@ export function buildLogEntry(args: {
   removedItems: CleanupExecutedItem[];
   skippedItems: CleanupSkippedItem[];
 }): CleanupLogEntry {
+  const executedAt = args.executedAt ?? new Date().toISOString();
   const breakdownMap = new Map<string, CleanupCategoryBreakdown>();
   for (const item of args.removedItems) {
-    if (!isRestorableExecutedItem(item)) continue;
+    if (!isRestorableExecutedItem(item, executedAt)) continue;
     const bytesFreed = countedFreedBytes(item);
     const existing = breakdownMap.get(item.categoryId);
     if (existing) {
@@ -202,10 +231,10 @@ export function buildLogEntry(args: {
 
   return {
     id: randomUUID(),
-    executedAt: args.executedAt ?? new Date().toISOString(),
+    executedAt,
     mode: args.mode,
     totalFreedBytes,
-    removedCount: args.removedItems.filter(isRestorableExecutedItem).length,
+    removedCount: args.removedItems.filter((item) => isRestorableExecutedItem(item, executedAt)).length,
     skippedCount: args.skippedItems.filter((item) => item.reason !== "not-selected").length,
     notSelectedCount: args.skippedItems.filter((item) => item.reason === "not-selected").length,
     categories: Array.from(breakdownMap.values())

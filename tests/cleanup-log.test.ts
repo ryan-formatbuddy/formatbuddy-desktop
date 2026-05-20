@@ -145,7 +145,8 @@ describe("cleanup execution log coercion", () => {
           categoryId: "app-leftovers",
           mode: "trash",
           succeeded: true,
-          registryBackupId: "registry-backup-1"
+          registryBackupId: "registry-backup-1",
+          expiresAt: "2026-06-18T00:00:00.000Z"
         },
         {
           itemId: "startup-1",
@@ -154,7 +155,8 @@ describe("cleanup execution log coercion", () => {
           categoryId: "app-leftovers",
           mode: "trash",
           succeeded: true,
-          startupDisabledId: "startup-disabled-1"
+          startupDisabledId: "startup-disabled-1",
+          expiresAt: "2026-06-18T00:00:00.000Z"
         },
         {
           itemId: "folder-1",
@@ -163,7 +165,8 @@ describe("cleanup execution log coercion", () => {
           categoryId: "app-leftovers",
           mode: "trash",
           succeeded: true,
-          trashEntryId: "trash-1"
+          trashEntryId: "trash-1",
+          expiresAt: "2026-06-18T00:00:00.000Z"
         }
       ],
       skippedItems: []
@@ -197,6 +200,82 @@ describe("cleanup execution log coercion", () => {
     expect(entry.categories).toEqual([]);
   });
 
+  it("does not count unsafe restore ids or entries outside the 30-day window as cleaned", () => {
+    const entry = buildLogEntry({
+      mode: "trash",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      removedItems: [
+        {
+          itemId: "safe-trash",
+          path: join(dir, "safe.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "safe-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-trash",
+          path: join(dir, "unsafe.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "../unsafe-trash-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "missing-expiry",
+          path: join(dir, "missing-expiry.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "missing-expiry-id"
+        },
+        {
+          itemId: "too-long",
+          path: join(dir, "too-long.tmp"),
+          sizeBytes: 12,
+          categoryId: "temp-user",
+          mode: "trash",
+          succeeded: true,
+          trashEntryId: "too-long-id",
+          expiresAt: "2026-06-19T00:00:00.000Z"
+        },
+        {
+          itemId: "safe-registry",
+          path: "HKCU\\Software\\Safe",
+          sizeBytes: 1024,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: "safe-registry-id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-startup",
+          path: join(dir, "Startup", "Unsafe.lnk"),
+          sizeBytes: 2048,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          startupDisabledId: "unsafe startup id",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ],
+      skippedItems: []
+    });
+
+    expect(entry.removedCount).toBe(2);
+    expect(entry.totalFreedBytes).toBe(12);
+    expect(entry.categories).toEqual([
+      { categoryId: "temp-user", bytesFreed: 12, itemCount: 1 },
+      { categoryId: "app-leftovers", bytesFreed: 0, itemCount: 1 }
+    ]);
+  });
+
   it("separates user-unselected cleanup candidates from actual skipped items", () => {
     const entry = buildLogEntry({
       mode: "trash",
@@ -209,7 +288,8 @@ describe("cleanup execution log coercion", () => {
           categoryId: "temp-user",
           mode: "trash",
           succeeded: true,
-          trashEntryId: "trash-1"
+          trashEntryId: "trash-1",
+          expiresAt: "2026-06-18T00:00:00.000Z"
         }
       ],
       skippedItems: [
