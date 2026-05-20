@@ -134,6 +134,17 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("{result.skippedItems.filter((s) => s.reason !== \"not-selected\").length}개");
   });
 
+  it("explains why skipped app-leftover items were left untouched", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("appLeftoverSkippedPreviewLines");
+    expect(source).toContain("그대로 둔 이유");
+    expect(source).toContain("보호가 필요한 항목이라 그대로 뒀어요");
+    expect(source).toContain("정리 중 문제가 생겨서 그대로 뒀어요");
+    expect(source).toContain("활동 기록에서 이어서 볼 수 있어요");
+    expect(source).not.toContain("item.detail ||");
+  });
+
   it("keeps cleanup result actions visible even when no leftover groups remain", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

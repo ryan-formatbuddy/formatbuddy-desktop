@@ -130,6 +130,46 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   return lines;
 }
 
+function appLeftoverSkippedMessage(
+  item: CleanupExecuteResult["skippedItems"][number]
+): string {
+  switch (item.reason) {
+    case "blocked-path":
+      return item.detail?.trim() || "보호가 필요한 항목이라 그대로 뒀어요.";
+    case "access-denied":
+      return "권한 때문에 자동 정리하지 않았어요. 직접 확인이 필요해요.";
+    case "not-found":
+      return "이미 없어져서 건드릴 항목이 없었어요.";
+    case "below-min-age":
+      return "아직 최근 항목이라 이번에는 그대로 뒀어요.";
+    case "execute-failed":
+      return "정리 중 문제가 생겨서 그대로 뒀어요. 다시 점검 후 한 번 더 시도해주세요.";
+    case "not-selected":
+    default:
+      return "선택하지 않아서 그대로 남겨뒀어요.";
+  }
+}
+
+function appLeftoverSkippedPreviewLines(
+  result: CleanupExecuteResult
+): { path: string; message: string }[] {
+  const skipped = result.skippedItems.filter((item) => item.reason !== "not-selected");
+  const preview = skipped.slice(0, 4).map((item) => ({
+    path: item.path || "확인 필요한 항목",
+    message: appLeftoverSkippedMessage(item)
+  }));
+  const remaining = skipped.length - preview.length;
+
+  if (remaining > 0) {
+    preview.push({
+      path: "추가 확인",
+      message: `${remaining}개는 활동 기록에서 이어서 볼 수 있어요.`
+    });
+  }
+
+  return preview;
+}
+
 function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const cleanedCount = result.removedItems.filter((item) => item.succeeded).length;
   const restorableCount =
@@ -330,6 +370,7 @@ function LeftoverPanel({
     : 0;
   const needsCheckCount = failedRemovedCount + skippedCount;
   const resultLines = result ? appLeftoverResultLines(result) : [];
+  const skippedPreviewLines = result ? appLeftoverSkippedPreviewLines(result) : [];
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
   const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
@@ -422,6 +463,21 @@ function LeftoverPanel({
               <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
                 확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요.
               </p>
+            )}
+            {skippedPreviewLines.length > 0 && (
+              <div style={{ margin: "0 0 8px" }}>
+                <strong style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+                  그대로 둔 이유
+                </strong>
+                <ul style={{ fontSize: 12, opacity: 0.78, margin: 0, paddingLeft: 18 }}>
+                  {skippedPreviewLines.map((line) => (
+                    <li key={`${line.path}:${line.message}`}>
+                      <code style={{ wordBreak: "break-all" }}>{line.path}</code>
+                      <span> · {line.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {resultLines.length > 0 && (
               <ul style={{ fontSize: 12, opacity: 0.78, margin: "0 0 8px", paddingLeft: 18 }}>
