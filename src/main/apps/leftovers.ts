@@ -1152,7 +1152,7 @@ function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): C
     modifiedAt: path.lastModifiedAt ?? undefined,
     categoryId: "app-leftovers",
     riskLevel: "review",
-    reason: "앱 제거 후 남은 AppData/ProgramData 후보",
+    reason: "앱 제거 후 남은 앱 데이터 후보",
     appName: group?.appName ?? null,
     appPublisher: group?.publisher ?? null
   };
