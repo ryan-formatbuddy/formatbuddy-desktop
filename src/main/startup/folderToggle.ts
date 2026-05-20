@@ -110,7 +110,15 @@ function makeDisabledId(entry: StartupAutoEntry, now: Date): string {
 function isUnderRoot(childPath: string, rootPath: string): boolean {
   const child = normalizePath(resolve(childPath));
   const root = normalizePath(resolve(rootPath));
-  return child === root || child.startsWith(`${root}\\`);
+  const childPrefix = root.endsWith("\\") ? root : `${root}\\`;
+  return child === root || child.startsWith(childPrefix);
+}
+
+function isStrictlyUnderRoot(childPath: string, rootPath: string): boolean {
+  const child = normalizePath(resolve(childPath));
+  const root = normalizePath(resolve(rootPath));
+  const childPrefix = root.endsWith("\\") ? root : `${root}\\`;
+  return child.startsWith(childPrefix);
 }
 
 export function isManagedStartupStoredPath(
@@ -611,7 +619,7 @@ export async function restoreStartupFolderEntry(
 
   if (
     !isManagedStartupStoredPath(userDataDir, disabledId, entry.storedPath) ||
-    !isUnderRoot(entry.originalPath, entry.origin)
+    !isStrictlyUnderRoot(entry.originalPath, entry.origin)
   ) {
     return {
       status: "blocked-path",

@@ -591,6 +591,39 @@ describe("startup folder toggle", () => {
     expect(existsSync(disabled.entry!.storedPath)).toBe(true);
   });
 
+  it("does not restore when tampered startup origin equals the original file behind a linked parent", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk")
+    });
+    const entryDir = __testing.entryDir(fx.userDataDir, disabled.entry!.id);
+    writeFileSync(
+      join(entryDir, __testing.META_FILE),
+      JSON.stringify({ ...disabled.entry, origin: source }, null, 2),
+      "utf8"
+    );
+
+    const outside = join(fx.root, "outside-startup-restore");
+    await rm(fx.startupDir, { recursive: true, force: true });
+    await mkdir(outside, { recursive: true });
+    symlinkSync(outside, fx.startupDir, "dir");
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(existsSync(join(outside, "Teams.lnk"))).toBe(false);
+    expect(existsSync(disabled.entry!.storedPath)).toBe(true);
+  });
+
   it("refuses unsafe disabled startup ids without reading holding metadata", async () => {
     const fx = makeFixture();
     roots.push(fx.root);
