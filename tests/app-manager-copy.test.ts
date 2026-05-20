@@ -201,6 +201,17 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("setSelectedLeftovers(selectableLeftoverPathIds(snapshot))");
   });
 
+  it("uses an in-app confirmation dialog before app-leftover cleanup", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("AppLeftoverConfirmDialog");
+    expect(source).toContain("buildLeftoverCleanupConfirm");
+    expect(source).toContain("aria-modal=\"true\"");
+    expect(source).toContain("선택한 앱 잔여 항목을 정리할까요?");
+    expect(source).toContain("30일 복구함으로 정리");
+    expect(source).not.toContain("선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요");
+  });
+
   it("shows the startup item name beside the startup location", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

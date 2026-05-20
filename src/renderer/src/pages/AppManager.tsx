@@ -46,6 +46,16 @@ type LoadState =
   | { kind: "empty" }
   | { kind: "error"; message: string };
 
+type LeftoverCleanupConfirm = {
+  planId: string;
+  confirmationToken: string;
+  selectedPathIds: string[];
+  selectedBytes: number;
+  folderCount: number;
+  backupCount: number;
+  startupHoldCount: number;
+};
+
 function formatBytes(value?: number | null): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
   const mb = value / 1024 / 1024;
@@ -184,6 +194,31 @@ function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   return "이번 정리에서 처리된 항목은 없어요.";
 }
 
+function selectedLeftoverPaths(
+  snapshot: AppLeftoversSnapshot,
+  selectedPathIds: string[]
+): AppLeftoverPath[] {
+  const selected = new Set(selectedPathIds);
+  return snapshot.groups.flatMap((group) => group.paths).filter((path) => selected.has(path.id));
+}
+
+function buildLeftoverCleanupConfirm(
+  snapshot: AppLeftoversSnapshot,
+  selectedPathIds: string[]
+): LeftoverCleanupConfirm {
+  const paths = selectedLeftoverPaths(snapshot, selectedPathIds);
+
+  return {
+    planId: snapshot.planId,
+    confirmationToken: snapshot.confirmationToken,
+    selectedPathIds,
+    selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
+    folderCount: paths.filter((path) => path.kind === "folder").length,
+    backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
+    startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length
+  };
+}
+
 function uninstallStatusDetailLabel(result: AppUninstallResult): string {
   const detail = result.detail?.toLowerCase() ?? "";
 
@@ -303,6 +338,81 @@ function AppRow({
         </Button>
       </div>
     </li>
+  );
+}
+
+function AppLeftoverConfirmDialog({
+  confirm,
+  busy,
+  onCancel,
+  onConfirm
+}: {
+  confirm: LeftoverCleanupConfirm;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const selectedCount = confirm.selectedPathIds.length;
+  const hasSizedItems = confirm.selectedBytes > 0;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="app-leftover-confirm-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+        padding: 16
+      }}
+    >
+      <div
+        style={{
+          width: 520,
+          maxWidth: "100%",
+          borderRadius: 12,
+          background: "var(--color-fb-bg-elev)",
+          color: "var(--color-fb-ink-1)",
+          boxShadow: "var(--fb-shadow-3)",
+          padding: 24
+        }}
+      >
+        <h2 id="app-leftover-confirm-title" style={{ marginTop: 0 }}>
+          선택한 앱 잔여 항목을 정리할까요?
+        </h2>
+        <p>
+          선택한 <strong>{selectedCount}개</strong> 항목을 정리해요.{" "}
+          {hasSizedItems ? (
+            <>
+              예상 <strong>{formatBytes(confirm.selectedBytes)}</strong>을 비울 수 있어요.
+            </>
+          ) : (
+            <>앱 삭제 흔적처럼 용량 변화가 거의 없는 항목도 포함돼요.</>
+          )}
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.8 }}>
+          폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+        </p>
+        <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
+          <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
+          <li>앱 삭제 흔적/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
+          <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
+        </ul>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>
+            취소
+          </Button>
+          <Button variant="primary" onClick={onConfirm} disabled={busy}>
+            {busy ? "정리하는 중…" : "30일 복구함으로 정리"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -642,6 +752,7 @@ export function AppManager({
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [leftovers, setLeftovers] = useState<LeftoverState>({ loading: false });
   const [selectedLeftovers, setSelectedLeftovers] = useState<Set<string>>(new Set());
+  const [leftoverCleanupConfirm, setLeftoverCleanupConfirm] = useState<LeftoverCleanupConfirm | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupExecuteResult | undefined>();
   const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
@@ -689,6 +800,7 @@ export function AppManager({
       const snapshot = await window.fb.listAppLeftovers();
       setLeftovers({ loading: false, snapshot });
       setSelectedLeftovers(new Set());
+      setLeftoverCleanupConfirm(null);
     } catch (err) {
       setLeftovers((prev) => ({ ...prev, loading: false, error: friendlyErrorMessage(err) }));
     }
@@ -729,27 +841,39 @@ export function AppManager({
     const selectableIds = selectableLeftoverPathIds(snapshot);
     const selectedPathIds = Array.from(selectedLeftovers).filter((id) => selectableIds.has(id));
     if (selectedPathIds.length === 0) return;
-    const confirmed = window.confirm(
-      `선택한 앱 잔여 항목 ${selectedPathIds.length}개를 정리할게요. 폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요.`
-    );
-    if (!confirmed) return;
+    setLeftoverCleanupConfirm(buildLeftoverCleanupConfirm(snapshot, selectedPathIds));
+  }, [leftovers.snapshot, selectedLeftovers]);
+
+  const runConfirmedLeftoverCleanup = useCallback(async () => {
+    if (!leftoverCleanupConfirm) return;
+    if (!window.fb?.cleanupAppLeftovers) {
+      setLeftoverCleanupConfirm(null);
+      setLeftovers((prev) => ({
+        ...prev,
+        loading: false,
+        error: "잔여 항목 정리를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      }));
+      return;
+    }
     setCleanupBusy(true);
     setRecentRestoreMessage(undefined);
     try {
       const result = await window.fb.cleanupAppLeftovers({
-        planId: snapshot.planId,
-        confirmationToken: snapshot.confirmationToken,
-        selectedPathIds
+        planId: leftoverCleanupConfirm.planId,
+        confirmationToken: leftoverCleanupConfirm.confirmationToken,
+        selectedPathIds: leftoverCleanupConfirm.selectedPathIds
       });
       setCleanupResult(result);
       setSelectedLeftovers(new Set());
+      setLeftoverCleanupConfirm(null);
       await loadLeftovers();
     } catch (err) {
       setLeftovers((prev) => ({ ...prev, loading: false, error: friendlyErrorMessage(err) }));
+      setLeftoverCleanupConfirm(null);
     } finally {
       setCleanupBusy(false);
     }
-  }, [leftovers.snapshot, loadLeftovers, selectedLeftovers]);
+  }, [leftoverCleanupConfirm, loadLeftovers]);
 
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
@@ -1044,6 +1168,14 @@ export function AppManager({
         onOpenAuditLog={onOpenAuditLog}
         onOpenStartupAuto={onOpenStartupAuto}
       />
+      {leftoverCleanupConfirm && (
+        <AppLeftoverConfirmDialog
+          confirm={leftoverCleanupConfirm}
+          busy={cleanupBusy}
+          onCancel={() => setLeftoverCleanupConfirm(null)}
+          onConfirm={() => void runConfirmedLeftoverCleanup()}
+        />
+      )}
     </main>
   );
 }
