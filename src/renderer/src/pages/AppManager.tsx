@@ -52,6 +52,7 @@ type LeftoverCleanupConfirm = {
   selectedPathIds: string[];
   selectedBytes: number;
   folderCount: number;
+  shortcutCount: number;
   backupCount: number;
   startupHoldCount: number;
 };
@@ -116,7 +117,7 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
 }
 
 function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
-  const folderCount = restorableTrashEntryIds(result).length;
+  const fileOrFolderCount = restorableTrashEntryIds(result).length;
   const backupCount = restorableRegistryBackupIds(result).length;
   const startupCount = restorableStartupDisabledIds(result).length;
   const untouchedCount =
@@ -125,8 +126,8 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
   const lines: string[] = [];
 
-  if (folderCount > 0) {
-    lines.push(`잔여 폴더 ${folderCount}개는 복구함에 30일 동안 보관해요.`);
+  if (fileOrFolderCount > 0) {
+    lines.push(`잔여 파일/폴더 ${fileOrFolderCount}개는 복구함에 30일 동안 보관해요.`);
   }
   if (backupCount > 0) {
     lines.push(`앱 삭제 흔적/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
@@ -218,6 +219,7 @@ function buildLeftoverCleanupConfirm(
     selectedPathIds,
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
     folderCount: paths.filter((path) => path.kind === "folder").length,
+    shortcutCount: paths.filter((path) => path.kind === "shortcut").length,
     backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length
   };
@@ -400,10 +402,11 @@ function AppLeftoverConfirmDialog({
           )}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          폴더와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+          폴더·바로가기와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
+          <li>바탕화면·시작 메뉴 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
           <li>앱 삭제 흔적/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
         </ul>
@@ -562,8 +565,8 @@ function LeftoverPanel({
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 폴더와 앱 삭제 흔적 후보예요. 직접 고른
-        항목만 정리하고, 폴더와 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
+        Windows가 앱을 제거해도 남는 경우가 있는 폴더, 바탕화면·시작 메뉴 바로가기,
+        앱 삭제 흔적 후보예요. 직접 고른 항목만 정리하고, 폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
         30일 동안 되돌릴 수 있게 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
