@@ -97,9 +97,18 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("restoreEntryExpiryLabel");
     expect(source).toContain("restorableRestoreItems");
     expect(source).toContain("보관 기간이 지나 되돌릴 수 없어요");
-    expect(source).toContain("disabled={Boolean(busy) || isExpired}");
+    expect(source).toContain("disabled={Boolean(busy) || isExpired || isChanged}");
     expect(source).toContain("disabled={Boolean(busy) || totalRestorableCount === 0}");
     expect(source).not.toContain('{days === 0 ? "오늘 만료"');
+  });
+
+  it("shows changed restore-bin files as check-needed instead of restorable", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain('entry.integrityStatus === "changed"');
+    expect(source).toContain("복구함 안의 파일이 바뀐 것 같아요");
+    expect(source).toContain("복구함 안 파일 확인 필요");
+    expect(source).toContain("!isChangedTrashEntry(item.entry)");
   });
 
   it("does not promise that every restore-bin item can be restored when expired items may remain", () => {

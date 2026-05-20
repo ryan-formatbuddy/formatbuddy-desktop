@@ -588,6 +588,14 @@ async function refreshStoredEntrySizes(
   return next;
 }
 
+async function trashEntryIntegrityStatus(
+  entry: CleanupTrashEntry
+): Promise<NonNullable<CleanupTrashEntry["integrityStatus"]>> {
+  if (!entry.contentHash) return "legacy";
+  const actualContentHash = await hashPath(entry.storedPath).catch(() => null);
+  return actualContentHash === entry.contentHash.value ? "verified" : "changed";
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
@@ -777,7 +785,15 @@ export async function getTrashSnapshot(
     await loadReconciledIndex(options.userDataDir)
   );
   const index = await refreshStoredEntrySizes(options.userDataDir, pruned);
-  const entries = index.entries.slice().sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
+  const entriesWithIntegrity = await Promise.all(
+    index.entries.map(async (entry) => ({
+      ...entry,
+      integrityStatus: await trashEntryIntegrityStatus(entry)
+    }))
+  );
+  const entries = entriesWithIntegrity
+    .slice()
+    .sort((a, b) => Date.parse(a.expiresAt) - Date.parse(b.expiresAt));
   const totalBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
   return {
     entries,

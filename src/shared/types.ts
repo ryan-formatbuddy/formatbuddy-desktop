@@ -777,6 +777,7 @@ export interface CleanupTrashEntry {
     algorithm: "sha256";
     value: string;
   } | null;
+  integrityStatus?: "verified" | "changed" | "legacy";
   createdAt: string;
   expiresAt: string;
 }

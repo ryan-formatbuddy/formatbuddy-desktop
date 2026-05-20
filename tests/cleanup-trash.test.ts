@@ -77,6 +77,7 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.retentionDays).toBe(FORMATBUDDY_TRASH_RETENTION_DAYS);
     expect(snapshot.entries).toHaveLength(1);
     expect(snapshot.totalBytes).toBe(5);
+    expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
   it("recovers a moved item when the trash index was blocked by a link", async () => {
@@ -226,7 +227,34 @@ describe("FormatBuddy Trash", () => {
 
     const actualBytes = Buffer.byteLength("hello and more bytes");
     expect(snapshot.entries[0].sizeBytes).toBe(actualBytes);
+    expect(snapshot.entries[0].integrityStatus).toBe("changed");
     expect(snapshot.totalBytes).toBe(actualBytes);
+  });
+
+  it("marks restore-bin snapshot entries changed when same-size content was modified", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    const before = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(before.entries[0].integrityStatus).toBe("verified");
+
+    await writeFile(before.entries[0].storedPath, "jello", "utf8");
+
+    const after = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(after.entries[0].sizeBytes).toBe(5);
+    expect(after.entries[0].integrityStatus).toBe("changed");
   });
 
   it("refuses to move protected system paths into the restore bin", async () => {
