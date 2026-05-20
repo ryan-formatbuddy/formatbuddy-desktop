@@ -450,6 +450,23 @@ function isStrictPlanString(value: unknown): value is string {
   return isUsablePlanString(value) && isTrimmedString(value);
 }
 
+function isSupportedFilesystemPlanPath(value: string): boolean {
+  let path = value.trim();
+  if (path.startsWith("\\\\?\\")) path = path.slice(4);
+  return /^[a-z]:[\\/]/i.test(path) || path.startsWith("\\\\") || path.startsWith("/");
+}
+
+function isFilesystemLeftoverPathKind(value: unknown): boolean {
+  return (
+    value === undefined ||
+    value === "folder" ||
+    value === "install-folder" ||
+    value === "shortcut" ||
+    value === "shortcut-folder" ||
+    value === "startup-folder"
+  );
+}
+
 function isOptionalUsablePlanString(value: unknown): value is string | null | undefined {
   return value === undefined || value === null || value === "" || isUsablePlanString(value);
 }
@@ -1622,6 +1639,13 @@ function assertSelectedLeftoverPlanMetadataUsable(
 
     if (!isStrictPlanString(path.id)) invalid.push("path id");
     if (!isStrictPlanString(path.path)) invalid.push("path");
+    if (
+      isStrictPlanString(path.path) &&
+      isFilesystemLeftoverPathKind(path.kind) &&
+      !isSupportedFilesystemPlanPath(path.path)
+    ) {
+      invalid.push("absolute path");
+    }
     if (!isSafeLeftoverPathKind(path.kind)) invalid.push("kind");
     if (typeof path.exists !== "boolean") invalid.push("exists");
     if (!isOptionalPlanSizeBytes(path.sizeBytes)) invalid.push("size");
