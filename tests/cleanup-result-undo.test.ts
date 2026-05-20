@@ -135,6 +135,33 @@ describe("Cleanup result undo helper", () => {
     );
   });
 
+  it("summarizes changed restore-bin files as a specific check-needed reason", () => {
+    const results: CleanupTrashRestoreResult[] = [
+      {
+        entryId: "a",
+        status: "blocked-path",
+        message: "복구함 안의 파일이 바뀐 것 같아요",
+        entry: {
+          id: "a",
+          itemId: "temp-a",
+          originalPath: "C:\\Temp\\a.tmp",
+          storedPath: "C:\\FormatBuddy\\trash\\a.tmp",
+          label: "a.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 10,
+          integrityStatus: "changed",
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      },
+      { entryId: "b", status: "blocked-path", message: "blocked" }
+    ];
+
+    expect(summarizeTrashRestoreResults(results)).toBe(
+      "1개는 복구함 안의 파일이 바뀐 것 같아 되돌리지 않았어요. 1개는 안전 확인이 필요해 멈췄어요."
+    );
+  });
+
   it("summarizes registry backup restore outcomes in friendly Korean", () => {
     const results: RegistryBackupRestoreResult[] = [
       { backupId: "a", status: "restored", message: "ok", entry: registryBackupEntry({ backupKind: "key" }) },
@@ -163,6 +190,28 @@ describe("Cleanup result undo helper", () => {
 
     expect(summarizeRegistryBackupRestoreResults(results)).toBe(
       "1개는 백업 목록에서 찾지 못했어요. 1개는 30일 보관 기간이 지나 되돌릴 수 없어요. 1개는 백업 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
+    );
+  });
+
+  it("summarizes changed registry backups by backup kind", () => {
+    const results: RegistryBackupRestoreResult[] = [
+      {
+        backupId: "a",
+        status: "blocked-path",
+        message: "앱 삭제 흔적 백업 파일이 바뀐 것 같아요",
+        entry: registryBackupEntry({ backupKind: "key", integrityStatus: "changed" })
+      },
+      {
+        backupId: "b",
+        status: "blocked-path",
+        message: "시작 항목 백업 파일이 바뀐 것 같아요",
+        entry: registryBackupEntry({ backupKind: "startup-value", integrityStatus: "changed" })
+      },
+      { backupId: "c", status: "blocked-path", message: "blocked" }
+    ];
+
+    expect(summarizeRegistryBackupRestoreResults(results)).toBe(
+      "앱 삭제 흔적 백업 1개는 백업 파일이 바뀐 것 같아 되돌리지 않았어요. 시작 항목 백업 1개는 백업 파일이 바뀐 것 같아 되돌리지 않았어요. 1개는 안전 확인이 필요해 멈췄어요."
     );
   });
 

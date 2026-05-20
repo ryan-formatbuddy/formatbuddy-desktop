@@ -108,6 +108,15 @@ export function restorableRegistryBackupIds(result: CleanupExecuteResult, now = 
     .filter((id): id is string => typeof id === "string");
 }
 
+type IntegrityStatusSource = { integrityStatus?: "verified" | "changed" | "legacy" } | null | undefined;
+
+function isChangedBlockedRestore(
+  message: string,
+  entry: IntegrityStatusSource
+): boolean {
+  return entry?.integrityStatus === "changed" || message.includes("바뀐 것 같");
+}
+
 export function summarizeTrashRestoreResults(
   results: CleanupTrashRestoreResult[]
 ): string {
@@ -115,7 +124,12 @@ export function summarizeTrashRestoreResults(
   const blocked = results.filter((item) => item.status === "target-exists").length;
   const notFound = results.filter((item) => item.status === "not-found").length;
   const expired = results.filter((item) => item.status === "expired").length;
-  const unsafePath = results.filter((item) => item.status === "blocked-path").length;
+  const changedStoredItem = results.filter(
+    (item) => item.status === "blocked-path" && isChangedBlockedRestore(item.message, item.entry)
+  ).length;
+  const unsafePath = results.filter(
+    (item) => item.status === "blocked-path" && !isChangedBlockedRestore(item.message, item.entry)
+  ).length;
   const missingStoredItem = results.filter((item) => item.status === "missing-stored-item").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
   const parts: string[] = [];
@@ -124,6 +138,9 @@ export function summarizeTrashRestoreResults(
   if (blocked > 0) parts.push(`${blocked}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
   if (notFound > 0) parts.push(`${notFound}개는 복구함에서 찾지 못했어요.`);
   if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
+  if (changedStoredItem > 0) {
+    parts.push(`${changedStoredItem}개는 복구함 안의 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (missingStoredItem > 0) parts.push(`${missingStoredItem}개는 보관된 파일을 찾지 못했어요.`);
   if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);
@@ -153,7 +170,14 @@ export function summarizeRegistryBackupRestoreResults(
   const restoredStartupBackups = restored.filter((item) => isStartupRegistryBackup(item.entry)).length;
   const notFound = results.filter((item) => item.status === "not-found").length;
   const expired = results.filter((item) => item.status === "expired").length;
-  const unsafePath = results.filter((item) => item.status === "blocked-path").length;
+  const changedBackups = results.filter(
+    (item) => item.status === "blocked-path" && isChangedBlockedRestore(item.message, item.entry)
+  );
+  const changedAppBackups = changedBackups.filter((item) => !isStartupRegistryBackup(item.entry)).length;
+  const changedStartupBackups = changedBackups.filter((item) => isStartupRegistryBackup(item.entry)).length;
+  const unsafePath = results.filter(
+    (item) => item.status === "blocked-path" && !isChangedBlockedRestore(item.message, item.entry)
+  ).length;
   const missingBackup = results.filter((item) => item.status === "missing-backup").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
   const parts: string[] = [];
@@ -167,6 +191,12 @@ export function summarizeRegistryBackupRestoreResults(
   if (notFound > 0) parts.push(`${notFound}개는 백업 목록에서 찾지 못했어요.`);
   if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
   if (missingBackup > 0) parts.push(`${missingBackup}개는 백업 파일을 찾지 못했어요.`);
+  if (changedAppBackups > 0) {
+    parts.push(`앱 삭제 흔적 백업 ${changedAppBackups}개는 백업 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
+  if (changedStartupBackups > 0) {
+    parts.push(`시작 항목 백업 ${changedStartupBackups}개는 백업 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);
 
