@@ -177,6 +177,33 @@ describe("startup folder toggle", () => {
     ).rejects.toThrow(/link|holding/i);
   });
 
+  it("removes a linked startup holding items folder during automatic purge without touching the target", async () => {
+    if (process.platform === "win32") return;
+    const fx = makeFixture();
+    roots.push(fx.root);
+    const root = __testing.itemsRoot(fx.userDataDir);
+    const outsideItems = join(fx.root, "outside-startup-items");
+    const outsideFile = join(outsideItems, "held.lnk");
+    await mkdir(join(root, ".."), { recursive: true });
+    await mkdir(outsideItems, { recursive: true });
+    writeFileSync(outsideFile, "outside stays put");
+    symlinkSync(outsideItems, root, "dir");
+
+    const result = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedIds: [],
+      failedIds: [],
+      retentionDays: 30
+    });
+    expect(existsSync(root)).toBe(false);
+    expect(readFileSync(outsideFile, "utf8")).toBe("outside stays put");
+  });
+
   it("does not restore a disabled startup item after the 30-day window", async () => {
     const fx = makeFixture();
     roots.push(fx.root);

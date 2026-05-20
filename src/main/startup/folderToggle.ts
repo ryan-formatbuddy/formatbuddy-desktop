@@ -329,10 +329,21 @@ async function removeManagedStartupDisabledItem(
   return !(await pathExists(dir));
 }
 
+async function removeLinkedStartupDisabledRootIfManaged(
+  userDataDir: string,
+  linkedRoot: string
+): Promise<void> {
+  if (normalizePath(resolve(linkedRoot)) === normalizePath(resolve(userDataDir))) return;
+  await rm(linkedRoot, { force: true }).catch(() => {});
+}
+
 async function pruneNonRestorableStartupDisabledItems(userDataDir: string): Promise<void> {
   const root = itemsRoot(userDataDir);
   const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
-  if (linkedRoot) return;
+  if (linkedRoot) {
+    await removeLinkedStartupDisabledRootIfManaged(userDataDir, linkedRoot);
+    return;
+  }
 
   let dirs;
   try {
@@ -374,6 +385,7 @@ export async function listDisabledStartupFolderEntries(
   const root = itemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
   if (linkedRoot) {
+    await removeLinkedStartupDisabledRootIfManaged(options.userDataDir, linkedRoot);
     return {
       capturedAt: now.toISOString(),
       entries: [],
@@ -695,6 +707,7 @@ export async function purgeExpiredStartupFolderEntries(
   const root = itemsRoot(options.userDataDir);
   const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
   if (linkedRoot) {
+    await removeLinkedStartupDisabledRootIfManaged(options.userDataDir, linkedRoot);
     return {
       purgedCount: 0,
       purgedIds: [],
