@@ -122,6 +122,28 @@ describe("FormatBuddy Trash", () => {
     expect(await readFile(source, "utf8")).toBe("not a folder");
   });
 
+  it("refuses an app-install-folder trusted source behind a linked parent", async () => {
+    if (process.platform === "win32") return;
+    const programFilesLink = join(fx.root, "Program Files");
+    const outsideProgramFiles = join(fx.root, "outside-program-files");
+    const source = join(programFilesLink, "Acme Notes");
+    const realSource = join(outsideProgramFiles, "Acme Notes");
+    await mkdir(realSource, { recursive: true });
+    await writeFile(join(realSource, "AcmeNotes.exe"), "binary", "utf8");
+    await symlink(outsideProgramFiles, programFilesLink, "dir");
+
+    await expect(
+      moveToFormatBuddyTrash({
+        userDataDir: fx.userData,
+        item: makeItem(source),
+        sizeBytes: 6,
+        trustedSource: { kind: "app-install-folder", allowRoots: [source] },
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      })
+    ).rejects.toThrow(/link|링크/i);
+    expect(await readFile(join(realSource, "AcmeNotes.exe"), "utf8")).toBe("binary");
+  });
+
   it("recovers a moved item when the trash index was blocked by a link", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
     await mkdir(join(source, ".."), { recursive: true });

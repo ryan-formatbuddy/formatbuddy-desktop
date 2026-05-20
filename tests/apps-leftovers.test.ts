@@ -490,6 +490,34 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("keeps Program Files install folders protected when the Program Files parent is a link", async () => {
+    if (process.platform === "win32") return;
+    const programFilesLink = join(fx.root, "Program Files");
+    const outsideProgramFiles = join(fx.root, "outside-program-files");
+    const realInstallFolder = join(outsideProgramFiles, "Acme Notes");
+    const installFolder = join(programFilesLink, "Acme Notes");
+    await fs.mkdir(realInstallFolder, { recursive: true });
+    await fs.writeFile(join(realInstallFolder, "AcmeNotes.exe"), "binary", "utf8");
+    await fs.symlink(outsideProgramFiles, programFilesLink, "dir");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: installFolder
+        }
+      ]
+    });
+
+    const path = snapshot.groups[0].paths.find((p) => p.path === installFolder);
+    expect(path?.kind).toBe("folder");
+    expect(path?.protectedBy).toMatch(/링크|link/i);
+    await expect(fs.readFile(join(realInstallFolder, "AcmeNotes.exe"), "utf8")).resolves.toBe("binary");
+  });
+
   it("keeps mismatched Program Files install folders protected", async () => {
     const installFolder = join(fx.root, "Program Files", "Shared Tools");
     await fs.mkdir(installFolder, { recursive: true });

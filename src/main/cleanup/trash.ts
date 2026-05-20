@@ -815,6 +815,10 @@ export async function moveToFormatBuddyTrash(
     if (!sourceStat?.isDirectory()) {
       throw new Error("cleanup-trash refuses app install folder source that is not a folder");
     }
+    const linkedInstallPath = await findLinkedPathPart(options.item.path, dirname(options.item.path), true);
+    if (linkedInstallPath) {
+      throw new Error(`cleanup-trash refuses linked app install folder source (링크 경로): ${linkedInstallPath}`);
+    }
   }
 
   const linkedSource = await findLinkedPathPart(

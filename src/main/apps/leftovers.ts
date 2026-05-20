@@ -659,6 +659,10 @@ function isTrustedInstallFolderPath(raw: string, app: InstalledApp): boolean {
   return installFolderNameMatchesApp(raw, app);
 }
 
+async function findLinkedInstallFolderPathPart(raw: string): Promise<string | undefined> {
+  return findLinkedPathPart(raw, dirname(raw), true);
+}
+
 const PUBLISHER_LEGAL_SUFFIX_PATTERN =
   /\s*(?:,?\s*)?(?:incorporated|inc|llc|ltd|limited|corp|corporation|co|company|gmbh|pte\.?\s*ltd|labs)\.?$/i;
 
@@ -937,12 +941,17 @@ async function installLocationLeftoverPaths(
 
   const info = await pathInfo(installLocation, env);
   const installStat = await fs.lstat(installLocation).catch(() => null);
+  const linkedInstallPath = await findLinkedInstallFolderPathPart(installLocation);
   const trustedInstallFolder =
-    isTrustedInstallFolderPath(installLocation, app) && Boolean(installStat?.isDirectory());
+    isTrustedInstallFolderPath(installLocation, app) &&
+    Boolean(installStat?.isDirectory()) &&
+    !linkedInstallPath;
   const measured = trustedInstallFolder ? await measurePath(installLocation) : undefined;
-  const protectedBy = trustedInstallFolder
-    ? measured?.protectedBy
-    : info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
+  const protectedBy = linkedInstallPath
+    ? LINKED_LEFTOVER_PROTECTION
+    : trustedInstallFolder
+      ? measured?.protectedBy
+      : info.protectedBy ?? personalInstallLocationProtection(installLocation, env);
   return info.exists
     ? [{ ...info, protectedBy, kind: trustedInstallFolder ? "install-folder" : "folder" }]
     : [];
@@ -1690,12 +1699,15 @@ export async function cleanupAppLeftovers(
     }
     if (path.kind === "install-folder") {
       const currentStat = await fs.lstat(path.path).catch(() => null);
-      if (!trustedAppFolder || !currentStat?.isDirectory()) {
+      const linkedInstallPath = await findLinkedInstallFolderPathPart(path.path);
+      if (!trustedAppFolder || !currentStat?.isDirectory() || linkedInstallPath) {
         skippedItems.push({
           itemId: path.id,
           path: path.path,
           reason: "blocked-path",
-          detail: "점검했던 앱 설치 폴더를 안전하게 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
+          detail: linkedInstallPath
+            ? LINKED_LEFTOVER_PROTECTION
+            : "점검했던 앱 설치 폴더를 안전하게 확인하지 못했어요. 다시 점검한 뒤 정리해주세요."
         });
         continue;
       }
