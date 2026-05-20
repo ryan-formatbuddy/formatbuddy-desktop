@@ -31,6 +31,13 @@ describe("runUninstall", () => {
         "win32"
       )
     ).toBe(false);
+    expect(
+      canLaunchUninstall(
+        { appName: "Slack", mode: "silent" as unknown as "interactive" },
+        baseApp,
+        "win32"
+      )
+    ).toBe(false);
     expect(canLaunchUninstall({ appName: "Slack", mode: "quiet" }, baseApp, "win32")).toBe(false);
     expect(
       canLaunchUninstall(
@@ -83,6 +90,21 @@ describe("runUninstall", () => {
 
     expect(result.status).toBe("blocked");
     expect(result.message).toMatch(/앱 제거 정보/);
+    expect(result.detail).toBe("invalid-uninstall-request");
+    expect(findApp).not.toHaveBeenCalled();
+    expect(spawnCmd).not.toHaveBeenCalled();
+  });
+
+  it("blocks malformed uninstall modes before app lookup or process spawn", async () => {
+    const findApp = vi.fn(() => baseApp);
+    const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
+    const result = await runUninstall(
+      { appName: "Slack", mode: "silent" as unknown as "interactive" },
+      { findApp, spawnCmd, platform: "win32" }
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.message).toMatch(/앱 제거 방식/);
     expect(result.detail).toBe("invalid-uninstall-request");
     expect(findApp).not.toHaveBeenCalled();
     expect(spawnCmd).not.toHaveBeenCalled();

@@ -189,6 +189,10 @@ function isOptionalStrictDisplayString(value: unknown): value is string | null |
   return value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
+function isSafeUninstallMode(value: unknown): value is AppUninstallRequest["mode"] {
+  return value === undefined || value === "interactive" || value === "quiet";
+}
+
 function invalidRequestResult(message: string): AppUninstallResult {
   return {
     status: "blocked",
@@ -211,6 +215,12 @@ function validateUninstallRequest(request: AppUninstallRequest):
     return {
       ok: false,
       result: invalidRequestResult("앱 제거 정보를 확인하지 못했어요. 다시 점검한 뒤 앱을 선택해주세요.")
+    };
+  }
+  if (!isSafeUninstallMode(request.mode)) {
+    return {
+      ok: false,
+      result: invalidRequestResult("앱 제거 방식을 확인하지 못했어요. 다시 선택해주세요.")
     };
   }
   return { ok: true };
