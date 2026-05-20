@@ -35,7 +35,8 @@ function resultWithEntries(): CleanupExecuteResult {
         categoryId: "temp-user",
         mode: "trash",
         succeeded: true,
-        trashEntryId: "trash-ok"
+        trashEntryId: "trash-ok",
+        expiresAt: "2026-06-18T00:00:00.000Z"
       },
       {
         itemId: "ok-permanent",
@@ -52,7 +53,8 @@ function resultWithEntries(): CleanupExecuteResult {
         categoryId: "app-leftovers",
         mode: "trash",
         succeeded: true,
-        registryBackupId: "registry-ok"
+        registryBackupId: "registry-ok",
+        expiresAt: "2026-06-18T00:00:00.000Z"
       },
       {
         itemId: "failed-registry",
@@ -306,6 +308,48 @@ describe("Cleanup result undo helper", () => {
 
     expect(restorableTrashEntryIds(result, now)).toEqual(["fresh-file"]);
     expect(restorableRegistryBackupIds(result, now)).toEqual(["fresh-registry"]);
+  });
+
+  it("omits recent restore ids when a successful trash result is missing expiry data", () => {
+    const result: CleanupExecuteResult = {
+      planId: "plan-missing-expiry",
+      executedAt: "2026-05-19T00:00:00.000Z",
+      mode: "trash",
+      totalFreedBytes: 2,
+      skippedItems: [],
+      logEntry: {
+        id: "log-missing-expiry",
+        executedAt: "2026-05-19T00:00:00.000Z",
+        mode: "trash",
+        totalFreedBytes: 2,
+        removedCount: 2,
+        skippedCount: 0,
+        categories: []
+      },
+      removedItems: [
+        {
+          itemId: "missing-file-expiry",
+          path: "C:\\Temp\\missing-file-expiry.tmp",
+          sizeBytes: 1,
+          categoryId: "temp-user",
+          succeeded: true,
+          mode: "trash",
+          trashEntryId: "missing-file-expiry"
+        },
+        {
+          itemId: "missing-registry-expiry",
+          path: "HKCU\\Software\\MissingExpiry",
+          sizeBytes: 1,
+          categoryId: "app-leftovers",
+          succeeded: true,
+          mode: "trash",
+          registryBackupId: "missing-registry-expiry"
+        }
+      ]
+    };
+
+    expect(restorableTrashEntryIds(result)).toEqual([]);
+    expect(restorableRegistryBackupIds(result)).toEqual([]);
   });
 
   it("returns an empty expiry summary for an empty trash bin", () => {

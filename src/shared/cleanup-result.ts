@@ -79,7 +79,7 @@ export function trashExpirySummary(
 }
 
 function executedItemStillWithinRestoreWindow(expiresAt: string | undefined, now: number): boolean {
-  return !expiresAt || !isTrashEntryExpired(expiresAt, now);
+  return Boolean(expiresAt) && !isTrashEntryExpired(expiresAt ?? "", now);
 }
 
 export function restorableTrashEntryIds(result: CleanupExecuteResult, now = Date.now()): string[] {
