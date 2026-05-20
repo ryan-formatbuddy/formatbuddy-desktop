@@ -76,4 +76,11 @@ describe("product copy friendliness", () => {
     expect(source).not.toContain("(err as Error).message");
     expect(source).not.toContain("err.message");
   });
+
+  it("routes backup checklist export failures through friendly copy", () => {
+    const source = readFileSync(join(RENDERER_ROOT, "pages", "Report.tsx"), "utf8");
+
+    expect(source).toContain("friendlyErrorMessage(res.message)");
+    expect(source).not.toContain("${copy.manifestExportErrorPrefix}${res.message}");
+  });
 });

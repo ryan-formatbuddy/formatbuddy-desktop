@@ -840,7 +840,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       if (res.saved && res.path) {
         setManifestStatus(`${copy.manifestExportSavedPrefix}${res.path}`);
       } else if (res.message) {
-        setManifestStatus(`${copy.manifestExportErrorPrefix}${res.message}`);
+        setManifestStatus(`${copy.manifestExportErrorPrefix}${friendlyErrorMessage(res.message)}`);
       } else {
         setManifestStatus(copy.manifestExportCancelled);
       }
