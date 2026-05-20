@@ -40,6 +40,17 @@ describe("Cleanup copy", () => {
     expect(source).not.toContain("setTrashMessage(result.message)");
   });
 
+  it("does not offer restore actions for expired restore-bin items in the cleanup preview", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("isTrashEntryExpired");
+    expect(source).toContain("restoreEntryExpiryLabel");
+    expect(source).toContain("const isExpired = isTrashEntryExpired(entry.expiresAt)");
+    expect(source).toContain("disabled={isExpired}");
+    expect(source).toContain("보관 기간이 지나 되돌릴 수 없어요");
+    expect(source).not.toContain("오늘 비워질 예정이에요");
+  });
+
   it("keeps recent cleanup restore moving when one item fails", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 

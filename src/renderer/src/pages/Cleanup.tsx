@@ -4,7 +4,9 @@ import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  isTrashEntryExpired,
   restorableTrashEntryIds,
+  restoreEntryExpiryLabel,
   summarizeRestoreAllResults,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
@@ -61,9 +63,7 @@ function riskLabel(level: CleanupRiskLevel): string {
 }
 
 function trashEntryExpiryLabel(expiresAt: string): string {
-  const days = daysUntilTrashExpiry(expiresAt);
-  if (days <= 0) return "오늘 비워질 예정이에요";
-  return `${days}일 뒤 비워요`;
+  return restoreEntryExpiryLabel(expiresAt);
 }
 
 function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
@@ -71,7 +71,7 @@ function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
   if (!nextExpiryAt) return `${snapshot.retentionDays}일 동안 보관해요`;
 
   const days = daysUntilTrashExpiry(nextExpiryAt);
-  if (days <= 0) return "다음 항목은 오늘 비워질 예정이에요";
+  if (isTrashEntryExpired(nextExpiryAt)) return "보관 기간이 지난 항목이 있어요";
   return `다음 항목은 ${days}일 뒤 비워요`;
 }
 
@@ -387,6 +387,8 @@ function TrashEntryRow({
   entry: CleanupTrashEntry;
   onRestore: (entryId: string) => void;
 }) {
+  const isExpired = isTrashEntryExpired(entry.expiresAt);
+
   return (
     <li
       style={{
@@ -409,8 +411,13 @@ function TrashEntryRow({
           {entry.originalPath}
         </div>
       </div>
-      <Button variant="secondary" size="sm" onClick={() => onRestore(entry.id)}>
-        되돌리기
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onRestore(entry.id)}
+        disabled={isExpired}
+      >
+        {isExpired ? "보관 기간이 지나 되돌릴 수 없어요" : "되돌리기"}
       </Button>
     </li>
   );
