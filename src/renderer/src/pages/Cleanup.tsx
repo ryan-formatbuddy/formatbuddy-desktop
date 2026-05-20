@@ -79,6 +79,14 @@ function isChangedTrashEntry(entry: CleanupTrashEntry): boolean {
   return entry.integrityStatus === "changed";
 }
 
+function isLegacyTrashEntry(entry: CleanupTrashEntry): boolean {
+  return entry.integrityStatus === "legacy";
+}
+
+function trashEntryNeedsCheck(entry: CleanupTrashEntry): boolean {
+  return entry.integrityStatus !== "verified";
+}
+
 function defaultSelectionFor(plan: CleanupPlan): Set<string> {
   const selected = new Set<string>();
   for (const category of plan.categories) {
@@ -496,6 +504,8 @@ function TrashEntryRow({
 }) {
   const isExpired = isTrashEntryExpired(entry.expiresAt);
   const isChanged = isChangedTrashEntry(entry);
+  const isLegacy = isLegacyTrashEntry(entry);
+  const needsCheck = trashEntryNeedsCheck(entry);
 
   return (
     <li
@@ -523,17 +533,24 @@ function TrashEntryRow({
             복구함 안의 파일이 바뀐 것 같아요.
           </div>
         )}
+        {isLegacy && (
+          <div style={{ fontSize: 11, color: "#1d4ed8", fontWeight: 650, marginTop: 4 }}>
+            복구 기록을 확인할 수 없어요.
+          </div>
+        )}
       </div>
       <Button
         variant="secondary"
         size="sm"
         onClick={() => onRestore(entry.id)}
-        disabled={isExpired || isChanged}
+        disabled={isExpired || needsCheck}
       >
         {isExpired
           ? "보관 기간이 지나 되돌릴 수 없어요"
-          : isChanged
-            ? "복구함 안 파일 확인 필요"
+          : needsCheck
+            ? isChanged
+              ? "복구함 안 파일 확인 필요"
+              : "복구 기록 확인 필요"
             : "되돌리기"}
       </Button>
     </li>

@@ -162,6 +162,33 @@ describe("Cleanup result undo helper", () => {
     );
   });
 
+  it("summarizes legacy restore-bin files as a specific check-needed reason", () => {
+    const results: CleanupTrashRestoreResult[] = [
+      {
+        entryId: "a",
+        status: "blocked-path",
+        message: "복구 기록을 확인할 수 없어요",
+        entry: {
+          id: "a",
+          itemId: "temp-a",
+          originalPath: "C:\\Temp\\a.tmp",
+          storedPath: "C:\\FormatBuddy\\trash\\a.tmp",
+          label: "a.tmp",
+          categoryId: "temp-user",
+          sizeBytes: 10,
+          integrityStatus: "legacy",
+          createdAt: "2026-05-19T00:00:00.000Z",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      },
+      { entryId: "b", status: "blocked-path", message: "blocked" }
+    ];
+
+    expect(summarizeTrashRestoreResults(results)).toBe(
+      "1개는 복구 기록이 오래되어 자동으로 되돌리지 않았어요. 1개는 안전 확인이 필요해 멈췄어요."
+    );
+  });
+
   it("summarizes registry backup restore outcomes in friendly Korean", () => {
     const results: RegistryBackupRestoreResult[] = [
       { backupId: "a", status: "restored", message: "ok", entry: registryBackupEntry({ backupKind: "key" }) },

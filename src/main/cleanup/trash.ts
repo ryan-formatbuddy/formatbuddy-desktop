@@ -600,6 +600,10 @@ function changedTrashEntry(entry: CleanupTrashEntry): CleanupTrashEntry {
   return { ...entry, integrityStatus: "changed" };
 }
 
+function legacyTrashEntry(entry: CleanupTrashEntry): CleanupTrashEntry {
+  return { ...entry, integrityStatus: "legacy" };
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path, constants.F_OK);
@@ -900,17 +904,24 @@ export async function restoreTrashEntry(
       entry: changedTrashEntry(entry)
     };
   }
-  if (entry.contentHash) {
-    const actualContentHash = await hashPath(entry.storedPath).catch(() => null);
-    if (actualContentHash !== entry.contentHash.value) {
-      return {
-        entryId: entry.id,
-        status: "blocked-path",
-        message: "복구함 안의 파일 내용이 바뀐 것 같아요. 안전을 위해 자동으로 되돌리지 않았어요.",
-        originalPath: entry.originalPath,
-        entry: changedTrashEntry(entry)
-      };
-    }
+  if (!entry.contentHash) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: "복구 기록을 확인할 수 없어요. 오래된 복구 항목이라 자동으로 되돌리지 않았어요.",
+      originalPath: entry.originalPath,
+      entry: legacyTrashEntry(entry)
+    };
+  }
+  const actualContentHash = await hashPath(entry.storedPath).catch(() => null);
+  if (actualContentHash !== entry.contentHash.value) {
+    return {
+      entryId: entry.id,
+      status: "blocked-path",
+      message: "복구함 안의 파일 내용이 바뀐 것 같아요. 안전을 위해 자동으로 되돌리지 않았어요.",
+      originalPath: entry.originalPath,
+      entry: changedTrashEntry(entry)
+    };
   }
 
   const restoreDecision = evaluatePath(entry.originalPath, {

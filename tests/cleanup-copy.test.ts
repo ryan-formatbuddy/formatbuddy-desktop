@@ -48,7 +48,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("isTrashEntryExpired");
     expect(source).toContain("restoreEntryExpiryLabel");
     expect(source).toContain("const isExpired = isTrashEntryExpired(entry.expiresAt)");
-    expect(source).toContain("disabled={isExpired || isChanged}");
+    expect(source).toContain("disabled={isExpired || needsCheck}");
     expect(source).toContain("보관 기간이 지나 되돌릴 수 없어요");
     expect(source).not.toContain("오늘 비워질 예정이에요");
   });
@@ -57,10 +57,14 @@ describe("Cleanup copy", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 
     expect(source).toContain('entry.integrityStatus === "changed"');
+    expect(source).toContain('entry.integrityStatus !== "verified"');
     expect(source).toContain("const isChanged = isChangedTrashEntry(entry)");
-    expect(source).toContain("disabled={isExpired || isChanged}");
+    expect(source).toContain("const needsCheck = trashEntryNeedsCheck(entry)");
+    expect(source).toContain("disabled={isExpired || needsCheck}");
     expect(source).toContain("복구함 안 파일 확인 필요");
+    expect(source).toContain("복구 기록 확인 필요");
     expect(source).toContain("복구함 안의 파일이 바뀐 것 같아요");
+    expect(source).toContain("복구 기록을 확인할 수 없어요");
   });
 
   it("keeps recent cleanup restore moving when one item fails", () => {

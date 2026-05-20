@@ -988,6 +988,39 @@ describe("FormatBuddy Trash", () => {
     await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("jello");
   });
 
+  it("refuses automatic restore for legacy restore-bin items without a content hash", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(
+      join(__testing.entryDir(fx.userData, entry.id), "manifest.json"),
+      JSON.stringify({ ...entry, contentHash: undefined }, null, 2),
+      "utf8"
+    );
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      home: fx.home
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.entry?.integrityStatus).toBe("legacy");
+    expect(result.message).toMatch(/복구 기록|오래된|다시 점검/);
+    expect(summarizeTrashRestoreResults([result])).toBe(
+      "1개는 복구 기록이 오래되어 자동으로 되돌리지 않았어요."
+    );
+    await expect(lstat(source)).rejects.toThrow();
+    await expect(readFile(entry.storedPath, "utf8")).resolves.toBe("hello");
+  });
+
   it("refuses restore when the managed trash parent folder is a symbolic link", async () => {
     if (process.platform === "win32") return;
     const entryId = "linked-parent-entry";

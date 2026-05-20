@@ -106,9 +106,12 @@ describe("TrashRestore copy", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 
     expect(source).toContain('entry.integrityStatus === "changed"');
+    expect(source).toContain('entry.integrityStatus !== "verified"');
     expect(source).toContain("복구함 안의 파일이 바뀐 것 같아요");
+    expect(source).toContain("복구 기록을 확인할 수 없어요");
     expect(source).toContain("복구함 안 파일 확인 필요");
-    expect(source).toContain("!isChangedTrashEntry(item.entry)");
+    expect(source).toContain("복구 기록 확인 필요");
+    expect(source).toContain("!trashEntryNeedsCheck(item.entry)");
   });
 
   it("shows changed app deletion trace backups as check-needed instead of restorable", () => {

@@ -117,6 +117,13 @@ function isChangedBlockedRestore(
   return entry?.integrityStatus === "changed" || message.includes("바뀐 것 같");
 }
 
+function isLegacyBlockedRestore(
+  message: string,
+  entry: IntegrityStatusSource
+): boolean {
+  return entry?.integrityStatus === "legacy" || message.includes("복구 기록");
+}
+
 export function summarizeTrashRestoreResults(
   results: CleanupTrashRestoreResult[]
 ): string {
@@ -127,8 +134,14 @@ export function summarizeTrashRestoreResults(
   const changedStoredItem = results.filter(
     (item) => item.status === "blocked-path" && isChangedBlockedRestore(item.message, item.entry)
   ).length;
+  const legacyStoredItem = results.filter(
+    (item) => item.status === "blocked-path" && isLegacyBlockedRestore(item.message, item.entry)
+  ).length;
   const unsafePath = results.filter(
-    (item) => item.status === "blocked-path" && !isChangedBlockedRestore(item.message, item.entry)
+    (item) =>
+      item.status === "blocked-path" &&
+      !isChangedBlockedRestore(item.message, item.entry) &&
+      !isLegacyBlockedRestore(item.message, item.entry)
   ).length;
   const missingStoredItem = results.filter((item) => item.status === "missing-stored-item").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
@@ -140,6 +153,9 @@ export function summarizeTrashRestoreResults(
   if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
   if (changedStoredItem > 0) {
     parts.push(`${changedStoredItem}개는 복구함 안의 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
+  if (legacyStoredItem > 0) {
+    parts.push(`${legacyStoredItem}개는 복구 기록이 오래되어 자동으로 되돌리지 않았어요.`);
   }
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (missingStoredItem > 0) parts.push(`${missingStoredItem}개는 보관된 파일을 찾지 못했어요.`);
