@@ -47,6 +47,14 @@ import {
 } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
+const PATH_KIND_REQUIRED_CATEGORIES = new Set<CleanupCategoryId>([
+  "temp-user",
+  "temp-windows",
+  "browser-cache",
+  "windows-old",
+  "downloads-installers",
+  "app-leftovers"
+]);
 
 export interface ExecutorDeps {
   /** Move a path into FormatBuddy's app-managed 30-day restore bin. */
@@ -225,6 +233,10 @@ function isCleanupPathKind(value: unknown): value is CleanupPathKind {
   return value === "file" || value === "directory" || value === "other";
 }
 
+function cleanupItemRequiresPathKind(item: CleanupItem): boolean {
+  return PATH_KIND_REQUIRED_CATEGORIES.has(item.categoryId);
+}
+
 function overlapsManagedUserData(userDataDir: string, candidatePath: string): boolean {
   const managed = normalizePath(resolve(userDataDir));
   const candidate = normalizePath(resolve(candidatePath));
@@ -285,6 +297,18 @@ function validateCleanupItemMetadata(item: CleanupItem): CleanupSkippedItem | un
   return undefined;
 }
 
+function validateRequiredCleanupPathKindMetadata(
+  item: CleanupItem
+): CleanupSkippedItem | undefined {
+  if (!cleanupItemRequiresPathKind(item) || isCleanupPathKind(item.pathKind)) return undefined;
+  return {
+    itemId: item.id,
+    path: item.path,
+    reason: "blocked-path",
+    detail: "정리 항목 종류 정보가 안전하지 않아 자동 정리하지 않았어요."
+  };
+}
+
 function assertSelectedCleanupItemsUsable(
   itemIndex: Map<string, CleanupItem>,
   selectedIds: Set<string>
@@ -296,6 +320,12 @@ function assertSelectedCleanupItemsUsable(
     if (metadataSkip) {
       throw new Error(
         `cleanup:execute selected cleanup item metadata is unsafe: ${metadataSkip.detail ?? "정리 항목 정보"}`
+      );
+    }
+    const pathKindSkip = validateRequiredCleanupPathKindMetadata(item);
+    if (pathKindSkip) {
+      throw new Error(
+        `cleanup:execute selected cleanup item metadata is unsafe: ${pathKindSkip.detail ?? "정리 항목 종류 정보"}`
       );
     }
   }
@@ -396,6 +426,8 @@ async function attemptItem(
       }
     };
   }
+  const pathKindMetadataSkip = validateRequiredCleanupPathKindMetadata(item);
+  if (pathKindMetadataSkip) return { skipped: pathKindMetadataSkip };
 
   // Recycle-bin sentinel bypass: this item is a virtual entry, not a
   // real filesystem path that FormatBuddy can move into its own 30-day

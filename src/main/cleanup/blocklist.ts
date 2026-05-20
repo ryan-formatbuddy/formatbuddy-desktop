@@ -26,7 +26,7 @@ import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { CleanupCategoryId } from "@shared/types";
 
-export const BLOCKLIST_VERSION = 8;
+export const BLOCKLIST_VERSION = 9;
 
 /**
  * Normalize a path the way every blocklist comparison must see it:

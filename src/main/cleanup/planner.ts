@@ -533,11 +533,17 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
   );
 
   const planId = randomUUID();
-  // The token includes counts + bytes so tampering with the plan after
-  // it leaves the main process makes the executor refuse it. The cached
-  // plan is the source of truth; this token is a cheap consistency seal.
+  // The token includes counts, bytes, item ids, and path kinds so tampering
+  // with the plan after it leaves the main process makes the executor refuse
+  // it. The cached plan is the source of truth; this token is a cheap
+  // consistency seal.
   const tokenInput = categories
-    .map((c) => `${c.id}:${c.itemCount}:${c.totalBytes}`)
+    .map((c) => {
+      const itemSeal = c.items
+        .map((item) => `${item.id}:${item.pathKind ?? "unknown"}:${item.sizeBytes}`)
+        .join(",");
+      return `${c.id}:${c.itemCount}:${c.totalBytes}:${itemSeal}`;
+    })
     .join("|");
   const confirmationToken = createHash("sha256")
     .update(`${planId}|${tokenInput}|${BLOCKLIST_VERSION}`)

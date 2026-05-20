@@ -198,7 +198,7 @@ describe("evaluatePath — user-scoped blocklist", () => {
 
 describe("BLOCKLIST_VERSION", () => {
   it("is bumped when cleanup safety rules change", () => {
-    expect(BLOCKLIST_VERSION).toBe(8);
+    expect(BLOCKLIST_VERSION).toBe(9);
   });
 });
 

@@ -581,6 +581,46 @@ describe("executeCleanup", () => {
     expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
   });
 
+  it("refuses selected file cleanup from a plan missing required path kind metadata", async () => {
+    const targetFile = join(fx.tempDir, "old1.tmp");
+    const plan = await planWithOneTempFile(fx, targetFile);
+    const tempUser = plan.categories.find((c) => c.id === "temp-user")!;
+    const item = tempUser.items[0];
+    delete item.pathKind;
+
+    const statCalls = { value: 0 };
+    const trashCalls = { value: 0 };
+    const { deps, trashed, permanently } = makeSpyDeps({
+      statSize: async () => {
+        statCalls.value += 1;
+        return 4096;
+      },
+      trashItem: async () => {
+        trashCalls.value += 1;
+        throw new Error("trash should not be called");
+      }
+    });
+
+    await expect(
+      executeCleanup(
+        {
+          planId: plan.planId,
+          confirmationToken: plan.confirmationToken,
+          selectedItemIds: [item.id],
+          mode: "trash"
+        },
+        { userDataDir: fx.userData, deps, home: fx.home }
+      )
+    ).rejects.toThrow(/종류|path kind|metadata/i);
+
+    expect(statCalls.value).toBe(0);
+    expect(trashCalls.value).toBe(0);
+    expect(trashed).toEqual([]);
+    expect(permanently).toEqual([]);
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+    expect(consumePlan(plan.planId, plan.confirmationToken)).toBeDefined();
+  });
+
   it("measures selected folders by their file contents, not directory metadata", async () => {
     const folder = join(fx.tempDir, "old-cache");
     await fs.mkdir(join(folder, "nested"), { recursive: true });
