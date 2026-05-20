@@ -32,6 +32,9 @@ const PREFS_FILE = "formatbuddy-monitor-prefs.json";
 const DEFAULT_REMINDER_DAYS = 14;
 const MIN_REMINDER_DAYS = 1;
 const MAX_REMINDER_DAYS = 90;
+const DEFAULT_AUTO_SCAN_DAYS = 30;
+const MIN_AUTO_SCAN_DAYS = 1;
+const MAX_AUTO_SCAN_DAYS = 90;
 const DEFAULT_UPDATE_CHANNEL: UpdateChannel = "stable";
 const DEFAULT_THEME_MODE: ThemeMode = "system";
 
@@ -59,6 +62,8 @@ export function defaultPrefs(): MonitorPreferences {
     launchAtLoginEnabled: false,
     reminderEnabled: false,
     reminderDays: DEFAULT_REMINDER_DAYS,
+    autoScanEnabled: false,
+    autoScanDays: DEFAULT_AUTO_SCAN_DAYS,
     updateChannel: DEFAULT_UPDATE_CHANNEL,
     // v2.0 — Restore Point is ON by default. It is a safety net for
     // every destructive action (cleanup execute, app uninstall) and
@@ -77,6 +82,11 @@ function clampReminderDays(value: unknown): number {
   return Math.max(MIN_REMINDER_DAYS, Math.min(MAX_REMINDER_DAYS, Math.round(value)));
 }
 
+function clampAutoScanDays(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_AUTO_SCAN_DAYS;
+  return Math.max(MIN_AUTO_SCAN_DAYS, Math.min(MAX_AUTO_SCAN_DAYS, Math.round(value)));
+}
+
 function coerce(value: unknown): MonitorPreferences {
   if (!value || typeof value !== "object") return defaultPrefs();
   const raw = value as Partial<PersistedMonitorPrefs> & {
@@ -88,6 +98,8 @@ function coerce(value: unknown): MonitorPreferences {
     launchAtLoginEnabled: Boolean(prefs?.launchAtLoginEnabled),
     reminderEnabled: Boolean(prefs?.reminderEnabled),
     reminderDays: clampReminderDays(prefs?.reminderDays),
+    autoScanEnabled: Boolean(prefs?.autoScanEnabled),
+    autoScanDays: clampAutoScanDays(prefs?.autoScanDays),
     updateChannel: coerceChannel(prefs?.updateChannel),
     // Default to ON: any value other than the explicit boolean false
     // keeps the safety net. Older state files without the field opt in.
@@ -98,6 +110,8 @@ function coerce(value: unknown): MonitorPreferences {
     telemetryOptIn: prefs?.telemetryOptIn === true,
     lastReminderAt:
       typeof prefs?.lastReminderAt === "string" ? prefs.lastReminderAt : undefined,
+    lastAutoScanAt:
+      typeof prefs?.lastAutoScanAt === "string" ? prefs.lastAutoScanAt : undefined,
     updatedAt: typeof prefs?.updatedAt === "string" ? prefs.updatedAt : undefined
   };
 }
@@ -165,6 +179,12 @@ export async function updatePrefs(
     ...(patch.reminderDays !== undefined
       ? { reminderDays: clampReminderDays(patch.reminderDays) }
       : {}),
+    ...(patch.autoScanEnabled !== undefined
+      ? { autoScanEnabled: Boolean(patch.autoScanEnabled) }
+      : {}),
+    ...(patch.autoScanDays !== undefined
+      ? { autoScanDays: clampAutoScanDays(patch.autoScanDays) }
+      : {}),
     ...(patch.updateChannel !== undefined
       ? { updateChannel: coerceChannel(patch.updateChannel) }
       : {}),
@@ -187,6 +207,14 @@ export async function markReminderShown(
 ): Promise<MonitorPreferences> {
   const current = await loadPrefs(userDataDir);
   return savePrefs(userDataDir, { ...current, lastReminderAt: now.toISOString() });
+}
+
+export async function markAutoScanStarted(
+  userDataDir: string,
+  now: Date = new Date()
+): Promise<MonitorPreferences> {
+  const current = await loadPrefs(userDataDir);
+  return savePrefs(userDataDir, { ...current, lastAutoScanAt: now.toISOString() });
 }
 
 export interface ReminderDecision {
@@ -248,5 +276,9 @@ export const __testing = {
   PREFS_FILE,
   DEFAULT_REMINDER_DAYS,
   MIN_REMINDER_DAYS,
-  MAX_REMINDER_DAYS
+  MAX_REMINDER_DAYS,
+  clampAutoScanDays,
+  DEFAULT_AUTO_SCAN_DAYS,
+  MIN_AUTO_SCAN_DAYS,
+  MAX_AUTO_SCAN_DAYS
 };

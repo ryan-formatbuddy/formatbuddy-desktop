@@ -13,6 +13,17 @@ describe("monitor launch-at-login wiring", () => {
     expect(source).toContain("launchAtLoginEnabled: next.launchAtLoginEnabled");
   });
 
+  it("reconciles Windows scheduled auto-scan when monitor prefs load or change", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("reconcileScheduledAutoScan({");
+    expect(source).toContain("prefs: next");
+    expect(source).toContain("prefs,");
+    expect(source).toContain("shouldStartScheduledScanFromArgs()");
+    expect(source).toContain("markAutoScanStarted(app.getPath(\"userData\"))");
+    expect(source).toContain("IpcChannels.monitorTriggerScan");
+  });
+
   it("does not leave the app hidden when tray-backed startup cannot be used", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 

@@ -6,6 +6,7 @@ import {
   defaultPrefs,
   loadPrefs,
   markReminderShown,
+  markAutoScanStarted,
   savePrefs,
   shouldRemind,
   updatePrefs,
@@ -25,7 +26,10 @@ describe("defaultPrefs", () => {
     expect(prefs.launchAtLoginEnabled).toBe(false);
     expect(prefs.reminderEnabled).toBe(false);
     expect(prefs.reminderDays).toBe(14);
+    expect(prefs.autoScanEnabled).toBe(false);
+    expect(prefs.autoScanDays).toBe(30);
     expect(prefs.lastReminderAt).toBeUndefined();
+    expect(prefs.lastAutoScanAt).toBeUndefined();
   });
 
   it("defaults updateChannel to 'stable'", () => {
@@ -56,6 +60,14 @@ describe("coerce + clampReminderDays", () => {
     expect(__testing.clampReminderDays(30)).toBe(30);
   });
 
+  it("clamps autoScanDays into the [1, 90] range", () => {
+    expect(__testing.clampAutoScanDays(0)).toBe(1);
+    expect(__testing.clampAutoScanDays(NaN)).toBe(30);
+    expect(__testing.clampAutoScanDays(-3)).toBe(1);
+    expect(__testing.clampAutoScanDays(120)).toBe(90);
+    expect(__testing.clampAutoScanDays(45)).toBe(45);
+  });
+
   it("returns defaults for garbage shapes", () => {
     expect(__testing.coerce(null)).toMatchObject(defaultPrefs());
     expect(__testing.coerce("string")).toMatchObject(defaultPrefs());
@@ -72,12 +84,18 @@ describe("coerce + clampReminderDays", () => {
         launchAtLoginEnabled: true,
         reminderEnabled: true,
         reminderDays: 7,
+        autoScanEnabled: true,
+        autoScanDays: 30,
+        lastAutoScanAt: "2026-05-19T00:00:00.000Z",
         themeMode: "dark"
       }
     });
     expect(wrapped.trayEnabled).toBe(true);
     expect(wrapped.launchAtLoginEnabled).toBe(true);
     expect(wrapped.reminderDays).toBe(7);
+    expect(wrapped.autoScanEnabled).toBe(true);
+    expect(wrapped.autoScanDays).toBe(30);
+    expect(wrapped.lastAutoScanAt).toBe("2026-05-19T00:00:00.000Z");
     expect(wrapped.themeMode).toBe("dark");
 
     const flat = __testing.coerce({ trayEnabled: true, reminderDays: 9, themeMode: "light" });
@@ -113,6 +131,8 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       launchAtLoginEnabled: true,
       reminderEnabled: true,
       reminderDays: 21,
+      autoScanEnabled: true,
+      autoScanDays: 45,
       updateChannel: "beta",
       restorePointEnabled: false,
       themeMode: "dark"
@@ -122,6 +142,8 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     expect(reloaded.launchAtLoginEnabled).toBe(true);
     expect(reloaded.reminderEnabled).toBe(true);
     expect(reloaded.reminderDays).toBe(21);
+    expect(reloaded.autoScanEnabled).toBe(true);
+    expect(reloaded.autoScanDays).toBe(45);
     expect(reloaded.updateChannel).toBe("beta");
     expect(reloaded.themeMode).toBe("dark");
     expect(reloaded.updatedAt).toBeTruthy();
@@ -133,15 +155,24 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
       launchAtLoginEnabled: true,
       reminderEnabled: false,
       reminderDays: 14,
+      autoScanEnabled: false,
+      autoScanDays: 30,
       updateChannel: "stable",
       restorePointEnabled: true,
       themeMode: "dark"
     }));
-    const next = await updatePrefs(dir, { reminderEnabled: true, reminderDays: 30 });
+    const next = await updatePrefs(dir, {
+      reminderEnabled: true,
+      reminderDays: 30,
+      autoScanEnabled: true,
+      autoScanDays: 60
+    });
     expect(next.trayEnabled).toBe(true);
     expect(next.launchAtLoginEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.reminderDays).toBe(30);
+    expect(next.autoScanEnabled).toBe(true);
+    expect(next.autoScanDays).toBe(60);
     expect(next.updateChannel).toBe("stable");
     expect(next.themeMode).toBe("dark");
   });
@@ -246,6 +277,22 @@ describe("loadPrefs / savePrefs / updatePrefs", () => {
     expect(next.launchAtLoginEnabled).toBe(true);
     expect(next.reminderEnabled).toBe(true);
     expect(next.updateChannel).toBe("stable");
+  });
+
+  it("markAutoScanStarted stamps lastAutoScanAt without flipping other fields", async () => {
+    await savePrefs(dir, prefs({
+      autoScanEnabled: true,
+      autoScanDays: 30,
+      reminderEnabled: true,
+      updateChannel: "stable",
+      restorePointEnabled: true
+    }));
+    const fixedNow = new Date("2026-05-20T00:00:00.000Z");
+    const next = await markAutoScanStarted(dir, fixedNow);
+    expect(next.lastAutoScanAt).toBe(fixedNow.toISOString());
+    expect(next.autoScanEnabled).toBe(true);
+    expect(next.autoScanDays).toBe(30);
+    expect(next.reminderEnabled).toBe(true);
   });
 
   it("does not write monitor prefs through a symbolic link", async () => {

@@ -1359,9 +1359,10 @@ export interface DefenderThreatSnapshot {
  * `reminderDays`, surface a Notification — once per stale window,
  * tracked via lastReminderAt.
  *
- * We deliberately stop short of running scans automatically. The
- * notification only opens the FormatBuddy main window so the user
- * decides when to scan.
+ * v2.1 adds a separate auto-scan reservation. It is still opt-in and
+ * intentionally described as "정기 자동 점검", not "실시간 감시": on
+ * Windows we ask Task Scheduler to open FormatBuddy on a cadence and
+ * start the normal local scan flow.
  */
 export type UpdateChannel = "stable" | "beta";
 
@@ -1392,6 +1393,16 @@ export interface MonitorPreferences {
   reminderDays: number;
   /** ISO of the last reminder we surfaced (so we don't spam). */
   lastReminderAt?: string;
+  /**
+   * v2.1 — opt-in Windows scheduled scan. When true, the main process
+   * reconciles a Task Scheduler entry that opens FormatBuddy on the
+   * chosen cadence and triggers the normal scan flow.
+   */
+  autoScanEnabled: boolean;
+  /** Days between scheduled scan launches. 1..90. Default 30. */
+  autoScanDays: number;
+  /** ISO of the last scheduled scan launch handled by this app. */
+  lastAutoScanAt?: string;
   /**
    * v2.0 — which release feed electron-updater listens to. "stable" keeps
    * only GitHub releases without the prerelease flag; "beta" also accepts
@@ -1424,6 +1435,8 @@ export interface UpdateMonitorPreferencesRequest {
   launchAtLoginEnabled?: boolean;
   reminderEnabled?: boolean;
   reminderDays?: number;
+  autoScanEnabled?: boolean;
+  autoScanDays?: number;
   updateChannel?: UpdateChannel;
   restorePointEnabled?: boolean;
   themeMode?: ThemeMode;

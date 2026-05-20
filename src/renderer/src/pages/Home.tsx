@@ -122,6 +122,30 @@ function MonitorPrefsCard() {
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
             <input
               type="checkbox"
+              checked={prefs.autoScanEnabled}
+              disabled={busy}
+              onChange={(e) => void update({ autoScanEnabled: e.target.checked })}
+            />
+            <span>정기 자동 점검 예약 (Windows가 주기에 맞춰 포맷버디를 열고 점검을 시작해요)</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <span>점검 주기:</span>
+            <input
+              type="number"
+              min={1}
+              max={90}
+              value={prefs.autoScanDays}
+              disabled={busy || !prefs.autoScanEnabled}
+              onChange={(e) =>
+                void update({ autoScanDays: Math.max(1, Math.min(90, Number(e.target.value) || 30)) })
+              }
+              style={{ width: 70, padding: "4px 6px" }}
+            />
+            <span>일</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
+            <input
+              type="checkbox"
               checked={prefs.restorePointEnabled}
               disabled={busy}
               onChange={(e) => void update({ restorePointEnabled: e.target.checked })}
@@ -169,8 +193,8 @@ function MonitorPrefsCard() {
         </>
       )}
       <small style={{ opacity: 0.6 }}>
-        포맷버디는 자동 점검을 하지 않아요. PC 시작 옵션은 알림과 30일 복구함 정리가 앱을 켜야
-        동작한다는 점을 보완해요. 알림이 오면 직접 점검을 시작할지 결정해주세요.
+        정기 자동 점검은 실시간 감시가 아니에요. 켜면 Windows가 정해진 날에 포맷버디를 열고,
+        평소와 같은 로컬 점검을 시작해요. 30일 복구함 정리는 앱이 켜져 있을 때 함께 챙겨져요.
         베타 채널은 가끔 불안정할 수 있고, 화면 모드는 이 PC에만 저장돼요.
       </small>
     </section>

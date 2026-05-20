@@ -121,11 +121,16 @@ import {
 } from "./security/defender";
 import {
   loadPrefs as loadMonitorPrefs,
+  markAutoScanStarted,
   markReminderShown,
   shouldRemind,
   updatePrefs as updateMonitorPrefs
 } from "./monitor";
 import { reconcileLaunchAtLogin, shouldStartHiddenFromArgs } from "./monitorLogin";
+import {
+  reconcileScheduledAutoScan,
+  shouldStartScheduledScanFromArgs
+} from "./monitorScheduler";
 import { createTray, destroyTray } from "./tray";
 import type {
   AppLeftoversSnapshot,
@@ -230,6 +235,20 @@ function focusMainWindow(): void {
   mainWindow.focus();
 }
 
+function triggerMonitorScanWhenRendererReady(): void {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
+  const send = () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send(IpcChannels.monitorTriggerScan);
+  };
+  if (win.webContents.isLoading()) {
+    win.webContents.once("did-finish-load", () => setTimeout(send, 500));
+    return;
+  }
+  setTimeout(send, 500);
+}
+
 async function reconcileTray(prefs: MonitorPreferences): Promise<void> {
   if (prefs.trayEnabled) {
     if (trayInstance) return;
@@ -237,9 +256,7 @@ async function reconcileTray(prefs: MonitorPreferences): Promise<void> {
       onShowWindow: focusMainWindow,
       onStartScan: () => {
         focusMainWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannels.monitorTriggerScan);
-        }
+        triggerMonitorScanWhenRendererReady();
       },
       onQuit: () => {
         // Quit fully even if main window was just hidden. Without
@@ -1287,20 +1304,32 @@ function registerIpc() {
     async (_e, patch: UpdateMonitorPreferencesRequest): Promise<MonitorPreferences> => {
       const next = await updateMonitorPrefs(app.getPath("userData"), patch);
       log.info(
-        `monitor:prefs tray=${next.trayEnabled} login=${next.launchAtLoginEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} channel=${next.updateChannel} theme=${next.themeMode} telemetry=${next.telemetryOptIn}`
+        `monitor:prefs tray=${next.trayEnabled} login=${next.launchAtLoginEnabled} reminder=${next.reminderEnabled} days=${next.reminderDays} autoScan=${next.autoScanEnabled} autoDays=${next.autoScanDays} channel=${next.updateChannel} theme=${next.themeMode} telemetry=${next.telemetryOptIn}`
       );
       await reconcileTray(next);
       reconcileLaunchAtLogin(app, next, (message) => log.warn(`monitor:${message}`));
+      const scheduler = await reconcileScheduledAutoScan({
+        prefs: next,
+        appPath: app.getPath("exe")
+      });
+      if (scheduler.status === "failed") {
+        log.warn(`monitor:auto-scan scheduler failed: ${scheduler.detail ?? "unknown"}`);
+      } else {
+        log.info(`monitor:auto-scan scheduler ${scheduler.status}`);
+      }
       setUpdaterChannel(next.updateChannel);
       await appendAuditEntry(app.getPath("userData"), {
         category: "monitor",
         action: "prefs-changed",
-        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, PC 시작 ${next.launchAtLoginEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 채널 ${next.updateChannel}, 화면 ${next.themeMode}, 익명 통계 ${next.telemetryOptIn ? "허용" : "꺼짐"}.`,
+        summary: `자동 알림 설정을 바꿨어요 — 트레이 ${next.trayEnabled ? "ON" : "OFF"}, PC 시작 ${next.launchAtLoginEnabled ? "ON" : "OFF"}, 알림 ${next.reminderEnabled ? "ON" : "OFF"}(${next.reminderDays}일), 정기 점검 ${next.autoScanEnabled ? "ON" : "OFF"}(${next.autoScanDays}일), 채널 ${next.updateChannel}, 화면 ${next.themeMode}, 익명 통계 ${next.telemetryOptIn ? "허용" : "꺼짐"}.`,
         detail: {
           trayEnabled: next.trayEnabled,
           launchAtLoginEnabled: next.launchAtLoginEnabled,
           reminderEnabled: next.reminderEnabled,
           reminderDays: next.reminderDays,
+          autoScanEnabled: next.autoScanEnabled,
+          autoScanDays: next.autoScanDays,
+          scheduledAutoScanStatus: scheduler.status,
           updateChannel: next.updateChannel,
           themeMode: next.themeMode,
           telemetryOptIn: next.telemetryOptIn
@@ -1370,8 +1399,30 @@ app.whenReady().then(() => {
       const prefs = await loadMonitorPrefs(app.getPath("userData"));
       await reconcileTray(prefs);
       reconcileLaunchAtLogin(app, prefs, (message) => log.warn(`monitor:${message}`));
+      const scheduler = await reconcileScheduledAutoScan({
+        prefs,
+        appPath: app.getPath("exe")
+      });
+      if (scheduler.status === "failed") {
+        log.warn(`monitor:auto-scan scheduler failed: ${scheduler.detail ?? "unknown"}`);
+      }
       if (shouldStartHiddenFromArgs() && (!prefs.launchAtLoginEnabled || !trayInstance)) {
         focusMainWindow();
+      }
+      if (shouldStartScheduledScanFromArgs()) {
+        if (prefs.autoScanEnabled) {
+          focusMainWindow();
+          triggerMonitorScanWhenRendererReady();
+          await markAutoScanStarted(app.getPath("userData"));
+          await appendAuditEntry(app.getPath("userData"), {
+            category: "monitor",
+            action: "scheduled-scan-started",
+            summary: "예약된 정기 점검을 시작했어요.",
+            detail: { autoScanDays: prefs.autoScanDays }
+          }).catch((e) => log.warn("audit append (scheduled-scan) failed:", (e as Error).message));
+        } else {
+          log.info("monitor:auto-scan arg ignored because auto scan is disabled");
+        }
       }
       await reconcileReminderTimer();
       await runAppRetentionPurgeTick("startup");
