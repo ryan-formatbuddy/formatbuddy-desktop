@@ -17,6 +17,7 @@
  *   - it must not be flagged systemComponent=true
  *   - the resolved string must not be empty / whitespace
  *   - it must not include cmd control, expansion, or escape syntax
+ *   - it must not go through shell built-ins or DLL/script runner hosts
  *   - it must not include silent/quiet uninstall switches
  *   - cmd.exe runs with /d so user/machine AutoRun hooks cannot
  *     prepend unrelated commands before the uninstall wizard
@@ -44,9 +45,16 @@ export interface UninstallerDeps {
 }
 
 const BLOCKED_UNINSTALL_COMMAND_HOSTS = new Set([
+  "call",
   "cmd",
+  "for",
+  "if",
   "powershell",
   "pwsh",
+  "regsvr32",
+  "rundll32",
+  "set",
+  "start",
   "wscript",
   "cscript",
   "mshta"

@@ -114,6 +114,16 @@ describe("buildAppManagerSnapshot", () => {
       /별도 실행 도구/
     ],
     [
+      "cmd start wrapper",
+      'start "" "C:\\Program Files\\Sketchy Tool\\unins000.exe"',
+      /별도 실행 도구/
+    ],
+    [
+      "DLL runner",
+      "rundll32.exe shell32.dll,Control_RunDLL appwiz.cpl",
+      /별도 실행 도구/
+    ],
+    [
       "script target",
       '"C:\\Program Files\\Sketchy Tool\\uninstall.ps1"',
       /스크립트/

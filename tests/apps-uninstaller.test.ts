@@ -340,7 +340,11 @@ describe("runUninstall", () => {
 
   it.each([
     ["cmd.exe", "cmd.exe /c uninstall.bat"],
+    ["cmd start wrapper", 'start "" "C:\\Program Files\\Sketchy\\unins000.exe"'],
+    ["cmd call wrapper", 'call "C:\\Program Files\\Sketchy\\unins000.exe"'],
     ["PowerShell", "powershell.exe -NoProfile -File uninstall.ps1"],
+    ["rundll32", "rundll32.exe shell32.dll,Control_RunDLL appwiz.cpl"],
+    ["regsvr32", "regsvr32.exe /u sketchy.dll"],
     ["Windows Script Host", "wscript.exe uninstall.vbs"]
   ])("blocks uninstall strings that start with %s", async (_label, command) => {
     const spawnCmd = vi.fn().mockResolvedValue({ pid: 1234 });
