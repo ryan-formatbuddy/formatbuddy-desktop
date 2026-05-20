@@ -22,10 +22,27 @@ export interface RetentionPurgeTickDeps {
 
 export type RetentionPurgeTickResult = RestoreBinPurgeResult;
 
+export interface RetentionPurgeAuditNotice {
+  action: string;
+  summary: string;
+  detail: {
+    trigger: RetentionPurgeTrigger;
+    failedKinds: RestoreBinPurgeKind[];
+    failedBucketCount: number;
+    retentionDays: number;
+  };
+}
+
 const PURGE_FAILURE_MESSAGES: Record<RestoreBinPurgeKind, string> = {
   trash: "파일 복구함을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
   "registry-backups": "앱 삭제 흔적 백업을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
   "startup-disabled": "잠시 꺼둔 시작 항목을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+};
+
+const PURGE_KIND_LABELS: Record<RestoreBinPurgeKind, string> = {
+  trash: "파일 복구함",
+  "registry-backups": "앱 삭제 흔적 백업",
+  "startup-disabled": "잠시 꺼둔 시작 항목"
 };
 
 function errorMessage(err: unknown): string {
@@ -145,6 +162,38 @@ function recordPartialStartupDisabledFailure(
   const message = `잠시 꺼둔 시작 항목 ${failedCount}개를 아직 비우지 못했어요.`;
   result.failed.push({ kind: "startup-disabled", message });
   deps.logWarn?.(`30일 자동 비움 잠시 꺼둔 시작 항목 일부 실패: ${failedCount}개`);
+}
+
+function missingPurgeBuckets(result: RetentionPurgeTickResult): RestoreBinPurgeKind[] {
+  const failedKinds = result.failed.map((failure) => failure.kind);
+  const missingKinds = failedKinds.filter((kind) => {
+    if (kind === "trash") return !result.trash;
+    if (kind === "registry-backups") return !result.registryBackups;
+    return !result.startupDisabled;
+  });
+  return Array.from(new Set(missingKinds));
+}
+
+export function buildRetentionPurgeAuditNotice(
+  result: RetentionPurgeTickResult,
+  trigger: RetentionPurgeTrigger
+): RetentionPurgeAuditNotice | null {
+  const failedKinds = missingPurgeBuckets(result);
+  if (failedKinds.length === 0) return null;
+
+  const labels = failedKinds.map((kind) => PURGE_KIND_LABELS[kind]);
+  const joinedLabels = labels.length === 1 ? labels[0] : labels.join(", ");
+
+  return {
+    action: `restore-bin-expired-purge-failed-${trigger}`,
+    summary: `30일 복구함 자동 비움에서 ${joinedLabels}을 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.`,
+    detail: {
+      trigger,
+      failedKinds,
+      failedBucketCount: failedKinds.length,
+      retentionDays: RESTORE_BIN_RETENTION_DAYS
+    }
+  };
 }
 
 export async function runRetentionPurgeTick(

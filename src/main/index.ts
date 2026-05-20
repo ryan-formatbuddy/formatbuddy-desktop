@@ -60,6 +60,7 @@ import { getCleanupHistory } from "./cleanup/log";
 import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
 import { purgeExpiredTrashWithAudit } from "./cleanup/trashAudit";
 import {
+  buildRetentionPurgeAuditNotice,
   RETENTION_PURGE_INTERVAL_MS,
   runRetentionPurgeTick,
   type RetentionPurgeTrigger
@@ -276,26 +277,39 @@ async function reconcileReminderTimer(): Promise<void> {
 async function runAppRetentionPurgeTick(
   trigger: RetentionPurgeTrigger
 ): Promise<RestoreBinPurgeResult> {
-  return runRetentionPurgeTick({
+  const userDataDir = app.getPath("userData");
+  const result = await runRetentionPurgeTick({
     trigger,
     purgeTrash: (purgeTrigger) =>
       purgeExpiredTrashWithAudit({
-        userDataDir: app.getPath("userData"),
+        userDataDir,
         trigger: purgeTrigger
       }),
     purgeRegistryBackups: (purgeTrigger) =>
       purgeExpiredRegistryBackupsWithAudit({
-        userDataDir: app.getPath("userData"),
+        userDataDir,
         trigger: purgeTrigger
       }),
     purgeStartupDisabled: (purgeTrigger) =>
       purgeExpiredStartupFolderEntriesWithAudit({
-        userDataDir: app.getPath("userData"),
+        userDataDir,
         trigger: purgeTrigger
       }),
     logInfo: (message) => log.info(`retention:${message}`),
     logWarn: (message) => log.warn(`retention:${message}`)
   });
+  const auditNotice = buildRetentionPurgeAuditNotice(result, trigger);
+  if (auditNotice) {
+    await appendAuditEntry(userDataDir, {
+      category: "cleanup",
+      action: auditNotice.action,
+      summary: auditNotice.summary,
+      detail: auditNotice.detail
+    }).catch((err) => {
+      log.warn("audit append (retention-purge) failed:", (err as Error).message);
+    });
+  }
+  return result;
 }
 
 function reconcileRetentionPurgeTimer(): void {

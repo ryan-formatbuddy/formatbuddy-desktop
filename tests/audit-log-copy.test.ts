@@ -118,6 +118,13 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("<pre");
   });
 
+  it("shows bucket-level automatic-empty failures as friendly detail lines", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain('const failedBucketCount = numberDetail(detail, "failedBucketCount")');
+    expect(source).toContain("확인 못 한 복구함 영역 ${failedBucketCount}곳");
+  });
+
   it("shows a friendly restorable count across files, app traces, and disabled startup items", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 

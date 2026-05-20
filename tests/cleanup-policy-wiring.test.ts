@@ -179,6 +179,16 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("clearInterval(retentionPurgeTimer)");
   });
 
+  it("records restore-bin automatic emptying check failures in the user audit log", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    expect(source).toContain("buildRetentionPurgeAuditNotice");
+    expect(source).toContain("const auditNotice = buildRetentionPurgeAuditNotice(result, trigger)");
+    expect(source).toContain('action: auditNotice.action');
+    expect(source).toContain('summary: auditNotice.summary');
+    expect(source).toContain('detail: auditNotice.detail');
+  });
+
   it("keeps the 30-day restore-bin purge automatic instead of exposing manual emptying", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 

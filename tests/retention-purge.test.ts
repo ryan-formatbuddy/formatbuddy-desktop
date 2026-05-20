@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildRetentionPurgeAuditNotice,
   RETENTION_PURGE_INTERVAL_MS,
   runRetentionPurgeTick
 } from "../src/main/retentionPurge";
@@ -350,5 +351,62 @@ describe("retention purge scheduler", () => {
     expect(logInfo).toHaveBeenCalledWith(
       "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개"
     );
+  });
+
+  it("builds a user-facing audit notice when a restore-bin bucket could not be checked", async () => {
+    const result = await runRetentionPurgeTick({
+      trigger: "startup",
+      purgeTrash: vi.fn(async () => {
+        throw new Error("EPERM C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\formatbuddy-trash");
+      }),
+      purgeRegistryBackups: vi.fn(async () => ({
+        purgedCount: 0,
+        purgedBytes: 0,
+        purgedIds: [],
+        failedIds: ["reg-busy"],
+        retentionDays: 30
+      })),
+      purgeStartupDisabled: vi.fn(async () => ({
+        purgedCount: 0,
+        purgedIds: [],
+        retentionDays: 30
+      }))
+    });
+
+    const notice = buildRetentionPurgeAuditNotice(result, "startup");
+
+    expect(notice).toEqual({
+      action: "restore-bin-expired-purge-failed-startup",
+      summary: "30일 복구함 자동 비움에서 파일 복구함을 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
+      detail: {
+        trigger: "startup",
+        failedKinds: ["trash"],
+        failedBucketCount: 1,
+        retentionDays: 30
+      }
+    });
+    expect(notice?.summary).not.toContain("C:\\Users");
+    expect(notice?.summary).not.toContain("EPERM");
+  });
+
+  it("does not create a bucket-level audit notice for partial item failures", async () => {
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash: vi.fn(async () => ({
+        purgedCount: 0,
+        purgedBytes: 0,
+        purgedEntryIds: [],
+        failedEntryIds: ["trash-busy"],
+        retentionDays: 30
+      })),
+      purgeRegistryBackups: vi.fn(async () => ({
+        purgedCount: 0,
+        purgedBytes: 0,
+        purgedIds: [],
+        retentionDays: 30
+      }))
+    });
+
+    expect(buildRetentionPurgeAuditNotice(result, "scheduled")).toBeNull();
   });
 });
