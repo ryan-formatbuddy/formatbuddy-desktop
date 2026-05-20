@@ -45,7 +45,7 @@ export interface MoveToTrashOptions {
   home?: string;
   now?: () => Date;
   trustedSource?: {
-    kind: "app-shortcut";
+    kind: "app-shortcut" | "app-shortcut-folder";
     allowRoots: string[];
   };
 }
@@ -100,16 +100,19 @@ function isAtOrInside(rawPath: string, rawRoot: string): boolean {
 }
 
 function trustedSourceAllows(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): boolean {
-  if (!trusted || trusted.kind !== "app-shortcut") return false;
+  if (!trusted || (trusted.kind !== "app-shortcut" && trusted.kind !== "app-shortcut-folder")) return false;
   const normalized = normalizePath(rawPath);
-  if (!normalized.endsWith(".lnk")) return false;
   if (
     normalized.endsWith("\\microsoft\\windows\\start menu\\programs\\startup") ||
     normalized.includes("\\microsoft\\windows\\start menu\\programs\\startup\\")
   ) {
     return false;
   }
-  return trusted.allowRoots.some((root) => isAtOrInside(rawPath, root));
+  return trusted.allowRoots.some((root) => {
+    if (!isAtOrInside(rawPath, root)) return false;
+    if (trusted.kind === "app-shortcut") return normalized.endsWith(".lnk");
+    return normalized !== normalizePath(root) && !normalized.endsWith(".lnk");
+  });
 }
 
 function trustedSourceBoundary(rawPath: string, trusted?: MoveToTrashOptions["trustedSource"]): string | undefined {

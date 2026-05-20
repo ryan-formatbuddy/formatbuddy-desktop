@@ -398,6 +398,48 @@ describe("planAppLeftovers", () => {
     expect(shortcutPaths).toEqual([desktopShortcut, publicDesktopShortcut, startMenuShortcut].sort());
   });
 
+  it("finds app start-menu shortcut folders without listing their child shortcuts twice", async () => {
+    const startMenuFolder = join(
+      fx.roaming,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme Notes"
+    );
+    const nestedShortcut = join(startMenuFolder, "Acme Notes.lnk");
+    await fs.mkdir(startMenuFolder, { recursive: true });
+    await fs.writeFile(nestedShortcut, "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+
+    const groupPaths = snapshot.groups[0].paths;
+    expect(groupPaths.find((p) => p.path === startMenuFolder)).toMatchObject({
+      kind: "shortcut-folder",
+      exists: true,
+      protectedBy: undefined
+    });
+    expect(groupPaths.some((p) => p.path === nestedShortcut)).toBe(false);
+  });
+
+  it("does not treat desktop folders as shortcut-folder leftovers", async () => {
+    const desktopFolder = join(fx.home, "Desktop", "Acme Notes");
+    await fs.mkdir(desktopFolder, { recursive: true });
+    await fs.writeFile(join(desktopFolder, "notes.txt"), "user data", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+
+    expect(snapshot.groups.some((group) => group.paths.some((p) => p.path === desktopFolder))).toBe(false);
+  });
+
   it("finds a recently uninstalled app's install folder even outside AppData roots", async () => {
     const installFolder = join(fx.localAppData, "Programs", "Acme Notes");
     await fs.mkdir(installFolder, { recursive: true });
@@ -458,6 +500,94 @@ describe("planAppLeftovers", () => {
     expect(trash.entries).toHaveLength(1);
     expect(trash.entries[0].originalPath).toBe(desktopShortcut);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("moves a selected start-menu shortcut folder into the 30-day trash after uninstall follow-up", async () => {
+    const startMenuFolder = join(
+      fx.programData,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme Notes"
+    );
+    await fs.mkdir(startMenuFolder, { recursive: true });
+    await fs.writeFile(join(startMenuFolder, "Acme Notes.lnk"), "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === startMenuFolder)!;
+    expect(path).toMatchObject({ kind: "shortcut-folder", exists: true });
+    expect(path.protectedBy).toBeUndefined();
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].trashEntryId).toBeTruthy();
+    await expect(fs.stat(startMenuFolder)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0].originalPath).toBe(startMenuFolder);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("refuses shortcut-folder cleanup when the folder was replaced with a file after the plan", async () => {
+    const startMenuFolder = join(
+      fx.programData,
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs",
+      "Acme Notes"
+    );
+    await fs.mkdir(startMenuFolder, { recursive: true });
+    await fs.writeFile(join(startMenuFolder, "Acme Notes.lnk"), "shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === startMenuFolder)!;
+    const plannedTime = new Date(path.lastModifiedAt!);
+    await fs.rm(startMenuFolder, { recursive: true, force: true });
+    await fs.writeFile(startMenuFolder, "shortcut", "utf8");
+    await fs.utimes(startMenuFolder, plannedTime, plannedTime);
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(0);
+    expect(result.skippedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: startMenuFolder,
+      reason: "blocked-path"
+    });
+    await expect(fs.readFile(startMenuFolder, "utf8")).resolves.toBe("shortcut");
   });
 
   it("moves all-user start-menu shortcut leftovers into the 30-day trash", async () => {

@@ -456,6 +456,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
   return (
     value === "folder" ||
     value === "shortcut" ||
+    value === "shortcut-folder" ||
     value === "registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
@@ -726,6 +727,13 @@ function shortcutRoots(env: LeftoverEnv): string[] {
   ];
 }
 
+function shortcutFolderRoots(env: LeftoverEnv): string[] {
+  return [
+    join(env.roaming, "Microsoft", "Windows", "Start Menu", "Programs"),
+    join(env.programData, "Microsoft", "Windows", "Start Menu", "Programs")
+  ];
+}
+
 function isStartupShortcutFolder(path: string): boolean {
   const normalized = normalizePath(path);
   return (
@@ -739,6 +747,13 @@ function isShortcutPathAllowed(path: string, env: LeftoverEnv): boolean {
     path.toLowerCase().endsWith(".lnk") &&
     !isStartupShortcutFolder(path) &&
     shortcutRoots(env).some((root) => isAtOrInside(path, root))
+  );
+}
+
+function isShortcutFolderPathAllowed(path: string, env: LeftoverEnv): boolean {
+  return (
+    !isStartupShortcutFolder(path) &&
+    shortcutFolderRoots(env).some((root) => isAtOrInside(path, root) && normalizePath(path) !== normalizePath(root))
   );
 }
 
@@ -787,6 +802,58 @@ async function findShortcutFiles(
   return found;
 }
 
+function shortcutFolderNameMatchesApp(folderPath: string, names: string[]): boolean {
+  const normalizedBaseName = cleanGenericName(basename(folderPath)).toLowerCase();
+  const compactBaseName = normalizedBaseName.replace(/\s+/g, "");
+  if (!normalizedBaseName || !compactBaseName) return false;
+
+  return names.some((name) => {
+    const compactName = name.replace(/\s+/g, "");
+    return normalizedBaseName === name || compactBaseName === compactName;
+  });
+}
+
+async function findShortcutFolders(
+  root: string,
+  names: string[],
+  env: LeftoverEnv,
+  depth = 0,
+  counter = { count: 0 }
+): Promise<string[]> {
+  if (depth > MAX_SHORTCUT_SCAN_DEPTH || counter.count >= MAX_SHORTCUT_SCAN_ITEMS) return [];
+  if (isStartupShortcutFolder(root)) return [];
+
+  let stat: Stats;
+  try {
+    stat = await fs.lstat(root);
+  } catch {
+    return [];
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) return [];
+
+  let entries: Dirent[];
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const found: string[] = [];
+  for (const entry of entries) {
+    if (counter.count >= MAX_SHORTCUT_SCAN_ITEMS) break;
+    if (entry.isSymbolicLink() || !entry.isDirectory()) continue;
+    counter.count += 1;
+    const child = join(root, entry.name);
+    if (!isShortcutFolderPathAllowed(child, env)) continue;
+    if (shortcutFolderNameMatchesApp(child, names)) {
+      found.push(child);
+      continue;
+    }
+    found.push(...(await findShortcutFolders(child, names, env, depth + 1, counter)));
+  }
+  return found;
+}
+
 async function shortcutLeftoverPaths(
   app: InstalledApp,
   env: LeftoverEnv
@@ -796,8 +863,29 @@ async function shortcutLeftoverPaths(
 
   const paths: AppLeftoverPath[] = [];
   const seen = new Set<string>();
+  const folderPaths: string[] = [];
+  for (const root of shortcutFolderRoots(env)) {
+    for (const folderPath of await findShortcutFolders(root, names, env)) {
+      const key = normalizePath(folderPath);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      folderPaths.push(folderPath);
+      const info = await pathInfo(folderPath, env);
+      paths.push({
+        ...info,
+        protectedBy: isShortcutFolderPathAllowed(folderPath, env)
+          ? info.protectedBy && !info.protectedBy.includes("ProgramData\\Microsoft")
+            ? info.protectedBy
+            : undefined
+          : info.protectedBy ?? "지원하는 바로가기 폴더 위치가 아니라 자동 정리하지 않아요.",
+        kind: "shortcut-folder"
+      });
+    }
+  }
+
   for (const root of shortcutRoots(env)) {
     for (const shortcutPath of await findShortcutFiles(root, names)) {
+      if (folderPaths.some((folderPath) => isAtOrInside(shortcutPath, folderPath))) continue;
       const key = normalizePath(shortcutPath);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1512,7 +1600,9 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
-    const shortcutAllowed = path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env);
+    const shortcutAllowed =
+      (path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env)) ||
+      (path.kind === "shortcut-folder" && isShortcutFolderPathAllowed(path.path, cached.env));
     const decision = shortcutAllowed
       ? { allowed: true as const }
       : evaluatePath(path.path, { allowRoots: [path.path], home: cached.env.home });
@@ -1550,6 +1640,18 @@ export async function cleanupAppLeftovers(
       });
       continue;
     }
+    if (path.kind === "shortcut-folder") {
+      const currentStat = await fs.lstat(path.path).catch(() => null);
+      if (!currentStat?.isDirectory()) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: "점검했던 바로가기 폴더가 폴더가 아니게 바뀌었어요. 다시 점검한 뒤 정리해주세요."
+        });
+        continue;
+      }
+    }
 
     const cleanupItem = toCleanupItem(
       {
@@ -1566,7 +1668,9 @@ export async function cleanupAppLeftovers(
         sizeBytes: cleanupItem.sizeBytes,
         home: cached.env.home,
         trustedSource: shortcutAllowed
-          ? { kind: "app-shortcut", allowRoots: shortcutRoots(cached.env) }
+          ? path.kind === "shortcut-folder"
+            ? { kind: "app-shortcut-folder", allowRoots: shortcutFolderRoots(cached.env) }
+            : { kind: "app-shortcut", allowRoots: shortcutRoots(cached.env) }
           : undefined,
         now: options.now
       });

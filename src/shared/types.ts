@@ -1184,7 +1184,14 @@ export interface AppManagerSnapshot {
 
 export interface AppLeftoverPath {
   id: string;
-  kind?: "folder" | "shortcut" | "registry" | "startup-folder" | "startup-registry" | "startup-entry";
+  kind?:
+    | "folder"
+    | "shortcut"
+    | "shortcut-folder"
+    | "registry"
+    | "startup-folder"
+    | "startup-registry"
+    | "startup-entry";
   path: string;
   /** Original StartupAutoEntry id when kind === "startup-folder". */
   startupEntryId?: string | null;

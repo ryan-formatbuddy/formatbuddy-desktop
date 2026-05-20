@@ -101,6 +101,7 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
     case "startup-entry":
       return "시작 흔적";
     case "shortcut":
+    case "shortcut-folder":
       return "바로가기";
     case "folder":
     default:
@@ -219,7 +220,7 @@ function buildLeftoverCleanupConfirm(
     selectedPathIds,
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
     folderCount: paths.filter((path) => path.kind === "folder").length,
-    shortcutCount: paths.filter((path) => path.kind === "shortcut").length,
+    shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "shortcut-folder").length,
     backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length
   };
