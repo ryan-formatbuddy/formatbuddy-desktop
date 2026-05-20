@@ -10,6 +10,7 @@ import {
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
+  summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
 } from "../src/shared/cleanup-result";
@@ -18,7 +19,9 @@ import type {
   CleanupTrashEntry,
   CleanupTrashRestoreResult,
   RegistryBackupEntry,
-  RegistryBackupRestoreResult
+  RegistryBackupRestoreResult,
+  StartupAutoDisabledEntry,
+  StartupFolderToggleResult
 } from "../src/shared/types";
 
 function resultWithEntries(): CleanupExecuteResult {
@@ -98,6 +101,21 @@ describe("Cleanup result undo helper", () => {
     backupPath: overrides.backupPath ?? "C:\\FormatBuddy\\backup.reg",
     sizeBytes: overrides.sizeBytes ?? 10,
     createdAt: overrides.createdAt ?? "2026-05-19T00:00:00.000Z",
+    expiresAt: overrides.expiresAt ?? "2026-06-18T00:00:00.000Z",
+    ...overrides
+  });
+  const startupDisabledEntry = (
+    overrides: Partial<StartupAutoDisabledEntry>
+  ): StartupAutoDisabledEntry => ({
+    id: overrides.id ?? "startup-disabled",
+    entryId: overrides.entryId ?? "startup-entry",
+    name: overrides.name ?? "Acme Helper.lnk",
+    originalPath:
+      overrides.originalPath ?? "C:\\Users\\Ryan\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Acme Helper.lnk",
+    storedPath:
+      overrides.storedPath ?? "C:\\Users\\Ryan\\AppData\\Roaming\\FormatBuddy\\startup-disabled\\Acme Helper.lnk",
+    origin: overrides.origin ?? "Startup",
+    disabledAt: overrides.disabledAt ?? "2026-05-19T00:00:00.000Z",
     expiresAt: overrides.expiresAt ?? "2026-06-18T00:00:00.000Z",
     ...overrides
   });
@@ -275,6 +293,38 @@ describe("Cleanup result undo helper", () => {
 
     expect(summarizeRestoreAllResults(trashResults, registryResults, 2)).toBe(
       "1개를 원래 위치로 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 시작 항목 백업 1개를 되돌렸어요. 2개는 연결 문제로 되돌리지 못했어요."
+    );
+  });
+
+  it("summarizes disabled startup restore outcomes in the central restore bin tone", () => {
+    const results: StartupFolderToggleResult[] = [
+      { status: "restored", message: "ok", entry: startupDisabledEntry({ id: "a" }) },
+      { status: "target-exists", message: "already there", entry: startupDisabledEntry({ id: "b" }) },
+      {
+        status: "blocked-path",
+        message: "보관 파일이 바뀐 것 같아요",
+        entry: startupDisabledEntry({ id: "c", integrityStatus: "changed" })
+      },
+      {
+        status: "blocked-path",
+        message: "복구 기록을 확인할 수 없어요",
+        entry: startupDisabledEntry({ id: "d", integrityStatus: "legacy" })
+      },
+      { status: "windows-only", message: "Windows only" }
+    ];
+
+    expect(summarizeStartupFolderRestoreResults(results)).toBe(
+      "시작 항목 1개를 되돌렸어요. 1개는 원래 위치에 같은 이름이 있어 멈췄어요. 시작 항목 1개는 보관 파일이 바뀐 것 같아 되돌리지 않았어요. 시작 항목 1개는 보관 기록이 오래되어 자동으로 되돌리지 않았어요. 1개는 Windows 앱에서 다시 시도해주세요."
+    );
+  });
+
+  it("includes disabled startup results in restore-all summaries", () => {
+    const startupResults: StartupFolderToggleResult[] = [
+      { status: "restored", message: "ok", entry: startupDisabledEntry({ id: "a" }) }
+    ];
+
+    expect(summarizeRestoreAllResults([], [], 0, startupResults)).toBe(
+      "시작 항목 1개를 되돌렸어요."
     );
   });
 

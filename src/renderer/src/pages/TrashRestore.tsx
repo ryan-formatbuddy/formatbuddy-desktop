@@ -10,6 +10,7 @@ import {
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
+  summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
 } from "@shared/cleanup-result";
@@ -21,7 +22,10 @@ import type {
   CleanupTrashSnapshot,
   RegistryBackupEntry,
   RegistryBackupRestoreResult,
-  RegistryBackupSnapshot
+  RegistryBackupSnapshot,
+  StartupAutoDisabledEntry,
+  StartupAutoDisabledSnapshot,
+  StartupFolderToggleResult
 } from "@shared/types";
 
 interface TrashRestoreProps {
@@ -69,6 +73,13 @@ type RestoreListItem =
       id: string;
       kind: "registry";
       entry: RegistryBackupEntry;
+      expiresAt: string;
+      createdAt: string;
+    }
+  | {
+      id: string;
+      kind: "startup";
+      entry: StartupAutoDisabledEntry;
       expiresAt: string;
       createdAt: string;
     };
@@ -160,25 +171,40 @@ function registryBackupNeedsCheck(entry: RegistryBackupEntry): boolean {
   return entry.integrityStatus !== "verified";
 }
 
+function startupDisabledNeedsCheck(entry: StartupAutoDisabledEntry): boolean {
+  return entry.integrityStatus !== "verified";
+}
+
+function startupDisabledChangedNotice(): string {
+  return "보관된 시작 항목 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+}
+
+function startupDisabledLegacyNotice(): string {
+  return "시작 항목 보관 기록을 확인할 수 없어요. 오래된 보관 항목이라 자동으로 되돌리지 않아요.";
+}
+
 export function TrashRestore({ onBack }: TrashRestoreProps) {
   const [snapshot, setSnapshot] = useState<CleanupTrashSnapshot | null>(null);
   const [registrySnapshot, setRegistrySnapshot] = useState<RegistryBackupSnapshot | null>(null);
+  const [startupSnapshot, setStartupSnapshot] = useState<StartupAutoDisabledSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!window.fb?.getCleanupTrash || !window.fb?.getRegistryBackups) {
+    if (!window.fb?.getCleanupTrash || !window.fb?.getRegistryBackups || !window.fb?.listDisabledStartupAuto) {
       setError("앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요.");
       return;
     }
     try {
-      const [trash, registry] = await Promise.all([
+      const [trash, registry, startup] = await Promise.all([
         window.fb.getCleanupTrash(),
-        window.fb.getRegistryBackups()
+        window.fb.getRegistryBackups(),
+        window.fb.listDisabledStartupAuto()
       ]);
       setSnapshot(trash);
       setRegistrySnapshot(registry);
+      setStartupSnapshot(startup);
       setError(null);
     } catch (e) {
       setError(friendlyErrorMessage(e as Error));
@@ -194,11 +220,15 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     () => registrySnapshot?.entries ?? [],
     [registrySnapshot]
   );
+  const startupEntries = useMemo(
+    () => startupSnapshot?.entries ?? [],
+    [startupSnapshot]
+  );
   const registryBytes = useMemo(
     () => registryEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
     [registryEntries]
   );
-  const totalEntryCount = entries.length + registryEntries.length;
+  const totalEntryCount = entries.length + registryEntries.length + startupEntries.length;
   const sortedRestoreItems = useMemo(() => {
     const items: RestoreListItem[] = [
       ...entries.map((entry) => ({
@@ -214,17 +244,24 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         entry,
         expiresAt: entry.expiresAt,
         createdAt: entry.createdAt
+      })),
+      ...startupEntries.map((entry) => ({
+        id: `startup:${entry.id}`,
+        kind: "startup" as const,
+        entry,
+        expiresAt: entry.expiresAt,
+        createdAt: entry.disabledAt
       }))
     ];
     return sortTrashEntriesByExpiry(items);
-  }, [entries, registryEntries]);
+  }, [entries, registryEntries, startupEntries]);
   const restorableRestoreItems = useMemo(
     () =>
       sortedRestoreItems.filter((item) => {
         if (isTrashEntryExpired(item.expiresAt)) return false;
-        return item.kind === "registry"
-          ? !registryBackupNeedsCheck(item.entry)
-          : !trashEntryNeedsCheck(item.entry);
+        if (item.kind === "registry") return !registryBackupNeedsCheck(item.entry);
+        if (item.kind === "startup") return !startupDisabledNeedsCheck(item.entry);
+        return !trashEntryNeedsCheck(item.entry);
       }),
     [sortedRestoreItems]
   );
@@ -278,9 +315,33 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     [load]
   );
 
+  const onRestoreStartup = useCallback(
+    async (entry: StartupAutoDisabledEntry) => {
+      if (!window.fb?.restoreStartupAuto) {
+        setToast("시작 항목 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+        return;
+      }
+      setBusy(`startup:${entry.id}`);
+      setToast(null);
+      try {
+        const result: StartupFolderToggleResult = await window.fb.restoreStartupAuto({
+          disabledId: entry.id
+        });
+        setToast(summarizeStartupFolderRestoreResults([result]));
+        await load();
+      } catch (e) {
+        setToast(`시작 항목 되돌리기 중 문제가 생겼어요. ${friendlyErrorMessage(e as Error)}`);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [load]
+  );
+
   const onRestoreAll = useCallback(async () => {
     const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
     const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
+    const restoreStartupAuto = window.fb?.restoreStartupAuto;
     if (totalEntryCount === 0) {
       setToast("되돌릴 항목이 없어요.");
       return;
@@ -290,10 +351,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       return;
     }
     const restorableFileCount = restorableRestoreItems.filter((item) => item.kind === "file").length;
-    const restorableRegistryCount = restorableRestoreItems.length - restorableFileCount;
+    const restorableRegistryCount = restorableRestoreItems.filter((item) => item.kind === "registry").length;
+    const restorableStartupCount = restorableRestoreItems.length - restorableFileCount - restorableRegistryCount;
     if (
       (!restoreCleanupTrash && restorableFileCount > 0) ||
-      (!restoreRegistryBackup && restorableRegistryCount > 0)
+      (!restoreRegistryBackup && restorableRegistryCount > 0) ||
+      (!restoreStartupAuto && restorableStartupCount > 0)
     ) {
       setToast("모두 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
       return;
@@ -303,12 +366,23 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     try {
       const results: CleanupTrashRestoreResult[] = [];
       const registryResults: RegistryBackupRestoreResult[] = [];
+      const startupResults: StartupFolderToggleResult[] = [];
       let restoreAllFailureCount = 0;
       for (const item of restorableRestoreItems) {
         if (item.kind === "file") {
           if (restoreCleanupTrash) {
             try {
               results.push(await restoreCleanupTrash({ entryId: item.entry.id }));
+            } catch {
+              restoreAllFailureCount += 1;
+            }
+          }
+          continue;
+        }
+        if (item.kind === "startup") {
+          if (restoreStartupAuto) {
+            try {
+              startupResults.push(await restoreStartupAuto({ disabledId: item.entry.id }));
             } catch {
               restoreAllFailureCount += 1;
             }
@@ -323,7 +397,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           }
         }
       }
-      setToast(summarizeRestoreAllResults(results, registryResults, restoreAllFailureCount));
+      setToast(summarizeRestoreAllResults(results, registryResults, restoreAllFailureCount, startupResults));
       await load();
     } catch (e) {
       setToast(friendlyErrorMessage(e as Error));
@@ -333,16 +407,17 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   }, [load, restorableRestoreItems, totalEntryCount, totalRestorableCount]);
 
   const headerSummary = useMemo(() => {
-    if (!snapshot || !registrySnapshot) return "복구함 불러오는 중...";
+    if (!snapshot || !registrySnapshot || !startupSnapshot) return "복구함 불러오는 중...";
     if (totalEntryCount === 0) return "복구함이 비어 있어요.";
     const totalBytes = snapshot.totalBytes + registryBytes;
     const appTraceCount = registryEntries.filter(
       (entry) => entry.backupKind !== "startup-value"
     ).length;
-    const startupCount = registryEntries.length - appTraceCount;
+    const registryStartupCount = registryEntries.length - appTraceCount;
     const backupSummary = [
       appTraceCount > 0 ? `앱 삭제 흔적 백업 ${appTraceCount}개` : "",
-      startupCount > 0 ? `시작 항목 백업 ${startupCount}개` : ""
+      registryStartupCount > 0 ? `시작 항목 백업 ${registryStartupCount}개` : "",
+      startupEntries.length > 0 ? `잠시 꺼둔 시작 항목 ${startupEntries.length}개` : ""
     ]
       .filter(Boolean)
       .join(" · ");
@@ -350,19 +425,21 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   }, [
     snapshot,
     registrySnapshot,
+    startupSnapshot,
     entries.length,
     registryEntries,
     registryBytes,
+    startupEntries.length,
     totalEntryCount
   ]);
 
   const expirySummary = useMemo(
-    () => trashExpirySummary([...entries, ...registryEntries]),
-    [entries, registryEntries]
+    () => trashExpirySummary([...entries, ...registryEntries, ...startupEntries]),
+    [entries, registryEntries, startupEntries]
   );
 
   const expiryMessage = useMemo(() => {
-    if (!snapshot || totalEntryCount === 0 || expirySummary.nextExpiryDays === null) return null;
+    if (!snapshot || !registrySnapshot || !startupSnapshot || totalEntryCount === 0 || expirySummary.nextExpiryDays === null) return null;
     if (expirySummary.todayCount > 0) {
       return `${expirySummary.todayCount}개는 보관 기간이 지나 되돌릴 수 없어요. 앱이 다음 자동 비움 때 다시 정리해볼게요.`;
     }
@@ -370,7 +447,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       return `${expirySummary.expiringSoonCount}개가 3일 안에 비워질 예정이에요. 오래된 항목부터 확인해볼게요.`;
     }
     return `가장 먼저 비워질 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
-  }, [totalEntryCount, expirySummary, snapshot]);
+  }, [totalEntryCount, expirySummary, snapshot, registrySnapshot, startupSnapshot]);
 
   return (
     <main className="fb-report" aria-label="복구함 (30일)">
@@ -386,7 +463,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       <section className="fb-report-hero">
         <h1 className="fb-h1-sm">복구함 (30일)</h1>
         <p className="fb-lede">
-          깔끔 정리에서 보낸 파일과 앱 정리 때 만든 백업은 30일 동안 여기 보관해요.
+          깔끔 정리에서 보낸 파일, 앱 정리 때 만든 백업, 잠시 꺼둔 시작 항목은 30일 동안 여기 보관해요.
           마음이 바뀌면 한 번에 되돌릴 수 있고, 30일 뒤 자동으로 비워요. {headerSummary}
         </p>
       </section>
@@ -449,11 +526,11 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         )}
       </section>
 
-      {snapshot && registrySnapshot && totalEntryCount === 0 && (
+      {snapshot && registrySnapshot && startupSnapshot && totalEntryCount === 0 && (
         <section className="fb-card fb-anim-fade">
           <h3 style={{ marginTop: 0 }}>복구함이 비어 있어요</h3>
           <p>
-            깔끔 정리에서 보낸 파일이나 앱 정리에서 만든 백업이 있으면 여기 시간순으로 표시돼요.
+            깔끔 정리에서 보낸 파일, 앱 정리에서 만든 백업, 잠시 꺼둔 시작 항목이 있으면 여기 시간순으로 표시돼요.
             곧 만료될 항목부터 위에 보여드려요.
           </p>
         </section>
@@ -561,6 +638,113 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                       : busy === `file:${entry.id}`
                       ? "되돌리는 중..."
                       : "원래 자리로 되돌리기"}
+                </Button>
+              </div>
+            </article>
+          );
+        }
+        if (item.kind === "startup") {
+          const entry = item.entry;
+          const isChanged = entry.integrityStatus === "changed";
+          const isLegacy = entry.integrityStatus === "legacy";
+          const needsCheck = startupDisabledNeedsCheck(entry);
+          return (
+            <article
+              key={item.id}
+              className="fb-card fb-anim-slide fb-card-hover"
+              style={{
+                marginBottom: 12,
+                animationDelay: `${Math.min(idx, 8) * 30}ms`
+              }}
+            >
+              <header
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginBottom: 4
+                }}
+              >
+                <span
+                  style={{
+                    background: "#10b981",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}
+                >
+                  잠시 꺼둔 시작 항목
+                </span>
+                <strong style={{ fontSize: 14 }}>{entry.name}</strong>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 12,
+                    color: isUrgent ? "#1d4ed8" : "rgba(0,0,0,0.55)",
+                    fontWeight: isUrgent ? 600 : 400
+                  }}
+                >
+                  {expiryLabel}
+                </span>
+              </header>
+              <div style={{ fontSize: 12, opacity: 0.65, marginTop: -2 }}>
+                PC 켤 때 같이 뜨지 않게 잠시 보관한 항목
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.85, wordBreak: "break-all" }}>
+                {entry.originalPath}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
+                보낸 시각 {formatLocal(entry.disabledAt)}
+              </div>
+              {isChanged && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "9px 10px",
+                    borderRadius: 12,
+                    background: "rgba(37, 99, 235, 0.08)",
+                    color: "#1d4ed8",
+                    fontSize: 12,
+                    fontWeight: 650
+                  }}
+                >
+                  {startupDisabledChangedNotice()}
+                </div>
+              )}
+              {isLegacy && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "9px 10px",
+                    borderRadius: 12,
+                    background: "rgba(37, 99, 235, 0.08)",
+                    color: "#1d4ed8",
+                    fontSize: 12,
+                    fontWeight: 650
+                  }}
+                >
+                  {startupDisabledLegacyNotice()}
+                </div>
+              )}
+              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void onRestoreStartup(entry)}
+                  disabled={Boolean(busy) || isExpired || needsCheck}
+                >
+                  {isExpired
+                    ? "보관 기간이 지나 되돌릴 수 없어요"
+                    : needsCheck
+                      ? isChanged
+                        ? "시작 항목 파일 확인 필요"
+                        : "시작 항목 기록 확인 필요"
+                      : busy === `startup:${entry.id}`
+                        ? "되돌리는 중..."
+                        : "시작 항목 되돌리기"}
                 </Button>
               </div>
             </article>

@@ -3,7 +3,8 @@ import type {
   CleanupTrashEntry,
   CleanupTrashRestoreResult,
   RegistryBackupEntry,
-  RegistryBackupRestoreResult
+  RegistryBackupRestoreResult,
+  StartupFolderToggleResult
 } from "./types";
 
 const MS_PER_DAY = 86_400_000;
@@ -255,14 +256,58 @@ export function summarizeRegistryBackupRestoreResults(
   return parts.length > 0 ? parts.join(" ") : "";
 }
 
+export function summarizeStartupFolderRestoreResults(
+  results: StartupFolderToggleResult[]
+): string {
+  const restored = results.filter((item) => item.status === "restored").length;
+  const notFound = results.filter((item) => item.status === "not-found").length;
+  const expired = results.filter((item) => item.status === "expired").length;
+  const targetExists = results.filter((item) => item.status === "target-exists").length;
+  const missingStored = results.filter((item) => item.status === "missing-stored-item").length;
+  const changed = results.filter(
+    (item) => item.status === "blocked-path" && isChangedBlockedRestore(item.message, item.entry)
+  ).length;
+  const legacy = results.filter(
+    (item) => item.status === "blocked-path" && isLegacyBlockedRestore(item.message, item.entry)
+  ).length;
+  const unsafe = results.filter(
+    (item) =>
+      item.status === "blocked-path" &&
+      !isChangedBlockedRestore(item.message, item.entry) &&
+      !isLegacyBlockedRestore(item.message, item.entry)
+  ).length;
+  const failed = results.filter((item) => item.status === "failed").length;
+  const windowsOnly = results.filter((item) => item.status === "windows-only").length;
+  const parts: string[] = [];
+
+  if (restored > 0) parts.push(`시작 항목 ${restored}개를 되돌렸어요.`);
+  if (notFound > 0) parts.push(`${notFound}개는 시작 항목 보관함에서 찾지 못했어요.`);
+  if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
+  if (targetExists > 0) parts.push(`${targetExists}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
+  if (missingStored > 0) parts.push(`${missingStored}개는 보관된 시작 항목 파일을 찾지 못했어요.`);
+  if (changed > 0) {
+    parts.push(`시작 항목 ${changed}개는 보관 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
+  if (legacy > 0) {
+    parts.push(`시작 항목 ${legacy}개는 보관 기록이 오래되어 자동으로 되돌리지 않았어요.`);
+  }
+  if (unsafe > 0) parts.push(`${unsafe}개는 안전 확인이 필요해 멈췄어요.`);
+  if (failed > 0) parts.push(`${failed}개는 되돌리는 중 문제가 생겼어요.`);
+  if (windowsOnly > 0) parts.push(`${windowsOnly}개는 Windows 앱에서 다시 시도해주세요.`);
+
+  return parts.length > 0 ? parts.join(" ") : "";
+}
+
 export function summarizeRestoreAllResults(
   trashResults: CleanupTrashRestoreResult[],
   registryResults: RegistryBackupRestoreResult[],
-  unexpectedFailureCount = 0
+  unexpectedFailureCount = 0,
+  startupResults: StartupFolderToggleResult[] = []
 ): string {
   const parts = [
     trashResults.length > 0 ? summarizeTrashRestoreResults(trashResults) : "",
     summarizeRegistryBackupRestoreResults(registryResults),
+    summarizeStartupFolderRestoreResults(startupResults),
     unexpectedFailureCount > 0
       ? `${unexpectedFailureCount}개는 연결 문제로 되돌리지 못했어요.`
       : ""

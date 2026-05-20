@@ -24,6 +24,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("자동으로 비워요");
     expect(source).toContain("앱 삭제 흔적 백업");
     expect(source).toContain("시작 항목 백업");
+    expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("registryBackupRestoreButtonLabel");
     expect(source).not.toContain("시작 레지스트리 백업");
   });
@@ -55,6 +56,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("sortedRestoreItems");
     expect(source).toContain('kind: "file"');
     expect(source).toContain('kind: "registry"');
+    expect(source).toContain('kind: "startup"');
     expect(source).not.toContain("entries.map((entry, idx)");
     expect(source).not.toContain("registryEntries.map((entry, idx)");
   });
@@ -65,6 +67,8 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("summarizeRestoreAllResults");
     expect(source).toContain("restoreAllFailureCount");
     expect(source).toContain("restoreAllFailureCount += 1");
+    expect(source).toContain("startupResults");
+    expect(source).toContain("restoreStartupAuto({ disabledId: item.entry.id })");
   });
 
   it("includes app deletion trace backup bytes in the restore bin total", () => {
@@ -132,6 +136,22 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("앱 삭제 흔적 기록 확인 필요");
     expect(source).toContain("시작 항목 백업 기록을 확인할 수 없어요");
     expect(source).toContain("시작 항목 기록 확인 필요");
+  });
+
+  it("shows disabled startup items in the central 30-day restore bin", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("StartupAutoDisabledEntry");
+    expect(source).toContain("StartupAutoDisabledSnapshot");
+    expect(source).toContain("listDisabledStartupAuto");
+    expect(source).toContain("restoreStartupAuto");
+    expect(source).toContain("summarizeStartupFolderRestoreResults");
+    expect(source).toContain("startupDisabledNeedsCheck");
+    expect(source).toContain("startupDisabledChangedNotice");
+    expect(source).toContain("startupDisabledLegacyNotice");
+    expect(source).toContain("시작 항목 파일 확인 필요");
+    expect(source).toContain("시작 항목 기록 확인 필요");
+    expect(source).toContain("시작 항목 되돌리기");
   });
 
   it("does not promise that every restore-bin item can be restored when expired items may remain", () => {
