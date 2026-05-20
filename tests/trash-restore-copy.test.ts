@@ -178,4 +178,16 @@ describe("TrashRestore copy", () => {
     expect(source).not.toContain("if (!window.fb?.restoreRegistryBackup) return;");
     expect(source).not.toContain("totalEntryCount === 0\n    ) {\n      return;");
   });
+
+  it("keeps showing the restore bin when one restore source fails to load", () => {
+    const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+
+    expect(source).toContain("Promise.allSettled");
+    expect(source).toContain("restoreBinPartialLoadMessage");
+    expect(source).toContain("불러온 복구 항목은 그대로 보여드릴게요");
+    expect(source).toContain("emptyTrashSnapshot");
+    expect(source).toContain("emptyRegistrySnapshot");
+    expect(source).toContain("emptyStartupSnapshot");
+    expect(source).not.toContain("await Promise.all([");
+  });
 });

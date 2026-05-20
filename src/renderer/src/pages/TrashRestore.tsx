@@ -15,6 +15,7 @@ import {
   trashExpirySummary
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
+import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import type {
   CleanupCategoryId,
   CleanupTrashEntry,
@@ -83,6 +84,35 @@ type RestoreListItem =
       expiresAt: string;
       createdAt: string;
     };
+
+function emptyTrashSnapshot(): CleanupTrashSnapshot {
+  return {
+    entries: [],
+    totalBytes: 0,
+    retentionDays: RESTORE_BIN_RETENTION_DAYS
+  };
+}
+
+function emptyRegistrySnapshot(): RegistryBackupSnapshot {
+  return {
+    entries: [],
+    retentionDays: RESTORE_BIN_RETENTION_DAYS
+  };
+}
+
+function emptyStartupSnapshot(): StartupAutoDisabledSnapshot {
+  return {
+    capturedAt: new Date().toISOString(),
+    entries: [],
+    notes: []
+  };
+}
+
+function restoreBinPartialLoadMessage(failedLabels: string[]): string | null {
+  if (failedLabels.length === 0) return null;
+  const label = failedLabels.join(", ");
+  return `${label}은 지금 불러오지 못했어요. 불러온 복구 항목은 그대로 보여드릴게요.`;
+}
 
 function formatBytes(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0 MB";
@@ -198,23 +228,43 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   const [toast, setToast] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!window.fb?.getCleanupTrash || !window.fb?.getRegistryBackups || !window.fb?.listDisabledStartupAuto) {
-      setError("앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요.");
-      return;
+    const trashTask = window.fb?.getCleanupTrash
+      ? window.fb.getCleanupTrash()
+      : Promise.reject(new Error("missing cleanup trash bridge"));
+    const registryTask = window.fb?.getRegistryBackups
+      ? window.fb.getRegistryBackups()
+      : Promise.reject(new Error("missing registry backup bridge"));
+    const startupTask = window.fb?.listDisabledStartupAuto
+      ? window.fb.listDisabledStartupAuto()
+      : Promise.reject(new Error("missing startup restore bridge"));
+
+    const [trash, registry, startup] = await Promise.allSettled([
+      trashTask,
+      registryTask,
+      startupTask
+    ]);
+    const failedLabels: string[] = [];
+
+    if (trash.status === "fulfilled") {
+      setSnapshot(trash.value);
+    } else {
+      setSnapshot(emptyTrashSnapshot());
+      failedLabels.push("파일 복구함");
     }
-    try {
-      const [trash, registry, startup] = await Promise.all([
-        window.fb.getCleanupTrash(),
-        window.fb.getRegistryBackups(),
-        window.fb.listDisabledStartupAuto()
-      ]);
-      setSnapshot(trash);
-      setRegistrySnapshot(registry);
-      setStartupSnapshot(startup);
-      setError(null);
-    } catch (e) {
-      setError(friendlyErrorMessage(e as Error));
+    if (registry.status === "fulfilled") {
+      setRegistrySnapshot(registry.value);
+    } else {
+      setRegistrySnapshot(emptyRegistrySnapshot());
+      failedLabels.push("앱 삭제 흔적 백업");
     }
+    if (startup.status === "fulfilled") {
+      setStartupSnapshot(startup.value);
+    } else {
+      setStartupSnapshot(emptyStartupSnapshot());
+      failedLabels.push("잠시 꺼둔 시작 항목");
+    }
+
+    setError(restoreBinPartialLoadMessage(failedLabels));
   }, []);
 
   useEffect(() => {
