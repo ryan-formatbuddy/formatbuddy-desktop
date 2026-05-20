@@ -250,6 +250,8 @@ describe("registry leftover cleanup", () => {
       appPublisher: "Acme Corp.",
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
+    expect(result.contentHash?.algorithm).toBe("sha256");
+    expect(result.contentHash?.value).toMatch(/^[a-f0-9]{64}$/);
 
     const metaPath = join(
       fx.userDataDir,
@@ -264,6 +266,7 @@ describe("registry leftover cleanup", () => {
       keyPath,
       valueName,
       backupKind: "startup-value",
+      contentHash: result.contentHash,
       createdAt: "2026-05-19T00:00:00.000Z",
       expiresAt: "2026-06-18T00:00:00.000Z"
     });
@@ -1668,6 +1671,59 @@ describe("registry leftover cleanup", () => {
       keyPath,
       integrityStatus: "changed"
     });
+  });
+
+  it("keeps a changed startup value backup visible and blocks import", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      runner,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+    await writeFile(
+      result.backupPath,
+      `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Changed.exe"\n`,
+      "utf8"
+    );
+
+    const snapshot = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner
+    });
+
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0]).toMatchObject({
+      id: result.id,
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
+      integrityStatus: "changed"
+    });
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/백업 파일이 바뀐 것 같아요|changed/i);
+    expect(runner.importFile).not.toHaveBeenCalled();
   });
 
   it("does not import a registry backup when the reg file contains a delete section", async () => {

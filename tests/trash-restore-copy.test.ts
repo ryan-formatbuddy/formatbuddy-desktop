@@ -116,8 +116,12 @@ describe("TrashRestore copy", () => {
 
     expect(source).toContain("isChangedRegistryBackupEntry");
     expect(source).toContain("!isChangedRegistryBackupEntry(item.entry)");
+    expect(source).toContain("registryBackupChangedNotice");
+    expect(source).toContain("registryBackupChangedButtonLabel");
     expect(source).toContain("앱 삭제 흔적 백업 파일이 바뀐 것 같아요");
     expect(source).toContain("앱 삭제 흔적 확인 필요");
+    expect(source).toContain("시작 항목 백업 파일이 바뀐 것 같아요");
+    expect(source).toContain("시작 항목 확인 필요");
   });
 
   it("does not promise that every restore-bin item can be restored when expired items may remain", () => {

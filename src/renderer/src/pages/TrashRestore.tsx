@@ -116,6 +116,16 @@ function registryRestoreErrorLabel(entry: RegistryBackupEntry): string {
   return entry.backupKind === "startup-value" ? "시작 항목" : "앱 흔적";
 }
 
+function registryBackupChangedNotice(entry: RegistryBackupEntry): string {
+  return entry.backupKind === "startup-value"
+    ? "시작 항목 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요."
+    : "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+}
+
+function registryBackupChangedButtonLabel(entry: RegistryBackupEntry): string {
+  return entry.backupKind === "startup-value" ? "시작 항목 확인 필요" : "앱 삭제 흔적 확인 필요";
+}
+
 function isChangedTrashEntry(entry: CleanupTrashEntry): boolean {
   return entry.integrityStatus === "changed";
 }
@@ -576,7 +586,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                   fontWeight: 650
                 }}
               >
-                앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.
+                {registryBackupChangedNotice(entry)}
               </div>
             )}
             <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
@@ -589,7 +599,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 {isExpired
                   ? "보관 기간이 지나 되돌릴 수 없어요"
                   : isChanged
-                    ? "앱 삭제 흔적 확인 필요"
+                    ? registryBackupChangedButtonLabel(entry)
                     : busy === `registry:${entry.id}`
                     ? "되돌리는 중..."
                     : registryBackupRestoreButtonLabel(entry)}
