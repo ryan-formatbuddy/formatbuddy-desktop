@@ -443,6 +443,8 @@ describe("startup folder toggle", () => {
     });
 
     expect(result.status).toBe("failed");
+    expect(result.detail).toBe("startup-toggle-blocked-path");
+    expect(result.detail).not.toContain(outsideMeta);
     expect(readFileSync(outsideMeta, "utf8")).toBe("outside stays put");
     expect(existsSync(source)).toBe(true);
     expect(readFileSync(source, "utf8")).toBe("shortcut");
@@ -620,8 +622,35 @@ describe("startup folder toggle", () => {
     });
 
     expect(restored.status).toBe("blocked-path");
+    expect(restored.detail).toBe("startup-toggle-blocked-path");
+    expect(restored.detail).not.toContain(outside);
     expect(existsSync(join(outside, "Teams.lnk"))).toBe(false);
     expect(existsSync(disabled.entry!.storedPath)).toBe(true);
+  });
+
+  it("does not expose raw restore failures for startup holding entries", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir)
+    });
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      removeEntryDir: async () => {
+        throw new Error("EACCES C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\startup-disabled");
+      }
+    });
+
+    expect(restored.status).toBe("failed");
+    expect(restored.detail).toBe("startup-toggle-permission-denied");
+    expect(restored.detail).not.toMatch(/EACCES|C:\\Users|FormatBuddy/i);
   });
 
   it("refuses unsafe disabled startup ids without reading holding metadata", async () => {

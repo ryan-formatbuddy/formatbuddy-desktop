@@ -92,6 +92,21 @@ function sanitizeDescription(description: string): string {
   return (cleaned || "작업 전 안전 저장").slice(0, MAX_DESCRIPTION_LENGTH);
 }
 
+function friendlyRestorePointDetail(value: unknown): string {
+  const message = value instanceof Error ? value.message : String(value ?? "");
+  if (/access|denied|eacces|eperm|permission|0x80070005/i.test(message)) {
+    return "restore-point-permission-denied";
+  }
+  if (/protection|disabled|turn on|enable/i.test(message)) {
+    return "restore-point-protection-off";
+  }
+  if (/timeout|timed\s*out/i.test(message)) return "restore-point-timeout";
+  if (/enoent|not\s+found|powershell/i.test(message)) {
+    return "restore-point-launcher-unavailable";
+  }
+  return "restore-point-not-created";
+}
+
 /**
  * Ask Windows to checkpoint the current system state. The description
  * is what the user sees in System Restore UI later, so prefix it with
@@ -120,13 +135,18 @@ export async function createRestorePoint(
     return {
       created: false,
       reason: "ps-error",
-      detail: `exit ${exitCode}: ${stderr.slice(0, 240)}`
+      detail: friendlyRestorePointDetail(`${exitCode} ${stderr}`)
     };
   } catch (err) {
     const msg = (err as Error).message;
     if (msg === "timeout") return { created: false, reason: "timeout" };
-    return { created: false, reason: "spawn-failed", detail: msg };
+    return { created: false, reason: "spawn-failed", detail: friendlyRestorePointDetail(err) };
   }
 }
 
-export const __testing = { defaultInvoker, PS_TIMEOUT_MS, sanitizeDescription };
+export const __testing = {
+  defaultInvoker,
+  PS_TIMEOUT_MS,
+  sanitizeDescription,
+  friendlyRestorePointDetail
+};

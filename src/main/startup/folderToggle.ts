@@ -86,6 +86,23 @@ function cleanDisplayMetadataString(value: unknown): string | undefined {
   return trimmed.slice(0, 1024);
 }
 
+function friendlyStartupToggleDetail(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  if (/access|denied|eacces|eperm|permission/i.test(message)) {
+    return "startup-toggle-permission-denied";
+  }
+  if (/enoent|no such file|not found|missing/i.test(message)) {
+    return "startup-toggle-file-missing";
+  }
+  if (/symlink|symbolic|link|outside|unsafe|safe path|blocked|traversal/i.test(message)) {
+    return "startup-toggle-blocked-path";
+  }
+  if (/metadata|still exists|was not created|after restore|after disable/i.test(message)) {
+    return "startup-toggle-verification-failed";
+  }
+  return fallback;
+}
+
 export function isSafeStartupDisabledId(disabledId: unknown): disabledId is string {
   return (
     typeof disabledId === "string" &&
@@ -468,7 +485,7 @@ export async function disableStartupFolderEntry(
     return {
       status: "blocked-path",
       message: "연결된 경로가 섞여 있어서 건드리지 않았어요.",
-      detail: linkedSource
+      detail: "startup-toggle-blocked-path"
     };
   }
 
@@ -513,7 +530,7 @@ export async function disableStartupFolderEntry(
       return {
         status: "blocked-path",
         message: "보관 위치가 안전하지 않아 건드리지 않았어요.",
-        detail: linkedStored
+        detail: "startup-toggle-blocked-path"
       };
     }
     if (await pathExists(storedPath)) {
@@ -559,7 +576,7 @@ export async function disableStartupFolderEntry(
     return {
       status: "failed",
       message: "시작 항목을 끄는 중 문제가 생겼어요. 파일은 그대로 두려고 멈췄어요.",
-      detail: (err as Error).message
+      detail: friendlyStartupToggleDetail(err, "startup-toggle-disable-failed")
     };
   }
 }
@@ -588,11 +605,11 @@ export async function restoreStartupFolderEntry(
     let safeDir: string;
     try {
       safeDir = await assertSafeStartupDisabledEntryForPurge(userDataDir, disabledId, entry);
-    } catch (err) {
+    } catch {
       return {
         status: "blocked-path",
         message: "보관 기록의 경로가 안전하지 않아 자동으로 비우지 않았어요.",
-        detail: (err as Error).message,
+        detail: "startup-toggle-blocked-path",
         entry
       };
     }
@@ -606,7 +623,7 @@ export async function restoreStartupFolderEntry(
       return {
         status: "failed",
         message: "30일 보관 기간이 지났지만 보관함을 비우는 중 문제가 생겼어요.",
-        detail: (err as Error).message,
+        detail: friendlyStartupToggleDetail(err, "startup-toggle-purge-failed"),
         entry
       };
     }
@@ -624,6 +641,7 @@ export async function restoreStartupFolderEntry(
     return {
       status: "blocked-path",
       message: "보관 기록의 경로가 안전하지 않아 되돌리지 않았어요.",
+      detail: "startup-toggle-blocked-path",
       entry
     };
   }
@@ -632,7 +650,7 @@ export async function restoreStartupFolderEntry(
     return {
       status: "blocked-path",
       message: "보관된 위치가 안전하지 않아 되돌리지 않았어요.",
-      detail: linkedStored,
+      detail: "startup-toggle-blocked-path",
       entry
     };
   }
@@ -670,7 +688,7 @@ export async function restoreStartupFolderEntry(
     return {
       status: "blocked-path",
       message: "원래 위치에 연결된 경로가 있어 되돌리지 않았어요.",
-      detail: linkedParent,
+      detail: "startup-toggle-blocked-path",
       entry
     };
   }
@@ -700,7 +718,7 @@ export async function restoreStartupFolderEntry(
     return {
       status: "failed",
       message: "되돌리는 중 문제가 생겼어요.",
-      detail: (err as Error).message,
+      detail: friendlyStartupToggleDetail(err, "startup-toggle-restore-failed"),
       entry
     };
   }

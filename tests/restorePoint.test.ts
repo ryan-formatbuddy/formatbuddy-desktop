@@ -64,7 +64,8 @@ describe("createRestorePoint", () => {
     expect(result.created).toBe(false);
     if (!result.created) {
       expect(result.reason).toBe("ps-error");
-      expect(result.detail).toMatch(/Access is denied/);
+      expect(result.detail).toBe("restore-point-permission-denied");
+      expect(result.detail).not.toMatch(/Access is denied|System Protection/i);
     }
   });
 
@@ -85,7 +86,7 @@ describe("createRestorePoint", () => {
 
   it("returns spawn-failed for other thrown errors", async () => {
     const invoke = vi.fn(async () => {
-      throw new Error("ENOENT");
+      throw new Error("ENOENT C:\\Users\\Ryan\\Temp\\restore.log");
     });
     const result = await createRestorePoint({
       description: "test",
@@ -95,7 +96,8 @@ describe("createRestorePoint", () => {
     expect(result.created).toBe(false);
     if (!result.created) {
       expect(result.reason).toBe("spawn-failed");
-      expect(result.detail).toMatch(/ENOENT/);
+      expect(result.detail).toBe("restore-point-launcher-unavailable");
+      expect(result.detail).not.toMatch(/ENOENT|C:\\Users/i);
     }
   });
 
