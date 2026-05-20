@@ -9,7 +9,7 @@ import {
 } from "@shared/app-leftovers";
 import {
   preservedRegistryBackupIds,
-  restorableRegistryBackupIds,
+  recoverableRegistryBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
   summarizeRestoreAllResults
@@ -122,8 +122,7 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
 
 function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const fileOrFolderCount = restorableTrashEntryIds(result).length;
-  const preservedBackupCount = preservedRegistryBackupIds(result).length;
-  const backupCount = restorableRegistryBackupIds(result).length + preservedBackupCount;
+  const backupCount = recoverableRegistryBackupIds(result).length;
   const startupCount = restorableStartupDisabledIds(result).length;
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
@@ -198,8 +197,7 @@ function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const preservedBackupCount = preservedRegistryBackupIds(result).length;
   const restorableCount =
     restorableTrashEntryIds(result).length +
-    restorableRegistryBackupIds(result).length +
-    preservedBackupCount +
+    recoverableRegistryBackupIds(result).length +
     restorableStartupDisabledIds(result).length;
 
   if (cleanedCount > 0 && restorableCount > 0) {
@@ -556,8 +554,7 @@ function LeftoverPanel({
   if (!state.snapshot) return null;
   const restorableCount = result
     ? restorableTrashEntryIds(result).length +
-      restorableRegistryBackupIds(result).length +
-      preservedRegistryBackupIds(result).length +
+      recoverableRegistryBackupIds(result).length +
       restorableStartupDisabledIds(result).length
     : 0;
   const failedRemovedCount = result
@@ -967,9 +964,7 @@ export function AppManager({
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
       const entryIds = restorableTrashEntryIds(result);
-      const registryBackupIds = Array.from(
-        new Set([...restorableRegistryBackupIds(result), ...preservedRegistryBackupIds(result)])
-      );
+      const registryBackupIds = recoverableRegistryBackupIds(result);
       const startupDisabledIds = restorableStartupDisabledIds(result);
       if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");

@@ -31,7 +31,7 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("restoreRegistryBackup");
-    expect(source).toContain("restorableRegistryBackupIds");
+    expect(source).toContain("recoverableRegistryBackupIds");
     expect(source).toContain("restoreStartupAuto");
     expect(source).toContain("restorableStartupDisabledIds");
     expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
@@ -56,7 +56,7 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("const restorableCount = result");
     expect(source).toContain("restorableTrashEntryIds(result).length +");
-    expect(source).toContain("restorableRegistryBackupIds(result).length +");
+    expect(source).toContain("recoverableRegistryBackupIds(result).length +");
     expect(source).toContain("restorableStartupDisabledIds(result).length");
     expect(source).toContain("{restorableCount > 0 && (");
   });
@@ -128,8 +128,7 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("appLeftoverResultLines");
     expect(source).toContain("const fileOrFolderCount = restorableTrashEntryIds(result).length");
-    expect(source).toContain("const preservedBackupCount = preservedRegistryBackupIds(result).length");
-    expect(source).toContain("const backupCount = restorableRegistryBackupIds(result).length + preservedBackupCount");
+    expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 파일/폴더");
     expect(source).toContain("앱 삭제 흔적/시작 항목 백업");

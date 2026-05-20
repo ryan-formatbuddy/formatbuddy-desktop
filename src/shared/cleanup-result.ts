@@ -143,6 +143,20 @@ export function preservedRegistryBackupIds(result: CleanupExecuteResult, now = D
     .filter((id): id is string => typeof id === "string");
 }
 
+export function recoverableRegistryBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const id of [
+    ...restorableRegistryBackupIds(result, now),
+    ...preservedRegistryBackupIds(result, now)
+  ]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 export function restorableStartupDisabledIds(result: CleanupExecuteResult, now = Date.now()): string[] {
   return result.removedItems
     .filter(
