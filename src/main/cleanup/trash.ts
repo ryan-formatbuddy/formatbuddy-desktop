@@ -114,6 +114,14 @@ function isWithinTrashRetentionWindow(expiresAt: string, now: Date): boolean {
   return expiresAtMs >= earliestAllowed && expiresAtMs <= latestAllowed;
 }
 
+function isOutsideRestorableWindow(entry: CleanupTrashEntry, now: Date): boolean {
+  const createdAt = Date.parse(entry.createdAt);
+  if (Number.isFinite(createdAt) && createdAt > now.getTime()) return true;
+
+  const expiresAt = Date.parse(entry.expiresAt);
+  return !Number.isFinite(expiresAt) || expiresAt <= now.getTime();
+}
+
 function coerceEntry(value: unknown): CleanupTrashEntry | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Partial<CleanupTrashEntry>;
@@ -667,6 +675,17 @@ export async function restoreTrashEntry(
     };
   }
 
+  const now = options.now?.() ?? new Date();
+  if (isOutsideRestorableWindow(entry, now)) {
+    return {
+      entryId: entry.id,
+      status: "expired",
+      message: "30일 보관 기간이 지나서 되돌릴 수 없어요. 자동 비움이 아직 끝나지 않았다면 다음 확인 때 다시 비울게요.",
+      originalPath: entry.originalPath,
+      entry
+    };
+  }
+
   if (!(await exists(entry.storedPath))) {
     index.entries = index.entries.filter((e) => e.id !== entry.id);
     await saveIndex(options.userDataDir, index);
@@ -779,10 +798,7 @@ export async function purgeExpiredTrash(
   const purge: CleanupTrashEntry[] = [];
 
   for (const entry of index.entries) {
-    const createdAt = Date.parse(entry.createdAt);
-    const movedIntoFuture = Number.isFinite(createdAt) && createdAt > now.getTime();
-    const expired = Date.parse(entry.expiresAt) <= now.getTime();
-    if (movedIntoFuture || expired) purge.push(entry);
+    if (isOutsideRestorableWindow(entry, now)) purge.push(entry);
     else keep.push(entry);
   }
 

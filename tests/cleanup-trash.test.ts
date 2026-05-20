@@ -910,6 +910,32 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(false);
   });
 
+  it("does not restore an expired entry even when automatic purge cannot remove it yet", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async () => {
+        throw new Error("file is busy");
+      }
+    });
+
+    expect(result.status).toBe("expired");
+    expect(result.message).toMatch(/30일|기간/);
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
   it("blocks unsafe restore entry ids before looking up the restore bin", async () => {
     const result = await restoreTrashEntry({
       userDataDir: fx.userData,

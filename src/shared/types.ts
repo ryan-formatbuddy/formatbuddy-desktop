@@ -791,6 +791,7 @@ export interface CleanupTrashRestoreRequest {
 export type CleanupTrashRestoreStatus =
   | "restored"
   | "not-found"
+  | "expired"
   | "blocked-path"
   | "target-exists"
   | "missing-stored-item"

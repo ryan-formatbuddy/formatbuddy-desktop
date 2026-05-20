@@ -84,6 +84,7 @@ export function summarizeTrashRestoreResults(
   const restored = results.filter((item) => item.status === "restored").length;
   const blocked = results.filter((item) => item.status === "target-exists").length;
   const notFound = results.filter((item) => item.status === "not-found").length;
+  const expired = results.filter((item) => item.status === "expired").length;
   const unsafePath = results.filter((item) => item.status === "blocked-path").length;
   const missingStoredItem = results.filter((item) => item.status === "missing-stored-item").length;
   const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
@@ -92,6 +93,7 @@ export function summarizeTrashRestoreResults(
   if (restored > 0) parts.push(`${restored}개를 원래 위치로 되돌렸어요.`);
   if (blocked > 0) parts.push(`${blocked}개는 원래 위치에 같은 이름이 있어 멈췄어요.`);
   if (notFound > 0) parts.push(`${notFound}개는 복구함에서 찾지 못했어요.`);
+  if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
   if (unsafePath > 0) parts.push(`${unsafePath}개는 안전 확인이 필요해 멈췄어요.`);
   if (missingStoredItem > 0) parts.push(`${missingStoredItem}개는 보관된 파일을 찾지 못했어요.`);
   if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);

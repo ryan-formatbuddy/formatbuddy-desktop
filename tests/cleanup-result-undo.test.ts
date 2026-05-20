@@ -122,11 +122,12 @@ describe("Cleanup result undo helper", () => {
     const results: CleanupTrashRestoreResult[] = [
       { entryId: "a", status: "blocked-path", message: "blocked" },
       { entryId: "b", status: "missing-stored-item", message: "missing stored" },
-      { entryId: "c", status: "restore-failed", message: "failed" }
+      { entryId: "c", status: "restore-failed", message: "failed" },
+      { entryId: "d", status: "expired", message: "expired" }
     ];
 
     expect(summarizeTrashRestoreResults(results)).toBe(
-      "1개는 안전 확인이 필요해 멈췄어요. 1개는 보관된 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
+      "1개는 30일 보관 기간이 지나 되돌릴 수 없어요. 1개는 안전 확인이 필요해 멈췄어요. 1개는 보관된 파일을 찾지 못했어요. 1개는 되돌리는 중 문제가 생겼어요."
     );
   });
 
