@@ -311,6 +311,8 @@ describe("FormatBuddy Trash", () => {
     ["source path control", (source: string) => ({ path: `${source}\n` })],
     ["label", () => ({ label: "" })],
     ["label control", () => ({ label: "old.tmp\rmore" })],
+    ["item size negative", () => ({ sizeBytes: -1 })],
+    ["item size non-finite", () => ({ sizeBytes: Number.NaN })],
     ["category", () => ({ categoryId: "" })],
     ["category padded", () => ({ categoryId: " temp-user" })]
   ] as Array<[string, (source: string) => Partial<Record<keyof CleanupItem, unknown>>]>)(
@@ -326,6 +328,28 @@ describe("FormatBuddy Trash", () => {
           userDataDir: fx.userData,
           item: { ...makeItem(source), ...patch } as CleanupItem,
           sizeBytes: 5,
+          home: fx.home,
+          now: () => new Date("2026-05-19T00:00:00.000Z")
+        })
+      ).rejects.toThrow("cleanup-trash refuses unusable source metadata");
+
+      expect(existsSync(source)).toBe(true);
+      expect(existsSync(__testing.trashRoot(fx.userData))).toBe(false);
+    }
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])(
+    "refuses to create a restore-bin entry from unusable measured size: %s",
+    async (sizeBytes) => {
+      const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+      await mkdir(join(source, ".."), { recursive: true });
+      await writeFile(source, "hello", "utf8");
+
+      await expect(
+        moveToFormatBuddyTrash({
+          userDataDir: fx.userData,
+          item: makeItem(source),
+          sizeBytes,
           home: fx.home,
           now: () => new Date("2026-05-19T00:00:00.000Z")
         })

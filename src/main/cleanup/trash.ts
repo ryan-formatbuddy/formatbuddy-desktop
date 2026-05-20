@@ -137,6 +137,10 @@ function isStrictMetadataString(value: unknown): value is string {
   return isUsableMetadataString(value) && value.trim() === value;
 }
 
+function isUsableSizeBytes(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function canonicalExpiry(createdAt: string): string {
   return expiryFor(new Date(createdAt));
 }
@@ -218,6 +222,10 @@ function assertUsableCleanupItemMetadata(item: CleanupItem): void {
   const invalid = [["label", item.label] as const].find(([, value]) => !isUsableMetadataString(value));
   if (invalid) {
     throw new Error(`cleanup-trash refuses unusable source metadata: ${invalid[0]}`);
+  }
+
+  if (!isUsableSizeBytes(item.sizeBytes)) {
+    throw new Error("cleanup-trash refuses unusable source metadata: size");
   }
 }
 
@@ -626,6 +634,9 @@ export async function moveToFormatBuddyTrash(
   options: MoveToTrashOptions
 ): Promise<CleanupTrashEntry> {
   assertUsableCleanupItemMetadata(options.item);
+  if (!isUsableSizeBytes(options.sizeBytes)) {
+    throw new Error("cleanup-trash refuses unusable source metadata: size");
+  }
 
   if (overlapsManagedUserData(options.userDataDir, options.item.path)) {
     throw new Error("cleanup-trash refuses FormatBuddy managed data path (포맷버디 앱 데이터)");
