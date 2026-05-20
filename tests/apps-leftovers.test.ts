@@ -124,6 +124,28 @@ describe("planAppLeftovers", () => {
     expect(path?.protectedBy).toBeUndefined();
   });
 
+  it("cleans app labels before exposing leftover groups", async () => {
+    const appRoot = join(fx.roaming, "Acme Notes");
+    await fs.mkdir(appRoot, { recursive: true });
+    await fs.writeFile(join(appRoot, "cache.bin"), "abc", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: {
+        roaming: fx.roaming,
+        localAppData: fx.localAppData,
+        localLow: fx.localLow,
+        programData: fx.programData
+      },
+      extraApps: [{ name: " Acme\nNotes ", publisher: " Acme\tLabs " }]
+    });
+
+    expect(snapshot.groups).toHaveLength(1);
+    expect(snapshot.groups[0].appName).toBe("Acme Notes");
+    expect(snapshot.groups[0].publisher).toBe("Acme Labs");
+    expect(snapshot.groups[0].paths.some((path) => path.path === appRoot)).toBe(true);
+  });
+
   it("marks leftover folders containing symbolic links as protected", async () => {
     if (process.platform === "win32") return;
     const slack = join(fx.roaming, "Slack");

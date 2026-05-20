@@ -464,6 +464,25 @@ function isValidIsoDateString(value: unknown): value is string {
   return isStrictPlanString(value) && Number.isFinite(Date.parse(value));
 }
 
+function cleanDisplayText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return trimmed || undefined;
+}
+
+function normalizeAppForPlan(app: InstalledApp): InstalledApp | null {
+  const name = cleanDisplayText(app.name);
+  if (!name) return null;
+  return {
+    ...app,
+    name,
+    publisher: cleanDisplayText(app.publisher) ?? null
+  };
+}
+
 function isWithinRestoreBinWindow(expiresAt: string, now: Date): boolean {
   const expiresAtMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresAtMs)) return false;
@@ -1156,19 +1175,24 @@ export async function planAppLeftovers(
   const home = options.home ?? homedir();
   const env = defaultEnv(home, options.env);
   const installedAppsKnown = options.installedAppsKnown ?? true;
-  const installedAppKeys = new Set(apps.map(appIdentityKey));
-  const installedAppNames = new Set(apps.map(appNameKey));
+  const normalizedApps = apps
+    .map(normalizeAppForPlan)
+    .filter((app): app is InstalledApp => app !== null);
+  const normalizedExtraApps = (options.extraApps ?? [])
+    .map(normalizeAppForPlan)
+    .filter((app): app is InstalledApp => app !== null);
+  const installedAppKeys = new Set(normalizedApps.map(appIdentityKey));
+  const installedAppNames = new Set(normalizedApps.map(appNameKey));
 
   const groups: AppLeftoverGroup[] = [];
   const seenLabels = new Set<string>();
 
   const candidates = [
-    ...(options.extraApps ?? []).map((app) => ({ app, source: "uninstall-launched" as const })),
-    ...apps.map((app) => ({ app, source: "installed" as const }))
+    ...normalizedExtraApps.map((app) => ({ app, source: "uninstall-launched" as const })),
+    ...normalizedApps.map((app) => ({ app, source: "installed" as const }))
   ];
 
   for (const { app, source } of candidates) {
-    if (!app.name) continue;
     const cleanupState: AppLeftoverCleanupState | undefined =
       source === "uninstall-launched"
         ? !installedAppsKnown
