@@ -9,6 +9,7 @@ import {
   __testing as executorTesting,
   type ExecutorDeps
 } from "../src/main/cleanup/executor";
+import { CLEANUP_HISTORY_SAVE_WARNING } from "../src/shared/cleanup-warnings";
 import {
   consumePlan,
   peekPlan,
@@ -1048,7 +1049,7 @@ describe("executeCleanup", () => {
         deps,
         home: fx.home,
         recordCleanupExecution: async () => {
-          throw new Error("history disk full");
+          throw new Error("history disk full at C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\history.json");
         }
       }
     );
@@ -1056,7 +1057,9 @@ describe("executeCleanup", () => {
     expect(trashed).toEqual([targetFile]);
     expect(result.removedItems).toHaveLength(1);
     expect(result.totalFreedBytes).toBeGreaterThan(0);
-    expect(result.logPersistenceWarning).toMatch(/기록|history disk full/i);
+    expect(result.logPersistenceWarning).toBe(CLEANUP_HISTORY_SAVE_WARNING);
+    expect(result.logPersistenceWarning).not.toContain("history disk full");
+    expect(result.logPersistenceWarning).not.toContain("C:\\Users");
   });
 
   it("reports execute-failed when the dep throws, without crashing the run", async () => {

@@ -122,7 +122,7 @@ describe("Cleanup copy", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 
     expect(source).toContain("result.logPersistenceWarning");
-    expect(source).toContain("정리 결과는 처리됐지만 활동 기록 저장은 못 했어요");
+    expect(source).toContain("CLEANUP_HISTORY_SAVE_WARNING");
   });
 
   it("surfaces recent cleanup history with unselected candidates separated", () => {

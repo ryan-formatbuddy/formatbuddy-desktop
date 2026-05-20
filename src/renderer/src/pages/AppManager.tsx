@@ -14,6 +14,10 @@ import {
   restorableTrashEntryIds,
   summarizeRestoreAllResults
 } from "@shared/cleanup-result";
+import {
+  CLEANUP_FOLLOWUP_SAVE_WARNING,
+  CLEANUP_HISTORY_SAVE_WARNING
+} from "@shared/cleanup-warnings";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   AppLeftoverGroup,
@@ -685,12 +689,12 @@ function LeftoverPanel({
             )}
             {result.logPersistenceWarning && (
               <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
-                정리 결과는 처리됐지만 활동 기록 저장은 못 했어요. 앱을 다시 열어 기록 화면을 확인해주세요.
+                {CLEANUP_HISTORY_SAVE_WARNING}
               </p>
             )}
             {result.followupPersistenceWarning && (
               <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
-                정리는 처리됐지만 제거 후 확인 상태 저장은 못 했어요. 다시 점검하면 상태를 맞출게요.
+                {CLEANUP_FOLLOWUP_SAVE_WARNING}
               </p>
             )}
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

@@ -12,6 +12,10 @@ import { listRegistryBackups } from "../src/main/apps/registryCleanup";
 import { getTrashSnapshot, __testing as trashTesting } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
+import {
+  CLEANUP_FOLLOWUP_SAVE_WARNING,
+  CLEANUP_HISTORY_SAVE_WARNING
+} from "../src/shared/cleanup-warnings";
 import type { InstalledApp, StartupAutoEntry } from "../src/shared/types";
 
 const REGISTRY_BACKUP_HEADER = "Windows Registry Editor Version 5.00";
@@ -1122,14 +1126,16 @@ describe("planAppLeftovers", () => {
         userDataDir,
         now: () => new Date("2026-05-19T00:00:00.000Z"),
         recordCleanupExecution: async () => {
-          throw new Error("history disk full");
+          throw new Error("history disk full at C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\history.json");
         }
       }
     );
 
     expect(result.removedItems).toHaveLength(1);
     expect(result.totalFreedBytes).toBeGreaterThan(0);
-    expect(result.logPersistenceWarning).toMatch(/기록|history disk full/i);
+    expect(result.logPersistenceWarning).toBe(CLEANUP_HISTORY_SAVE_WARNING);
+    expect(result.logPersistenceWarning).not.toContain("history disk full");
+    expect(result.logPersistenceWarning).not.toContain("C:\\Users");
     await expect(fs.stat(installFolder)).rejects.toThrow();
     const trash = await getTrashSnapshot({
       userDataDir,
@@ -2662,14 +2668,16 @@ describe("planAppLeftovers", () => {
         userDataDir: join(fx.root, "userdata"),
         now: () => new Date("2026-05-19T00:00:00.000Z"),
         onFollowupCleaned: async () => {
-          throw new Error("followup store failed");
+          throw new Error("followup store failed at C:\\Users\\Ryan\\AppData\\Local\\FormatBuddy\\state.json");
         }
       }
     );
 
     expect(result.removedItems).toHaveLength(1);
     expect(result.totalFreedBytes).toBeGreaterThan(0);
-    expect(result.followupPersistenceWarning).toMatch(/후속|followup store failed/i);
+    expect(result.followupPersistenceWarning).toBe(CLEANUP_FOLLOWUP_SAVE_WARNING);
+    expect(result.followupPersistenceWarning).not.toContain("followup store failed");
+    expect(result.followupPersistenceWarning).not.toContain("C:\\Users");
     await expect(fs.stat(slack)).rejects.toThrow();
 
     const trash = await getTrashSnapshot({

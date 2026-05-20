@@ -31,6 +31,10 @@ import type {
   StartupAutoDisabledEntry,
   StartupAutoEntry
 } from "@shared/types";
+import {
+  CLEANUP_FOLLOWUP_SAVE_WARNING,
+  CLEANUP_HISTORY_SAVE_WARNING
+} from "@shared/cleanup-warnings";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { evaluatePath, normalizePath } from "../cleanup/blocklist";
 import { buildLogEntry, recordCleanupExecution } from "../cleanup/log";
@@ -2165,9 +2169,8 @@ export async function cleanupAppLeftovers(
   try {
     const recordHistory = options.recordCleanupExecution ?? recordCleanupExecution;
     await recordHistory(options.userDataDir, logEntry);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logPersistenceWarning = `정리는 끝났지만 실행 기록을 저장하지 못했어요: ${message}`;
+  } catch {
+    logPersistenceWarning = CLEANUP_HISTORY_SAVE_WARNING;
   }
   let followupPersistenceWarning: string | undefined;
   if (options.onFollowupCleaned) {
@@ -2177,11 +2180,8 @@ export async function cleanupAppLeftovers(
     for (const cleanedApp of cleanedFollowupGroups.values()) {
       try {
         await options.onFollowupCleaned(cleanedApp);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        followupPersistenceWarning = followupPersistenceWarning
-          ? `${followupPersistenceWarning}; ${message}`
-          : `정리는 끝났지만 제거 후 확인 상태를 저장하지 못했어요: ${message}`;
+      } catch {
+        followupPersistenceWarning = CLEANUP_FOLLOWUP_SAVE_WARNING;
       }
     }
   }

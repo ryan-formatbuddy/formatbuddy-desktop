@@ -12,6 +12,7 @@ import {
   summarizeRestoreAllResults,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
+import { CLEANUP_HISTORY_SAVE_WARNING } from "@shared/cleanup-warnings";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import type {
   CleanupCategoryPlan,
@@ -476,7 +477,7 @@ function ResultPanel({
       )}
       {result.logPersistenceWarning && (
         <p style={{ fontSize: 13, opacity: 0.75 }}>
-          정리 결과는 처리됐지만 활동 기록 저장은 못 했어요. 앱을 다시 열어 기록 화면을 확인해주세요.
+          {CLEANUP_HISTORY_SAVE_WARNING}
         </p>
       )}
       <details>

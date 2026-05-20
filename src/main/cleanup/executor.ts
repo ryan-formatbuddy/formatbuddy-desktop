@@ -33,6 +33,7 @@ import type {
   CleanupSkipReason,
   CleanupSkippedItem
 } from "@shared/types";
+import { CLEANUP_HISTORY_SAVE_WARNING } from "@shared/cleanup-warnings";
 import { evaluatePath, normalizePath } from "./blocklist";
 import { buildLogEntry, recordCleanupExecution } from "./log";
 import { findLinkedPathPart } from "./pathSafety";
@@ -742,9 +743,8 @@ export async function executeCleanup(
   try {
     const recordHistory = options.recordCleanupExecution ?? recordCleanupExecution;
     await recordHistory(options.userDataDir, logEntry);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logPersistenceWarning = `정리는 끝났지만 실행 기록을 저장하지 못했어요: ${message}`;
+  } catch {
+    logPersistenceWarning = CLEANUP_HISTORY_SAVE_WARNING;
   }
 
   return {
