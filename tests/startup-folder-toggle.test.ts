@@ -202,6 +202,44 @@ describe("startup folder toggle", () => {
     expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(false);
   });
 
+  it("does not restore a startup holding record when metadata moves the 30-day window into the future", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Teams.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Teams.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    writeFileSync(
+      join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "meta.json"),
+      JSON.stringify(
+        {
+          ...disabled.entry,
+          disabledAt: "2027-05-20T10:00:00.000Z",
+          expiresAt: "2027-06-19T10:00:00.000Z"
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      now: () => new Date("2026-05-21T10:00:00.000Z")
+    });
+
+    expect(restored.status).toBe("expired");
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(false);
+  });
+
   it("does not restore a disabled startup item when the held file was changed", async () => {
     const fx = makeFixture();
     roots.push(fx.root);

@@ -132,6 +132,9 @@ function isOutsideDisabledRetentionWindow(
   entry: Pick<StartupAutoDisabledEntry, "disabledAt" | "expiresAt">,
   now: Date
 ): boolean {
+  const disabledAt = Date.parse(entry.disabledAt);
+  if (Number.isFinite(disabledAt) && disabledAt > now.getTime()) return true;
+
   const expiresAt = Date.parse(entry.expiresAt);
   return !Number.isFinite(expiresAt) || expiresAt <= now.getTime();
 }
