@@ -1082,6 +1082,30 @@ describe("executeCleanup", () => {
     expect(failure?.detail).toMatch(/simulated lock/);
   });
 
+  it("sanitizes execute-failed details before returning them", async () => {
+    const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
+    const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const { deps } = makeSpyDeps({
+      trashItem: async () => {
+        throw new Error(`bad\0\r\n${"x".repeat(1000)}`);
+      }
+    });
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [item.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    const failure = result.skippedItems.find((s) => s.reason === "execute-failed");
+    expect(failure?.detail).toMatch(/^bad x+/);
+    expect(failure?.detail).not.toMatch(/[\u0000-\u001f\u007f]/);
+    expect(failure?.detail?.length).toBeLessThanOrEqual(320);
+  });
+
   it("does not count trash mode as successful without a restore entry id", async () => {
     const plan = await planWithOneTempFile(fx, join(fx.tempDir, "old.tmp"));
     const item = plan.categories.find((c) => c.id === "temp-user")!.items[0];

@@ -47,6 +47,7 @@ import {
 } from "./trash";
 
 const MAX_SIZE_SCAN_DEPTH = 32;
+const MAX_EXECUTE_FAILURE_DETAIL_LENGTH = 320;
 const PATH_KIND_REQUIRED_CATEGORIES = new Set<CleanupCategoryId>([
   "temp-user",
   "temp-windows",
@@ -235,6 +236,15 @@ function cleanDisplayMetadataString(value: unknown): string | undefined {
 
 function cleanOptionalDisplayMetadataString(value: unknown): string | null {
   return cleanDisplayMetadataString(value) ?? null;
+}
+
+function cleanExecuteFailureDetail(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const cleaned = raw
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return (cleaned || "정리 중 문제가 생겼어요.").slice(0, MAX_EXECUTE_FAILURE_DETAIL_LENGTH);
 }
 
 function cleanupItemWithDisplayMetadata(item: CleanupItem): CleanupItem | null {
@@ -618,7 +628,7 @@ async function attemptItem(
         itemId: cleanupItem.id,
         path: cleanupItem.path,
         reason: "execute-failed",
-        detail: (err as Error).message
+        detail: cleanExecuteFailureDetail(err)
       }
     };
   }
