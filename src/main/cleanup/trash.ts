@@ -12,7 +12,7 @@
 import { constants } from "node:fs";
 import { access, cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, parse, resolve } from "node:path";
 import type {
   CleanupItem,
   CleanupTrashEntry,
@@ -85,6 +85,28 @@ function overlapsManagedUserData(userDataDir: string, candidatePath: string): bo
     candidate.startsWith(`${managed}\\`) ||
     managed.startsWith(`${candidate}\\`)
   );
+}
+
+function commonAncestorPath(leftPath: string, rightPath: string): string | undefined {
+  const left = resolve(leftPath);
+  const right = resolve(rightPath);
+  const leftRoot = parse(left).root;
+  const rightRoot = parse(right).root;
+  if (normalizePath(leftRoot) !== normalizePath(rightRoot)) return undefined;
+
+  const leftParts = left.slice(leftRoot.length).split(/[\\/]+/).filter(Boolean);
+  const rightParts = right.slice(rightRoot.length).split(/[\\/]+/).filter(Boolean);
+  const commonParts: string[] = [];
+  const max = Math.min(leftParts.length, rightParts.length);
+  for (let i = 0; i < max; i += 1) {
+    if (leftParts[i].toLowerCase() !== rightParts[i].toLowerCase()) break;
+    commonParts.push(leftParts[i]);
+  }
+  return commonParts.length > 0 ? join(leftRoot, ...commonParts) : leftRoot || undefined;
+}
+
+function restoreLinkBoundary(options: TrashRuntimeOptions, originalPath: string): string {
+  return options.home ?? commonAncestorPath(options.userDataDir, originalPath) ?? dirname(originalPath);
 }
 
 export function isSafeTrashEntryId(entryId: unknown): entryId is string {
@@ -774,7 +796,7 @@ export async function restoreTrashEntry(
 
   const linkedParent = await findLinkedPathPart(
     entry.originalPath,
-    options.home ?? dirname(entry.originalPath)
+    restoreLinkBoundary(options, entry.originalPath)
   );
   if (linkedParent) {
     return {

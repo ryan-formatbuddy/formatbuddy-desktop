@@ -663,6 +663,36 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(entry.storedPath)).toBe(true);
   });
 
+  it("refuses restore through a symbolic-link ancestor even when home is omitted", async () => {
+    if (process.platform === "win32") return;
+    const appDataDir = join(fx.home, "AppData");
+    const tempDir = join(appDataDir, "Local", "Temp");
+    const source = join(tempDir, "old.tmp");
+    await mkdir(tempDir, { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      home: fx.home
+    });
+
+    const outside = join(fx.root, "outside-restore-ancestor");
+    await rm(appDataDir, { recursive: true, force: true });
+    await mkdir(join(outside, "Local", "Temp"), { recursive: true });
+    await symlink(outside, appDataDir, "dir");
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id
+    });
+
+    expect(result.status).toBe("blocked-path");
+    expect(result.message).toMatch(/링크/);
+    expect(existsSync(join(outside, "Local", "Temp", "old.tmp"))).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(true);
+  });
+
   it("refuses restore when the stored trash item was replaced with a symbolic link", async () => {
     if (process.platform === "win32") return;
     const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
