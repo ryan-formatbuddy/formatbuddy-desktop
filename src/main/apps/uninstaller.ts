@@ -7,9 +7,9 @@
  *     "C:\Program Files (x86)\Foo\unins000.exe"
  *     MsiExec.exe /X{12345678-…}
  *   We only support a deliberately narrow subset: a local executable
- *   path (or msiexec) plus plain arguments. Anything that needs shell
- *   interpretation, scripts, remote paths, or silent switches is blocked
- *   and routed back to Windows Settings.
+ *   path (or trusted System32 msiexec) plus plain arguments. Anything
+ *   that needs shell interpretation, scripts, remote paths, or silent
+ *   switches is blocked and routed back to Windows Settings.
  *
  * Safety checks before we spawn:
  *   - the app must be in the cached scan (renderer cannot inject one)
@@ -20,6 +20,8 @@
  *   - it must not include silent/quiet uninstall switches
  *   - no cmd.exe / shell is used; accepted commands are split into
  *     executable + args and spawned directly
+ *   - bare/absolute msiexec entries are launched via System32 msiexec
+ *     instead of PATH search or an arbitrary same-named executable
  *   - we never run quietUninstallString; FormatBuddy only opens the
  *     interactive Windows uninstall window so the user can confirm
  *
@@ -162,6 +164,16 @@ function commandTokens(command: string): string[] {
 
   if (current) tokens.push(current);
   return tokens;
+}
+
+function trustedWindowsRoot(env: NodeJS.ProcessEnv = process.env): string {
+  const raw = typeof env.SystemRoot === "string" ? env.SystemRoot.trim() : "";
+  const normalized = raw.replace(/\//g, "\\").replace(/\\+$/g, "");
+  return /^[a-z]:\\windows$/i.test(normalized) ? normalized : "C:\\Windows";
+}
+
+function trustedMsiExecPath(env: NodeJS.ProcessEnv = process.env): string {
+  return `${trustedWindowsRoot(env)}\\System32\\msiexec.exe`;
 }
 
 function hasSilentUninstallSwitch(command: string): boolean {
@@ -358,9 +370,12 @@ export function canLaunchUninstall(
   return chosen.status === "ok" && !isUnsafeUninstallCommand(chosen.command);
 }
 
-function spawnSpecForUninstall(command: string): { executable: string; args: string[] } | null {
+function spawnSpecForUninstall(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env
+): { executable: string; args: string[] } | null {
   const tokens = commandTokens(command);
-  const executable = tokens[0];
+  const executable = isMsiExecCommand(command) ? trustedMsiExecPath(env) : tokens[0];
   if (!executable) return null;
   return { executable, args: tokens.slice(1) };
 }
@@ -485,5 +500,7 @@ export const __testing = {
   hasUnsafeShellControl: isUnsafeUninstallCommand,
   isUnsafeUninstallCommand,
   spawnSpecForUninstall,
+  trustedMsiExecPath,
+  trustedWindowsRoot,
   unsafeUninstallCommandKind
 };

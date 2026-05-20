@@ -17,10 +17,25 @@ describe("runUninstall", () => {
       executable: "C:\\Program Files\\Slack\\unins000.exe",
       args: ["/remove"]
     });
-    expect(__testing.spawnSpecForUninstall("MsiExec.exe /X{12345678-1234-1234-1234-123456789012}")).toEqual({
-      executable: "MsiExec.exe",
+    expect(
+      __testing.spawnSpecForUninstall(
+        "MsiExec.exe /X{12345678-1234-1234-1234-123456789012}",
+        { SystemRoot: "D:\\Windows" }
+      )
+    ).toEqual({
+      executable: "D:\\Windows\\System32\\msiexec.exe",
       args: ["/X{12345678-1234-1234-1234-123456789012}"]
     });
+    expect(
+      __testing.spawnSpecForUninstall(
+        '"C:\\Temp\\msiexec.exe" /X{12345678-1234-1234-1234-123456789012}',
+        { SystemRoot: "C:\\Windows" }
+      )
+    ).toEqual({
+      executable: "C:\\Windows\\System32\\msiexec.exe",
+      args: ["/X{12345678-1234-1234-1234-123456789012}"]
+    });
+    expect(__testing.trustedWindowsRoot({ SystemRoot: "\\\\server\\share" })).toBe("C:\\Windows");
     expect(__testing.defaultSpawn.toString()).not.toContain("cmd.exe");
     expect(__testing.defaultSpawn.toString()).toContain("shell: false");
   });
