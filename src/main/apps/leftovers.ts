@@ -407,29 +407,55 @@ export interface PlanLeftoversOptions {
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
-  const roaming =
-    override?.roaming ??
-    process.env.APPDATA ??
-    join(home, "AppData", "Roaming");
-  const localAppData =
-    override?.localAppData ??
-    process.env.LOCALAPPDATA ??
-    join(home, "AppData", "Local");
-  const localLow =
-    override?.localLow ??
-    process.env.LOCALLOW ??
-    join(home, "AppData", "LocalLow");
-  const programData =
-    override?.programData ??
-    process.env.ProgramData ??
-    "C:\\ProgramData";
+  const safeHome = safeEnvRoot(override?.home ?? home, home);
+  const roaming = safeEnvRoot(
+    override?.roaming ?? process.env.APPDATA,
+    join(safeHome, "AppData", "Roaming"),
+    { home: safeHome, requireInsideHome: true }
+  );
+  const localAppData = safeEnvRoot(
+    override?.localAppData ?? process.env.LOCALAPPDATA,
+    join(safeHome, "AppData", "Local"),
+    { home: safeHome, requireInsideHome: true }
+  );
+  const localLow = safeEnvRoot(
+    override?.localLow ?? process.env.LOCALLOW,
+    join(safeHome, "AppData", "LocalLow"),
+    { home: safeHome, requireInsideHome: true }
+  );
+  const programData = safeEnvRoot(
+    override?.programData ?? process.env.ProgramData,
+    "C:\\ProgramData"
+  );
   return {
-    home: override?.home ?? home,
+    home: safeHome,
     roaming,
     localAppData,
     localLow,
     programData
   };
+}
+
+function safeEnvRoot(
+  value: unknown,
+  fallback: string,
+  options: { home?: string; requireInsideHome?: boolean } = {}
+): string {
+  if (typeof value !== "string") return fallback;
+  if (!isStrictPlanString(value)) return fallback;
+  if (!isSupportedFilesystemPlanPath(value)) return fallback;
+  if (isUncPath(value)) return fallback;
+  if (options.requireInsideHome && options.home && !isAtOrInside(value, options.home)) {
+    return fallback;
+  }
+  return value;
+}
+
+function isUncPath(value: string): boolean {
+  let path = value.trim();
+  if (path.startsWith("\\\\?\\UNC\\")) return true;
+  if (path.startsWith("\\\\?\\")) path = path.slice(4);
+  return path.startsWith("\\\\");
 }
 
 function nowMs(now?: () => Date): number {

@@ -82,6 +82,7 @@ describe("planAppLeftovers", () => {
 
   afterEach(() => {
     __resetLeftoversPlanCacheForTests();
+    vi.unstubAllEnvs();
     fx.cleanup();
   });
 
@@ -125,6 +126,62 @@ describe("planAppLeftovers", () => {
     const path = snapshot.groups[0].paths.find((p) => p.path === slack);
     expect(path?.exists).toBe(true);
     expect(path?.sizeBytes).toBe(12);
+  });
+
+  it("ignores APPDATA outside the user profile when planning leftovers", async () => {
+    const safeSlack = join(fx.roaming, "Slack");
+    const poisonedSlack = join(fx.root, "outside-roaming", "Slack");
+    await fs.mkdir(safeSlack, { recursive: true });
+    await fs.mkdir(poisonedSlack, { recursive: true });
+    await fs.writeFile(join(safeSlack, "cache.bin"), "safe", "utf8");
+    await fs.writeFile(join(poisonedSlack, "cache.bin"), "poisoned", "utf8");
+    vi.stubEnv("APPDATA", dirname(poisonedSlack));
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: { localAppData: fx.localAppData, programData: fx.programData }
+      }
+    );
+
+    const paths = snapshot.groups.flatMap((group) => group.paths.map((path) => path.path));
+    expect(paths).toContain(safeSlack);
+    expect(paths).not.toContain(poisonedSlack);
+  });
+
+  it("ignores relative LOCALAPPDATA roots when planning leftovers", async () => {
+    const slack = join(fx.localAppData, "slack");
+    await fs.mkdir(slack, { recursive: true });
+    await fs.writeFile(join(slack, "cache.bin"), "safe", "utf8");
+    vi.stubEnv("LOCALAPPDATA", "relative\\LocalAppData");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Slack", publisher: "Slack Technologies" }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, programData: fx.programData }
+      }
+    );
+
+    const paths = snapshot.groups.flatMap((group) => group.paths.map((path) => path.path));
+    expect(paths).toContain(slack);
+    expect(paths.some((path) => path.includes("relative"))).toBe(false);
+  });
+
+  it("ignores remote ProgramData roots when planning leftovers", async () => {
+    vi.stubEnv("ProgramData", "\\\\server\\share");
+
+    const snapshot = await planAppLeftovers(
+      [{ name: "Adobe Photoshop 2024", publisher: "Adobe Inc." }],
+      {
+        home: fx.home,
+        env: { roaming: fx.roaming, localAppData: fx.localAppData }
+      }
+    );
+
+    const paths = snapshot.groups.flatMap((group) => group.paths.map((path) => path.path));
+    expect(paths.some((path) => path.startsWith("\\\\server"))).toBe(false);
   });
 
   it("finds generic LocalLow leftovers even for apps with built-in rules", async () => {
