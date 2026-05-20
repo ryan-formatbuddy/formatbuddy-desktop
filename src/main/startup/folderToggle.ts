@@ -76,6 +76,16 @@ function isStrictMetadataString(value: unknown): value is string {
   );
 }
 
+function cleanDisplayMetadataString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, 1024);
+}
+
 export function isSafeStartupDisabledId(disabledId: unknown): disabledId is string {
   return (
     typeof disabledId === "string" &&
@@ -144,7 +154,8 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
   const raw = value as Partial<StartupAutoDisabledEntry>;
   if (!isNonEmptyString(raw.id) || !isSafeStartupDisabledId(raw.id)) return null;
   if (!isStrictMetadataString(raw.entryId)) return null;
-  if (!isStrictMetadataString(raw.name)) return null;
+  const name = cleanDisplayMetadataString(raw.name);
+  if (!name) return null;
   if (!isStrictMetadataString(raw.originalPath)) return null;
   if (!isStrictMetadataString(raw.storedPath)) return null;
   if (!isStrictMetadataString(raw.origin)) return null;
@@ -152,7 +163,7 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
   return {
     id: raw.id,
     entryId: raw.entryId,
-    name: raw.name,
+    name,
     originalPath: raw.originalPath,
     storedPath: raw.storedPath,
     origin: raw.origin,
@@ -407,10 +418,16 @@ export async function disableStartupFolderEntry(
   }
   if (
     !isStrictMetadataString(entry.id) ||
-    !isStrictMetadataString(entry.name) ||
     !isStrictMetadataString(entry.path) ||
     !isStrictMetadataString(entry.origin)
   ) {
+    return {
+      status: "blocked-path",
+      message: "시작 항목 정보가 안전하지 않아 건드리지 않았어요."
+    };
+  }
+  const name = cleanDisplayMetadataString(entry.name);
+  if (!name) {
     return {
       status: "blocked-path",
       message: "시작 항목 정보가 안전하지 않아 건드리지 않았어요."
@@ -458,7 +475,7 @@ export async function disableStartupFolderEntry(
   let disabledEntry: StartupAutoDisabledEntry = {
     id: disabledId,
     entryId: entry.id,
-    name: entry.name,
+    name,
     originalPath: source,
     storedPath,
     origin,
