@@ -1599,6 +1599,45 @@ describe("registry leftover cleanup", () => {
     expect(calls).toEqual(["safety-hook", "import"]);
   });
 
+  it("rechecks a registry backup after the safety hook before importing", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined),
+      importFile: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      runner
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      beforeImport: async () => {
+        await writeFile(
+          result.backupPath,
+          [
+            "Windows Registry Editor Version 5.00",
+            "",
+            "[HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]",
+            "\"Acme\"=\"C:\\\\Temp\\\\acme.exe\""
+          ].join("\n"),
+          "utf8"
+        );
+      }
+    });
+
+    expect(restored.status).toBe("blocked-path");
+    expect(restored.message).toMatch(/레지스트리 백업|registry backup|위치/);
+    expect(runner.importFile).not.toHaveBeenCalled();
+  });
+
   it("keeps importing when the best-effort safety hook fails", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {

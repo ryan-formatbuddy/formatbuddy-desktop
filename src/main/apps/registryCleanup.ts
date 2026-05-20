@@ -1103,6 +1103,18 @@ export async function purgeExpiredRegistryBackups(options: {
   };
 }
 
+function registryBackupExpiredRestoreResult(
+  entry: RegistryBackupEntry
+): RegistryBackupRestoreResult {
+  return {
+    backupId: entry.id,
+    status: "expired",
+    message: "30일 보관 기간이 지나서 되돌릴 수 없어요. 자동 비움이 아직 끝나지 않았다면 다음 확인 때 다시 비울게요.",
+    keyPath: entry.keyPath,
+    entry
+  };
+}
+
 export async function restoreRegistryBackup(options: {
   userDataDir: string;
   backupId: string;
@@ -1128,16 +1140,10 @@ export async function restoreRegistryBackup(options: {
 
   const readResult = await readRegistryBackupEntryForRestore(options.userDataDir, options.backupId);
   if (readResult.kind === "restore-result") return readResult.result;
-  const { entry } = readResult;
+  let { entry } = readResult;
   const now = options.now?.() ?? new Date();
   if (isOutsideRegistryBackupRestorableWindow(entry, now)) {
-    return {
-      backupId: entry.id,
-      status: "expired",
-      message: "30일 보관 기간이 지나서 되돌릴 수 없어요. 자동 비움이 아직 끝나지 않았다면 다음 확인 때 다시 비울게요.",
-      keyPath: entry.keyPath,
-      entry
-    };
+    return registryBackupExpiredRestoreResult(entry);
   }
 
   const runner = options.runner ?? defaultRegistryCleanupRunner();
@@ -1155,6 +1161,16 @@ export async function restoreRegistryBackup(options: {
 
   try {
     await options.beforeImport?.().catch(() => {});
+    const latestReadResult = await readRegistryBackupEntryForRestore(
+      options.userDataDir,
+      options.backupId
+    );
+    if (latestReadResult.kind === "restore-result") return latestReadResult.result;
+    entry = latestReadResult.entry;
+    const latestNow = options.now?.() ?? new Date();
+    if (isOutsideRegistryBackupRestorableWindow(entry, latestNow)) {
+      return registryBackupExpiredRestoreResult(entry);
+    }
     await importFile(entry.backupPath);
     await assertRegistryBackupRestored(entry, runner);
     const restoredEntryDir = join(registryBackupItemsRoot(options.userDataDir), entry.id);
