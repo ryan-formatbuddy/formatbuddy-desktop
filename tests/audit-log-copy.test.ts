@@ -42,6 +42,16 @@ describe("AuditLog copy", () => {
     expect(source).toContain("auditRestoreNeedsAttention(entry)");
   });
 
+  it("labels restore audit entries by restore target", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain('if (entry.action.startsWith("trash-restore-")) return "복구함 되돌리기"');
+    expect(source).toContain(
+      'if (entry.action.startsWith("registry-backup-restore-")) return "앱 흔적 되돌리기"'
+    );
+    expect(source).toContain('if (entry.action.includes("restore")) return "되돌리기"');
+  });
+
   it("keeps restore-bin warning text separate from general failure text", () => {
     const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
 
