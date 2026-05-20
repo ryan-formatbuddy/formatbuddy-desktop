@@ -1132,7 +1132,10 @@ async function startupLeftoverPaths(
       continue;
     }
 
-    const label = `${entry.origin}: ${entry.name}`;
+    const entryOrigin = cleanDisplayText(entry.origin);
+    const entryName = cleanDisplayText(entry.name);
+    if (!entryOrigin || !entryName) continue;
+    const label = `${entryOrigin}: ${entryName}`;
     paths.push({
       id: makePathId(`startup-entry:${entry.id}:${label}`),
       kind: "startup-entry",

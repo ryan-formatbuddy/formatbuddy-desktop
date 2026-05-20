@@ -1596,18 +1596,18 @@ describe("planAppLeftovers", () => {
       {
         id: "service|acme-notes",
         kind: "service",
-        name: "Acme Notes Helper",
+        name: "Acme\nNotes Helper",
         publisher: "Acme Corp.",
-        origin: "Windows 서비스",
+        origin: "Windows\n서비스",
         enabled: true
       },
       {
         id: "scheduled-task|acme-notes",
         kind: "scheduled-task",
-        name: "Acme Notes Update",
+        name: "Acme Notes\nUpdate",
         path: "\\Acme\\",
         publisher: "Acme Corp.",
-        origin: "작업 스케줄러",
+        origin: "작업\t스케줄러",
         enabled: true
       }
     ];
@@ -1621,6 +1621,10 @@ describe("planAppLeftovers", () => {
 
     const traces = snapshot.groups[0].paths.filter((p) => p.kind === "startup-entry");
     expect(traces).toHaveLength(2);
+    expect(traces.map((path) => path.path)).toEqual([
+      "Windows 서비스: Acme Notes Helper",
+      "작업 스케줄러: Acme Notes Update"
+    ]);
     expect(traces.every((path) => path.exists)).toBe(true);
     expect(traces.every((path) => path.protectedBy?.includes("시작 항목"))).toBe(true);
   });
