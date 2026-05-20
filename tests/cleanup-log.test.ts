@@ -120,6 +120,32 @@ describe("cleanup execution log coercion", () => {
     expect(entry.totalFreedBytes).toBe(12);
   });
 
+  it("drops persisted category breakdowns that claim bytes without cleaned items", () => {
+    const [entry] = __testing.coerceLog({
+      version: 1,
+      entries: [
+        {
+          id: "bytes-without-items",
+          executedAt: "2026-05-19T00:00:00.000Z",
+          mode: "trash",
+          totalFreedBytes: 999_999,
+          removedCount: 0,
+          skippedCount: 0,
+          categories: [
+            { categoryId: "temp-user", bytesFreed: 999, itemCount: 0 },
+            { categoryId: "browser-cache", bytesFreed: 4, itemCount: 1 }
+          ]
+        }
+      ]
+    }).entries;
+
+    expect(entry.removedCount).toBe(1);
+    expect(entry.totalFreedBytes).toBe(4);
+    expect(entry.categories).toEqual([
+      { categoryId: "browser-cache", bytesFreed: 4, itemCount: 1 }
+    ]);
+  });
+
   it("keeps persisted not-selected counts while preserving legacy entries", () => {
     expect(
       __testing.coerceLog({

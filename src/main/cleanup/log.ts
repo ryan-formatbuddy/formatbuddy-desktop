@@ -74,6 +74,7 @@ function coerceCategoryBreakdown(value: unknown): CleanupCategoryBreakdown | nul
   const bytesFreed = coerceNonNegativeInteger(raw.bytesFreed);
   const itemCount = coerceNonNegativeInteger(raw.itemCount);
   if (bytesFreed === null || itemCount === null) return null;
+  if (itemCount <= 0) return null;
   return {
     categoryId: raw.categoryId,
     bytesFreed,
