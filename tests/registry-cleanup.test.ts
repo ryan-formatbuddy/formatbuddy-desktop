@@ -1178,6 +1178,43 @@ describe("registry leftover cleanup", () => {
     expect(existsSync(join(__testing.registryBackupItemsRoot(fx.userDataDir), backup.id))).toBe(true);
   });
 
+  it("keeps an expired registry backup when its folder contains a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Linked Notes",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const entryDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), backup.id);
+    const outside = join(fx.root, "outside-registry-linked");
+    await mkdir(outside, { recursive: true });
+    await writeFile(join(outside, "outside.reg"), "outside should stay", "utf8");
+    await symlink(outside, join(entryDir, "linked-outside"), "dir");
+
+    const result = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      failedIds: [backup.id],
+      retentionDays: 30
+    });
+    expect(existsSync(entryDir)).toBe(true);
+    expect(await readFile(join(outside, "outside.reg"), "utf8")).toBe("outside should stay");
+  });
+
   it("blocks registry backup purge preflight when an expired backup folder is behind a link", async () => {
     if (process.platform === "win32") return;
     const root = __testing.registryBackupItemsRoot(fx.userDataDir);

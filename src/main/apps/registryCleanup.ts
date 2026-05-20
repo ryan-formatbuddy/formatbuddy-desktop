@@ -12,7 +12,7 @@ import type {
 import { registryBackupKindLabel } from "@shared/cleanup-result";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { ensureSafeOutputDirectoryPath } from "../safeOutputPath";
-import { findLinkedPathPart } from "../cleanup/pathSafety";
+import { findLinkedDescendant, findLinkedPathPart } from "../cleanup/pathSafety";
 import { normalizePath } from "../cleanup/blocklist";
 
 export const REGISTRY_BACKUP_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
@@ -1136,6 +1136,10 @@ export async function purgeExpiredRegistryBackups(options: {
           purgedIds.push(entry.name);
         }
         continue;
+      }
+      const linkedEntryDescendant = await findLinkedDescendant(entryDir);
+      if (linkedEntryDescendant) {
+        throw new Error(`Expired registry backup contains a nested link: ${linkedEntryDescendant}`);
       }
       const meta = JSON.parse(await fs.readFile(metaPath, "utf8")) as {
         createdAt?: unknown;

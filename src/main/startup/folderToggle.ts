@@ -18,7 +18,7 @@ import type {
 } from "@shared/types";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
 import { normalizePath } from "../cleanup/blocklist";
-import { findLinkedPathPart } from "../cleanup/pathSafety";
+import { findLinkedDescendant, findLinkedPathPart } from "../cleanup/pathSafety";
 
 export const STARTUP_DISABLED_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS;
 const STARTUP_DISABLED_DIR = "formatbuddy-startup-disabled";
@@ -743,6 +743,10 @@ export async function purgeExpiredStartupFolderEntries(
         dirent.name,
         entry
       );
+      const linkedEntryDescendant = await findLinkedDescendant(dir);
+      if (linkedEntryDescendant) {
+        throw new Error(`Expired startup holding entry contains a nested link: ${linkedEntryDescendant}`);
+      }
       await removeEntryDir(dir, entry);
       if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
       purgedIds.push(entry.id);

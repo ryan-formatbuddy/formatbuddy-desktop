@@ -177,6 +177,39 @@ describe("startup folder toggle", () => {
     ).rejects.toThrow(/link|holding/i);
   });
 
+  it("keeps an expired startup holding record when its folder contains a symbolic link", async () => {
+    if (process.platform === "win32") return;
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Slack.lnk");
+    const outside = join(fx.root, "outside-startup-link");
+    writeFileSync(source, "shortcut");
+    await mkdir(outside, { recursive: true });
+    writeFileSync(join(outside, "outside.lnk"), "outside should stay");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Slack.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    symlinkSync(outside, join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "linked-outside"), "dir");
+
+    const result = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T10:00:01.000Z")
+    });
+
+    expect(result).toEqual({
+      purgedCount: 0,
+      purgedIds: [],
+      failedIds: [disabled.entry!.id],
+      retentionDays: 30
+    });
+    expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(true);
+    expect(readFileSync(join(outside, "outside.lnk"), "utf8")).toBe("outside should stay");
+  });
+
   it("removes a linked startup holding items folder during automatic purge without touching the target", async () => {
     if (process.platform === "win32") return;
     const fx = makeFixture();
