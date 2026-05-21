@@ -115,6 +115,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       if (path.startupEntryKind === "service") return "서비스";
       if (path.startupEntryKind === "scheduled-task") return "예약 작업";
       return "시작 흔적";
+    case "pinned-shortcut":
+      return "고정 바로가기";
     case "shortcut":
     case "shortcut-folder":
       return "바로가기";
@@ -296,7 +298,7 @@ function buildLeftoverCleanupConfirm(
     selectedPathIds,
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
     folderCount: paths.filter((path) => path.kind === "folder" || path.kind === "install-folder").length,
-    shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "shortcut-folder").length,
+    shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "pinned-shortcut" || path.kind === "shortcut-folder").length,
     backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length,
     scheduledTaskCount: paths.filter(
@@ -494,7 +496,7 @@ function AppLeftoverConfirmDialog({
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
-          <li>바탕화면·시작 메뉴 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
+          <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
           <li>앱 삭제 흔적/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
           <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
@@ -653,7 +655,7 @@ function LeftoverPanel({
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 숨은 앱 데이터 폴더, 바탕화면·시작 메뉴 바로가기,
+        Windows가 앱을 제거해도 남는 경우가 있는 숨은 앱 데이터 폴더, 바탕화면·시작 메뉴·작업표시줄 바로가기,
         앱 삭제 흔적 후보예요. 직접 고른 항목만 정리하고, 폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
         30일 동안 되돌릴 수 있게 백업해요.
       </p>

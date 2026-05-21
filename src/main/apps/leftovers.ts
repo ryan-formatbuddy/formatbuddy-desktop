@@ -508,6 +508,7 @@ function isFilesystemLeftoverPathKind(value: unknown): boolean {
     value === "folder" ||
     value === "install-folder" ||
     value === "shortcut" ||
+    value === "pinned-shortcut" ||
     value === "shortcut-folder" ||
     value === "startup-folder"
   );
@@ -597,6 +598,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "folder" ||
     value === "install-folder" ||
     value === "shortcut" ||
+    value === "pinned-shortcut" ||
     value === "shortcut-folder" ||
     value === "registry" ||
     value === "startup-folder" ||
@@ -939,7 +941,8 @@ function shortcutRoots(env: LeftoverEnv): string[] {
     join(env.home, "Desktop"),
     join(dirname(env.home), "Public", "Desktop"),
     join(env.roaming, "Microsoft", "Windows", "Start Menu", "Programs"),
-    join(env.programData, "Microsoft", "Windows", "Start Menu", "Programs")
+    join(env.programData, "Microsoft", "Windows", "Start Menu", "Programs"),
+    ...pinnedShortcutRoots(env)
   ];
 }
 
@@ -956,6 +959,22 @@ function isStartupShortcutFolder(path: string): boolean {
     normalized.endsWith("\\microsoft\\windows\\start menu\\programs\\startup") ||
     normalized.includes("\\microsoft\\windows\\start menu\\programs\\startup\\")
   );
+}
+
+function pinnedShortcutRoots(env: LeftoverEnv): string[] {
+  const pinnedRoot = join(
+    env.roaming,
+    "Microsoft",
+    "Internet Explorer",
+    "Quick Launch",
+    "User Pinned"
+  );
+  return [join(pinnedRoot, "TaskBar"), join(pinnedRoot, "StartMenu")];
+}
+
+function isPinnedShortcutPath(path: string, env: LeftoverEnv): boolean {
+  return path.toLowerCase().endsWith(".lnk") &&
+    pinnedShortcutRoots(env).some((root) => isAtOrInside(path, root));
 }
 
 function isShortcutPathAllowed(path: string, env: LeftoverEnv): boolean {
@@ -1113,7 +1132,7 @@ async function shortcutLeftoverPaths(
             ? info.protectedBy
             : undefined
           : info.protectedBy ?? "지원하는 바로가기 위치가 아니라 자동 정리하지 않아요.",
-        kind: "shortcut"
+        kind: isPinnedShortcutPath(shortcutPath, env) ? "pinned-shortcut" : "shortcut"
       });
     }
   }
@@ -1553,7 +1572,7 @@ function toCleanupItem(path: AppLeftoverPath, snapshot: AppLeftoversSnapshot): C
   const pathKind =
     path.kind === "folder" || path.kind === "install-folder" || path.kind === "shortcut-folder"
       ? "directory"
-      : path.kind === "shortcut" || path.kind === "startup-folder"
+      : path.kind === "shortcut" || path.kind === "pinned-shortcut" || path.kind === "startup-folder"
         ? "file"
         : undefined;
   return {
@@ -1866,7 +1885,7 @@ function expectedLeftoverLiveKind(path: AppLeftoverPath): "file" | "directory" |
   if (path.kind === "folder" || path.kind === "install-folder" || path.kind === "shortcut-folder") {
     return "directory";
   }
-  if (path.kind === "shortcut" || path.kind === "startup-folder") return "file";
+  if (path.kind === "shortcut" || path.kind === "pinned-shortcut" || path.kind === "startup-folder") return "file";
   return undefined;
 }
 
@@ -2368,7 +2387,7 @@ export async function cleanupAppLeftovers(
       publisher: group?.publisher ?? null
     }, cached.env);
     const shortcutAllowed =
-      (path.kind === "shortcut" && isShortcutPathAllowed(path.path, cached.env)) ||
+      ((path.kind === "shortcut" || path.kind === "pinned-shortcut") && isShortcutPathAllowed(path.path, cached.env)) ||
       (path.kind === "shortcut-folder" && isShortcutFolderPathAllowed(path.path, cached.env));
     const decision = shortcutAllowed || trustedAppFolder
       ? { allowed: true as const }
@@ -2457,7 +2476,10 @@ export async function cleanupAppLeftovers(
         trustedSource: shortcutAllowed
           ? path.kind === "shortcut-folder"
             ? { kind: "app-shortcut-folder", allowRoots: shortcutFolderRoots(cached.env) }
-            : { kind: "app-shortcut", allowRoots: shortcutRoots(cached.env) }
+            : {
+                kind: "app-shortcut",
+                allowRoots: path.kind === "pinned-shortcut" ? pinnedShortcutRoots(cached.env) : shortcutRoots(cached.env)
+              }
           : trustedAppFolder
             ? { kind: "app-install-folder", allowRoots: [path.path] }
             : undefined,

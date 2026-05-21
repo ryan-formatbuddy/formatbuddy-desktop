@@ -620,6 +620,47 @@ describe("planAppLeftovers", () => {
     expect(shortcutPaths).toEqual([desktopShortcut, publicDesktopShortcut, startMenuShortcut].sort());
   });
 
+  it("finds taskbar and start menu pinned shortcuts for recently uninstalled apps", async () => {
+    const taskbarPinnedShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Internet Explorer",
+      "Quick Launch",
+      "User Pinned",
+      "TaskBar",
+      "Acme Notes.lnk"
+    );
+    const startMenuPinnedShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Internet Explorer",
+      "Quick Launch",
+      "User Pinned",
+      "StartMenu",
+      "Acme Notes Start.lnk"
+    );
+    await fs.mkdir(dirname(taskbarPinnedShortcut), { recursive: true });
+    await fs.mkdir(dirname(startMenuPinnedShortcut), { recursive: true });
+    await fs.writeFile(taskbarPinnedShortcut, "taskbar shortcut", "utf8");
+    await fs.writeFile(startMenuPinnedShortcut, "start shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+
+    const pinnedPaths = snapshot.groups[0].paths
+      .filter((p) => p.kind === "pinned-shortcut")
+      .map((p) => p.path)
+      .sort();
+    expect(pinnedPaths).toEqual([startMenuPinnedShortcut, taskbarPinnedShortcut].sort());
+    expect(snapshot.groups[0].paths.find((p) => p.path === taskbarPinnedShortcut)).toMatchObject({
+      exists: true,
+      protectedBy: undefined
+    });
+  });
+
   it("finds app start-menu shortcut folders without listing their child shortcuts twice", async () => {
     const startMenuFolder = join(
       fx.roaming,
@@ -871,6 +912,50 @@ describe("planAppLeftovers", () => {
     });
     expect(trash.entries).toHaveLength(1);
     expect(trash.entries[0].originalPath).toBe(desktopShortcut);
+    expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
+  });
+
+  it("moves a selected taskbar pinned shortcut into the 30-day trash after uninstall follow-up", async () => {
+    const taskbarPinnedShortcut = join(
+      fx.roaming,
+      "Microsoft",
+      "Internet Explorer",
+      "Quick Launch",
+      "User Pinned",
+      "TaskBar",
+      "Acme Notes.lnk"
+    );
+    await fs.mkdir(dirname(taskbarPinnedShortcut), { recursive: true });
+    await fs.writeFile(taskbarPinnedShortcut, "taskbar shortcut", "utf8");
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === taskbarPinnedShortcut)!;
+    expect(path).toMatchObject({ kind: "pinned-shortcut", exists: true, protectedBy: undefined });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0].trashEntryId).toBeTruthy();
+    await expect(fs.stat(taskbarPinnedShortcut)).rejects.toThrow();
+    const trash = await getTrashSnapshot({
+      userDataDir: join(fx.root, "userdata"),
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(trash.entries[0].originalPath).toBe(taskbarPinnedShortcut);
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 

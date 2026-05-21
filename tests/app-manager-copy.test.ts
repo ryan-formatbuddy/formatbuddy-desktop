@@ -55,7 +55,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("30일 동안 되돌릴 수 있게 백업해요");
     expect(source).toContain("폴더·바로가기와 시작 항목, 앱 삭제 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("숨은 앱 데이터 폴더");
-    expect(source).toContain("바탕화면·시작 메뉴 바로가기");
+    expect(source).toContain("바탕화면·시작 메뉴·작업표시줄 바로가기");
+    expect(source).toContain("고정 바로가기");
     expect(source).toContain("바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요");
     expect(source).toContain("시작 항목");
     expect(source).not.toContain("시작 레지스트리");

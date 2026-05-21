@@ -1301,6 +1301,7 @@ export interface AppLeftoverPath {
     | "folder"
     | "install-folder"
     | "shortcut"
+    | "pinned-shortcut"
     | "shortcut-folder"
     | "registry"
     | "startup-folder"
