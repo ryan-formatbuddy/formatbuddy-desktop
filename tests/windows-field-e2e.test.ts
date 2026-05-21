@@ -55,6 +55,7 @@ const NATIVE_MESSAGING_HOST_KEY =
   `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.formatbuddy.field_e2e_${process.pid}`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
 const ENVIRONMENT_KEY = "HKCU\\Environment";
+const FIELD_ENV_VALUE_NAME = `${FIELD_VALUE_NAME}_HOME`;
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const FIELD_SERVICE_KEY = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${FIELD_SERVICE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
@@ -223,6 +224,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", PROTOCOL_HANDLER_KEY, "/f"]).catch(() => {});
     await runReg(["delete", NATIVE_MESSAGING_HOST_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
+    await deleteRegistryValue(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME).catch(() => {});
     if (originalUserPath) {
       if (originalUserPath.exists && originalUserPath.type && originalUserPath.data !== undefined) {
         await setRegistryValue(ENVIRONMENT_KEY, "Path", originalUserPath.type, originalUserPath.data).catch(
@@ -725,6 +727,39 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("environment-path-value");
     expect((await registryValueRecord(ENVIRONMENT_KEY, "Path"))?.data).toContain(segment);
+  }, 45_000);
+
+  it("backs up, removes, and restores one isolated app environment setting", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-env-value-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:36:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:39:00.000Z");
+    const valueData = join(root, "Acme Notes");
+
+    await setRegistryValue(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME, "REG_SZ", valueData);
+    expect(await registryValueExists(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME)).toBe(true);
+
+    const backup = await backupAndDeleteRegistryValue({
+      userDataDir,
+      keyPath: ENVIRONMENT_KEY,
+      valueName: FIELD_ENV_VALUE_NAME,
+      backupKind: "environment-variable-value",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.backupKind).toBe("environment-variable-value");
+    expect(await registryValueExists(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME)).toBe(false);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.backupKind).toBe("environment-variable-value");
+    expect(await registryValueExists(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME)).toBe(true);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated Windows service trace", async () => {

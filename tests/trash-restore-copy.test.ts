@@ -24,6 +24,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("자동으로 비워요");
     expect(source).toContain("앱 삭제 흔적 백업");
     expect(source).toContain("PATH 경로");
+    expect(source).toContain("환경 설정 흔적");
     expect(source).toContain("프로토콜 연결");
     expect(source).toContain("브라우저 연결 도우미");
     expect(source).toContain("시작 항목 백업");
@@ -50,11 +51,13 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("entry.environmentPathSegment");
     expect(source).toContain('entry.backupKind === "startup-value"');
     expect(source).toContain('entry.backupKind === "environment-path-value"');
+    expect(source).toContain('entry.backupKind === "environment-variable-value"');
     expect(source).toContain('entry.backupKind === "protocol-handler-key"');
     expect(source).toContain('entry.backupKind === "native-messaging-host-key"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
     expect(source).toContain("앱 삭제 흔적 위치");
     expect(source).toContain("앱 삭제 후 PATH에 남은 경로");
+    expect(source).toContain("앱 삭제 후 남은 환경 설정");
     expect(source).toContain("프로토콜 연결을 확인하지 못했어요");
     expect(source).toContain("브라우저 연결 도우미를 확인하지 못했어요");
     expect(source).toContain("시작 항목 이름을 확인하지 못했어요");

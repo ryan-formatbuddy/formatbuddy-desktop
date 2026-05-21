@@ -68,6 +68,7 @@ type RegistryBackupRestoredApp = {
     | "startup-value"
     | "registered-app-value"
     | "environment-path-value"
+    | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
@@ -86,7 +87,7 @@ type RegistryKeyBackupKind =
   | "protocol-handler-key"
   | "native-messaging-host-key"
   | "service-key";
-type RegistryValueBackupKind = "startup-value" | "registered-app-value";
+type RegistryValueBackupKind = "startup-value" | "registered-app-value" | "environment-variable-value";
 type RegistryValueRecord = {
   type: string;
   data: string;
@@ -99,6 +100,8 @@ const SAFE_STARTUP_VALUE_KEY_PATTERN =
 const SAFE_REGISTERED_APPLICATIONS_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\RegisteredApplications|HKLM\\Software\\RegisteredApplications)$/i;
 const SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN =
+  /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
+const SAFE_ENVIRONMENT_VARIABLE_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
 const SAFE_APP_PATHS_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
@@ -301,6 +304,61 @@ export function isSafeEnvironmentPathRegistryValuePath(
   return SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN.test(normalized) && /^Path$/i.test(valueName.trim());
 }
 
+const CRITICAL_ENVIRONMENT_VALUE_NAMES = new Set([
+  "allusersprofile",
+  "appdata",
+  "commonprogramfiles",
+  "commonprogramfiles(x86)",
+  "commonprogramw6432",
+  "computername",
+  "comspec",
+  "driverdata",
+  "homepath",
+  "homedrive",
+  "localappdata",
+  "logonserver",
+  "number_of_processors",
+  "os",
+  "path",
+  "pathext",
+  "processor_architecture",
+  "processor_identifier",
+  "processor_level",
+  "processor_revision",
+  "programdata",
+  "programfiles",
+  "programfiles(x86)",
+  "programw6432",
+  "psmodulepath",
+  "public",
+  "systemdrive",
+  "systemroot",
+  "temp",
+  "tmp",
+  "userdomain",
+  "userdomain_roamingprofile",
+  "username",
+  "userprofile",
+  "windir"
+]);
+
+export function isSafeEnvironmentVariableRegistryValuePath(
+  keyPath: string,
+  valueName: string
+): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  const trimmedValueName = valueName.trim();
+  if (!isSafeRegistryValueName(trimmedValueName)) return false;
+  if (trimmedValueName !== valueName) return false;
+  if (!/^[A-Za-z][A-Za-z0-9_]{1,127}$/.test(trimmedValueName)) return false;
+  if (CRITICAL_ENVIRONMENT_VALUE_NAMES.has(trimmedValueName.toLowerCase())) return false;
+  return SAFE_ENVIRONMENT_VARIABLE_VALUE_KEY_PATTERN.test(normalized);
+}
+
 export function normalizeSafeEnvironmentPathSegment(segment: unknown): string | undefined {
   if (typeof segment !== "string") return undefined;
   const trimmed = segment.trim();
@@ -402,7 +460,8 @@ function registryBackupPurgeLabel(entry: RegistryBackupEntry): string {
   if (
     (entry.backupKind === "startup-value" ||
       entry.backupKind === "registered-app-value" ||
-      entry.backupKind === "environment-path-value") &&
+      entry.backupKind === "environment-path-value" ||
+      entry.backupKind === "environment-variable-value") &&
     entry.valueName
   ) {
     return entry.valueName;
@@ -1097,11 +1156,17 @@ export async function backupAndDeleteRegistryValue(options: {
   app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
   const backupKind: RegistryValueBackupKind =
-    options.backupKind === "registered-app-value" ? "registered-app-value" : "startup-value";
+    options.backupKind === "registered-app-value"
+      ? "registered-app-value"
+      : options.backupKind === "environment-variable-value"
+        ? "environment-variable-value"
+        : "startup-value";
   const safeValue =
     backupKind === "registered-app-value"
       ? isSafeRegisteredApplicationRegistryValuePath(options.keyPath, options.valueName)
-      : isSafeStartupRegistryValuePath(options.keyPath, options.valueName);
+      : backupKind === "environment-variable-value"
+        ? isSafeEnvironmentVariableRegistryValuePath(options.keyPath, options.valueName)
+        : isSafeStartupRegistryValuePath(options.keyPath, options.valueName);
   if (!safeValue) {
     throw new Error("지원하는 레지스트리 값 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -1454,10 +1519,12 @@ async function readRegistryBackupEntryForRestore(
         ? "registered-app-value"
         : raw.backupKind === "environment-path-value"
           ? "environment-path-value"
-          : raw.backupKind === "app-path-key"
-            ? "app-path-key"
-            : raw.backupKind === "open-with-key"
-              ? "open-with-key"
+          : raw.backupKind === "environment-variable-value"
+            ? "environment-variable-value"
+            : raw.backupKind === "app-path-key"
+              ? "app-path-key"
+              : raw.backupKind === "open-with-key"
+                ? "open-with-key"
           : raw.backupKind === "context-menu-key"
             ? "context-menu-key"
             : raw.backupKind === "protocol-handler-key"
@@ -1477,10 +1544,12 @@ async function readRegistryBackupEntryForRestore(
         ? isSafeRegisteredApplicationRegistryValuePath(rawKeyPath, valueName)
         : backupKind === "environment-path-value" && valueName
           ? isSafeEnvironmentPathRegistryValuePath(rawKeyPath, valueName)
-          : backupKind === "app-path-key"
-            ? isSafeAppPathRegistryKeyPath(rawKeyPath)
-            : backupKind === "open-with-key"
-              ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
+          : backupKind === "environment-variable-value" && valueName
+            ? isSafeEnvironmentVariableRegistryValuePath(rawKeyPath, valueName)
+            : backupKind === "app-path-key"
+              ? isSafeAppPathRegistryKeyPath(rawKeyPath)
+              : backupKind === "open-with-key"
+                ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
                 : backupKind === "context-menu-key"
                   ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
                   : backupKind === "protocol-handler-key"
@@ -1532,6 +1601,9 @@ async function readRegistryBackupEntryForRestore(
     entry.valueName = valueName ?? null;
     entry.environmentPathSegment =
       cleanOptionalString(raw.environmentPathSegment) ?? null;
+  } else if (backupKind === "environment-variable-value") {
+    entry.backupKind = "environment-variable-value";
+    entry.valueName = valueName ?? null;
   } else if (backupKind === "app-path-key") {
     entry.backupKind = "app-path-key";
   } else if (backupKind === "open-with-key") {
@@ -1583,7 +1655,8 @@ async function readRegistryBackupEntryForRestore(
         entry.keyPath,
         entry.backupKind === "startup-value" ||
           entry.backupKind === "registered-app-value" ||
-          entry.backupKind === "environment-path-value"
+          entry.backupKind === "environment-path-value" ||
+          entry.backupKind === "environment-variable-value"
           ? entry.valueName ?? undefined
           : undefined
       );
@@ -1875,10 +1948,12 @@ export async function purgeExpiredRegistryBackups(options: {
                 ? "registered-app-value"
                 : readableEntry.backupKind === "environment-path-value"
                   ? "environment-path-value"
-                  : readableEntry.backupKind === "app-path-key"
-                    ? "app-path-key"
-                    : readableEntry.backupKind === "open-with-key"
-                      ? "open-with-key"
+                  : readableEntry.backupKind === "environment-variable-value"
+                    ? "environment-variable-value"
+                    : readableEntry.backupKind === "app-path-key"
+                      ? "app-path-key"
+                      : readableEntry.backupKind === "open-with-key"
+                        ? "open-with-key"
                     : readableEntry.backupKind === "context-menu-key"
                       ? "context-menu-key"
                       : readableEntry.backupKind === "protocol-handler-key"
@@ -1992,10 +2067,12 @@ export async function restoreRegistryBackup(options: {
             ? "registered-app-value"
             : entry.backupKind === "environment-path-value"
               ? "environment-path-value"
-              : entry.backupKind === "app-path-key"
-                ? "app-path-key"
-                : entry.backupKind === "open-with-key"
-                  ? "open-with-key"
+              : entry.backupKind === "environment-variable-value"
+                ? "environment-variable-value"
+                : entry.backupKind === "app-path-key"
+                  ? "app-path-key"
+                  : entry.backupKind === "open-with-key"
+                    ? "open-with-key"
                   : entry.backupKind === "context-menu-key"
                     ? "context-menu-key"
                     : entry.backupKind === "protocol-handler-key"
@@ -2008,7 +2085,8 @@ export async function restoreRegistryBackup(options: {
       const restoredApp: RegistryBackupRestoredApp =
         backupKind === "startup-value" ||
         backupKind === "registered-app-value" ||
-        backupKind === "environment-path-value"
+        backupKind === "environment-path-value" ||
+        backupKind === "environment-variable-value"
           ? {
               name: appName,
               publisher: appPublisher,
@@ -2052,7 +2130,8 @@ async function assertRegistryBackupRestored(
   if (
     entry.backupKind === "startup-value" ||
     entry.backupKind === "registered-app-value" ||
-    entry.backupKind === "environment-path-value"
+    entry.backupKind === "environment-path-value" ||
+    entry.backupKind === "environment-variable-value"
   ) {
     if (!entry.valueName || !runner.valueExists) return;
     if (!(await runner.valueExists(entry.keyPath, entry.valueName))) {

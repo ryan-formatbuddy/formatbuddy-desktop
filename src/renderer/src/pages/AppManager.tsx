@@ -112,6 +112,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "기본 앱 목록";
     case "environment-path-registry":
       return "PATH 경로";
+    case "environment-variable-registry":
+      return "환경 설정 흔적";
     case "app-path-registry":
       return "앱 실행 경로";
     case "open-with-registry":
@@ -142,12 +144,16 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
 }
 
 function leftoverDisplayPath(path: AppLeftoverPath): string {
-  if (path.kind === "startup-registry" || path.kind === "environment-path-registry") {
+  if (
+    path.kind === "startup-registry" ||
+    path.kind === "environment-path-registry" ||
+    path.kind === "environment-variable-registry"
+  ) {
     const valueName = path.registryValueName?.trim();
     const suffix =
-      path.kind === "environment-path-registry" && path.environmentPathSegment
-        ? `: ${path.environmentPathSegment}`
-        : "";
+        path.kind === "environment-path-registry" && path.environmentPathSegment
+          ? `: ${path.environmentPathSegment}`
+          : "";
     return valueName ? `${path.path}\\${valueName}${suffix}` : path.path;
   }
   return path.path;
@@ -323,6 +329,7 @@ function buildLeftoverCleanupConfirm(
         path.kind === "registry" ||
         path.kind === "registered-app-registry" ||
         path.kind === "environment-path-registry" ||
+        path.kind === "environment-variable-registry" ||
         path.kind === "app-path-registry" ||
         path.kind === "open-with-registry" ||
         path.kind === "protocol-handler-registry" ||
@@ -526,12 +533,12 @@ function AppLeftoverConfirmDialog({
           )}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 앱 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 환경 설정 흔적, 앱 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
           <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
-          <li>앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
+          <li>앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
           <li>서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
           <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>

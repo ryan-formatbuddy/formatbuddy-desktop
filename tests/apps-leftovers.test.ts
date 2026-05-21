@@ -1535,6 +1535,41 @@ describe("planAppLeftovers", () => {
     expect(environmentPathCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("shows app environment variable leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const environmentKey = "HKCU\\Environment";
+    const environmentValue = "ACME_NOTES_HOME";
+    const registryRunner = {
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === environmentKey && valueName === environmentValue
+          ? { type: "REG_SZ", data: "C:\\Program Files\\Acme Notes" }
+          : undefined
+      )
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp."
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.queryValue).toHaveBeenCalledWith(environmentKey, environmentValue);
+    const environmentVariableCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === environmentKey && p.registryValueName === environmentValue
+    );
+    expect(environmentVariableCandidate).toMatchObject({
+      kind: "environment-variable-registry",
+      registryValueName: environmentValue,
+      exists: true
+    });
+    expect(environmentVariableCandidate?.protectedBy).toBeUndefined();
+  });
+
   it("shows app connection registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const openWithRegistryKey = "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe";
     const registryRunner = {
@@ -1923,6 +1958,79 @@ describe("planAppLeftovers", () => {
       valueName: environmentValue,
       environmentPathSegment: segment,
       backupKind: "environment-path-value"
+    });
+  });
+
+  it("backs up and deletes selected app environment variable leftovers after uninstall follow-up", async () => {
+    const environmentKey = "HKCU\\Environment";
+    const environmentValue = "ACME_NOTES_HOME";
+    let valueExists = true;
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === environmentKey && valueName === environmentValue
+          ? { type: "REG_SZ", data: "C:\\Program Files\\Acme Notes" }
+          : undefined
+      ),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Environment]\n"ACME_NOTES_HOME"="C:\\\\Program Files\\\\Acme Notes"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists)
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find(
+      (p) => p.path === environmentKey && p.registryValueName === environmentValue
+    )!;
+    expect(path).toMatchObject({ kind: "environment-variable-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportValue).toHaveBeenCalledWith(
+      environmentKey,
+      environmentValue,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteValue).toHaveBeenCalledWith(environmentKey, environmentValue);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: `${environmentKey}\\${environmentValue}`,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: environmentKey,
+      valueName: environmentValue,
+      backupKind: "environment-variable-value"
     });
   });
 

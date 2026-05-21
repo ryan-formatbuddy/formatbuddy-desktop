@@ -10,6 +10,7 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
@@ -842,6 +843,21 @@ describe("registry leftover cleanup", () => {
     expect(normalizeSafeEnvironmentPathSegment("C:\\Program Files\\Acme Notes\\bin ")).toBeUndefined();
   });
 
+  it("only allows app-specific environment variable values", () => {
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", "ACME_NOTES_HOME")).toBe(true);
+    expect(
+      isSafeEnvironmentVariableRegistryValuePath(
+        "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+        "ACME_NOTES_HOME"
+      )
+    ).toBe(true);
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", "Path")).toBe(false);
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", "TEMP")).toBe(false);
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", "ACME NOTES HOME")).toBe(false);
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", " ACME_NOTES_HOME")).toBe(false);
+    expect(isSafeEnvironmentVariableRegistryValuePath("HKCU\\Software\\Environment", "ACME_NOTES_HOME")).toBe(false);
+  });
+
   it("backs up the whole PATH value before removing one dead app segment", async () => {
     const keyPath = "HKCU\\Environment";
     const valueName = "Path";
@@ -900,6 +916,68 @@ describe("registry leftover cleanup", () => {
       valueName,
       environmentPathSegment: segment,
       backupKind: "environment-path-value"
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner
+    });
+
+    expect(restored).toMatchObject({ status: "restored", keyPath });
+    expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
+  });
+
+  it("backs up and deletes selected app environment variables", async () => {
+    const keyPath = "HKCU\\Environment";
+    const valueName = "ACME_NOTES_HOME";
+    let valueExists = true;
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Environment]\n"ACME_NOTES_HOME"="C:\\\\Program Files\\\\Acme Notes"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists),
+      importFile: vi.fn(async () => {
+        valueExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      backupKind: "environment-variable-value",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(runner.exportValue).toHaveBeenCalledWith(keyPath, valueName, result.backupPath);
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "environment-variable-value",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "environment-variable-value"
     });
 
     const restored = await restoreRegistryBackup({

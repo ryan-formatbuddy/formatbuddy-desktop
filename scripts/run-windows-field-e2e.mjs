@@ -24,6 +24,7 @@ const evidenceRequirements = [
   "browser native messaging host registry key is backed up, removed, and restored",
   "right-click menu registry key is backed up, removed, and restored",
   "isolated user PATH app segment is backed up, removed, and restored",
+  "isolated app environment setting is backed up, removed, and restored",
   "Windows service trace is backed up, removed with sc.exe, and restored as a 30-day registry backup",
   "unified 30-day retention tick empties file, app-deletion, startup holding, and scheduled task backup bins"
 ];

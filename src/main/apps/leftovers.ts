@@ -67,6 +67,7 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
@@ -622,6 +623,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "registry" ||
     value === "registered-app-registry" ||
     value === "environment-path-registry" ||
+    value === "environment-variable-registry" ||
     value === "app-path-registry" ||
     value === "open-with-registry" ||
     value === "context-menu-registry" ||
@@ -1263,6 +1265,11 @@ const ENVIRONMENT_PATH_REGISTRY_VALUES = [
   { keyPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", valueName: "Path" }
 ] as const;
 
+const ENVIRONMENT_VARIABLE_REGISTRY_ROOTS = [
+  "HKCU\\Environment",
+  "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"
+] as const;
+
 const PROTOCOL_HANDLER_REGISTRY_ROOTS = [
   "HKCU\\Software\\Classes",
   "HKLM\\Software\\Classes"
@@ -1387,6 +1394,29 @@ function nativeMessagingHostNames(app: InstalledApp): string[] {
   }
 
   return Array.from(candidates).slice(0, 12);
+}
+
+function environmentVariableValueNames(app: InstalledApp): string[] {
+  const candidates = new Set<string>();
+
+  for (const name of genericFolderNames(app)) {
+    const cleaned = cleanGenericName(name)
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toUpperCase();
+    const compact = cleaned.replace(/_/g, "");
+    for (const base of [cleaned, compact]) {
+      if (!/^[A-Z][A-Z0-9_]{2,63}$/.test(base)) continue;
+      candidates.add(`${base}_HOME`);
+      candidates.add(`${base}_ROOT`);
+      candidates.add(`${base}_DIR`);
+      candidates.add(`${base}_PATH`);
+    }
+  }
+
+  return Array.from(candidates)
+    .filter((name) => isSafeEnvironmentVariableRegistryValuePath("HKCU\\Environment", name))
+    .slice(0, 20);
 }
 
 async function registryKeyExists(
@@ -1581,6 +1611,39 @@ async function environmentPathRegistryLeftoverPaths(
         path: keyPath,
         registryValueName: valueName,
         environmentPathSegment: segment,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
+  return paths;
+}
+
+async function environmentVariableRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "queryValue">
+): Promise<AppLeftoverPath[]> {
+  const valueNames = environmentVariableValueNames(app);
+  if (valueNames.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  const seen = new Set<string>();
+
+  for (const keyPath of ENVIRONMENT_VARIABLE_REGISTRY_ROOTS) {
+    for (const valueName of valueNames) {
+      if (!isSafeEnvironmentVariableRegistryValuePath(keyPath, valueName)) continue;
+      const record = await registryValueRecord(keyPath, valueName, runner);
+      if (!record) continue;
+      const key = normalizePath(`${keyPath}\\${valueName}`).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      paths.push({
+        id: makePathId(`environment-variable-registry:${keyPath}:${valueName}`),
+        kind: "environment-variable-registry",
+        path: keyPath,
+        registryValueName: valueName,
         exists: true,
         sizeBytes: null,
         lastModifiedAt: null
@@ -1860,6 +1923,7 @@ export async function planAppLeftovers(
           ? [
               ...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
@@ -1895,6 +1959,7 @@ export async function planAppLeftovers(
     if (source === "uninstall-launched") {
       paths.push(...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
@@ -2532,6 +2597,13 @@ function assertSelectedLeftoverPlanMetadataUsable(
     ) {
       invalid.push("environment PATH registry value");
     }
+    if (
+      path.kind === "environment-variable-registry" &&
+      (typeof path.registryValueName !== "string" ||
+        !isSafeEnvironmentVariableRegistryValuePath(path.path, path.registryValueName))
+    ) {
+      invalid.push("environment variable registry value");
+    }
     if (path.kind === "app-path-registry" && !isSafeAppPathRegistryKeyPath(path.path)) {
       invalid.push("app paths registry key");
     }
@@ -2824,6 +2896,53 @@ export async function cleanupAppLeftovers(
           itemId: path.id,
           path: path.path,
           reason: /지원하는 PATH|PATH 경로|registry value/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "environment-variable-registry") {
+      try {
+        const valueName = path.registryValueName;
+        if (!valueName) {
+          throw new Error("환경 설정 흔적 이름을 확인하지 못했어요.");
+        }
+        const backup = await backupAndDeleteRegistryValue({
+          userDataDir: options.userDataDir,
+          keyPath: path.path,
+          valueName,
+          backupKind: "environment-variable-value",
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group ? groupInstallIdentity(group) : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: `${path.path}\\${valueName}`,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        resolvedPathIds.add(path.id);
+      } catch (err) {
+        const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /지원하는 레지스트리 값 위치|environment variable|환경 설정/i.test(message)
             ? "blocked-path"
             : "execute-failed",
           detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),

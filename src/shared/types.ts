@@ -850,19 +850,20 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
   backupKind?:
     | "key"
     | "startup-value"
     | "registered-app-value"
     | "environment-path-value"
+    | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "service-key";
-  /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", or "environment-path-value". */
+  /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", "environment-path-value", or "environment-variable-value". */
   valueName?: string | null;
   /** Present when backupKind === "environment-path-value". */
   environmentPathSegment?: string | null;
@@ -913,6 +914,7 @@ export interface RegistryBackupPurgedItem {
     | "startup-value"
     | "registered-app-value"
     | "environment-path-value"
+    | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
@@ -1331,6 +1333,7 @@ export interface AppLeftoverPath {
     | "registry"
     | "registered-app-registry"
     | "environment-path-registry"
+    | "environment-variable-registry"
     | "app-path-registry"
     | "open-with-registry"
     | "context-menu-registry"
