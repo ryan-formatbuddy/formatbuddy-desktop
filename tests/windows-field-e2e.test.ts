@@ -37,11 +37,35 @@ import {
 } from "../src/main/startup/scheduledTaskBackup";
 import { planAppLeftovers } from "../src/main/apps/leftovers";
 import { runRetentionPurgeTick } from "../src/main/retentionPurge";
+import fieldRequirements from "../scripts/windows-field-requirements.json";
 
 const execFileAsync = promisify(execFile);
 const RUN_FIELD_E2E =
   process.platform === "win32" && process.env.FORMATBUDDY_WINDOWS_FIELD_E2E === "1";
 const fieldDescribe = RUN_FIELD_E2E ? describe : describe.skip;
+const FIELD_PROOF_PREFIX = "[formatbuddy-field-proof] ";
+const FIELD_REQUIREMENTS = {
+  cleanupExecutor: fieldRequirements[0],
+  cleanupRestorePurge: fieldRequirements[1],
+  startupFolderRestore: fieldRequirements[2],
+  hkcuRunRestore: fieldRequirements[3],
+  scheduledScanTask: fieldRequirements[4],
+  scheduledTaskCleanupTrace: fieldRequirements[5],
+  uninstallRegistryKey: fieldRequirements[6],
+  registeredApplicationsValue: fieldRequirements[7],
+  appPathsKey: fieldRequirements[8],
+  openWithKey: fieldRequirements[9],
+  protocolHandlerKey: fieldRequirements[10],
+  nativeMessagingHostKey: fieldRequirements[11],
+  fileAssociationKey: fieldRequirements[12],
+  contextMenuKey: fieldRequirements[13],
+  shellExtensionKey: fieldRequirements[14],
+  userPathSegment: fieldRequirements[15],
+  appEnvironmentSetting: fieldRequirements[16],
+  appFirewallRule: fieldRequirements[17],
+  serviceLeftover: fieldRequirements[18],
+  unifiedRetentionTick: fieldRequirements[19]
+} as const;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const UNINSTALL_KEY =
@@ -77,6 +101,13 @@ function cleanupItem(path: string): CleanupItem {
     riskLevel: "safe",
     reason: "Windows field E2E"
   };
+}
+
+function proveFieldRequirement(description: string): void {
+  if (!fieldRequirements.includes(description)) {
+    throw new Error(`Unknown FormatBuddy field E2E requirement: ${description}`);
+  }
+  console.info(`${FIELD_PROOF_PREFIX}${description}`);
 }
 
 function startupFolderEntry(path: string, origin: string): StartupAutoEntry {
@@ -312,6 +343,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
 
     expect(restoredTrash.status).toBe("restored");
     await expect(readFile(cleanupSource, "utf8")).resolves.toBe("field-executor-cleanup");
+    proveFieldRequirement(FIELD_REQUIREMENTS.cleanupExecutor);
   }, 45_000);
 
   it("runs the real Windows smoke path for 30-day restore bin and startup changes", async () => {
@@ -362,6 +394,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(purgedTrash.purgedEntryIds).toEqual([trashedAgain.id]);
     expect(purgedTrash.purgedCount).toBe(1);
     expect(existsSync(cleanupSource)).toBe(false);
+    proveFieldRequirement(FIELD_REQUIREMENTS.cleanupRestorePurge);
 
     await mkdir(startupRoot, { recursive: true });
     await writeFile(startupSource, "not executable; field test marker", "utf8");
@@ -379,6 +412,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     });
     expect(restoredStartup.status).toBe("restored");
     await expect(readFile(startupSource, "utf8")).resolves.toContain("field test marker");
+    proveFieldRequirement(FIELD_REQUIREMENTS.startupFolderRestore);
     await rm(startupSource, { force: true });
 
     await runReg(["add", RUN_KEY, "/v", FIELD_VALUE_NAME, "/t", "REG_SZ", "/d", "cmd.exe /c exit 0", "/f"]);
@@ -400,6 +434,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredRegistry.status).toBe("restored");
     expect(restoredRegistry.entry?.backupKind).toBe("startup-value");
     expect(await registryValueExists()).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.hkcuRunRestore);
   }, 90_000);
 
   it("registers and removes an isolated Windows scheduled scan task", async () => {
@@ -424,6 +459,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
 
     expect(deleted.status).toBe("deleted");
     expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(false);
+    proveFieldRequirement(FIELD_REQUIREMENTS.scheduledScanTask);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated scheduled task cleanup trace", async () => {
@@ -456,6 +492,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.taskName).toBe(FIELD_TASK_NAME);
     expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.scheduledTaskCleanupTrace);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated uninstall registry key", async () => {
@@ -511,6 +548,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(UNINSTALL_KEY)).toBe(true);
     const restoredKey = await runReg(["query", UNINSTALL_KEY, "/v", "DisplayName"]);
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
+    proveFieldRequirement(FIELD_REQUIREMENTS.uninstallRegistryKey);
   }, 45_000);
 
   it("backs up, removes, and restores isolated default-app, app path, app connection, file association, protocol handler, browser helper, context menu, and right-click extension registry traces", async () => {
@@ -752,6 +790,14 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.registeredApplicationsValue);
+    proveFieldRequirement(FIELD_REQUIREMENTS.appPathsKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.openWithKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.protocolHandlerKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.nativeMessagingHostKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.fileAssociationKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.contextMenuKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.shellExtensionKey);
   }, 45_000);
 
   it("backs up, removes, and restores one isolated user PATH app segment", async () => {
@@ -793,6 +839,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("environment-path-value");
     expect((await registryValueRecord(ENVIRONMENT_KEY, "Path"))?.data).toContain(segment);
+    proveFieldRequirement(FIELD_REQUIREMENTS.userPathSegment);
   }, 45_000);
 
   it("backs up, removes, and restores one isolated app environment setting", async () => {
@@ -826,6 +873,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("environment-variable-value");
     expect(await registryValueExists(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME)).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.appEnvironmentSetting);
   }, 45_000);
 
   it("backs up, removes, and restores one isolated app firewall rule", async () => {
@@ -860,6 +908,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("firewall-rule-value");
     expect(await registryValueExists(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME)).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.appFirewallRule);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated Windows service trace", async () => {
@@ -945,6 +994,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("service-key");
     expect(await registryKeyExists(FIELD_SERVICE_KEY)).toBe(true);
+    proveFieldRequirement(FIELD_REQUIREMENTS.serviceLeftover);
   }, 45_000);
 
   it("empties all 30-day restore bins through the unified retention tick", async () => {
@@ -1036,5 +1086,6 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(existsSync(registryBackup.backupPath)).toBe(false);
     expect(existsSync(disabledStartup.entry!.storedPath)).toBe(false);
     expect(existsSync(taskBackup.backupPath)).toBe(false);
+    proveFieldRequirement(FIELD_REQUIREMENTS.unifiedRetentionTick);
   }, 90_000);
 });

@@ -15,6 +15,11 @@ describe("Windows field E2E runner", () => {
     expect(source).toContain('kind: "formatbuddy-windows-field-e2e"');
     expect(source).toContain('join(projectRoot, "dist", "field-e2e")');
     expect(source).toContain("windows-field-requirements.json");
+    expect(source).toContain("fieldProofPrefix");
+    expect(source).toContain("provenRequirements");
+    expect(source).toContain('status === "passed" && provenRequirements.has(description) ? "passed" : "not-proven"');
+    expect(source).toContain("provenRequirements: evidenceRequirements.filter");
+    expect(source).toContain("unprovenRequirements: evidenceRequirements.filter");
     expect(source).toContain("FORMATBUDDY_FIELD_E2E_REPORT_DIR");
     expect(requirements).toContain("cleanup executor consumes a confirmation-token plan");
     expect(requirements).toContain("unified 30-day retention tick");
@@ -29,5 +34,22 @@ describe("Windows field E2E runner", () => {
     expect(source).toContain('blockedReason: "Windows-only field test. Run this on a real Windows PC."');
     expect(source).toContain('status: "spawn-error"');
     expect(source).toContain('status: "stopped"');
+  });
+
+  it("requires the Windows field suite to print one proof marker for every canonical evidence item", async () => {
+    const source = await readFile(
+      new URL("../tests/windows-field-e2e.test.ts", import.meta.url),
+      "utf8"
+    );
+    const requirements = JSON.parse(
+      await readFile(new URL("../scripts/windows-field-requirements.json", import.meta.url), "utf8")
+    ) as string[];
+
+    expect(source).toContain("proveFieldRequirement");
+    const proofCalls = source.match(/proveFieldRequirement\(FIELD_REQUIREMENTS\./g) ?? [];
+    expect(proofCalls).toHaveLength(requirements.length);
+    for (const index of requirements.keys()) {
+      expect(source).toContain(`fieldRequirements[${index}]`);
+    }
   });
 });

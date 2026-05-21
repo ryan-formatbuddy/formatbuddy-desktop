@@ -12,10 +12,13 @@ const vitestCommand = [process.execPath, vitestPath, "run", testFile];
 const evidenceRequirements = JSON.parse(
   readFileSync(join(projectRoot, "scripts", "windows-field-requirements.json"), "utf8")
 );
+const fieldProofPrefix = "[formatbuddy-field-proof] ";
+const provenRequirements = new Set();
 let stdoutTail = "";
 let stderrTail = "";
 let stdoutTruncated = false;
 let stderrTruncated = false;
+let proofLineRemainder = "";
 
 function appendCapturedOutput(current, chunk) {
   const next = current + String(chunk);
@@ -28,10 +31,32 @@ function appendCapturedOutput(current, chunk) {
   };
 }
 
+function recordProofLine(line) {
+  const markerIndex = line.indexOf(fieldProofPrefix);
+  if (markerIndex === -1) return;
+  const description = line.slice(markerIndex + fieldProofPrefix.length).trim();
+  if (evidenceRequirements.includes(description)) {
+    provenRequirements.add(description);
+  }
+}
+
+function recordProofMarkers(chunk) {
+  const next = `${proofLineRemainder}${String(chunk)}`;
+  const lines = next.split(/\r?\n/);
+  proofLineRemainder = lines.pop() ?? "";
+  for (const line of lines) recordProofLine(line);
+}
+
+function flushProofMarkers() {
+  if (!proofLineRemainder) return;
+  recordProofLine(proofLineRemainder);
+  proofLineRemainder = "";
+}
+
 function requirementResults(status) {
   return evidenceRequirements.map((description) => ({
     description,
-    status: status === "passed" ? "passed" : "not-proven"
+    status: status === "passed" && provenRequirements.has(description) ? "passed" : "not-proven"
   }));
 }
 
@@ -42,6 +67,7 @@ function evidenceReportPath(finishedAt) {
 }
 
 function writeEvidenceReport(payload) {
+  flushProofMarkers();
   const finishedAt = new Date().toISOString();
   const reportPath = evidenceReportPath(finishedAt);
   const report = {
@@ -55,6 +81,10 @@ function writeEvidenceReport(payload) {
     testFile,
     requirements: evidenceRequirements,
     requirementResults: requirementResults(payload.status),
+    provenRequirements: evidenceRequirements.filter((description) => provenRequirements.has(description)),
+    unprovenRequirements: evidenceRequirements.filter(
+      (description) => !provenRequirements.has(description)
+    ),
     capturedLog: {
       maxCharsPerStream: maxCapturedLogChars,
       stdoutTail,
@@ -101,6 +131,7 @@ const child = spawn(
 
 child.stdout?.on("data", (chunk) => {
   process.stdout.write(chunk);
+  recordProofMarkers(chunk);
   const captured = appendCapturedOutput(stdoutTail, chunk);
   stdoutTail = captured.text;
   stdoutTruncated ||= captured.truncated;
