@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const RENDERER_ROOT = join(__dirname, "..", "src", "renderer", "src");
 const APP_TSX = join(RENDERER_ROOT, "App.tsx");
 const APP_MANAGER_TSX = join(RENDERER_ROOT, "pages", "AppManager.tsx");
+const APP_MANAGER_ACTIONS_TS = join(RENDERER_ROOT, "pages", "appManagerActions.ts");
 
 describe("AppManager uninstall verification flow", () => {
   it("routes the post-uninstall scan back to app cleanup instead of the report page", () => {
@@ -18,11 +19,15 @@ describe("AppManager uninstall verification flow", () => {
 
   it("wires app-leftover cleanup effect checks to the fast rescan path", () => {
     const appSource = readFileSync(APP_TSX, "utf8");
-    const managerSource = readFileSync(APP_MANAGER_TSX, "utf8");
+    const managerSource = [
+      readFileSync(APP_MANAGER_TSX, "utf8"),
+      readFileSync(APP_MANAGER_ACTIONS_TS, "utf8")
+    ].join("\n");
 
     expect(appSource).toContain("onQuickRescan={() => void startScan({ fast: true })}");
     expect(managerSource).toContain("onQuickRescan?: () => void");
     expect(managerSource).toContain("onQuickRescan ?? onRescan");
+    expect(managerSource).toContain('id: "rescan"');
     expect(managerSource).toContain("다시 점검해서 효과 보기");
   });
 

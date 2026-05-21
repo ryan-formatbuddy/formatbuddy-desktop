@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
+import { appLeftoverResultActions } from "./appManagerActions";
 import {
   canCleanupLeftoverGroup,
   leftoverPathNeedsManualCheck,
@@ -854,6 +855,23 @@ function LeftoverCleanupResultBody({
   const restoreBreakdown = appLeftoverRestoreBinBreakdown(result);
   const skippedPreviewLines = appLeftoverSkippedPreviewLines(result);
   const effectLines = appLeftoverEffectLines({ beforeSummary, afterSnapshot });
+  const actions = appLeftoverResultActions({ result, restorableCount, restoreRecentBusy });
+  const runAction = (id: (typeof actions)[number]["id"]): void => {
+    switch (id) {
+      case "rescan":
+        (onQuickRescan ?? onRescan)();
+        return;
+      case "trashRestore":
+        onOpenTrashRestore();
+        return;
+      case "restoreRecent":
+        onRestoreRecent(result);
+        return;
+      case "auditLog":
+        onOpenAuditLog();
+        return;
+    }
+  };
 
   return (
     <div style={{ marginTop: 10 }}>
@@ -951,27 +969,17 @@ function LeftoverCleanupResultBody({
         </p>
       )}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" size="sm" onClick={onQuickRescan ?? onRescan}>
-          다시 점검해서 효과 보기
-        </Button>
-        {result.mode === "trash" && restorableCount > 0 && (
-          <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
-            복구함 보기
-          </Button>
-        )}
-        {restorableCount > 0 && (
+        {actions.map((action) => (
           <Button
-            variant="ghost"
+            key={action.id}
+            variant={action.variant}
             size="sm"
-            onClick={() => onRestoreRecent(result)}
-            disabled={restoreRecentBusy}
+            onClick={() => runAction(action.id)}
+            disabled={action.disabled}
           >
-            {restoreRecentBusy ? "되돌리는 중…" : "방금 정리 되돌리기"}
+            {action.label}
           </Button>
-        )}
-        <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
-          활동 기록 보기
-        </Button>
+        ))}
       </div>
       {restoreRecentMessage && (
         <p style={{ fontSize: 12, opacity: 0.75, margin: "8px 0 0" }}>

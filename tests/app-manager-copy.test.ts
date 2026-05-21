@@ -11,10 +11,25 @@ const APP_MANAGER_PAGE = join(
   "pages",
   "AppManager.tsx"
 );
+const APP_MANAGER_ACTIONS = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "appManagerActions.ts"
+);
+
+function readAppManagerSources(): string {
+  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
+}
 
 describe("AppManager uninstall copy", () => {
   it("does not claim an app was removed just because the Windows uninstall window opened", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).not.toContain("방금 제거한 앱");
     expect(source).not.toContain("방금 제거한 앱 기준");
@@ -30,7 +45,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps the app cleanup follow-up visible after restart even when the installed app list is empty", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("snapshot.total === 0 && snapshot.recentlyUninstallLaunched.length === 0");
     expect(source).toContain('setLoad({ kind: "ready", snapshot })');
@@ -38,7 +53,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("includes registry backup undo in the recent cleanup flow", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("restoreRegistryBackup");
     expect(source).toContain("recoverableRegistryBackupIds");
@@ -77,7 +92,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("counts startup holding items when deciding whether recent cleanup can be undone", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("function appLeftoverRestorableCount(result: CleanupExecuteResult): number");
     expect(source).toContain("restorableTrashEntryIds(result).length +");
@@ -85,11 +100,12 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("restorableStartupDisabledIds(result).length +");
     expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
     expect(source).toContain("appLeftoverRestorableCount(result)");
-    expect(source).toContain("{restorableCount > 0 && (");
+    expect(source).toContain("appLeftoverResultActions({ result, restorableCount, restoreRecentBusy })");
+    expect(source).toContain('id: "restoreRecent"');
   });
 
   it("keeps recent app-leftover restore moving when one item fails", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("restoreFailureCount += 1");
     expect(source).toContain("scheduledTaskResults");
@@ -97,7 +113,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("shows a friendly message when recent restore cannot reach the app bridge", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("const missingRestoreBridge =");
     expect(source).toContain("방금 정리 되돌리기를 연결하지 못했어요");
@@ -108,7 +124,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("shows friendly messages instead of silently returning when app manager bridges are missing", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("잔여 항목 확인을 연결하지 못했어요");
     expect(source).toContain("잔여 항목 정리를 연결하지 못했어요");
@@ -119,7 +135,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("does not show raw uninstall detail strings in the app list", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("uninstallStatusDetailLabel");
     expect(source).toContain("제거 창을 안전하게 열었어요");
@@ -131,7 +147,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("counts only successful app-leftover cleanup items as cleaned", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("appLeftoverResultHeadline");
     expect(source).toContain("const cleanedCount = result");
@@ -148,14 +164,14 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("shows the restore bin action when only a preserved backup can be restored", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("result.mode === \"trash\" && restorableCount > 0");
     expect(source).not.toContain("result.mode === \"trash\" && cleanedCount > 0");
   });
 
   it("explains app-leftover cleanup results by restorable folders and backups", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("appLeftoverResultLines");
     expect(source).toContain("appLeftoverRestoreBinBreakdown");
@@ -181,7 +197,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("shows a pre-cleanup 30-day holding plan before app leftovers are cleaned", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("appLeftoverConfirmRestorePlan");
     expect(source).toContain("const restorePlan = appLeftoverConfirmRestorePlan(confirm)");
@@ -195,7 +211,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("groups app leftover candidates into friendly families", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("leftoverFamilySummary");
     expect(source).toContain("isRestoreBinLeftover");
@@ -207,7 +223,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("includes failed app-leftover removed items in the failed or skipped count", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("const failedRemovedCount = result");
     expect(source).toContain(".filter((item) => !item.succeeded).length");
@@ -218,7 +234,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("explains why skipped app-leftover items were left untouched", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("appLeftoverSkippedPreviewLines");
     expect(source).toContain("friendlyAppLeftoverBlockedDetail");
@@ -236,7 +252,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps cleanup result actions visible even when no leftover groups remain", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("state.snapshot.groups.length === 0 ? (");
     expect(source).toContain("정리 후 남은 잔여 항목 후보가 없어요.");
@@ -244,15 +260,16 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps the post-cleanup effect check wired to quick rescan when available", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("onQuickRescan?: () => void");
-    expect(source).toContain("onClick={onQuickRescan ?? onRescan}");
+    expect(source).toContain("case \"rescan\":");
+    expect(source).toContain("(onQuickRescan ?? onRescan)();");
     expect(source).toContain("다시 점검해서 효과 보기");
   });
 
   it("compares app-leftover candidates before and after cleanup", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("type LeftoverEffectSummary");
     expect(source).toContain("function appLeftoverEffectLines");
@@ -273,7 +290,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps cleanup result actions visible when leftover refresh fails after cleanup", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("if (state.error && !state.snapshot && !result)");
     expect(source).toContain("잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요");
@@ -282,7 +299,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps cleanup result actions visible even if the leftover snapshot disappears", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("if (!state.snapshot && result)");
     expect(source).toContain("방금 정리한 내용");
@@ -296,21 +313,21 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("surfaces app-leftover history persistence warnings without hiding the result", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("result.logPersistenceWarning");
     expect(source).toContain("CLEANUP_HISTORY_SAVE_WARNING");
   });
 
   it("surfaces app-leftover follow-up persistence warnings without hiding the result", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("result.followupPersistenceWarning");
     expect(source).toContain("CLEANUP_FOLLOWUP_SAVE_WARNING");
   });
 
   it("keeps existing leftover candidates visible when refresh fails before cleanup", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("if (state.error && !state.snapshot && !result)");
     expect(source).toContain("잔여 항목을 다시 불러오진 못했지만, 기존 후보는 남겨둘게요");
@@ -318,7 +335,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("keeps existing leftover candidates visible while refresh is loading before cleanup", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("if (state.loading && !state.snapshot && !result)");
     expect(source).toContain("잔여 항목을 다시 확인하는 중이에요. 기존 후보는 그대로 남겨둘게요.");
@@ -326,7 +343,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("lets users select every safe app leftover candidate in one action", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("정리 가능 항목 전체 선택");
     expect(source).toContain("선택 해제");
@@ -335,7 +352,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("uses an in-app confirmation dialog before app-leftover cleanup", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("AppLeftoverConfirmDialog");
     expect(source).toContain("buildLeftoverCleanupConfirm");
@@ -346,7 +363,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("uses an in-app confirmation dialog before launching the Windows uninstaller", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("UninstallConfirmDialog");
     expect(source).toContain("Windows 제거 창을 열까요?");
@@ -358,7 +375,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("shows the startup item name beside the startup location", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("leftoverDisplayPath");
     expect(source).toContain("path.registryValueName");
@@ -370,7 +387,7 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("separates manual startup traces from protected leftover paths", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("leftoverPathNeedsManualCheck");
     expect(source).toContain('path.startupEntryKind === "service"');
@@ -388,14 +405,14 @@ describe("AppManager uninstall copy", () => {
   });
 
   it("does not show raw IPC errors in app cleanup messages", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
 
     expect(source).toContain("friendlyErrorMessage");
     expect(source).not.toContain("(err as Error).message");
   });
 
   it("filters raw internal app-leftover details before trusting startup wording", () => {
-    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+    const source = readAppManagerSources();
     const rawFilterIndex = source.indexOf("if (rawInternalDetailPattern.test(text))");
     const startupCopyIndex = source.indexOf(
       "if (/startup|holding|hash|integrity|source path|still exists|시작 항목/.test(lower))"
