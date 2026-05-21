@@ -24,6 +24,7 @@ import {
   isSafeRegisteredApplicationRegistryValuePath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
+  isSafeComInprocServerRegistryKeyPath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
   normalizeSafeProtocolScheme,
@@ -297,6 +298,32 @@ describe("registry leftover cleanup", () => {
     expect(
       isSafeComLocalServerRegistryKeyPath(
         "HKCU\\Software\\Classes\\Interface\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000001}"
+      )
+    ).toBe(false);
+  });
+
+  it("only allows narrow COM in-process extension registry keys", () => {
+    expect(
+      isSafeComInprocServerRegistryKeyPath(
+        "HKCU\\Software\\Classes\\CLSID\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000020}"
+      )
+    ).toBe(true);
+    expect(
+      isSafeComInprocServerRegistryKeyPath(
+        "HKLM\\Software\\WOW6432Node\\Classes\\CLSID\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000020}"
+      )
+    ).toBe(true);
+    expect(
+      isSafeComInprocServerRegistryKeyPath(
+        "HKCU\\Software\\Classes\\CLSID\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000020}\\InprocServer32"
+      )
+    ).toBe(false);
+    expect(
+      isSafeComInprocServerRegistryKeyPath("HKCU\\Software\\Classes\\CLSID\\AcmeNotes")
+    ).toBe(false);
+    expect(
+      isSafeComInprocServerRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Interface\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000020}"
       )
     ).toBe(false);
   });
@@ -816,6 +843,72 @@ describe("registry leftover cleanup", () => {
       name: "Acme Notes",
       publisher: "Acme Corp.",
       backupKind: "com-local-server-key",
+      registryKeyPath: keyPath
+    });
+  });
+
+  it("exports a backup before deleting an app COM in-process extension registry key", async () => {
+    const keyPath =
+      "HKCU\\Software\\Classes\\CLSID\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000020}";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "com-inproc-server-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "com-inproc-server-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "com-inproc-server-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "앱 확장 연결 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "com-inproc-server-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "com-inproc-server-key",
       registryKeyPath: keyPath
     });
   });

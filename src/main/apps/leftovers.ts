@@ -77,6 +77,7 @@ import {
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
   isSafeComLocalServerRegistryKeyPath,
+  isSafeComInprocServerRegistryKeyPath,
   isSafeComAppIdRegistryKeyPath,
   isSafeServiceRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
@@ -644,6 +645,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
     value === "com-local-server-registry" ||
+    value === "com-inproc-server-registry" ||
     value === "com-app-id-registry" ||
     value === "service-registry" ||
     value === "startup-folder" ||
@@ -1851,6 +1853,32 @@ async function comLocalServerRegistryLeftoverPaths(
   return paths;
 }
 
+async function comInprocServerRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys" | "queryDefaultValue">
+): Promise<AppLeftoverPath[]> {
+  const paths: AppLeftoverPath[] = [];
+
+  for (const root of COM_LOCAL_SERVER_CLSID_ROOTS) {
+    for (const clsid of await registrySubKeys(root, runner)) {
+      const keyPath = `${root}\\${clsid}`;
+      if (!isSafeComInprocServerRegistryKeyPath(keyPath)) continue;
+      const inprocServer = await registryDefaultValueRecord(`${keyPath}\\InprocServer32`, runner);
+      if (!inprocServer?.data || !modulePathMatchesApp(inprocServer.data, app)) continue;
+      paths.push({
+        id: makePathId(`com-inproc-server-registry:${keyPath}`),
+        kind: "com-inproc-server-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
+  return paths;
+}
+
 function normalizeSafeComAppIdValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
@@ -2032,6 +2060,38 @@ function executablePathMatchesApp(rawPath: string, app: InstalledApp): boolean {
       const compactName = lowerName.replace(/\s+/g, "");
       return (
         executableStem === compactName ||
+        normalizedPath.includes(`\\${lowerName}\\`) ||
+        normalizedPath.includes(`\\${compactName}\\`)
+      );
+    });
+}
+
+function modulePathFromRegistryValue(rawPath: string): string | undefined {
+  const trimmed = rawPath.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('"')) {
+    const closingQuoteIndex = trimmed.indexOf('"', 1);
+    const quoted = closingQuoteIndex > 1 ? trimmed.slice(1, closingQuoteIndex) : "";
+    if (/\.(?:dll|ocx)$/i.test(quoted)) return quoted;
+  }
+  return trimmed.match(/^[A-Za-z]:\\.*?\.(?:dll|ocx)\b/i)?.[0];
+}
+
+function modulePathMatchesApp(rawPath: string, app: InstalledApp): boolean {
+  const modulePath = modulePathFromRegistryValue(rawPath);
+  if (!modulePath) return false;
+  const normalizedPath = normalizePath(modulePath).toLowerCase();
+  const installLocation = app.installLocation?.trim();
+  if (installLocation && !/\.exe$/i.test(installLocation) && isAtOrInside(modulePath, installLocation)) {
+    return true;
+  }
+
+  return genericFolderNames(app)
+    .map((name) => cleanGenericName(name))
+    .some((name) => {
+      const lowerName = name.toLowerCase();
+      const compactName = lowerName.replace(/\s+/g, "");
+      return (
         normalizedPath.includes(`\\${lowerName}\\`) ||
         normalizedPath.includes(`\\${compactName}\\`)
       );
@@ -2415,6 +2475,7 @@ export async function planAppLeftovers(
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await comInprocServerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await comAppIdRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await serviceRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
@@ -2457,6 +2518,7 @@ export async function planAppLeftovers(
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await comInprocServerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await comAppIdRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await serviceRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
@@ -3147,6 +3209,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
       invalid.push("COM local server registry key");
     }
     if (
+      path.kind === "com-inproc-server-registry" &&
+      !isSafeComInprocServerRegistryKeyPath(path.path)
+    ) {
+      invalid.push("COM in-process extension registry key");
+    }
+    if (
       path.kind === "com-app-id-registry" &&
       !isSafeComAppIdRegistryKeyPath(path.path)
     ) {
@@ -3363,6 +3431,7 @@ export async function cleanupAppLeftovers(
       path.kind === "protocol-handler-registry" ||
       path.kind === "native-messaging-host-registry" ||
       path.kind === "com-local-server-registry" ||
+      path.kind === "com-inproc-server-registry" ||
       path.kind === "com-app-id-registry" ||
       path.kind === "context-menu-registry" ||
       path.kind === "shell-extension-registry"
@@ -3390,9 +3459,11 @@ export async function cleanupAppLeftovers(
                         ? "native-messaging-host-key"
                         : path.kind === "com-local-server-registry"
                           ? "com-local-server-key"
-                          : path.kind === "com-app-id-registry"
-                            ? "com-app-id-key"
-                          : "key",
+                          : path.kind === "com-inproc-server-registry"
+                            ? "com-inproc-server-key"
+                            : path.kind === "com-app-id-registry"
+                              ? "com-app-id-key"
+                              : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined

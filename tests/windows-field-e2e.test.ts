@@ -60,13 +60,14 @@ const FIELD_REQUIREMENTS = {
   fileAssociationKey: fieldRequirements[12],
   fileAssociationOpenCommandKey: fieldRequirements[13],
   comAppIdLeftover: fieldRequirements[14],
-  contextMenuKey: fieldRequirements[15],
-  shellExtensionKey: fieldRequirements[16],
-  userPathSegment: fieldRequirements[17],
-  appEnvironmentSetting: fieldRequirements[18],
-  appFirewallRule: fieldRequirements[19],
-  serviceLeftover: fieldRequirements[20],
-  unifiedRetentionTick: fieldRequirements[21]
+  comInprocServerLeftover: fieldRequirements[15],
+  contextMenuKey: fieldRequirements[16],
+  shellExtensionKey: fieldRequirements[17],
+  userPathSegment: fieldRequirements[18],
+  appEnvironmentSetting: fieldRequirements[19],
+  appFirewallRule: fieldRequirements[20],
+  serviceLeftover: fieldRequirements[21],
+  unifiedRetentionTick: fieldRequirements[22]
 } as const;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
@@ -87,8 +88,10 @@ const FILE_ASSOCIATION_OPEN_COMMAND_KEY =
 const FIELD_GUID_SUFFIX = process.pid.toString(16).toUpperCase().padStart(12, "0").slice(-12);
 const FIELD_COM_CLSID = `{A6E0BCA2-2CC0-4B8C-A29D-${FIELD_GUID_SUFFIX}}`;
 const FIELD_COM_APP_ID = `{A6E0BCA2-2CC0-4B8C-A29E-${FIELD_GUID_SUFFIX}}`;
+const FIELD_COM_INPROC_CLSID = `{A6E0BCA2-2CC0-4B8C-A29F-${FIELD_GUID_SUFFIX}}`;
 const COM_LOCAL_SERVER_KEY = `HKCU\\Software\\Classes\\CLSID\\${FIELD_COM_CLSID}`;
 const COM_APP_ID_KEY = `HKCU\\Software\\Classes\\AppID\\${FIELD_COM_APP_ID}`;
+const COM_INPROC_SERVER_KEY = `HKCU\\Software\\Classes\\CLSID\\${FIELD_COM_INPROC_CLSID}`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
 const SHELL_EXTENSION_KEY =
   `HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\${FIELD_VALUE_NAME}`;
@@ -296,6 +299,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", FILE_ASSOCIATION_KEY, "/f"]).catch(() => {});
     await runReg(["delete", FILE_ASSOCIATION_OPEN_COMMAND_KEY, "/f"]).catch(() => {});
     await runReg(["delete", COM_LOCAL_SERVER_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", COM_INPROC_SERVER_KEY, "/f"]).catch(() => {});
     await runReg(["delete", COM_APP_ID_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
     await runReg(["delete", SHELL_EXTENSION_KEY, "/f"]).catch(() => {});
@@ -699,6 +703,16 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     ]);
     await runReg([
       "add",
+      `${COM_INPROC_SERVER_KEY}\\InprocServer32`,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      `C:\\Program Files\\${FIELD_VALUE_NAME}\\${FIELD_VALUE_NAME}Shell.dll`,
+      "/f"
+    ]);
+    await runReg([
+      "add",
       COM_APP_ID_KEY,
       "/ve",
       "/t",
@@ -737,6 +751,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(true);
     expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(true);
     expect(await registryKeyExists(COM_LOCAL_SERVER_KEY)).toBe(true);
+    expect(await registryKeyExists(COM_INPROC_SERVER_KEY)).toBe(true);
     expect(await registryKeyExists(COM_APP_ID_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
@@ -749,14 +764,21 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
         }
       ],
       registryRunner: {
-        listSubKeys: async (keyPath: string) =>
-          keyPath === "HKCU\\Software\\Classes" &&
-          (await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY))
-            ? [FILE_ASSOCIATION_OPEN_COMMAND_KEY.split("\\").pop()!]
-            : keyPath === "HKCU\\Software\\Classes\\CLSID" &&
-                (await registryKeyExists(COM_LOCAL_SERVER_KEY))
-              ? [FIELD_COM_CLSID]
-            : [],
+        listSubKeys: async (keyPath: string) => {
+          if (
+            keyPath === "HKCU\\Software\\Classes" &&
+            (await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY))
+          ) {
+            return [FILE_ASSOCIATION_OPEN_COMMAND_KEY.split("\\").pop()!];
+          }
+          if (keyPath === "HKCU\\Software\\Classes\\CLSID") {
+            const keys: string[] = [];
+            if (await registryKeyExists(COM_LOCAL_SERVER_KEY)) keys.push(FIELD_COM_CLSID);
+            if (await registryKeyExists(COM_INPROC_SERVER_KEY)) keys.push(FIELD_COM_INPROC_CLSID);
+            return keys;
+          }
+          return [];
+        },
         queryDefaultValue: registryDefaultValueRecord,
         queryValue: async (keyPath: string, valueName: string) =>
           (await registryValueRecord(keyPath, valueName)) ?? undefined,
@@ -777,6 +799,14 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(comAppIdLeftover).toMatchObject({
       kind: "com-app-id-registry",
       path: COM_APP_ID_KEY,
+      exists: true
+    });
+    const comInprocServerLeftover = openCommandLeftovers.groups
+      .flatMap((group) => group.paths)
+      .find((path) => path.kind === "com-inproc-server-registry" && path.path === COM_INPROC_SERVER_KEY);
+    expect(comInprocServerLeftover).toMatchObject({
+      kind: "com-inproc-server-registry",
+      path: COM_INPROC_SERVER_KEY,
       exists: true
     });
 
@@ -844,6 +874,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
+    const comInprocServerBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: COM_INPROC_SERVER_KEY,
+      backupKind: "com-inproc-server-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
     const contextMenuBackup = await backupAndDeleteRegistryKey({
       userDataDir,
       keyPath: CONTEXT_MENU_KEY,
@@ -868,6 +905,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(fileAssociationBackup.backupKind).toBe("file-association-key");
     expect(fileAssociationOpenCommandBackup.backupKind).toBe("file-association-key");
     expect(comAppIdBackup.backupKind).toBe("com-app-id-key");
+    expect(comInprocServerBackup.backupKind).toBe("com-inproc-server-key");
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
     expect(shellExtensionBackup.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
@@ -879,6 +917,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(false);
     expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(false);
     expect(await registryKeyExists(COM_APP_ID_KEY)).toBe(false);
+    expect(await registryKeyExists(COM_INPROC_SERVER_KEY)).toBe(false);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(false);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(false);
 
@@ -927,6 +966,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       backupId: comAppIdBackup.id,
       now: () => restoredAt
     });
+    const restoredComInprocServer = await restoreRegistryBackup({
+      userDataDir,
+      backupId: comInprocServerBackup.id,
+      now: () => restoredAt
+    });
     const restoredContextMenu = await restoreRegistryBackup({
       userDataDir,
       backupId: contextMenuBackup.id,
@@ -947,6 +991,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredFileAssociation.status).toBe("restored");
     expect(restoredFileAssociationOpenCommand.status).toBe("restored");
     expect(restoredComAppId.status).toBe("restored");
+    expect(restoredComInprocServer.status).toBe("restored");
     expect(restoredContextMenu.status).toBe("restored");
     expect(restoredShellExtension.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
@@ -958,6 +1003,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredFileAssociation.entry?.backupKind).toBe("file-association-key");
     expect(restoredFileAssociationOpenCommand.entry?.backupKind).toBe("file-association-key");
     expect(restoredComAppId.entry?.backupKind).toBe("com-app-id-key");
+    expect(restoredComInprocServer.entry?.backupKind).toBe("com-inproc-server-key");
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
     expect(restoredShellExtension.entry?.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
@@ -969,6 +1015,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(true);
     expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(true);
     expect(await registryKeyExists(COM_APP_ID_KEY)).toBe(true);
+    expect(await registryKeyExists(COM_INPROC_SERVER_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
     proveFieldRequirement(FIELD_REQUIREMENTS.registeredApplicationsValue);
@@ -979,6 +1026,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     proveFieldRequirement(FIELD_REQUIREMENTS.fileAssociationKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.fileAssociationOpenCommandKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.comAppIdLeftover);
+    proveFieldRequirement(FIELD_REQUIREMENTS.comInprocServerLeftover);
     proveFieldRequirement(FIELD_REQUIREMENTS.contextMenuKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.shellExtensionKey);
   }, 45_000);

@@ -128,6 +128,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "브라우저 연결 도우미";
     case "com-local-server-registry":
       return "앱 실행 연결";
+    case "com-inproc-server-registry":
+      return "앱 확장 연결";
     case "com-app-id-registry":
       return "앱 실행 연결 정보";
     case "service-registry":
@@ -198,6 +200,7 @@ function isAppTraceLeftover(path: AppLeftoverPath): boolean {
     path.kind === "protocol-handler-registry" ||
     path.kind === "native-messaging-host-registry" ||
     path.kind === "com-local-server-registry" ||
+    path.kind === "com-inproc-server-registry" ||
     path.kind === "com-app-id-registry" ||
     path.kind === "context-menu-registry" ||
     path.kind === "shell-extension-registry"
