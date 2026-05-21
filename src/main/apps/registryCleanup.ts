@@ -690,11 +690,15 @@ export async function backupAndDeleteRegistryKey(options: {
       deleteInvoked = true;
     } catch (deleteErr) {
       if (runner.keyExists) {
-        const stillExists = await runner.keyExists(keyPath);
-        if (!stillExists) {
+        try {
+          const stillExists = await runner.keyExists(keyPath);
+          if (stillExists) {
+            deleteConfirmedIncomplete = true;
+          } else {
+            deleteInvoked = true;
+          }
+        } catch {
           deleteInvoked = true;
-        } else {
-          deleteConfirmedIncomplete = true;
         }
       }
       throw deleteErr;
@@ -788,11 +792,15 @@ export async function backupAndDeleteRegistryValue(options: {
       deleteInvoked = true;
     } catch (deleteErr) {
       if (runner.valueExists) {
-        const stillExists = await runner.valueExists(keyPath, valueName);
-        if (!stillExists) {
+        try {
+          const stillExists = await runner.valueExists(keyPath, valueName);
+          if (stillExists) {
+            deleteConfirmedIncomplete = true;
+          } else {
+            deleteInvoked = true;
+          }
+        } catch {
           deleteInvoked = true;
-        } else {
-          deleteConfirmedIncomplete = true;
         }
       }
       throw deleteErr;

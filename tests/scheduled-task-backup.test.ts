@@ -218,6 +218,38 @@ describe("scheduled task backup", () => {
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup?.id]);
   });
 
+  it("preserves the scheduled task backup when delete reports an error and the task check is unavailable", async () => {
+    const runner = makeRunner();
+    if (!runner.taskExists) {
+      throw new Error("test runner is missing taskExists");
+    }
+    vi.mocked(runner.deleteTask).mockRejectedValueOnce(
+      new Error("schtasks reported a late failure")
+    );
+    vi.mocked(runner.taskExists).mockRejectedValueOnce(
+      new Error("scheduled task check unavailable")
+    );
+
+    let thrown: unknown;
+    try {
+      await backupAndDeleteScheduledTask({
+        userDataDir: fx.userDataDir,
+        taskName: "Acme Notes Update",
+        taskPath: "\\Acme\\",
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(isScheduledTaskBackupPreservedError(thrown)).toBe(true);
+    const backup = isScheduledTaskBackupPreservedError(thrown) ? thrown.backup : null;
+    expect(backup?.expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup?.id]);
+  });
+
   it("auto-purges expired scheduled task backups after 30 days", async () => {
     const runner = makeRunner();
     const backup = await backupAndDeleteScheduledTask({

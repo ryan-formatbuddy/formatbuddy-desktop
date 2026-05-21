@@ -346,11 +346,15 @@ export async function backupAndDeleteScheduledTask(options: {
       deleteInvoked = true;
     } catch (deleteErr) {
       if (runner.taskExists) {
-        const stillExists = await runner.taskExists(taskName, taskPath);
-        if (!stillExists) {
+        try {
+          const stillExists = await runner.taskExists(taskName, taskPath);
+          if (stillExists) {
+            deleteConfirmedIncomplete = true;
+          } else {
+            deleteInvoked = true;
+          }
+        } catch {
           deleteInvoked = true;
-        } else {
-          deleteConfirmedIncomplete = true;
         }
       }
       throw deleteErr;
