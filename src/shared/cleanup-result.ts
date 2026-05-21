@@ -49,6 +49,31 @@ export function restoreEntryExpiryLabel(expiresAt: string, now = Date.now()): st
   return `${daysUntilTrashExpiry(expiresAt, now)}일 뒤 만료`;
 }
 
+interface RestoreBinExpirySource {
+  nextExpiryAt?: string | null;
+  entries?: Array<{ expiresAt?: string | null }>;
+}
+
+export function earliestRestoreBinExpiryAt(
+  sources: Array<RestoreBinExpirySource | null | undefined>
+): string | undefined {
+  let earliest: { expiresAt: string; time: number } | undefined;
+  const consider = (expiresAt: string | null | undefined): void => {
+    if (typeof expiresAt !== "string") return;
+    const time = Date.parse(expiresAt);
+    if (!Number.isFinite(time)) return;
+    if (!earliest || time < earliest.time) earliest = { expiresAt, time };
+  };
+
+  for (const source of sources) {
+    if (!source) continue;
+    consider(source.nextExpiryAt);
+    for (const entry of source.entries ?? []) consider(entry.expiresAt);
+  }
+
+  return earliest?.expiresAt;
+}
+
 export function sortTrashEntriesByExpiry<T extends { expiresAt: string; createdAt?: string; id?: string }>(
   entries: T[]
 ): T[] {

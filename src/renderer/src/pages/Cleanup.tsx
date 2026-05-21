@@ -4,6 +4,7 @@ import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
 import {
   daysUntilTrashExpiry,
+  earliestRestoreBinExpiryAt,
   isTrashEntryExpired,
   recoverableRegistryBackupIds,
   recoverableScheduledTaskBackupIds,
@@ -78,8 +79,7 @@ function trashEntryExpiryLabel(expiresAt: string): string {
   return restoreEntryExpiryLabel(expiresAt);
 }
 
-function trashSnapshotExpiryLabel(snapshot: CleanupTrashSnapshot): string {
-  const nextExpiryAt = snapshot.nextExpiryAt ?? snapshot.entries[0]?.expiresAt;
+function restoreBinExpiryLabel(nextExpiryAt: string | undefined): string {
   if (!nextExpiryAt) return "30일 동안 보관해요";
 
   const days = daysUntilTrashExpiry(nextExpiryAt);
@@ -653,6 +653,12 @@ function TrashPanel({
     (snapshot?.totalBytes ?? 0) +
     registryBackupBytes(registrySnapshot) +
     scheduledTaskBackupBytes(scheduledTaskSnapshot);
+  const nextExpiryAt = earliestRestoreBinExpiryAt([
+    snapshot,
+    registrySnapshot,
+    startupSnapshot,
+    scheduledTaskSnapshot
+  ]);
   const summaryParts = [
     fileEntries.length > 0 ? `정리 파일 ${fileEntries.length}개` : "",
     appBackupCount > 0 ? `앱 삭제 흔적 ${appBackupCount}개` : "",
@@ -674,8 +680,7 @@ function TrashPanel({
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
-            전체 {totalCount}개 · {formatBytes(totalBytes)} 보관 중
-            {snapshot ? ` · ${trashSnapshotExpiryLabel(snapshot)}` : ""}
+            전체 {totalCount}개 · {formatBytes(totalBytes)} 보관 중 · {restoreBinExpiryLabel(nextExpiryAt)}
           </small>
         </div>
         <Button variant="ghost" size="sm" onClick={onOpenTrashRestore}>

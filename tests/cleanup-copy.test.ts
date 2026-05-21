@@ -36,6 +36,11 @@ describe("Cleanup copy", () => {
     expect(source).not.toContain("자동 삭제돼요");
     expect(source).toContain('mode: "trash"');
     expect(source).toContain("nextExpiryAt");
+    expect(source).toContain("earliestRestoreBinExpiryAt");
+    expect(source).toContain("registrySnapshot");
+    expect(source).toContain("startupSnapshot");
+    expect(source).toContain("scheduledTaskSnapshot");
+    expect(source).toContain("restoreBinExpiryLabel(nextExpiryAt)");
     expect(source).toContain("다음 항목은");
     expect(source).toContain("30일 동안 포맷버디 복구함에 보관해요");
     expect(source).toContain("30일 뒤 자동으로 비워요");

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   daysUntilTrashExpiry,
+  earliestRestoreBinExpiryAt,
   isTrashEntryExpired,
   preservedRegistryBackupIds,
   preservedScheduledTaskBackupIds,
@@ -98,6 +99,40 @@ function resultWithEntries(): CleanupExecuteResult {
     }
   };
 }
+
+describe("restore bin expiry helpers", () => {
+  it("finds the earliest automatic-empty date across every restore-bin bucket", () => {
+    expect(
+      earliestRestoreBinExpiryAt([
+        {
+          nextExpiryAt: "2026-06-18T00:00:00.000Z",
+          entries: [{ expiresAt: "2026-06-19T00:00:00.000Z" }]
+        },
+        {
+          nextExpiryAt: "2026-06-10T00:00:00.000Z",
+          entries: [{ expiresAt: "2026-06-12T00:00:00.000Z" }]
+        },
+        {
+          entries: [{ expiresAt: "2026-06-05T00:00:00.000Z" }]
+        },
+        {
+          nextExpiryAt: "not-a-date",
+          entries: [{ expiresAt: "2026-06-08T00:00:00.000Z" }]
+        }
+      ])
+    ).toBe("2026-06-05T00:00:00.000Z");
+  });
+
+  it("ignores missing and malformed restore-bin expiry values", () => {
+    expect(
+      earliestRestoreBinExpiryAt([
+        undefined,
+        null,
+        { nextExpiryAt: "not-a-date", entries: [{ expiresAt: "also-bad" }, {}] }
+      ])
+    ).toBeUndefined();
+  });
+});
 
 describe("Cleanup result undo helper", () => {
   const registryBackupEntry = (
