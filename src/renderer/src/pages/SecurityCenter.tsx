@@ -423,12 +423,14 @@ function QuickScanCard({
   onRunScan,
   onOpenSecurity,
   lastResult,
+  refreshMessage,
   busy
 }: {
   isWindows: boolean;
   onRunScan: () => void;
   onOpenSecurity: () => void;
   lastResult?: DefenderQuickScanResult;
+  refreshMessage?: string;
   busy: boolean;
 }) {
   const quickScanDetail = lastResult ? quickScanDetailLabel(lastResult) : null;
@@ -456,6 +458,11 @@ function QuickScanCard({
         <p style={{ marginTop: 12, fontSize: 13 }}>
           {lastResult.message}
           {quickScanDetail ? ` ${quickScanDetail}` : ""}
+        </p>
+      )}
+      {refreshMessage && (
+        <p style={{ marginTop: 8, fontSize: 12, opacity: 0.72 }}>
+          {refreshMessage}
         </p>
       )}
     </article>
@@ -545,44 +552,50 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
   const [status, setStatus] = useState<StatusState>({ loading: false });
   const [threats, setThreats] = useState<ThreatState>({ loading: false });
   const [scanResult, setScanResult] = useState<DefenderQuickScanResult | undefined>();
+  const [scanRefreshMessage, setScanRefreshMessage] = useState<string | undefined>();
   const [scanBusy, setScanBusy] = useState(false);
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (): Promise<boolean> => {
     if (!window.fb?.getDefenderStatus) {
       setStatus({
         loading: false,
         error: "앱 연결을 확인하지 못했어요. 포맷버디를 다시 열어주세요."
       });
-      return;
+      return false;
     }
     setStatus({ loading: true });
     try {
       const data = await window.fb.getDefenderStatus();
       setStatus({ loading: false, data });
+      return true;
     } catch (err) {
       setStatus({ loading: false, error: friendlyErrorMessage(err) });
+      return false;
     }
   }, []);
 
-  const loadThreats = useCallback(async () => {
+  const loadThreats = useCallback(async (): Promise<boolean> => {
     if (!window.fb?.getDefenderThreats) {
       setThreats({
         loading: false,
         error: "위협 기록 조회를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
       });
-      return;
+      return false;
     }
     setThreats({ loading: true });
     try {
       const data = await window.fb.getDefenderThreats();
       setThreats({ loading: false, data });
+      return true;
     } catch (err) {
       setThreats({ loading: false, error: friendlyErrorMessage(err) });
+      return false;
     }
   }, []);
 
   const runScan = useCallback(async () => {
     if (!window.fb?.runDefenderQuickScan) {
+      setScanRefreshMessage(undefined);
       setScanResult({
         status: "spawn-failed",
         startedAt: new Date().toISOString(),
@@ -591,16 +604,28 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
       return;
     }
     setScanBusy(true);
+    setScanRefreshMessage(undefined);
     try {
       const result = await window.fb.runDefenderQuickScan();
       setScanResult(result);
-      await Promise.all([refreshStatus(), loadThreats()]);
+      const [statusRefreshed, threatsRefreshed] = await Promise.all([
+        refreshStatus(),
+        loadThreats()
+      ]);
+      if (statusRefreshed && threatsRefreshed) {
+        setScanRefreshMessage("빠른 검사 요청 후 상태와 기록을 다시 읽었어요.");
+      } else if (statusRefreshed || threatsRefreshed) {
+        setScanRefreshMessage("빠른 검사 요청은 남겼고, 일부 상태만 다시 읽었어요.");
+      } else {
+        setScanRefreshMessage("빠른 검사 요청은 남겼지만 상태 새로고침은 이어서 확인해주세요.");
+      }
     } catch (err) {
       setScanResult({
         status: "spawn-failed",
         startedAt: new Date().toISOString(),
         message: friendlyErrorMessage(err)
       });
+      setScanRefreshMessage(undefined);
     } finally {
       setScanBusy(false);
     }
@@ -608,6 +633,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
 
   const openSecurity = useCallback(async () => {
     if (!window.fb?.runActionCommand) {
+      setScanRefreshMessage(undefined);
       setScanResult({
         status: "spawn-failed",
         startedAt: new Date().toISOString(),
@@ -618,6 +644,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
     try {
       await window.fb.runActionCommand("start windowsdefender:");
     } catch (err) {
+      setScanRefreshMessage(undefined);
       setScanResult({
         status: "spawn-failed",
         startedAt: new Date().toISOString(),
@@ -670,6 +697,7 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
         onRunScan={() => void runScan()}
         onOpenSecurity={() => void openSecurity()}
         lastResult={scanResult}
+        refreshMessage={scanRefreshMessage}
         busy={scanBusy}
       />
 

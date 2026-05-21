@@ -61,4 +61,15 @@ describe("SecurityCenter copy", () => {
     expect(source).toContain("item.id === \"security-ok\"");
     expect(source).not.toContain("<span\n                  style={{\n                    alignSelf: \"start\"");
   });
+
+  it("keeps post quick-scan refresh feedback visible", () => {
+    const source = readFileSync(SECURITY_CENTER_PAGE, "utf8");
+
+    expect(source).toContain("const [scanRefreshMessage, setScanRefreshMessage]");
+    expect(source).toContain("async (): Promise<boolean>");
+    expect(source).toContain("빠른 검사 요청 후 상태와 기록을 다시 읽었어요.");
+    expect(source).toContain("빠른 검사 요청은 남겼고, 일부 상태만 다시 읽었어요.");
+    expect(source).toContain("빠른 검사 요청은 남겼지만 상태 새로고침은 이어서 확인해주세요.");
+    expect(source).toContain("refreshMessage={scanRefreshMessage}");
+  });
 });
