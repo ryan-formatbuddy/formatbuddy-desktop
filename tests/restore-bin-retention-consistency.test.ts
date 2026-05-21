@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { REGISTRY_BACKUP_RETENTION_DAYS } from "../src/main/apps/registryCleanup";
 import { FORMATBUDDY_TRASH_RETENTION_DAYS } from "../src/main/cleanup/trash";
 import { STARTUP_DISABLED_RETENTION_DAYS } from "../src/main/startup/folderToggle";
+import { SCHEDULED_TASK_BACKUP_RETENTION_DAYS } from "../src/main/startup/scheduledTaskBackup";
 import { RESTORE_BIN_RETENTION_DAYS } from "../src/shared/retention";
 
 const ROOT = join(__dirname, "..");
@@ -18,9 +19,10 @@ describe("restore-bin retention consistency", () => {
     expect(FORMATBUDDY_TRASH_RETENTION_DAYS).toBe(RESTORE_BIN_RETENTION_DAYS);
     expect(REGISTRY_BACKUP_RETENTION_DAYS).toBe(RESTORE_BIN_RETENTION_DAYS);
     expect(STARTUP_DISABLED_RETENTION_DAYS).toBe(RESTORE_BIN_RETENTION_DAYS);
+    expect(SCHEDULED_TASK_BACKUP_RETENTION_DAYS).toBe(RESTORE_BIN_RETENTION_DAYS);
   });
 
-  it("wires the three retention constants to the shared product promise", () => {
+  it("wires the retention constants to the shared product promise", () => {
     expect(read("src/main/cleanup/trash.ts")).toContain(
       "FORMATBUDDY_TRASH_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS"
     );
@@ -29,6 +31,9 @@ describe("restore-bin retention consistency", () => {
     );
     expect(read("src/main/startup/folderToggle.ts")).toContain(
       "STARTUP_DISABLED_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS"
+    );
+    expect(read("src/main/startup/scheduledTaskBackup.ts")).toContain(
+      "SCHEDULED_TASK_BACKUP_RETENTION_DAYS = RESTORE_BIN_RETENTION_DAYS"
     );
   });
 

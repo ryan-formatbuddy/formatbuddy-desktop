@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { promises as fs, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, promises as fs, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -183,6 +183,30 @@ describe("scheduled task backup", () => {
     expect(purged.purgedBytes).toBeGreaterThan(0);
     const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
     expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("removes a linked scheduled task backup root without touching the external target", async () => {
+    const linkedRoot = join(fx.userDataDir, "formatbuddy-scheduled-task-backups", "items");
+    const outside = join(fx.root, "outside-task-backups");
+    await fs.mkdir(dirname(linkedRoot), { recursive: true });
+    await fs.mkdir(outside, { recursive: true });
+    await fs.writeFile(join(outside, "keep.xml"), "<Task></Task>", "utf8");
+    symlinkSync(outside, linkedRoot, "dir");
+
+    const purged = await purgeExpiredScheduledTaskBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-01T00:00:00.000Z"),
+      pruneNonRestorable: true
+    });
+
+    expect(purged).toMatchObject({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    });
+    expect(existsSync(linkedRoot)).toBe(false);
+    expect(existsSync(join(outside, "keep.xml"))).toBe(true);
   });
 
   it("blocks unsafe scheduled task metadata before exporting", async () => {

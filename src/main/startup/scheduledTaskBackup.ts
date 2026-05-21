@@ -587,11 +587,21 @@ async function assertSafeTaskBackupEntryDirForPurge(
 async function removeManagedTaskBackupItem(userDataDir: string, backupId: string): Promise<boolean> {
   if (!isSafeScheduledTaskBackupId(backupId)) return false;
   const root = normalizePath(resolve(backupsRoot(userDataDir)));
+  const linkedRoot = await findLinkedPathPart(root, userDataDir, true);
+  if (linkedRoot) return false;
   const dir = backupEntryDir(userDataDir, backupId);
   const normalizedDir = normalizePath(resolve(dir));
   if (!normalizedDir.startsWith(`${root}\\`)) return false;
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
   return !(await pathExists(dir));
+}
+
+async function removeLinkedScheduledTaskBackupRootIfManaged(
+  userDataDir: string,
+  linkedRoot: string
+): Promise<void> {
+  if (normalizePath(resolve(linkedRoot)) === normalizePath(resolve(userDataDir))) return;
+  await fs.rm(linkedRoot, { force: true }).catch(() => {});
 }
 
 function taskBackupPurgeLabel(entry: ScheduledTaskBackupEntry): string {
@@ -606,9 +616,21 @@ export async function purgeExpiredScheduledTaskBackups(options: {
   removeEntryDir?: (dir: string, entryId: string) => Promise<void>;
 }): Promise<ScheduledTaskBackupPurgeResult> {
   const now = options.now?.() ?? new Date();
+  const root = backupsRoot(options.userDataDir);
+  const linkedRoot = await findLinkedPathPart(root, options.userDataDir, true);
+  if (linkedRoot) {
+    await removeLinkedScheduledTaskBackupRootIfManaged(options.userDataDir, linkedRoot);
+    return {
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: SCHEDULED_TASK_BACKUP_RETENTION_DAYS
+    };
+  }
+
   let dirs;
   try {
-    dirs = await fs.readdir(backupsRoot(options.userDataDir), { withFileTypes: true });
+    dirs = await fs.readdir(root, { withFileTypes: true });
   } catch {
     return {
       purgedCount: 0,
