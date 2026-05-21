@@ -69,9 +69,11 @@ import {
   isSafeContextMenuRegistryKeyPath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
+  isSafeProtocolHandlerRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
   normalizeSafeEnvironmentPathSegment,
+  normalizeSafeProtocolScheme,
   serviceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
@@ -621,6 +623,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "app-path-registry" ||
     value === "open-with-registry" ||
     value === "context-menu-registry" ||
+    value === "protocol-handler-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
     value === "startup-entry"
@@ -1257,6 +1260,26 @@ const ENVIRONMENT_PATH_REGISTRY_VALUES = [
   { keyPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", valueName: "Path" }
 ] as const;
 
+const PROTOCOL_HANDLER_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Classes",
+  "HKLM\\Software\\Classes"
+] as const;
+
+const KNOWN_PROTOCOL_HANDLER_SCHEMES: Array<{ match: RegExp; schemes: string[] }> = [
+  { match: /zoom/i, schemes: ["zoommtg", "zoomphonecall", "zoomus"] },
+  { match: /slack/i, schemes: ["slack"] },
+  { match: /discord/i, schemes: ["discord"] },
+  { match: /visual studio code|\bvs code\b/i, schemes: ["vscode"] },
+  { match: /cursor/i, schemes: ["cursor"] },
+  { match: /spotify/i, schemes: ["spotify"] },
+  { match: /steam/i, schemes: ["steam"] },
+  { match: /kakaotalk|kakao talk|카카오톡/i, schemes: ["kakaotalk"] },
+  { match: /\bline\b|라인/i, schemes: ["line"] },
+  { match: /notion/i, schemes: ["notion"] },
+  { match: /figma/i, schemes: ["figma"] },
+  { match: /obsidian/i, schemes: ["obsidian"] }
+];
+
 function appExecutableNames(app: InstalledApp): string[] {
   const candidates = new Set<string>();
   const installLocation = app.installLocation?.trim();
@@ -1292,6 +1315,31 @@ function registeredApplicationValueNames(app: InstalledApp): string[] {
     .map((name) => name.trim())
     .filter((name) => /^[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}$/.test(name))
     .slice(0, 8);
+}
+
+function protocolHandlerSchemeNames(app: InstalledApp): string[] {
+  const text = `${app.name} ${app.publisher ?? ""}`;
+  const candidates = new Set<string>();
+
+  for (const mapping of KNOWN_PROTOCOL_HANDLER_SCHEMES) {
+    if (mapping.match.test(text)) {
+      for (const scheme of mapping.schemes) candidates.add(scheme);
+    }
+  }
+
+  for (const name of genericFolderNames(app)) {
+    const compact = cleanGenericName(name).replace(/\s+/g, "").toLowerCase();
+    const scheme = normalizeSafeProtocolScheme(compact);
+    if (scheme) candidates.add(scheme);
+  }
+
+  for (const executableName of appExecutableNames(app)) {
+    const stem = executableName.replace(/\.exe$/i, "").replace(/\s+/g, "").toLowerCase();
+    const scheme = normalizeSafeProtocolScheme(stem);
+    if (scheme) candidates.add(scheme);
+  }
+
+  return Array.from(candidates).slice(0, 12);
 }
 
 async function registryKeyExists(
@@ -1384,6 +1432,32 @@ async function registeredApplicationRegistryLeftoverPaths(
         kind: "registered-app-registry",
         path: keyPath,
         registryValueName: valueName,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
+async function protocolHandlerRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "valueExists">
+): Promise<AppLeftoverPath[]> {
+  const schemes = protocolHandlerSchemeNames(app);
+  if (schemes.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of PROTOCOL_HANDLER_REGISTRY_ROOTS) {
+    for (const scheme of schemes) {
+      const keyPath = `${root}\\${scheme}`;
+      if (!isSafeProtocolHandlerRegistryKeyPath(keyPath)) continue;
+      if (!(await registryValueExists(keyPath, "URL Protocol", runner))) continue;
+      paths.push({
+        id: makePathId(`protocol-handler-registry:${keyPath}`),
+        kind: "protocol-handler-registry",
+        path: keyPath,
         exists: true,
         sizeBytes: null,
         lastModifiedAt: null
@@ -1715,6 +1789,7 @@ export async function planAppLeftovers(
               ...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner))
             ]
           : []),
@@ -1748,6 +1823,7 @@ export async function planAppLeftovers(
       paths.push(...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
@@ -2390,6 +2466,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (path.kind === "context-menu-registry" && !isSafeContextMenuRegistryKeyPath(path.path)) {
       invalid.push("context menu registry key");
     }
+    if (
+      path.kind === "protocol-handler-registry" &&
+      !isSafeProtocolHandlerRegistryKeyPath(path.path)
+    ) {
+      invalid.push("protocol handler registry key");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
@@ -2524,6 +2606,7 @@ export async function cleanupAppLeftovers(
       path.kind === "registry" ||
       path.kind === "app-path-registry" ||
       path.kind === "open-with-registry" ||
+      path.kind === "protocol-handler-registry" ||
       path.kind === "context-menu-registry"
     ) {
       try {
@@ -2537,7 +2620,9 @@ export async function cleanupAppLeftovers(
                 ? "open-with-key"
                 : path.kind === "context-menu-registry"
                   ? "context-menu-key"
-                  : "key",
+                  : path.kind === "protocol-handler-registry"
+                    ? "protocol-handler-key"
+                    : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined

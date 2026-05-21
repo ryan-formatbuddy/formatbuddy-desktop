@@ -71,6 +71,7 @@ type RegistryBackupRestoredApp = {
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
+    | "protocol-handler-key"
     | "service-key";
   registryKeyPath?: string;
   valueName?: string;
@@ -81,6 +82,7 @@ type RegistryKeyBackupKind =
   | "app-path-key"
   | "open-with-key"
   | "context-menu-key"
+  | "protocol-handler-key"
   | "service-key";
 type RegistryValueBackupKind = "startup-value" | "registered-app-value";
 type RegistryValueRecord = {
@@ -102,9 +104,27 @@ const SAFE_OPEN_WITH_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\Applications\\[^\\]+\.exe|HKLM\\Software\\Classes\\Applications\\[^\\]+\.exe)$/i;
 const SAFE_CONTEXT_MENU_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}|HKLM\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128})$/i;
+const SAFE_PROTOCOL_HANDLER_KEY_PATTERN =
+  /^(?:HKCU\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63}|HKLM\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63})$/i;
 const SAFE_SERVICE_KEY_PATTERN =
   /^HKLM\\SYSTEM\\CurrentControlSet\\Services\\[A-Za-z0-9._-]{1,128}$/i;
 const SERVICE_KEY_PREFIX = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\";
+const COMMON_PROTOCOL_SCHEME_BLOCKLIST = new Set([
+  "callto",
+  "file",
+  "ftp",
+  "http",
+  "https",
+  "mailto",
+  "ms-settings",
+  "ms-windows-store",
+  "search",
+  "shell",
+  "sms",
+  "tel",
+  "urn",
+  "webcal"
+]);
 
 function normalizeRegistryKeyPath(keyPath: string): string {
   return keyPath.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
@@ -152,6 +172,28 @@ export function isSafeContextMenuRegistryKeyPath(keyPath: string): boolean {
   if (normalized.includes("*") && !/\\\*\\shell\\/i.test(normalized)) return false;
   if (/\?/.test(normalized)) return false;
   return SAFE_CONTEXT_MENU_KEY_PATTERN.test(normalized);
+}
+
+export function normalizeSafeProtocolScheme(scheme: unknown): string | undefined {
+  if (typeof scheme !== "string") return undefined;
+  const trimmed = scheme.trim();
+  if (!trimmed || trimmed !== scheme) return undefined;
+  const normalized = trimmed.toLowerCase();
+  if (!/^[a-z][a-z0-9+.-]{1,63}$/.test(normalized)) return undefined;
+  if (COMMON_PROTOCOL_SCHEME_BLOCKLIST.has(normalized)) return undefined;
+  if (normalized.startsWith("ms-")) return undefined;
+  return normalized;
+}
+
+export function isSafeProtocolHandlerRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  if (!SAFE_PROTOCOL_HANDLER_KEY_PATTERN.test(normalized)) return false;
+  const scheme = normalized.split("\\").pop();
+  return normalizeSafeProtocolScheme(scheme) === scheme?.toLowerCase();
 }
 
 export function normalizeSafeServiceName(serviceName: unknown): string | undefined {
@@ -263,6 +305,7 @@ function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
   if (value === "app-path-key") return "app-path-key";
   if (value === "open-with-key") return "open-with-key";
   if (value === "context-menu-key") return "context-menu-key";
+  if (value === "protocol-handler-key") return "protocol-handler-key";
   if (value === "service-key") return "service-key";
   return "key";
 }
@@ -888,7 +931,13 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
 export async function backupAndDeleteRegistryKey(options: {
   userDataDir: string;
   keyPath: string;
-  backupKind?: "key" | "app-path-key" | "open-with-key" | "context-menu-key" | "service-key";
+  backupKind?:
+    | "key"
+    | "app-path-key"
+    | "open-with-key"
+    | "context-menu-key"
+    | "protocol-handler-key"
+    | "service-key";
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   app?: Pick<InstalledApp, "name" | "publisher">;
@@ -901,9 +950,11 @@ export async function backupAndDeleteRegistryKey(options: {
         ? isSafeOpenWithRegistryKeyPath(options.keyPath)
         : backupKind === "context-menu-key"
           ? isSafeContextMenuRegistryKeyPath(options.keyPath)
-          : backupKind === "service-key"
-            ? isSafeServiceRegistryKeyPath(options.keyPath)
-            : isSafeUninstallRegistryKeyPath(options.keyPath);
+          : backupKind === "protocol-handler-key"
+            ? isSafeProtocolHandlerRegistryKeyPath(options.keyPath)
+            : backupKind === "service-key"
+              ? isSafeServiceRegistryKeyPath(options.keyPath)
+              : isSafeUninstallRegistryKeyPath(options.keyPath);
   if (!safeKey) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -1377,11 +1428,13 @@ async function readRegistryBackupEntryForRestore(
             ? "app-path-key"
             : raw.backupKind === "open-with-key"
               ? "open-with-key"
-              : raw.backupKind === "context-menu-key"
-                ? "context-menu-key"
-                : raw.backupKind === "service-key"
-                  ? "service-key"
-                  : "key";
+          : raw.backupKind === "context-menu-key"
+            ? "context-menu-key"
+            : raw.backupKind === "protocol-handler-key"
+              ? "protocol-handler-key"
+              : raw.backupKind === "service-key"
+                ? "service-key"
+                : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1396,11 +1449,13 @@ async function readRegistryBackupEntryForRestore(
             ? isSafeAppPathRegistryKeyPath(rawKeyPath)
             : backupKind === "open-with-key"
               ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
-              : backupKind === "context-menu-key"
-                ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
-                : backupKind === "service-key"
-                  ? isSafeServiceRegistryKeyPath(rawKeyPath)
-                  : isSafeUninstallRegistryKeyPath(rawKeyPath));
+                : backupKind === "context-menu-key"
+                  ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
+                  : backupKind === "protocol-handler-key"
+                    ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
+                    : backupKind === "service-key"
+                      ? isSafeServiceRegistryKeyPath(rawKeyPath)
+                      : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -1449,6 +1504,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "open-with-key";
   } else if (backupKind === "context-menu-key") {
     entry.backupKind = "context-menu-key";
+  } else if (backupKind === "protocol-handler-key") {
+    entry.backupKind = "protocol-handler-key";
   } else if (backupKind === "service-key") {
     entry.backupKind = "service-key";
   }
@@ -1786,8 +1843,10 @@ export async function purgeExpiredRegistryBackups(options: {
                     ? "app-path-key"
                     : readableEntry.backupKind === "open-with-key"
                       ? "open-with-key"
-                      : readableEntry.backupKind === "context-menu-key"
-                        ? "context-menu-key"
+                    : readableEntry.backupKind === "context-menu-key"
+                      ? "context-menu-key"
+                      : readableEntry.backupKind === "protocol-handler-key"
+                        ? "protocol-handler-key"
                         : readableEntry.backupKind === "service-key"
                           ? "service-key"
                           : "key",
@@ -1901,9 +1960,11 @@ export async function restoreRegistryBackup(options: {
                   ? "open-with-key"
                   : entry.backupKind === "context-menu-key"
                     ? "context-menu-key"
-                    : entry.backupKind === "service-key"
-                      ? "service-key"
-                      : "key";
+                    : entry.backupKind === "protocol-handler-key"
+                      ? "protocol-handler-key"
+                      : entry.backupKind === "service-key"
+                        ? "service-key"
+                        : "key";
       const restoredApp: RegistryBackupRestoredApp =
         backupKind === "startup-value" ||
         backupKind === "registered-app-value" ||

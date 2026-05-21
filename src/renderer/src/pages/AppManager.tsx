@@ -116,6 +116,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "앱 실행 경로";
     case "open-with-registry":
       return "앱 연결 흔적";
+    case "protocol-handler-registry":
+      return "프로토콜 연결";
     case "context-menu-registry":
       return "우클릭 메뉴";
     case "startup-folder":
@@ -321,6 +323,7 @@ function buildLeftoverCleanupConfirm(
         path.kind === "environment-path-registry" ||
         path.kind === "app-path-registry" ||
         path.kind === "open-with-registry" ||
+        path.kind === "protocol-handler-registry" ||
         path.kind === "context-menu-registry" ||
         (path.kind === "startup-entry" && path.startupEntryKind === "service") ||
         path.kind === "startup-registry"

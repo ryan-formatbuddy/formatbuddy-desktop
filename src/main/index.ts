@@ -492,6 +492,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
+    | "protocol-handler-key"
     | "service-key";
   registryKeyPath?: string;
 }): InstalledApp {
