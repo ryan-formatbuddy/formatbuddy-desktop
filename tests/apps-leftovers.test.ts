@@ -1570,6 +1570,57 @@ describe("planAppLeftovers", () => {
     expect(environmentVariableCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("shows app firewall rule leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const firewallKey =
+      "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+    const firewallValue = "{A6E0BCA2-2CC0-4B8C-A29D-ACME00000001}";
+    const registryRunner = {
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === firewallKey
+          ? [
+              {
+                valueName: firewallValue,
+                type: "REG_SZ",
+                data: "v2.30|Action=Allow|App=C:\\Program Files\\Acme Notes\\AcmeNotes.exe|Name=Acme Notes|"
+              },
+              {
+                valueName: "{SAFE-WINDOWS-RULE}",
+                type: "REG_SZ",
+                data: "v2.30|Action=Allow|App=C:\\Windows\\System32\\svchost.exe|Name=Windows Core|"
+              }
+            ]
+          : []
+      )
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.listValues).toHaveBeenCalledWith(firewallKey);
+    const firewallCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === firewallKey && p.registryValueName === firewallValue
+    );
+    expect(firewallCandidate).toMatchObject({
+      kind: "firewall-rule-registry",
+      registryValueName: firewallValue,
+      exists: true
+    });
+    expect(firewallCandidate?.protectedBy).toBeUndefined();
+    expect(
+      snapshot.groups[0].paths.some((p) => p.registryValueName === "{SAFE-WINDOWS-RULE}")
+    ).toBe(false);
+  });
+
   it("shows app connection registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const openWithRegistryKey = "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe";
     const registryRunner = {
@@ -2090,6 +2141,92 @@ describe("planAppLeftovers", () => {
       keyPath: environmentKey,
       valueName: environmentValue,
       backupKind: "environment-variable-value"
+    });
+  });
+
+  it("backs up and deletes selected app firewall rule leftovers after uninstall follow-up", async () => {
+    const firewallKey =
+      "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+    const firewallValue = "{A6E0BCA2-2CC0-4B8C-A29D-ACME00000001}";
+    let valueExists = true;
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === firewallKey
+          ? [
+              {
+                valueName: firewallValue,
+                type: "REG_SZ",
+                data: "v2.30|Action=Allow|App=C:\\Program Files\\Acme Notes\\AcmeNotes.exe|Name=Acme Notes|"
+              }
+            ]
+          : []
+      ),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules]\n"${firewallValue}"="v2.30|Action=Allow|App=C:\\\\Program Files\\\\Acme Notes\\\\AcmeNotes.exe|Name=Acme Notes|"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists)
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find(
+      (p) => p.path === firewallKey && p.registryValueName === firewallValue
+    )!;
+    expect(path).toMatchObject({ kind: "firewall-rule-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportValue).toHaveBeenCalledWith(
+      firewallKey,
+      firewallValue,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteValue).toHaveBeenCalledWith(firewallKey, firewallValue);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: `${firewallKey}\\${firewallValue}`,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: firewallKey,
+      valueName: firewallValue,
+      backupKind: "firewall-rule-value"
     });
   });
 

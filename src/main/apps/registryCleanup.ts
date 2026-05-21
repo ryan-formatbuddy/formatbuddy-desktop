@@ -25,6 +25,7 @@ export interface RegistryCleanupRunner {
   deleteService?: (serviceName: string) => Promise<void>;
   serviceExists?: (serviceName: string) => Promise<boolean>;
   queryValue?: (keyPath: string, valueName: string) => Promise<RegistryValueRecord | undefined>;
+  listValues?: (keyPath: string) => Promise<RegistryNamedValueRecord[]>;
   setValue?: (keyPath: string, valueName: string, type: string, data: string) => Promise<void>;
   exportValue?: (keyPath: string, valueName: string, backupPath: string) => Promise<void>;
   deleteValue?: (keyPath: string, valueName: string) => Promise<void>;
@@ -69,6 +70,7 @@ type RegistryBackupRestoredApp = {
     | "registered-app-value"
     | "environment-path-value"
     | "environment-variable-value"
+    | "firewall-rule-value"
     | "app-path-key"
     | "open-with-key"
     | "file-association-key"
@@ -99,6 +101,7 @@ function restoreAppBackupKindFromEntry(
   if (backupKind === "registered-app-value") return "registered-app-value";
   if (backupKind === "environment-path-value") return "environment-path-value";
   if (backupKind === "environment-variable-value") return "environment-variable-value";
+  if (backupKind === "firewall-rule-value") return "firewall-rule-value";
   if (backupKind === "app-path-key") return "app-path-key";
   if (backupKind === "open-with-key") return "open-with-key";
   if (backupKind === "file-association-key") return "file-association-key";
@@ -115,10 +118,17 @@ function purgedItemBackupKindFromEntry(
 ): NonNullable<RegistryBackupPurgedItem["backupKind"]> {
   return restoreAppBackupKindFromEntry(backupKind);
 }
-type RegistryValueBackupKind = "startup-value" | "registered-app-value" | "environment-variable-value";
+type RegistryValueBackupKind =
+  | "startup-value"
+  | "registered-app-value"
+  | "environment-variable-value"
+  | "firewall-rule-value";
 type RegistryValueRecord = {
   type: string;
   data: string;
+};
+type RegistryNamedValueRecord = RegistryValueRecord & {
+  valueName: string;
 };
 
 const SAFE_UNINSTALL_KEY_PATTERN =
@@ -131,6 +141,8 @@ const SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
 const SAFE_ENVIRONMENT_VARIABLE_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
+const SAFE_FIREWALL_RULE_VALUE_KEY_PATTERN =
+  /^HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules$/i;
 const SAFE_APP_PATHS_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
 const SAFE_OPEN_WITH_KEY_PATTERN =
@@ -450,6 +462,19 @@ export function isSafeEnvironmentVariableRegistryValuePath(
   return SAFE_ENVIRONMENT_VARIABLE_VALUE_KEY_PATTERN.test(normalized);
 }
 
+export function isSafeFirewallRuleRegistryValuePath(
+  keyPath: string,
+  valueName: string
+): boolean {
+  if (keyPath.trim() !== keyPath || valueName.trim() !== valueName) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized || !valueName) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized) || /[\0\r\n"'`|&<>]/.test(valueName)) return false;
+  if (/[*?]/.test(normalized) || /[*?]/.test(valueName)) return false;
+  if (!SAFE_FIREWALL_RULE_VALUE_KEY_PATTERN.test(normalized)) return false;
+  return /^[{}A-Za-z0-9._-]{1,256}$/.test(valueName);
+}
+
 export function normalizeSafeEnvironmentPathSegment(segment: unknown): string | undefined {
   if (typeof segment !== "string") return undefined;
   const trimmed = segment.trim();
@@ -554,7 +579,8 @@ function registryBackupPurgeLabel(entry: RegistryBackupEntry): string {
     (entry.backupKind === "startup-value" ||
       entry.backupKind === "registered-app-value" ||
       entry.backupKind === "environment-path-value" ||
-      entry.backupKind === "environment-variable-value") &&
+      entry.backupKind === "environment-variable-value" ||
+      entry.backupKind === "firewall-rule-value") &&
     entry.valueName
   ) {
     return entry.valueName;
@@ -868,6 +894,21 @@ async function queryRegistryValueWithReg(
   return { type, data };
 }
 
+async function listRegistryValuesWithReg(keyPath: string): Promise<RegistryNamedValueRecord[]> {
+  const stdout = await runRegQuery(["query", keyPath]);
+  const values: RegistryNamedValueRecord[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const row = line.trim();
+    if (!row || /^HKEY_/i.test(row)) continue;
+    const parts = row.split(/\s{2,}/);
+    if (parts.length < 3) continue;
+    const [valueName, type, ...dataParts] = parts;
+    if (!valueName || !/^REG_/i.test(type)) continue;
+    values.push({ valueName, type, data: dataParts.join("  ") });
+  }
+  return values;
+}
+
 async function registryValueExistsWithReg(keyPath: string, valueName: string): Promise<boolean> {
   try {
     await queryRegistryValueWithReg(keyPath, valueName);
@@ -1103,7 +1144,8 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
       exportRegistryValueWithReg(keyPath, valueName, backupPath),
     deleteValue: (keyPath, valueName) => runRegCommand(["delete", keyPath, "/v", valueName, "/f"]),
     valueExists: (keyPath, valueName) => registryValueExistsWithReg(keyPath, valueName),
-    importFile: (backupPath) => runRegCommand(["import", backupPath])
+    importFile: (backupPath) => runRegCommand(["import", backupPath]),
+    listValues: (keyPath) => listRegistryValuesWithReg(keyPath)
   };
 }
 
@@ -1259,13 +1301,17 @@ export async function backupAndDeleteRegistryValue(options: {
       ? "registered-app-value"
       : options.backupKind === "environment-variable-value"
         ? "environment-variable-value"
-        : "startup-value";
+        : options.backupKind === "firewall-rule-value"
+          ? "firewall-rule-value"
+          : "startup-value";
   const safeValue =
     backupKind === "registered-app-value"
       ? isSafeRegisteredApplicationRegistryValuePath(options.keyPath, options.valueName)
       : backupKind === "environment-variable-value"
         ? isSafeEnvironmentVariableRegistryValuePath(options.keyPath, options.valueName)
-        : isSafeStartupRegistryValuePath(options.keyPath, options.valueName);
+        : backupKind === "firewall-rule-value"
+          ? isSafeFirewallRuleRegistryValuePath(options.keyPath, options.valueName)
+          : isSafeStartupRegistryValuePath(options.keyPath, options.valueName);
   if (!safeValue) {
     throw new Error("지원하는 레지스트리 값 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -1618,25 +1664,27 @@ async function readRegistryBackupEntryForRestore(
         ? "registered-app-value"
         : raw.backupKind === "environment-path-value"
           ? "environment-path-value"
-        : raw.backupKind === "environment-variable-value"
-          ? "environment-variable-value"
-          : raw.backupKind === "app-path-key"
-            ? "app-path-key"
-            : raw.backupKind === "open-with-key"
-              ? "open-with-key"
-              : raw.backupKind === "file-association-key"
-                ? "file-association-key"
-                : raw.backupKind === "context-menu-key"
-                  ? "context-menu-key"
-                  : raw.backupKind === "shell-extension-key"
-                    ? "shell-extension-key"
-                    : raw.backupKind === "protocol-handler-key"
-                      ? "protocol-handler-key"
-                      : raw.backupKind === "native-messaging-host-key"
-                        ? "native-messaging-host-key"
-                        : raw.backupKind === "service-key"
-                          ? "service-key"
-                          : "key";
+          : raw.backupKind === "environment-variable-value"
+            ? "environment-variable-value"
+            : raw.backupKind === "firewall-rule-value"
+              ? "firewall-rule-value"
+              : raw.backupKind === "app-path-key"
+                ? "app-path-key"
+                : raw.backupKind === "open-with-key"
+                  ? "open-with-key"
+                  : raw.backupKind === "file-association-key"
+                    ? "file-association-key"
+                    : raw.backupKind === "context-menu-key"
+                      ? "context-menu-key"
+                      : raw.backupKind === "shell-extension-key"
+                        ? "shell-extension-key"
+                        : raw.backupKind === "protocol-handler-key"
+                          ? "protocol-handler-key"
+                          : raw.backupKind === "native-messaging-host-key"
+                            ? "native-messaging-host-key"
+                            : raw.backupKind === "service-key"
+                              ? "service-key"
+                              : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1649,23 +1697,25 @@ async function readRegistryBackupEntryForRestore(
           ? isSafeEnvironmentPathRegistryValuePath(rawKeyPath, valueName)
           : backupKind === "environment-variable-value" && valueName
             ? isSafeEnvironmentVariableRegistryValuePath(rawKeyPath, valueName)
-            : backupKind === "app-path-key"
-              ? isSafeAppPathRegistryKeyPath(rawKeyPath)
-              : backupKind === "open-with-key"
-                ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
-                : backupKind === "file-association-key"
-                  ? isSafeFileAssociationRegistryKeyPath(rawKeyPath)
-                  : backupKind === "context-menu-key"
-                    ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
-                    : backupKind === "shell-extension-key"
-                      ? isSafeShellExtensionRegistryKeyPath(rawKeyPath)
-                      : backupKind === "protocol-handler-key"
-                        ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
-                        : backupKind === "native-messaging-host-key"
-                          ? isSafeNativeMessagingHostRegistryKeyPath(rawKeyPath)
-                          : backupKind === "service-key"
-                            ? isSafeServiceRegistryKeyPath(rawKeyPath)
-                            : isSafeUninstallRegistryKeyPath(rawKeyPath));
+            : backupKind === "firewall-rule-value" && valueName
+              ? isSafeFirewallRuleRegistryValuePath(rawKeyPath, valueName)
+              : backupKind === "app-path-key"
+                ? isSafeAppPathRegistryKeyPath(rawKeyPath)
+                : backupKind === "open-with-key"
+                  ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
+                  : backupKind === "file-association-key"
+                    ? isSafeFileAssociationRegistryKeyPath(rawKeyPath)
+                    : backupKind === "context-menu-key"
+                      ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
+                      : backupKind === "shell-extension-key"
+                        ? isSafeShellExtensionRegistryKeyPath(rawKeyPath)
+                        : backupKind === "protocol-handler-key"
+                          ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
+                          : backupKind === "native-messaging-host-key"
+                            ? isSafeNativeMessagingHostRegistryKeyPath(rawKeyPath)
+                            : backupKind === "service-key"
+                              ? isSafeServiceRegistryKeyPath(rawKeyPath)
+                              : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -1710,6 +1760,9 @@ async function readRegistryBackupEntryForRestore(
       cleanOptionalString(raw.environmentPathSegment) ?? null;
   } else if (backupKind === "environment-variable-value") {
     entry.backupKind = "environment-variable-value";
+    entry.valueName = valueName ?? null;
+  } else if (backupKind === "firewall-rule-value") {
+    entry.backupKind = "firewall-rule-value";
     entry.valueName = valueName ?? null;
   } else if (backupKind === "app-path-key") {
     entry.backupKind = "app-path-key";
@@ -1767,7 +1820,8 @@ async function readRegistryBackupEntryForRestore(
         entry.backupKind === "startup-value" ||
           entry.backupKind === "registered-app-value" ||
           entry.backupKind === "environment-path-value" ||
-          entry.backupKind === "environment-variable-value"
+          entry.backupKind === "environment-variable-value" ||
+          entry.backupKind === "firewall-rule-value"
           ? entry.valueName ?? undefined
           : undefined
       );
@@ -2155,7 +2209,8 @@ export async function restoreRegistryBackup(options: {
         backupKind === "startup-value" ||
         backupKind === "registered-app-value" ||
         backupKind === "environment-path-value" ||
-        backupKind === "environment-variable-value"
+        backupKind === "environment-variable-value" ||
+        backupKind === "firewall-rule-value"
           ? {
               name: appName,
               publisher: appPublisher,
@@ -2200,7 +2255,8 @@ async function assertRegistryBackupRestored(
     entry.backupKind === "startup-value" ||
     entry.backupKind === "registered-app-value" ||
     entry.backupKind === "environment-path-value" ||
-    entry.backupKind === "environment-variable-value"
+    entry.backupKind === "environment-variable-value" ||
+    entry.backupKind === "firewall-rule-value"
   ) {
     if (!entry.valueName || !runner.valueExists) return;
     if (!(await runner.valueExists(entry.keyPath, entry.valueName))) {

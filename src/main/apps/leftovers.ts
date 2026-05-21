@@ -71,6 +71,7 @@ import {
   isSafeShellExtensionRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
+  isSafeFirewallRuleRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
@@ -439,7 +440,7 @@ export interface PlanLeftoversOptions {
    * default-app list, and right-click menu traces before surfacing them.
    * Defaults to reg.exe on Windows and no-op elsewhere.
    */
-  registryRunner?: Pick<RegistryCleanupRunner, "keyExists" | "queryValue" | "valueExists">;
+  registryRunner?: Pick<RegistryCleanupRunner, "keyExists" | "queryValue" | "valueExists" | "listValues">;
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -626,6 +627,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "registered-app-registry" ||
     value === "environment-path-registry" ||
     value === "environment-variable-registry" ||
+    value === "firewall-rule-registry" ||
     value === "app-path-registry" ||
     value === "open-with-registry" ||
     value === "file-association-registry" ||
@@ -1487,6 +1489,21 @@ async function registryValueRecord(
   }
 }
 
+async function registryValues(
+  keyPath: string,
+  runner?: Pick<RegistryCleanupRunner, "listValues">
+): Promise<Array<{ valueName: string; type: string; data: string }>> {
+  const listValues =
+    runner?.listValues ??
+    (process.platform === "win32" ? defaultRegistryCleanupRunner().listValues : undefined);
+  if (!listValues) return [];
+  try {
+    return await listValues(keyPath);
+  } catch {
+    return [];
+  }
+}
+
 async function appPathRegistryLeftoverPaths(
   app: InstalledApp,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
@@ -1703,6 +1720,82 @@ async function environmentVariableRegistryLeftoverPaths(
     }
   }
 
+  return paths;
+}
+
+const FIREWALL_RULES_REGISTRY_KEY =
+  "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+
+function firewallRuleFields(data: string): Map<string, string> {
+  const fields = new Map<string, string>();
+  for (const rawPart of data.split("|")) {
+    const separatorIndex = rawPart.indexOf("=");
+    if (separatorIndex <= 0) continue;
+    const key = rawPart.slice(0, separatorIndex).trim().toLowerCase();
+    const value = rawPart.slice(separatorIndex + 1).trim();
+    if (key && value) fields.set(key, value);
+  }
+  return fields;
+}
+
+function executablePathMatchesApp(rawPath: string, app: InstalledApp): boolean {
+  if (!/\.exe$/i.test(rawPath)) return false;
+  const normalizedPath = normalizePath(rawPath).toLowerCase();
+  const installLocation = app.installLocation?.trim();
+  if (installLocation) {
+    const normalizedInstall = normalizePath(installLocation).toLowerCase();
+    if (/\.exe$/i.test(installLocation) && normalizedPath === normalizedInstall) return true;
+    if (!/\.exe$/i.test(installLocation) && isAtOrInside(rawPath, installLocation)) return true;
+  }
+
+  const executableBaseName = basename(rawPath).toLowerCase();
+  if (appExecutableNames(app).some((candidate) => candidate.toLowerCase() === executableBaseName)) {
+    return true;
+  }
+
+  const executableStem = cleanGenericName(basename(rawPath).replace(/\.exe$/i, ""))
+    .replace(/\s+/g, "")
+    .toLowerCase();
+  return genericFolderNames(app)
+    .map((name) => cleanGenericName(name))
+    .some((name) => {
+      const lowerName = name.toLowerCase();
+      const compactName = lowerName.replace(/\s+/g, "");
+      return (
+        executableStem === compactName ||
+        normalizedPath.includes(`\\${lowerName}\\`) ||
+        normalizedPath.includes(`\\${compactName}\\`)
+      );
+    });
+}
+
+function firewallRuleValueMatchesApp(data: string, app: InstalledApp): boolean {
+  const fields = firewallRuleFields(data);
+  const appPath = fields.get("app");
+  if (!appPath) return false;
+  return executablePathMatchesApp(appPath, app);
+}
+
+async function firewallRuleRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listValues">
+): Promise<AppLeftoverPath[]> {
+  const values = await registryValues(FIREWALL_RULES_REGISTRY_KEY, runner);
+  const paths: AppLeftoverPath[] = [];
+  for (const value of values) {
+    if (!isSafeFirewallRuleRegistryValuePath(FIREWALL_RULES_REGISTRY_KEY, value.valueName)) continue;
+    if (!/^REG_SZ$/i.test(value.type)) continue;
+    if (!firewallRuleValueMatchesApp(value.data, app)) continue;
+    paths.push({
+      id: makePathId(`firewall-rule-registry:${FIREWALL_RULES_REGISTRY_KEY}:${value.valueName}`),
+      kind: "firewall-rule-registry",
+      path: FIREWALL_RULES_REGISTRY_KEY,
+      registryValueName: value.valueName,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null
+    });
+  }
   return paths;
 }
 
@@ -2017,6 +2110,7 @@ export async function planAppLeftovers(
               ...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await firewallRuleRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)),
@@ -2055,6 +2149,7 @@ export async function planAppLeftovers(
       paths.push(...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await firewallRuleRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)));
@@ -2701,6 +2796,13 @@ function assertSelectedLeftoverPlanMetadataUsable(
     ) {
       invalid.push("environment variable registry value");
     }
+    if (
+      path.kind === "firewall-rule-registry" &&
+      (typeof path.registryValueName !== "string" ||
+        !isSafeFirewallRuleRegistryValuePath(path.path, path.registryValueName))
+    ) {
+      invalid.push("firewall rule registry value");
+    }
     if (path.kind === "app-path-registry" && !isSafeAppPathRegistryKeyPath(path.path)) {
       invalid.push("app paths registry key");
     }
@@ -3052,6 +3154,53 @@ export async function cleanupAppLeftovers(
           itemId: path.id,
           path: path.path,
           reason: /지원하는 레지스트리 값 위치|environment variable|환경 설정/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "firewall-rule-registry") {
+      try {
+        const valueName = path.registryValueName;
+        if (!valueName) {
+          throw new Error("방화벽 규칙 이름을 확인하지 못했어요.");
+        }
+        const backup = await backupAndDeleteRegistryValue({
+          userDataDir: options.userDataDir,
+          keyPath: path.path,
+          valueName,
+          backupKind: "firewall-rule-value",
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group ? groupInstallIdentity(group) : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: `${path.path}\\${valueName}`,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        resolvedPathIds.add(path.id);
+      } catch (err) {
+        const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /지원하는 레지스트리 값 위치|방화벽 규칙|registry value/i.test(message)
             ? "blocked-path"
             : "execute-failed",
           detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),

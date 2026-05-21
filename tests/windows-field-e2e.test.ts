@@ -59,6 +59,9 @@ const SHELL_EXTENSION_KEY =
   `HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\${FIELD_VALUE_NAME}`;
 const ENVIRONMENT_KEY = "HKCU\\Environment";
 const FIELD_ENV_VALUE_NAME = `${FIELD_VALUE_NAME}_HOME`;
+const FIREWALL_RULES_KEY =
+  "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+const FIELD_FIREWALL_VALUE_NAME = `{${FIELD_VALUE_NAME}-FirewallRule}`;
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const FIELD_SERVICE_KEY = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${FIELD_SERVICE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
@@ -229,6 +232,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", FILE_ASSOCIATION_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
     await runReg(["delete", SHELL_EXTENSION_KEY, "/f"]).catch(() => {});
+    await deleteRegistryValue(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME).catch(() => {});
     await deleteRegistryValue(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME).catch(() => {});
     if (originalUserPath) {
       if (originalUserPath.exists && originalUserPath.type && originalUserPath.data !== undefined) {
@@ -821,6 +825,40 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restored.status).toBe("restored");
     expect(restored.entry?.backupKind).toBe("environment-variable-value");
     expect(await registryValueExists(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME)).toBe(true);
+  }, 45_000);
+
+  it("backs up, removes, and restores one isolated app firewall rule", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-firewall-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:38:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:42:00.000Z");
+    const ruleData =
+      `v2.30|Action=Allow|Active=TRUE|Dir=In|App=C:\\Program Files\\${FIELD_VALUE_NAME}\\${FIELD_VALUE_NAME}.exe|Name=${FIELD_VALUE_NAME}|`;
+
+    await setRegistryValue(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME, "REG_SZ", ruleData);
+    expect(await registryValueExists(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME)).toBe(true);
+
+    const backup = await backupAndDeleteRegistryValue({
+      userDataDir,
+      keyPath: FIREWALL_RULES_KEY,
+      valueName: FIELD_FIREWALL_VALUE_NAME,
+      backupKind: "firewall-rule-value",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.backupKind).toBe("firewall-rule-value");
+    expect(await registryValueExists(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME)).toBe(false);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.backupKind).toBe("firewall-rule-value");
+    expect(await registryValueExists(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME)).toBe(true);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated Windows service trace", async () => {

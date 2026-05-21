@@ -12,6 +12,7 @@ import {
   isSafeContextMenuRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
+  isSafeFirewallRuleRegistryValuePath,
   isSafeFileAssociationRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
@@ -258,6 +259,17 @@ describe("registry leftover cleanup", () => {
     expect(isSafeServiceRegistryKeyPath("HKCU\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc")).toBe(false);
     expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc\\Parameters")).toBe(false);
     expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\Acme Notes")).toBe(false);
+  });
+
+  it("only allows app firewall rule values in the Windows Firewall rules location", () => {
+    const keyPath =
+      "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+    expect(isSafeFirewallRuleRegistryValuePath(keyPath, "{A6E0BCA2-2CC0-4B8C-A29D-ACME00000001}")).toBe(true);
+    expect(isSafeFirewallRuleRegistryValuePath(keyPath, "AcmeNotes.Rule_1")).toBe(true);
+    expect(isSafeFirewallRuleRegistryValuePath(`HKCU\\${keyPath}`, "AcmeNotes.Rule_1")).toBe(false);
+    expect(isSafeFirewallRuleRegistryValuePath(`${keyPath}\\SubKey`, "AcmeNotes.Rule_1")).toBe(false);
+    expect(isSafeFirewallRuleRegistryValuePath(keyPath, "Acme Notes Rule")).toBe(false);
+    expect(isSafeFirewallRuleRegistryValuePath(keyPath, "AcmeNotes|Rule")).toBe(false);
   });
 
   it("only allows Run and RunOnce startup registry values", () => {
@@ -1168,6 +1180,67 @@ describe("registry leftover cleanup", () => {
     });
 
     expect(restored).toMatchObject({ status: "restored", keyPath });
+    expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
+  });
+
+  it("exports a firewall rule backup before deleting an app rule value", async () => {
+    const keyPath =
+      "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+    const valueName = "{A6E0BCA2-2CC0-4B8C-A29D-ACME00000001}";
+    let valueExists = true;
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules]\n"${valueName}"="v2.30|Action=Allow|App=C:\\\\Program Files\\\\Acme Notes\\\\AcmeNotes.exe|Name=Acme Notes|"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists),
+      importFile: vi.fn(async () => {
+        valueExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      backupKind: "firewall-rule-value",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(runner.exportValue).toHaveBeenCalledWith(keyPath, valueName, result.backupPath);
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "firewall-rule-value",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner
+    });
+
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "방화벽 규칙 백업을 되돌렸어요."
+    });
     expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
   });
 
