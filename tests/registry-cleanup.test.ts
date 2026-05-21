@@ -8,6 +8,7 @@ import {
   backupAndDeleteRegistryKey,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
+  isSafeOpenWithRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
@@ -119,6 +120,34 @@ describe("registry leftover cleanup", () => {
     expect(
       isSafeAppPathRegistryKeyPath(
         "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\AcmeNotes.exe "
+      )
+    ).toBe(false);
+  });
+
+  it("only allows app connection registry exe subkeys", () => {
+    expect(
+      isSafeOpenWithRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe"
+      )
+    ).toBe(true);
+    expect(
+      isSafeOpenWithRegistryKeyPath(
+        "HKLM\\Software\\Classes\\Applications\\AcmeNotes.exe"
+      )
+    ).toBe(true);
+    expect(
+      isSafeOpenWithRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Applications\\AcmeNotes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeOpenWithRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe\\shell"
+      )
+    ).toBe(false);
+    expect(
+      isSafeOpenWithRegistryKeyPath(
+        "HKCR\\Applications\\AcmeNotes.exe"
       )
     ).toBe(false);
   });
@@ -236,6 +265,41 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "app-path-key"
+    });
+  });
+
+  it("exports a backup before deleting an app connection registry key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "open-with-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "open-with-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "open-with-key"
     });
   });
 

@@ -65,6 +65,7 @@ import {
   defaultRegistryCleanupRunner,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
+  isSafeOpenWithRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   type RegistryCleanupRunner
@@ -608,6 +609,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "shortcut-folder" ||
     value === "registry" ||
     value === "app-path-registry" ||
+    value === "open-with-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
     value === "startup-entry"
@@ -1234,7 +1236,7 @@ const APP_PATHS_REGISTRY_ROOTS = [
   "HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths"
 ] as const;
 
-function appPathExecutableNames(app: InstalledApp): string[] {
+function appExecutableNames(app: InstalledApp): string[] {
   const candidates = new Set<string>();
   const installLocation = app.installLocation?.trim();
   if (installLocation && /\.exe$/i.test(installLocation)) {
@@ -1255,7 +1257,7 @@ function appPathExecutableNames(app: InstalledApp): string[] {
     .slice(0, 8);
 }
 
-async function appPathRegistryKeyExists(
+async function registryKeyExists(
   keyPath: string,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
 ): Promise<boolean> {
@@ -1274,7 +1276,7 @@ async function appPathRegistryLeftoverPaths(
   app: InstalledApp,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
 ): Promise<AppLeftoverPath[]> {
-  const executableNames = appPathExecutableNames(app);
+  const executableNames = appExecutableNames(app);
   if (executableNames.length === 0) return [];
 
   const paths: AppLeftoverPath[] = [];
@@ -1282,10 +1284,41 @@ async function appPathRegistryLeftoverPaths(
     for (const executableName of executableNames) {
       const keyPath = `${root}\\${executableName}`;
       if (!isSafeAppPathRegistryKeyPath(keyPath)) continue;
-      if (!(await appPathRegistryKeyExists(keyPath, runner))) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
       paths.push({
         id: makePathId(`app-path-registry:${keyPath}`),
         kind: "app-path-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
+const OPEN_WITH_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Classes\\Applications",
+  "HKLM\\Software\\Classes\\Applications"
+] as const;
+
+async function openWithRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const executableNames = appExecutableNames(app);
+  if (executableNames.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of OPEN_WITH_REGISTRY_ROOTS) {
+    for (const executableName of executableNames) {
+      const keyPath = `${root}\\${executableName}`;
+      if (!isSafeOpenWithRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`open-with-registry:${keyPath}`),
+        kind: "open-with-registry",
         path: keyPath,
         exists: true,
         sizeBytes: null,
@@ -1458,7 +1491,10 @@ export async function planAppLeftovers(
         ...(await installLocationLeftoverPaths(app, env)),
         ...registryLeftoverPaths(app),
         ...(source === "uninstall-launched"
-          ? await appPathRegistryLeftoverPaths(app, options.registryRunner)
+          ? [
+              ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await openWithRegistryLeftoverPaths(app, options.registryRunner))
+            ]
           : []),
         ...(await startupLeftoverPaths(app, env, options.startupEntries))
       ]);
@@ -1487,6 +1523,7 @@ export async function planAppLeftovers(
     paths.push(...registryLeftoverPaths(app));
     if (source === "uninstall-launched") {
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
 
@@ -2074,6 +2111,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (path.kind === "app-path-registry" && !isSafeAppPathRegistryKeyPath(path.path)) {
       invalid.push("app paths registry key");
     }
+    if (path.kind === "open-with-registry" && !isSafeOpenWithRegistryKeyPath(path.path)) {
+      invalid.push("open with registry key");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
@@ -2204,12 +2244,17 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
-    if (path.kind === "registry" || path.kind === "app-path-registry") {
+    if (path.kind === "registry" || path.kind === "app-path-registry" || path.kind === "open-with-registry") {
       try {
         const backup = await backupAndDeleteRegistryKey({
           userDataDir: options.userDataDir,
           keyPath: path.path,
-          backupKind: path.kind === "app-path-registry" ? "app-path-key" : "key",
+          backupKind:
+            path.kind === "app-path-registry"
+              ? "app-path-key"
+              : path.kind === "open-with-registry"
+                ? "open-with-key"
+                : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined
