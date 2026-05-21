@@ -43,6 +43,11 @@ const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const UNINSTALL_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${FIELD_VALUE_NAME}`;
+const APP_PATH_KEY =
+  `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${FIELD_VALUE_NAME}.exe`;
+const OPEN_WITH_KEY = `HKCU\\Software\\Classes\\Applications\\${FIELD_VALUE_NAME}.exe`;
+const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
+const FIELD_SERVICE_KEY = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${FIELD_SERVICE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
 
 function cleanupItem(path: string): CleanupItem {
@@ -98,6 +103,15 @@ async function runSchtasks(args: string[]): Promise<{ stdout: string; stderr: st
   return { stdout: String(stdout), stderr: String(stderr) };
 }
 
+async function runSc(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  const { stdout, stderr } = await execFileAsync("sc.exe", args, {
+    windowsHide: true,
+    timeout: 15_000,
+    maxBuffer: 128 * 1024
+  });
+  return { stdout: String(stdout), stderr: String(stderr) };
+}
+
 async function registryValueExists(): Promise<boolean> {
   try {
     await runReg(["query", RUN_KEY, "/v", FIELD_VALUE_NAME]);
@@ -110,6 +124,15 @@ async function registryValueExists(): Promise<boolean> {
 async function registryKeyExists(keyPath: string): Promise<boolean> {
   try {
     await runReg(["query", keyPath]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function serviceExists(serviceName: string): Promise<boolean> {
+  try {
+    await runSc(["query", serviceName]);
     return true;
   } catch {
     return false;
@@ -149,6 +172,10 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     __resetPlanCacheForTests();
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
     await runReg(["delete", UNINSTALL_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", APP_PATH_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", OPEN_WITH_KEY, "/f"]).catch(() => {});
+    await runSc(["delete", FIELD_SERVICE_NAME]).catch(() => {});
+    await runReg(["delete", FIELD_SERVICE_KEY, "/f"]).catch(() => {});
     await runSchtasks(["/Delete", "/TN", FIELD_TASK_NAME, "/F"]).catch(() => {});
     if (root) rmSync(root, { recursive: true, force: true });
   });
@@ -413,6 +440,130 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(UNINSTALL_KEY)).toBe(true);
     const restoredKey = await runReg(["query", UNINSTALL_KEY, "/v", "DisplayName"]);
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
+  }, 45_000);
+
+  it("backs up, removes, and restores isolated app path and app connection registry keys", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-app-registry-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:20:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:25:00.000Z");
+
+    await runReg([
+      "add",
+      APP_PATH_KEY,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      "C:\\Windows\\System32\\notepad.exe",
+      "/f"
+    ]);
+    await runReg([
+      "add",
+      OPEN_WITH_KEY,
+      "/v",
+      "FriendlyAppName",
+      "/t",
+      "REG_SZ",
+      "/d",
+      FIELD_VALUE_NAME,
+      "/f"
+    ]);
+    expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
+    expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
+
+    const appPathBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: APP_PATH_KEY,
+      backupKind: "app-path-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+    const openWithBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: OPEN_WITH_KEY,
+      backupKind: "open-with-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(appPathBackup.backupKind).toBe("app-path-key");
+    expect(openWithBackup.backupKind).toBe("open-with-key");
+    expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
+    expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(false);
+
+    const restoredAppPath = await restoreRegistryBackup({
+      userDataDir,
+      backupId: appPathBackup.id,
+      now: () => restoredAt
+    });
+    const restoredOpenWith = await restoreRegistryBackup({
+      userDataDir,
+      backupId: openWithBackup.id,
+      now: () => restoredAt
+    });
+
+    expect(restoredAppPath.status).toBe("restored");
+    expect(restoredOpenWith.status).toBe("restored");
+    expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
+    expect(restoredOpenWith.entry?.backupKind).toBe("open-with-key");
+    expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
+    expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
+  }, 45_000);
+
+  it("backs up, removes, and restores an isolated Windows service trace", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-service-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:40:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:45:00.000Z");
+
+    await runSc([
+      "create",
+      FIELD_SERVICE_NAME,
+      "binPath=",
+      "C:\\Windows\\System32\\cmd.exe /c exit 0",
+      "start=",
+      "demand",
+      "DisplayName=",
+      FIELD_VALUE_NAME
+    ]);
+    await runReg([
+      "add",
+      FIELD_SERVICE_KEY,
+      "/v",
+      "Description",
+      "/t",
+      "REG_SZ",
+      "/d",
+      "FormatBuddy Windows field E2E service",
+      "/f"
+    ]);
+    expect(await serviceExists(FIELD_SERVICE_NAME)).toBe(true);
+    expect(await registryKeyExists(FIELD_SERVICE_KEY)).toBe(true);
+
+    const backup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: FIELD_SERVICE_KEY,
+      backupKind: "service-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.backupKind).toBe("service-key");
+    expect(backup.expiresAt).toBe("2026-06-19T11:40:00.000Z");
+    expect(backup.contentHash?.algorithm).toBe("sha256");
+    expect(await serviceExists(FIELD_SERVICE_NAME)).toBe(false);
+    expect(await registryKeyExists(FIELD_SERVICE_KEY)).toBe(false);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.backupKind).toBe("service-key");
+    expect(await registryKeyExists(FIELD_SERVICE_KEY)).toBe(true);
   }, 45_000);
 
   it("empties all 30-day restore bins through the unified retention tick", async () => {
