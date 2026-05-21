@@ -90,6 +90,59 @@ describe("purgeExpiredTrashWithAudit", () => {
     });
   });
 
+  it("records app-leftover labels when expired leftover folders are auto-emptied", async () => {
+    const source = join(fx.home, "AppData", "LocalLow", "Acme Notes");
+    await mkdir(source, { recursive: true });
+    await writeFile(join(source, "cache.bin"), "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: {
+        ...makeItem(source),
+        id: "app-leftover-acme",
+        label: "Acme Notes",
+        categoryId: "app-leftovers",
+        riskLevel: "review",
+        reason: "앱 제거 후 남은 앱 데이터 후보",
+        appName: "Acme Notes",
+        appPublisher: "Acme Corp."
+      },
+      sizeBytes: 5,
+      home: fx.home,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const result = await purgeExpiredTrashWithAudit({
+      userDataDir: fx.userData,
+      home: fx.home,
+      trigger: "app-leftovers",
+      now: () => new Date("2026-06-18T00:00:01.000Z")
+    });
+
+    expect(result.purgedCount).toBe(1);
+    expect(existsSync(entry.storedPath)).toBe(false);
+    const audit = await getAuditSnapshot(fx.userData, new Date("2026-06-18T00:00:02.000Z"));
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0]).toMatchObject({
+      category: "cleanup",
+      action: "trash-expired-purge-app-leftovers",
+      summary: "30일이 지난 복구함 항목 1개를 자동으로 비웠어요.",
+      detail: {
+        purgedCount: 1,
+        purgedBytes: 5,
+        purgedItems: [
+          {
+            id: entry.id,
+            label: "Acme Notes",
+            categoryId: "app-leftovers",
+            sizeBytes: 5
+          }
+        ],
+        trigger: "app-leftovers"
+      }
+    });
+    expect(audit.entries[0].summary).not.toContain("영구");
+  });
+
   it("does not record an audit entry when nothing expired", async () => {
     const result = await purgeExpiredTrashWithAudit({
       userDataDir: fx.userData,
