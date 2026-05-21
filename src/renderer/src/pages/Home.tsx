@@ -11,6 +11,8 @@ import {
   type SecurityCareSummary
 } from "@shared/security-care";
 import type {
+  CleanupHistorySnapshot,
+  CleanupLogEntry,
   CleanupTrashSnapshot,
   DefenderLiveStatus,
   MonitorPreferences,
@@ -254,6 +256,8 @@ interface HomeRestoreBinState {
   detail: string;
   count: number;
   partial: boolean;
+  latestCleanup?: CleanupLogEntry;
+  historyMessage?: string;
 }
 
 function settledValue<T>(result: PromiseSettledResult<T>): T | undefined {
@@ -279,6 +283,44 @@ function restoreItemsFromSnapshots({
   ];
 }
 
+function formatHomeBytes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0 MB";
+  const mb = value / 1024 / 1024;
+  if (mb < 1024) {
+    return `${mb.toLocaleString("ko-KR", { maximumFractionDigits: 1 })} MB`;
+  }
+  const gb = mb / 1024;
+  return `${gb.toLocaleString("ko-KR", { maximumFractionDigits: 2 })} GB`;
+}
+
+function homeCleanupDateLabel(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "최근 정리";
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function homeLatestCleanupSummary(entry: CleanupLogEntry): string {
+  const parts: string[] = [];
+  if (entry.totalFreedBytes > 0) {
+    parts.push(`확보한 공간 ${formatHomeBytes(entry.totalFreedBytes)}`);
+  }
+  if (entry.removedCount > 0) {
+    parts.push(`복구함에 둔 항목 ${entry.removedCount}개`);
+  }
+  if (entry.notSelectedCount > 0) {
+    parts.push(`남겨둔 후보 ${entry.notSelectedCount}개`);
+  }
+  if (entry.skippedCount > 0) {
+    parts.push(`건드리지 않은 항목 ${entry.skippedCount}개`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "처리한 항목은 없어요.";
+}
+
 function HomeRestoreBinCard({
   onOpenTrashRestore
 }: {
@@ -289,7 +331,8 @@ function HomeRestoreBinCard({
     message: "복구함 상태를 확인하는 중이에요.",
     detail: "정리한 항목이 있으면 30일 보관 기간도 같이 살펴볼게요.",
     count: 0,
-    partial: false
+    partial: false,
+    historyMessage: "최근 정리 기록도 같이 확인하는 중이에요."
   });
 
   useEffect(() => {
@@ -311,18 +354,30 @@ function HomeRestoreBinCard({
 
     let active = true;
     setState((current) => ({ ...current, loading: true }));
+    const historyTask = window.fb.getCleanupHistory
+      ? window.fb.getCleanupHistory()
+      : Promise.resolve<CleanupHistorySnapshot | undefined>(undefined);
 
     void Promise.allSettled([
       window.fb.getCleanupTrash(),
       window.fb.getRegistryBackups(),
       window.fb.listDisabledStartupAuto(),
-      window.fb.getScheduledTaskBackups()
-    ]).then(([fileResult, registryResult, startupResult, scheduledTaskResult]) => {
+      window.fb.getScheduledTaskBackups(),
+      historyTask
+    ]).then(([fileResult, registryResult, startupResult, scheduledTaskResult, historyResult]) => {
       if (!active) return;
 
       const partial = [fileResult, registryResult, startupResult, scheduledTaskResult].some(
         (result) => result.status === "rejected"
       );
+      const history = settledValue(historyResult);
+      const latestCleanup = history?.entries[0];
+      const historyMessage =
+        historyResult.status === "rejected"
+          ? "최근 정리 기록은 지금 불러오지 못했어요."
+          : latestCleanup
+            ? undefined
+            : "아직 정리 기록은 없어요. 정리한 뒤에는 여기에서 바로 확인할게요.";
       const restoreItems = restoreItemsFromSnapshots({
         fileSnapshot: settledValue(fileResult),
         registrySnapshot: settledValue(registryResult),
@@ -339,7 +394,9 @@ function HomeRestoreBinCard({
             ? "일부 복구 목록은 지금 불러오지 못했어요. 포맷버디를 다시 열면 다시 살펴볼게요."
             : "정리한 항목이 생기면 30일 동안 챙겨둘게요.",
           count: 0,
-          partial
+          partial,
+          latestCleanup,
+          historyMessage
         });
         return;
       }
@@ -349,7 +406,9 @@ function HomeRestoreBinCard({
         message: partial ? "보이는 항목만 먼저 확인했어요." : insight?.message ?? "복구함에 보관 중인 항목이 있어요.",
         detail: partial ? insight?.message ?? "복구함에서 남은 항목을 확인해 주세요." : insight?.detail ?? "필요한 항목은 복구함에서 다시 원래 자리로 되돌릴 수 있어요.",
         count: restoreItems.length,
-        partial
+        partial,
+        latestCleanup,
+        historyMessage
       });
     });
 
@@ -371,6 +430,16 @@ function HomeRestoreBinCard({
           <p className="fb-home-security-next">
             <strong>{state.count}개 보관 중</strong>
             <span>{state.partial ? "전체 목록은 복구함에서 다시 확인해 주세요." : "보관 기간 안에는 되돌릴 수 있어요."}</span>
+          </p>
+        )}
+        {!state.loading && (
+          <p className="fb-home-restore-latest">
+            <strong>최근 정리 결과</strong>
+            <span>
+              {state.latestCleanup
+                ? `${homeCleanupDateLabel(state.latestCleanup.executedAt)} · ${homeLatestCleanupSummary(state.latestCleanup)}`
+                : state.historyMessage}
+            </span>
           </p>
         )}
       </div>

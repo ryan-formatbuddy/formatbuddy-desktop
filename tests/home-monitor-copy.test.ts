@@ -36,10 +36,16 @@ describe("Home monitor copy", () => {
     expect(source).toContain("getRegistryBackups");
     expect(source).toContain("listDisabledStartupAuto");
     expect(source).toContain("getScheduledTaskBackups");
+    expect(source).toContain("getCleanupHistory");
+    expect(source).toContain("latestCleanup");
     expect(source).toContain("복구함 상태");
+    expect(source).toContain("최근 정리 결과");
     expect(source).toContain("복구함 상태를 확인하는 중이에요");
     expect(source).toContain("복구함이 비어 있어요");
     expect(source).toContain("정리한 항목이 생기면 30일 동안 챙겨둘게요");
+    expect(source).toContain("아직 정리 기록은 없어요");
+    expect(source).toContain("정리한 뒤에는 여기에서 바로 확인할게요");
+    expect(source).toContain("확보한 공간");
     expect(source).toContain("보이는 항목만 먼저 확인했어요");
     expect(source).toContain("복구함 열기");
     expect(source).not.toContain("manifest");

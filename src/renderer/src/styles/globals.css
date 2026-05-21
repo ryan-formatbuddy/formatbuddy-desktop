@@ -715,6 +715,24 @@ button { font-family: inherit; }
   font-size: 12px;
   font-weight: 850;
 }
+.fb-home-restore-latest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.fb-home-restore-latest strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.78);
+  color: #0b7257;
+  font-size: 12px;
+  font-weight: 850;
+}
 .fb-home-security-action {
   min-height: 40px;
   border: 1px solid rgba(0,102,255,0.2);
