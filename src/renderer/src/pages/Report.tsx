@@ -5,6 +5,7 @@ import { CloudBuddy } from "../components/CloudBuddy";
 import { TooltipDetail } from "../components/TooltipDetail";
 import { copy } from "@shared/copy";
 import { friendlyErrorMessage } from "@shared/error-friendly";
+import { buildRescanInsight } from "@shared/rescan-insight";
 import type {
   ActionItem,
   AppInventoryGroup,
@@ -644,6 +645,32 @@ function HistoryComparePanel({ appState }: { appState?: AppStateSnapshot }) {
   );
 }
 
+function RescanInsightPanel({ appState }: { appState?: AppStateSnapshot }) {
+  const insight = buildRescanInsight(appState?.comparison);
+  if (!insight) return null;
+
+  return (
+    <section
+      className={`fb-rescan-insight fb-rescan-insight-${insight.tone}`}
+      aria-label="다시 점검 결과"
+    >
+      <div>
+        <span className="fb-rescan-insight-kicker">다시 점검 결과</span>
+        <h2 className="fb-h2">{insight.title}</h2>
+        <p>{insight.detail}</p>
+      </div>
+      <div className="fb-rescan-insight-stats" aria-label="지난 점검과의 변화">
+        <span>
+          점수 <strong>{insight.scoreLabel}</strong>
+        </span>
+        <span>
+          정리 후보 <strong>{insight.cleanupLabel}</strong>
+        </span>
+      </div>
+    </section>
+  );
+}
+
 function SmartCareOverview({ result, appState }: { result: ScanResult; appState?: AppStateSnapshot }) {
   const { report, recommendation } = result;
   const cleanup = recommendation.cleanupCenter;
@@ -1113,6 +1140,7 @@ export function Report({ result, onBack, appPlatform = "unknown", appState, onOp
       </section>
 
       <HistoryComparePanel appState={appState ?? result.appState} />
+      <RescanInsightPanel appState={appState ?? result.appState} />
 
       <SafetyPreviewPanel result={result} />
 
