@@ -61,6 +61,9 @@ describe("AuditLog copy", () => {
     expect(source).toContain(
       'if (entry.action.startsWith("registry-backup-restore-")) return "앱 흔적 되돌리기"'
     );
+    expect(source).toContain(
+      'if (entry.action.startsWith("scheduled-task-backup-restore-")) return "예약 작업 되돌리기"'
+    );
     expect(source).toContain('if (entry.action.includes("restore")) return "되돌리기"');
   });
 
@@ -149,8 +152,17 @@ describe("AuditLog copy", () => {
       'const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount")'
     );
     expect(source).toContain('const startupDisabledCount = numberDetail(detail, "startupDisabledCount")');
+    expect(source).toContain('const scheduledTaskBackupCount = numberDetail(detail, "scheduledTaskBackupCount")');
     expect(source).toContain("restorableCount > 0");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목 ${restorableCount}개");
+  });
+
+  it("shows scheduled task restore details without falling back to a generic label", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain('const scheduledTaskName = stringDetail(detail, "taskName")');
+    expect(source).toContain("예약 작업 ${scheduledTaskName}");
+    expect(source).toContain("예약 작업 백업 ${scheduledTaskBackupCount}개");
   });
 
   it("reads count details from numeric audit fields before legacy arrays", () => {

@@ -68,6 +68,7 @@ function auditActionLabel(entry: AuditEntry): string {
   if (entry.action.startsWith("trash-restore-")) return "복구함 되돌리기";
   if (entry.action.startsWith("registry-backup-restore-")) return "앱 흔적 되돌리기";
   if (entry.action.startsWith("startup-restore-")) return "시작 항목 되돌리기";
+  if (entry.action.startsWith("scheduled-task-backup-restore-")) return "예약 작업 되돌리기";
   if (entry.action.includes("restore")) return "되돌리기";
   if (entry.action.includes("defender")) return "Windows 보안 확인";
   return "활동 기록";
@@ -179,6 +180,7 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount");
   const startupDisabledCount = numberDetail(detail, "startupDisabledCount");
   const scheduledTaskBackupCount = numberDetail(detail, "scheduledTaskBackupCount");
+  const scheduledTaskName = stringDetail(detail, "taskName");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
   const purgedItemsLine = auditPurgedItemsLine(auditPurgedItemLabels(detail));
@@ -201,6 +203,9 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   }
   if (scheduledTaskBackupCount !== null && scheduledTaskBackupCount > 0) {
     lines.push(`예약 작업 백업 ${scheduledTaskBackupCount}개`);
+  }
+  if (scheduledTaskName) {
+    lines.push(`예약 작업 ${scheduledTaskName}`);
   }
   if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
   if (failedBucketCount !== null && failedBucketCount > 0) {
