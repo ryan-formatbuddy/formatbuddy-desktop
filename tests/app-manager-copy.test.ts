@@ -79,11 +79,12 @@ describe("AppManager uninstall copy", () => {
   it("counts startup holding items when deciding whether recent cleanup can be undone", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
-    expect(source).toContain("const restorableCount = result");
+    expect(source).toContain("function appLeftoverRestorableCount(result: CleanupExecuteResult): number");
     expect(source).toContain("restorableTrashEntryIds(result).length +");
     expect(source).toContain("recoverableRegistryBackupIds(result).length +");
-    expect(source).toContain("restorableStartupDisabledIds(result).length");
+    expect(source).toContain("restorableStartupDisabledIds(result).length +");
     expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("appLeftoverRestorableCount(result)");
     expect(source).toContain("{restorableCount > 0 && (");
   });
 
@@ -236,6 +237,20 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요");
     expect(source).not.toContain("if (state.error && !result)");
     expect(source).not.toContain("setLeftovers({ loading: false, error: friendlyErrorMessage(err) });");
+  });
+
+  it("keeps cleanup result actions visible even if the leftover snapshot disappears", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("if (!state.snapshot && result)");
+    expect(source).toContain("방금 정리한 내용");
+    expect(source).toContain("잔여 후보 목록이 비어도 정리 결과는 남겨둘게요.");
+    expect(source).toContain("const restorableCount = appLeftoverRestorableCount(result)");
+    expect(source).toContain("다시 점검해서 효과 보기");
+    expect(source).toContain("복구함 보기");
+    expect(source).toContain("방금 정리 되돌리기");
+    expect(source).toContain("활동 기록 보기");
+    expect(source).toMatch(/if \(!state\.snapshot && result\)[\s\S]*if \(!state\.snapshot\) return null/);
   });
 
   it("surfaces app-leftover history persistence warnings without hiding the result", () => {

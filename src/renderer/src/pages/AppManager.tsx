@@ -269,6 +269,15 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   return lines;
 }
 
+function appLeftoverRestorableCount(result: CleanupExecuteResult): number {
+  return (
+    restorableTrashEntryIds(result).length +
+    recoverableRegistryBackupIds(result).length +
+    restorableStartupDisabledIds(result).length +
+    recoverableScheduledTaskBackupIds(result).length
+  );
+}
+
 function friendlyAppLeftoverBlockedDetail(detail?: string): string {
   const text = detail?.trim();
   if (!text) return "보호가 필요한 항목이라 그대로 뒀어요.";
@@ -353,11 +362,7 @@ function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const preservedBackupCount =
     preservedRegistryBackupIds(result).length +
     preservedScheduledTaskBackupIds(result).length;
-  const restorableCount =
-    restorableTrashEntryIds(result).length +
-    recoverableRegistryBackupIds(result).length +
-    restorableStartupDisabledIds(result).length +
-    recoverableScheduledTaskBackupIds(result).length;
+  const restorableCount = appLeftoverRestorableCount(result);
 
   if (cleanedCount > 0 && restorableCount > 0) {
     return `${cleanedCount}개를 정리했고, ${restorableCount}개는 30일 안에 되돌릴 수 있어요.`;
@@ -688,6 +693,107 @@ function UninstallConfirmDialog({
   );
 }
 
+function LeftoverCleanupResultBody({
+  result,
+  restorableCount,
+  onRescan,
+  onQuickRescan,
+  onRestoreRecent,
+  restoreRecentBusy,
+  restoreRecentMessage,
+  onOpenTrashRestore,
+  onOpenAuditLog
+}: {
+  result: CleanupExecuteResult;
+  restorableCount: number;
+  onRescan: () => void;
+  onQuickRescan?: () => void;
+  onRestoreRecent: (result: CleanupExecuteResult) => void;
+  restoreRecentBusy: boolean;
+  restoreRecentMessage?: string;
+  onOpenTrashRestore: () => void;
+  onOpenAuditLog: () => void;
+}) {
+  const failedRemovedCount = result.removedItems.filter((item) => !item.succeeded).length;
+  const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
+  const needsCheckCount = failedRemovedCount + skippedCount;
+  const resultLines = appLeftoverResultLines(result);
+  const skippedPreviewLines = appLeftoverSkippedPreviewLines(result);
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
+        {appLeftoverResultHeadline(result)}
+      </p>
+      {needsCheckCount > 0 && (
+        <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
+          확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요.
+        </p>
+      )}
+      {skippedPreviewLines.length > 0 && (
+        <div style={{ margin: "0 0 8px" }}>
+          <strong style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
+            그대로 둔 이유
+          </strong>
+          <ul style={{ fontSize: 12, opacity: 0.78, margin: 0, paddingLeft: 18 }}>
+            {skippedPreviewLines.map((line) => (
+              <li key={`${line.path}:${line.message}`}>
+                <code style={{ wordBreak: "break-all" }}>{line.path}</code>
+                <span> · {line.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {resultLines.length > 0 && (
+        <ul style={{ fontSize: 12, opacity: 0.78, margin: "0 0 8px", paddingLeft: 18 }}>
+          {resultLines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {result.logPersistenceWarning && (
+        <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
+          {CLEANUP_HISTORY_SAVE_WARNING}
+        </p>
+      )}
+      {result.followupPersistenceWarning && (
+        <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
+          {CLEANUP_FOLLOWUP_SAVE_WARNING}
+        </p>
+      )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button variant="primary" size="sm" onClick={onQuickRescan ?? onRescan}>
+          다시 점검해서 효과 보기
+        </Button>
+        {result.mode === "trash" && restorableCount > 0 && (
+          <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
+            복구함 보기
+          </Button>
+        )}
+        {restorableCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onRestoreRecent(result)}
+            disabled={restoreRecentBusy}
+          >
+            {restoreRecentBusy ? "되돌리는 중…" : "방금 정리 되돌리기"}
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
+          활동 기록 보기
+        </Button>
+      </div>
+      {restoreRecentMessage && (
+        <p style={{ fontSize: 12, opacity: 0.75, margin: "8px 0 0" }}>
+          {restoreRecentMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function LeftoverPanel({
   state,
   selected,
@@ -737,21 +843,46 @@ function LeftoverPanel({
       </article>
     );
   }
+  if (!state.snapshot && result) {
+    const restorableCount = appLeftoverRestorableCount(result);
+    return (
+      <section style={{ marginTop: 16 }}>
+        <h2 className="fb-h2">방금 정리한 내용</h2>
+        <p style={{ fontSize: 13, opacity: 0.75 }}>
+          잔여 후보 목록이 비어도 정리 결과는 남겨둘게요.
+        </p>
+        {state.loading && (
+          <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+            <p style={{ margin: 0 }}>
+              잔여 항목을 다시 확인하는 중이에요. 방금 정리 결과는 그대로 남겨둘게요.
+            </p>
+          </article>
+        )}
+        {state.error && (
+          <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+            <p style={{ margin: 0 }}>
+              잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요. {state.error}
+            </p>
+          </article>
+        )}
+        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
+          <LeftoverCleanupResultBody
+            result={result}
+            restorableCount={restorableCount}
+            onRescan={onRescan}
+            onQuickRescan={onQuickRescan}
+            onRestoreRecent={onRestoreRecent}
+            restoreRecentBusy={restoreRecentBusy}
+            restoreRecentMessage={restoreRecentMessage}
+            onOpenTrashRestore={onOpenTrashRestore}
+            onOpenAuditLog={onOpenAuditLog}
+          />
+        </article>
+      </section>
+    );
+  }
   if (!state.snapshot) return null;
-  const restorableCount = result
-    ? restorableTrashEntryIds(result).length +
-      recoverableRegistryBackupIds(result).length +
-      restorableStartupDisabledIds(result).length
-    : 0;
-  const failedRemovedCount = result
-    ? result.removedItems.filter((item) => !item.succeeded).length
-    : 0;
-  const skippedCount = result
-    ? result.skippedItems.filter((item) => item.reason !== "not-selected").length
-    : 0;
-  const needsCheckCount = failedRemovedCount + skippedCount;
-  const resultLines = result ? appLeftoverResultLines(result) : [];
-  const skippedPreviewLines = result ? appLeftoverSkippedPreviewLines(result) : [];
+  const restorableCount = result ? appLeftoverRestorableCount(result) : 0;
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
   const selectedValidCount = Array.from(selected).filter((id) => selectableIds.has(id)).length;
@@ -835,76 +966,17 @@ function LeftoverPanel({
           </div>
         </header>
         {result && (
-          <div style={{ marginTop: 10 }}>
-            <p style={{ fontSize: 13, opacity: 0.82, margin: "0 0 8px" }}>
-              {appLeftoverResultHeadline(result)}
-            </p>
-            {needsCheckCount > 0 && (
-              <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
-                확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요.
-              </p>
-            )}
-            {skippedPreviewLines.length > 0 && (
-              <div style={{ margin: "0 0 8px" }}>
-                <strong style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
-                  그대로 둔 이유
-                </strong>
-                <ul style={{ fontSize: 12, opacity: 0.78, margin: 0, paddingLeft: 18 }}>
-                  {skippedPreviewLines.map((line) => (
-                    <li key={`${line.path}:${line.message}`}>
-                      <code style={{ wordBreak: "break-all" }}>{line.path}</code>
-                      <span> · {line.message}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {resultLines.length > 0 && (
-              <ul style={{ fontSize: 12, opacity: 0.78, margin: "0 0 8px", paddingLeft: 18 }}>
-                {resultLines.map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-            )}
-            {result.logPersistenceWarning && (
-              <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
-                {CLEANUP_HISTORY_SAVE_WARNING}
-              </p>
-            )}
-            {result.followupPersistenceWarning && (
-              <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
-                {CLEANUP_FOLLOWUP_SAVE_WARNING}
-              </p>
-            )}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button variant="primary" size="sm" onClick={onQuickRescan ?? onRescan}>
-                다시 점검해서 효과 보기
-              </Button>
-              {result.mode === "trash" && restorableCount > 0 && (
-                <Button variant="secondary" size="sm" onClick={onOpenTrashRestore}>
-                  복구함 보기
-                </Button>
-              )}
-              {restorableCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRestoreRecent(result)}
-                  disabled={restoreRecentBusy}
-                >
-                  {restoreRecentBusy ? "되돌리는 중…" : "방금 정리 되돌리기"}
-                </Button>
-              )}
-              <Button variant="ghost" size="sm" onClick={onOpenAuditLog}>
-                활동 기록 보기
-              </Button>
-            </div>
-            {restoreRecentMessage && (
-              <p style={{ fontSize: 12, opacity: 0.75, margin: "8px 0 0" }}>
-                {restoreRecentMessage}
-              </p>
-            )}
-          </div>
+          <LeftoverCleanupResultBody
+            result={result}
+            restorableCount={restorableCount}
+            onRescan={onRescan}
+            onQuickRescan={onQuickRescan}
+            onRestoreRecent={onRestoreRecent}
+            restoreRecentBusy={restoreRecentBusy}
+            restoreRecentMessage={restoreRecentMessage}
+            onOpenTrashRestore={onOpenTrashRestore}
+            onOpenAuditLog={onOpenAuditLog}
+          />
         )}
       </article>
       {state.snapshot.groups.length === 0 ? (
