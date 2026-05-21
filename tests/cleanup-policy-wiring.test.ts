@@ -151,10 +151,11 @@ describe("cleanup policy wiring", () => {
     expect(source.indexOf("purgeExpiredStartupFolderEntriesWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
     expect(source.indexOf("purgeExpiredScheduledTaskBackupsWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
     expect(source.indexOf("trigger", helperIndex)).toBeGreaterThan(helperIndex);
-    expect(source).toContain("cleanup-trash:purge-before-${trigger} failed");
-    expect(source).toContain("registry-backup:purge-before-${trigger} failed");
-    expect(source).toContain("startup-disabled:purge-before-${trigger} failed");
-    expect(source).toContain("scheduled-task-backup:purge-before-${trigger} failed");
+    expect(source.indexOf("const result = await runRetentionPurgeTick({", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("appendRetentionPurgeAuditNotice(userDataDir, result, trigger)", helperIndex)).toBeGreaterThan(
+      helperIndex
+    );
+    expect(source).toContain("retention:${message}");
 
     const planHandlerIndex = source.indexOf("IpcChannels.cleanupPlan");
     const planCallIndex = source.indexOf(
@@ -177,6 +178,20 @@ describe("cleanup policy wiring", () => {
     expect(executePurgeIndex).toBeGreaterThan(policyIndex);
     expect(restorePointIndex).toBeGreaterThan(executePurgeIndex);
     expect(executeIndex).toBeGreaterThan(restorePointIndex);
+  });
+
+  it("records cleanup preflight restore-bin check failures in the user audit log", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const helperIndex = source.indexOf("async function appendRetentionPurgeAuditNotice");
+    const preflightIndex = source.indexOf("async function purgeExpiredRestoreBinsForCleanupPreflight");
+    expect(helperIndex).toBeGreaterThanOrEqual(0);
+    expect(preflightIndex).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("buildRetentionPurgeAuditNotice(result, trigger)", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("appendAuditEntry(userDataDir", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("appendRetentionPurgeAuditNotice(userDataDir, result, trigger)", preflightIndex)).toBeGreaterThan(
+      preflightIndex
+    );
   });
 
   it("logs only restorable app leftover ids in audit details", () => {

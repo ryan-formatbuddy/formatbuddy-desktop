@@ -43,6 +43,47 @@ describe("retention purge scheduler", () => {
     expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 2개, 앱 삭제 흔적 백업 1개");
   });
 
+  it("passes cleanup preflight triggers through the unified restore-bin purge tick", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedEntryIds: [],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+    const purgeStartupDisabled = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+    const purgeScheduledTaskBackups = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+
+    const result = await runRetentionPurgeTick({
+      trigger: "cleanup-execute",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeStartupDisabled,
+      purgeScheduledTaskBackups
+    });
+
+    expect(purgeTrash).toHaveBeenCalledWith("cleanup-execute");
+    expect(purgeRegistryBackups).toHaveBeenCalledWith("cleanup-execute");
+    expect(purgeStartupDisabled).toHaveBeenCalledWith("cleanup-execute");
+    expect(purgeScheduledTaskBackups).toHaveBeenCalledWith("cleanup-execute");
+    expect(result.failed).toEqual([]);
+  });
+
   it("keeps purging registry backups even if file trash purge fails", async () => {
     const purgeTrash = vi.fn(async () => {
       throw new Error("trash unavailable");
@@ -477,6 +518,34 @@ describe("retention purge scheduler", () => {
     });
     expect(notice?.summary).not.toContain("C:\\Users");
     expect(notice?.summary).not.toContain("EPERM");
+  });
+
+  it("builds a user-facing audit notice for cleanup preflight bucket failures", async () => {
+    const result = await runRetentionPurgeTick({
+      trigger: "cleanup-execute",
+      purgeTrash: vi.fn(async () => ({
+        purgedCount: 0,
+        purgedBytes: 0,
+        purgedEntryIds: [],
+        retentionDays: 30
+      })),
+      purgeRegistryBackups: vi.fn(async () => {
+        throw new Error("registry unavailable");
+      })
+    });
+
+    const notice = buildRetentionPurgeAuditNotice(result, "cleanup-execute");
+
+    expect(notice).toMatchObject({
+      action: "restore-bin-expired-purge-failed-cleanup-execute",
+      summary: "30일 복구함 자동 비움에서 앱 삭제 흔적 백업을 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
+      detail: {
+        trigger: "cleanup-execute",
+        failedKinds: ["registry-backups"],
+        failedBucketCount: 1,
+        retentionDays: 30
+      }
+    });
   });
 
   it("does not create a bucket-level audit notice for partial item failures", async () => {

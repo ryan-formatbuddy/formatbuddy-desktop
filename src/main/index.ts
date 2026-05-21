@@ -334,50 +334,62 @@ async function runAppRetentionPurgeTick(
     logInfo: (message) => log.info(`retention:${message}`),
     logWarn: (message) => log.warn(`retention:${message}`)
   });
-  const auditNotice = buildRetentionPurgeAuditNotice(result, trigger);
-  if (auditNotice) {
-    await appendAuditEntry(userDataDir, {
-      category: "cleanup",
-      action: auditNotice.action,
-      summary: auditNotice.summary,
-      detail: auditNotice.detail
-    }).catch((err) => {
-      log.warn("audit append (retention-purge) failed:", (err as Error).message);
-    });
-  }
+  await appendRetentionPurgeAuditNotice(userDataDir, result, trigger);
   return result;
 }
 
-type CleanupRestoreBinPreflightTrigger = "cleanup-plan" | "cleanup-execute";
+async function appendRetentionPurgeAuditNotice(
+  userDataDir: string,
+  result: RestoreBinPurgeResult,
+  trigger: RetentionPurgeTrigger
+): Promise<void> {
+  const auditNotice = buildRetentionPurgeAuditNotice(result, trigger);
+  if (!auditNotice) return;
+  await appendAuditEntry(userDataDir, {
+    category: "cleanup",
+    action: auditNotice.action,
+    summary: auditNotice.summary,
+    detail: auditNotice.detail
+  }).catch((err) => {
+    log.warn("audit append (retention-purge) failed:", (err as Error).message);
+  });
+}
+
+type CleanupRestoreBinPreflightTrigger = Extract<
+  RetentionPurgeTrigger,
+  "cleanup-plan" | "cleanup-execute"
+>;
 
 async function purgeExpiredRestoreBinsForCleanupPreflight(
   userDataDir: string,
   trigger: CleanupRestoreBinPreflightTrigger
 ): Promise<void> {
-  await purgeExpiredTrashWithAudit({
-    userDataDir,
-    trigger
-  }).catch((err) => {
-    log.warn(`cleanup-trash:purge-before-${trigger} failed:`, (err as Error).message);
+  const result = await runRetentionPurgeTick({
+    trigger,
+    purgeTrash: (purgeTrigger) =>
+      purgeExpiredTrashWithAudit({
+        userDataDir,
+        trigger: purgeTrigger
+      }),
+    purgeRegistryBackups: (purgeTrigger) =>
+      purgeExpiredRegistryBackupsWithAudit({
+        userDataDir,
+        trigger: purgeTrigger
+      }),
+    purgeStartupDisabled: (purgeTrigger) =>
+      purgeExpiredStartupFolderEntriesWithAudit({
+        userDataDir,
+        trigger: purgeTrigger
+      }),
+    purgeScheduledTaskBackups: (purgeTrigger) =>
+      purgeExpiredScheduledTaskBackupsWithAudit({
+        userDataDir,
+        trigger: purgeTrigger
+      }),
+    logInfo: (message) => log.info(`retention:${message}`),
+    logWarn: (message) => log.warn(`retention:${message}`)
   });
-  await purgeExpiredRegistryBackupsWithAudit({
-    userDataDir,
-    trigger
-  }).catch((err) => {
-    log.warn(`registry-backup:purge-before-${trigger} failed:`, (err as Error).message);
-  });
-  await purgeExpiredStartupFolderEntriesWithAudit({
-    userDataDir,
-    trigger
-  }).catch((err) => {
-    log.warn(`startup-disabled:purge-before-${trigger} failed:`, (err as Error).message);
-  });
-  await purgeExpiredScheduledTaskBackupsWithAudit({
-    userDataDir,
-    trigger
-  }).catch((err) => {
-    log.warn(`scheduled-task-backup:purge-before-${trigger} failed:`, (err as Error).message);
-  });
+  await appendRetentionPurgeAuditNotice(userDataDir, result, trigger);
 }
 
 function reconcileRetentionPurgeTimer(): void {

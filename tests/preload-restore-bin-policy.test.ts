@@ -28,13 +28,13 @@ describe("restore-bin preload policy", () => {
     expect(ipcSource).not.toContain("cleanupTrashPurgeExpired");
   });
 
-  it("keeps automatic restore-bin emptying triggers limited to startup and schedule", () => {
+  it("keeps restore-bin emptying internal and never exposes a manual trigger", () => {
     const retentionSource = readFileSync(RETENTION_PURGE, "utf8");
     const auditSources = [TRASH_AUDIT, REGISTRY_AUDIT, STARTUP_AUDIT, SCHEDULED_TASK_AUDIT].map((file) =>
       readFileSync(file, "utf8")
     );
 
-    expect(retentionSource).toContain('export type RetentionPurgeTrigger = "startup" | "scheduled";');
+    expect(retentionSource).toContain('"startup" | "scheduled" | "cleanup-plan" | "cleanup-execute"');
     expect(retentionSource).not.toContain('"manual"');
     for (const source of auditSources) {
       expect(source).not.toContain('| "manual"');
