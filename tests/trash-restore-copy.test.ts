@@ -12,6 +12,14 @@ const TRASH_RESTORE_PAGE = join(
   "TrashRestore.tsx"
 );
 
+const CLEANUP_RESULT_SHARED = join(
+  __dirname,
+  "..",
+  "src",
+  "shared",
+  "cleanup-result.ts"
+);
+
 describe("TrashRestore copy", () => {
   it("does not expose a manual empty-bin action", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
@@ -39,16 +47,19 @@ describe("TrashRestore copy", () => {
 
   it("shows restore-bin expiry urgency in calm, user-friendly Korean", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+    const shared = readFileSync(CLEANUP_RESULT_SHARED, "utf8");
 
     expect(source).toContain("restoreBinExpiryInsight");
-    expect(source).toContain("보관 기간이 지난 항목");
-    expect(source).toContain("3일 안에 보관 기간이 끝나는 항목");
-    expect(source).toContain("3일 안에 보관 기간이 끝나요");
-    expect(source).toContain("가장 가까운 항목은");
-    expect(source).toContain("오래된 것부터 먼저 확인해 주세요");
-    expect(source).toContain("되돌릴 수 있는 항목만 버튼이 켜져 있어요");
+    expect(shared).toContain("보관 기간이 지난 항목");
+    expect(shared).toContain("일 안에 보관 기간이 끝나는 항목");
+    expect(shared).toContain("일 안에 보관 기간이 끝나요");
+    expect(shared).toContain("가장 가까운 항목은");
+    expect(shared).toContain("오래된 것부터 먼저 확인해 주세요");
+    expect(shared).toContain("되돌릴 수 있는 항목만 버튼이 켜져 있어요");
     expect(source).not.toContain("비워질 예정이에요");
     expect(source).not.toContain("다시 정리해볼게요");
+    expect(shared).not.toContain("비워질 예정이에요");
+    expect(shared).not.toContain("다시 정리해볼게요");
   });
 
   it("keeps the restore-bin retention promise fixed at 30 days in user copy", () => {

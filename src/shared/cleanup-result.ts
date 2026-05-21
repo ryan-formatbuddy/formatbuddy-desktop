@@ -18,6 +18,14 @@ export interface TrashExpirySummary {
   todayCount: number;
 }
 
+export type RestoreBinExpiryTone = "calm" | "watch" | "urgent";
+
+export interface RestoreBinExpiryInsight {
+  tone: RestoreBinExpiryTone;
+  message: string;
+  detail: string;
+}
+
 function parseTrashExpiryDays(expiresAt: string, now: number): number | null {
   const t = Date.parse(expiresAt);
   if (!Number.isFinite(t)) return 0;
@@ -105,6 +113,59 @@ export function trashExpirySummary(
     expiringSoonCount: days.filter((day) => day <= soonDays).length,
     todayCount: days.filter((day) => day === 0).length
   };
+}
+
+export function restoreBinExpiryInsight(
+  entries: Array<Pick<CleanupTrashEntry, "expiresAt">>,
+  now = Date.now(),
+  soonDays = 3
+): RestoreBinExpiryInsight | null {
+  if (entries.length === 0) return null;
+
+  let expiredCount = 0;
+  let soonCount = 0;
+  let nextExpiryDays: number | null = null;
+
+  for (const entry of entries) {
+    const isExpired = isTrashEntryExpired(entry.expiresAt, now);
+    const days = daysUntilTrashExpiry(entry.expiresAt, now);
+    if (isExpired) {
+      expiredCount += 1;
+      continue;
+    }
+    if (days <= soonDays) soonCount += 1;
+    nextExpiryDays = nextExpiryDays === null ? days : Math.min(nextExpiryDays, days);
+  }
+
+  if (expiredCount > 0 && soonCount > 0) {
+    return {
+      tone: "urgent",
+      message: `보관 기간이 지난 항목 ${expiredCount}개, ${soonDays}일 안에 보관 기간이 끝나는 항목 ${soonCount}개가 있어요.`,
+      detail: "필요한 항목은 오래된 것부터 먼저 확인해 주세요."
+    };
+  }
+  if (expiredCount > 0) {
+    return {
+      tone: "watch",
+      message: `보관 기간이 지난 항목 ${expiredCount}개가 있어요.`,
+      detail: "되돌릴 수 있는 항목만 버튼이 켜져 있어요."
+    };
+  }
+  if (soonCount > 0) {
+    return {
+      tone: "urgent",
+      message: `${soonCount}개가 ${soonDays}일 안에 보관 기간이 끝나요.`,
+      detail: "필요하면 지금 원래 자리로 되돌려 주세요."
+    };
+  }
+  if (nextExpiryDays !== null) {
+    return {
+      tone: "calm",
+      message: `가장 가까운 항목은 ${nextExpiryDays}일 뒤에 보관 기간이 끝나요.`,
+      detail: "정리한 항목은 오래된 순서로 먼저 보여드려요."
+    };
+  }
+  return null;
 }
 
 function isSafeRestorableResultId(value: string | undefined): value is string {

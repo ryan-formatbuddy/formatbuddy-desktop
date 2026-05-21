@@ -7,12 +7,14 @@ import {
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
   restoreEntryExpiryLabel,
+  restoreBinExpiryInsight,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
   summarizeScheduledTaskBackupRestoreResults,
   summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
+  type RestoreBinExpiryTone,
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
@@ -96,14 +98,6 @@ type RestoreListItem =
       createdAt: string;
     };
 
-type RestoreBinExpiryTone = "calm" | "watch" | "urgent";
-
-interface RestoreBinExpiryInsight {
-  tone: RestoreBinExpiryTone;
-  message: string;
-  detail: string;
-}
-
 function emptyTrashSnapshot(): CleanupTrashSnapshot {
   return {
     entries: [],
@@ -138,58 +132,6 @@ function restoreBinPartialLoadMessage(failedLabels: string[]): string | null {
   if (failedLabels.length === 0) return null;
   const label = failedLabels.join(", ");
   return `${label}은 지금 불러오지 못했어요. 불러온 복구 항목은 그대로 보여드릴게요.`;
-}
-
-function restoreBinExpiryInsight(
-  items: Array<Pick<RestoreListItem, "expiresAt">>,
-  now = Date.now()
-): RestoreBinExpiryInsight | null {
-  if (items.length === 0) return null;
-
-  let expiredCount = 0;
-  let soonCount = 0;
-  let nextExpiryDays: number | null = null;
-
-  for (const item of items) {
-    const isExpired = isTrashEntryExpired(item.expiresAt, now);
-    const days = daysUntilTrashExpiry(item.expiresAt, now);
-    if (isExpired) {
-      expiredCount += 1;
-      continue;
-    }
-    if (days <= 3) soonCount += 1;
-    nextExpiryDays = nextExpiryDays === null ? days : Math.min(nextExpiryDays, days);
-  }
-
-  if (expiredCount > 0 && soonCount > 0) {
-    return {
-      tone: "urgent",
-      message: `보관 기간이 지난 항목 ${expiredCount}개, 3일 안에 보관 기간이 끝나는 항목 ${soonCount}개가 있어요.`,
-      detail: "필요한 항목은 오래된 것부터 먼저 확인해 주세요."
-    };
-  }
-  if (expiredCount > 0) {
-    return {
-      tone: "watch",
-      message: `보관 기간이 지난 항목 ${expiredCount}개가 있어요.`,
-      detail: "되돌릴 수 있는 항목만 버튼이 켜져 있어요."
-    };
-  }
-  if (soonCount > 0) {
-    return {
-      tone: "urgent",
-      message: `${soonCount}개가 3일 안에 보관 기간이 끝나요.`,
-      detail: "필요하면 지금 원래 자리로 되돌려 주세요."
-    };
-  }
-  if (nextExpiryDays !== null) {
-    return {
-      tone: "calm",
-      message: `가장 가까운 항목은 ${nextExpiryDays}일 뒤에 보관 기간이 끝나요.`,
-      detail: "정리한 항목은 오래된 순서로 먼저 보여드려요."
-    };
-  }
-  return null;
 }
 
 function restoreBinExpiryInsightColor(tone: RestoreBinExpiryTone): string {

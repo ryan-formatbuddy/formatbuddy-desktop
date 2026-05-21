@@ -8,6 +8,7 @@ import {
   recoverableRegistryBackupIds,
   recoverableScheduledTaskBackupIds,
   restoreEntryExpiryLabel,
+  restoreBinExpiryInsight,
   restorableRegistryBackupIds,
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
@@ -738,6 +739,43 @@ describe("Cleanup result undo helper", () => {
       expiringSoonCount: 2,
       todayCount: 1
     });
+  });
+
+  it("builds restore-bin expiry insight copy from actual expiry dates", () => {
+    const now = Date.parse("2026-05-19T00:00:00.000Z");
+
+    expect(
+      restoreBinExpiryInsight(
+        [
+          { expiresAt: "2026-05-18T23:59:59.000Z" },
+          { expiresAt: "2026-05-21T00:00:00.000Z" },
+          { expiresAt: "2026-05-29T00:00:00.000Z" }
+        ],
+        now
+      )
+    ).toEqual({
+      tone: "urgent",
+      message: "보관 기간이 지난 항목 1개, 3일 안에 보관 기간이 끝나는 항목 1개가 있어요.",
+      detail: "필요한 항목은 오래된 것부터 먼저 확인해 주세요."
+    });
+
+    expect(
+      restoreBinExpiryInsight([{ expiresAt: "2026-05-22T00:00:00.000Z" }], now)
+    ).toEqual({
+      tone: "urgent",
+      message: "1개가 3일 안에 보관 기간이 끝나요.",
+      detail: "필요하면 지금 원래 자리로 되돌려 주세요."
+    });
+
+    expect(
+      restoreBinExpiryInsight([{ expiresAt: "2026-05-29T00:00:00.000Z" }], now)
+    ).toEqual({
+      tone: "calm",
+      message: "가장 가까운 항목은 10일 뒤에 보관 기간이 끝나요.",
+      detail: "정리한 항목은 오래된 순서로 먼저 보여드려요."
+    });
+
+    expect(restoreBinExpiryInsight([], now)).toBeNull();
   });
 
   it("labels expired restore-bin entries as no longer restorable", () => {
