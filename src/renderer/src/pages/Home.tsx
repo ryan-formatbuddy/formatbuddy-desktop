@@ -4,7 +4,17 @@ import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { applyThemeMode } from "../theme";
 import { copy } from "@shared/copy";
-import type { MonitorPreferences, StatusMonitorSnapshot, ThemeMode } from "@shared/types";
+import {
+  buildSecurityCareSummary,
+  type SecurityCareLevel,
+  type SecurityCareSummary
+} from "@shared/security-care";
+import type {
+  DefenderLiveStatus,
+  MonitorPreferences,
+  StatusMonitorSnapshot,
+  ThemeMode
+} from "@shared/types";
 
 interface HomeProps {
   onStartScan: () => void;
@@ -231,6 +241,111 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
+interface HomeSecurityState {
+  loading: boolean;
+  data?: DefenderLiveStatus;
+  error?: string;
+}
+
+function homeSecurityLevelLabel(level: SecurityCareLevel): string {
+  switch (level) {
+    case "attention":
+      return "먼저 확인";
+    case "check":
+      return "확인해봐요";
+    case "ok":
+      return "괜찮아요";
+  }
+}
+
+function HomeSecuritySummaryCard({
+  isMacPreview,
+  onOpenSecurity
+}: {
+  isMacPreview: boolean;
+  onOpenSecurity?: () => void;
+}) {
+  const [state, setState] = useState<HomeSecurityState>({ loading: false });
+
+  useEffect(() => {
+    if (isMacPreview) {
+      setState({
+        loading: false,
+        error: "Mac 미리보기에서는 Windows 보안 상태를 읽지 않아요. Windows PC에서 같이 확인할게요."
+      });
+      return;
+    }
+    if (!window.fb?.getDefenderStatus) {
+      setState({
+        loading: false,
+        error: "보안 점검을 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요."
+      });
+      return;
+    }
+
+    let active = true;
+    setState({ loading: true });
+    void window.fb
+      .getDefenderStatus()
+      .then((data) => {
+        if (active) setState({ loading: false, data });
+      })
+      .catch(() => {
+        if (active) {
+          setState({
+            loading: false,
+            error: "보안 상태를 불러오지 못했어요. Windows 보안 화면에서 직접 확인해도 괜찮아요."
+          });
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isMacPreview]);
+
+  const summary: SecurityCareSummary = state.error
+    ? {
+        level: "check",
+        title: "Windows 보안은 직접 확인해주세요",
+        detail: state.error,
+        items: []
+      }
+    : buildSecurityCareSummary(state.data);
+
+  const topItem = summary.items[0];
+
+  return (
+    <section
+      className={`fb-home-security fb-home-security-${summary.level}`}
+      aria-label="Windows 보안 점검 요약"
+    >
+      <div className="fb-home-security-main">
+        <span className="fb-home-security-kicker">
+          <span className="fb-home-security-dot" aria-hidden="true" />
+          Windows 보안 점검 요약
+        </span>
+        <h2 className="fb-h2">{state.loading ? "보안 상태를 살펴보는 중이에요" : summary.title}</h2>
+        <p>{state.loading ? "앱을 켤 때 한 번만 가볍게 확인하고 있어요." : summary.detail}</p>
+        {topItem && !state.loading && (
+          <p className="fb-home-security-next">
+            <strong>{homeSecurityLevelLabel(topItem.level)}</strong>
+            <span>{topItem.title}</span>
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        className="fb-home-security-action"
+        onClick={onOpenSecurity}
+        disabled={!onOpenSecurity || isMacPreview}
+      >
+        보안 점검 열기
+      </button>
+    </section>
+  );
+}
+
 export function Home({
   onStartScan,
   onOpenWebReport,
@@ -282,6 +397,8 @@ export function Home({
       </section>
 
       <MonitorCard monitor={monitor} />
+
+      <HomeSecuritySummaryCard isMacPreview={isMacPreview} onOpenSecurity={onOpenSecurity} />
 
       <section className="fb-home-quick" aria-labelledby="home-quick-title">
         <div className="fb-home-quick-head">

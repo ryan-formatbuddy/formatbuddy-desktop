@@ -11,6 +11,7 @@ const USER_FACING_FILES = [
   "pages/AuditLog.tsx",
   "pages/AppManager.tsx",
   "pages/Cleanup.tsx",
+  "pages/Home.tsx",
   "pages/Permissions.tsx",
   "pages/Report.tsx",
   "pages/SecurityCenter.tsx",
