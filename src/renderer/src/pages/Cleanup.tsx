@@ -3,13 +3,12 @@ import { Button } from "../components/Button";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
 import {
-  daysUntilTrashExpiry,
-  earliestRestoreBinExpiryAt,
   isTrashEntryExpired,
   recoverableRegistryBackupIds,
   recoverableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
+  restoreBinExpiryInsight,
   restoreEntryExpiryLabel,
   summarizeRestoreAllResults,
   summarizeTrashRestoreResults
@@ -77,14 +76,6 @@ function riskLabel(level: CleanupRiskLevel): string {
 
 function trashEntryExpiryLabel(expiresAt: string): string {
   return restoreEntryExpiryLabel(expiresAt);
-}
-
-function restoreBinExpiryLabel(nextExpiryAt: string | undefined): string {
-  if (!nextExpiryAt) return "30일 동안 보관해요";
-
-  const days = daysUntilTrashExpiry(nextExpiryAt);
-  if (isTrashEntryExpired(nextExpiryAt)) return "보관 기간이 지난 항목이 있어요";
-  return `다음 항목은 ${days}일 뒤 비워요`;
 }
 
 function registryBackupBytes(snapshot?: RegistryBackupSnapshot): number {
@@ -653,12 +644,13 @@ function TrashPanel({
     registryBackupBytes(registrySnapshot) +
     startupDisabledBytes(startupSnapshot) +
     scheduledTaskBackupBytes(scheduledTaskSnapshot);
-  const nextExpiryAt = earliestRestoreBinExpiryAt([
-    snapshot,
-    registrySnapshot,
-    startupSnapshot,
-    scheduledTaskSnapshot
-  ]);
+  const restoreItems = [
+    ...fileEntries,
+    ...(registrySnapshot?.entries ?? []),
+    ...(startupSnapshot?.entries ?? []),
+    ...(scheduledTaskSnapshot?.entries ?? [])
+  ];
+  const expiryInsight = restoreBinExpiryInsight(restoreItems);
   const summaryParts = [
     fileEntries.length > 0 ? `정리 파일 ${fileEntries.length}개` : "",
     appBackupCount > 0 ? `앱 삭제 흔적 ${appBackupCount}개` : "",
@@ -680,7 +672,7 @@ function TrashPanel({
         <div>
           <h2 style={{ margin: 0 }}>포맷버디 복구함</h2>
           <small>
-            전체 {totalCount}개 · {formatBytes(totalBytes)} 보관 중 · {restoreBinExpiryLabel(nextExpiryAt)}
+            전체 {totalCount}개 · {formatBytes(totalBytes)} 보관 중 · {expiryInsight ? expiryInsight.message : "30일 동안 보관해요"}
           </small>
         </div>
         <Button variant="ghost" size="sm" onClick={onOpenTrashRestore}>
@@ -691,6 +683,11 @@ function TrashPanel({
         {summaryParts.join(" · ")}를 30일 동안 보관하고 있어요. 정리 파일은 여기서 바로 되돌릴 수 있고,
         앱 삭제 흔적, 시작 항목, 예약 작업은 전체 복구함에서 같이 확인할 수 있어요.
       </p>
+      {expiryInsight && (
+        <p style={{ fontSize: 12, opacity: 0.72, margin: "6px 0 0" }}>
+          {expiryInsight.detail}
+        </p>
+      )}
       {sample.length > 0 ? (
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
           {sample.map((entry) => (
