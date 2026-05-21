@@ -1715,6 +1715,53 @@ describe("planAppLeftovers", () => {
     ).toBe(false);
   });
 
+  it("also shows URL protocol ProgID keys listed under a default-app Capabilities key", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const capabilitiesKey = "HKCU\\Software\\Acme\\Notes\\Capabilities";
+    const urlAssociationsKey = `${capabilitiesKey}\\URLAssociations`;
+    const protocolKey = "HKCU\\Software\\Classes\\AcmeNotes.Url";
+    const unsafeHttpKey = "HKCU\\Software\\Classes\\AcmeNotes.Http";
+    const registryRunner = {
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+          ? { type: "REG_SZ", data: "Software\\Acme\\Notes\\Capabilities" }
+          : undefined
+      ),
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === urlAssociationsKey
+          ? [
+              { valueName: "acmenotes", type: "REG_SZ", data: "AcmeNotes.Url" },
+              { valueName: "http", type: "REG_SZ", data: "AcmeNotes.Http" }
+            ]
+          : []
+      ),
+      keyExists: vi.fn(
+        async (keyPath: string) =>
+          keyPath === capabilitiesKey || keyPath === protocolKey || keyPath === unsafeHttpKey
+      )
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+
+    expect(registryRunner.listValues).toHaveBeenCalledWith(urlAssociationsKey);
+    expect(snapshot.groups[0].paths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "protocol-handler-registry",
+          path: protocolKey,
+          exists: true
+        })
+      ])
+    );
+    expect(snapshot.groups[0].paths.some((path) => path.path === unsafeHttpKey)).toBe(false);
+  });
+
   it("does not follow unsafe RegisteredApplications capabilities targets", async () => {
     const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
     const registeredApplicationsValue = "Acme Notes";

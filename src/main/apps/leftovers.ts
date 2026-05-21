@@ -1620,6 +1620,7 @@ async function registeredApplicationRegistryLeftoverPaths(
         lastModifiedAt: null
       });
       paths.push(...(await capabilitiesFileAssociationRegistryLeftoverPaths(capabilitiesKeyPath, runner)));
+      paths.push(...(await capabilitiesUrlAssociationRegistryLeftoverPaths(capabilitiesKeyPath, runner)));
     }
   }
   return paths;
@@ -1659,6 +1660,35 @@ async function capabilitiesFileAssociationRegistryLeftoverPaths(
     paths.push({
       id: makePathId(`file-association-registry:${keyPath}`),
       kind: "file-association-registry",
+      path: keyPath,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null
+    });
+  }
+
+  return paths;
+}
+
+async function capabilitiesUrlAssociationRegistryLeftoverPaths(
+  capabilitiesKeyPath: string,
+  runner?: Pick<RegistryCleanupRunner, "listValues" | "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const classRoot = capabilitiesKeyPath.startsWith("HKLM\\")
+    ? "HKLM\\Software\\Classes"
+    : "HKCU\\Software\\Classes";
+  const paths: AppLeftoverPath[] = [];
+
+  for (const record of await registryValues(`${capabilitiesKeyPath}\\URLAssociations`, runner)) {
+    if (normalizeSafeProtocolScheme(record.valueName) !== record.valueName.toLowerCase()) continue;
+    const progId = record.data.trim();
+    if (progId !== record.data) continue;
+    const keyPath = `${classRoot}\\${progId}`;
+    if (!isSafeProtocolHandlerRegistryKeyPath(keyPath)) continue;
+    if (!(await registryKeyExists(keyPath, runner))) continue;
+    paths.push({
+      id: makePathId(`protocol-handler-registry:${keyPath}`),
+      kind: "protocol-handler-registry",
       path: keyPath,
       exists: true,
       sizeBytes: null,
