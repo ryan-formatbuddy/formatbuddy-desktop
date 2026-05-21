@@ -493,6 +493,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
+    | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "service-key";

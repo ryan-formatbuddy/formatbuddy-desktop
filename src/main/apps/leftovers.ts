@@ -67,6 +67,7 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeShellExtensionRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
@@ -627,6 +628,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "app-path-registry" ||
     value === "open-with-registry" ||
     value === "context-menu-registry" ||
+    value === "shell-extension-registry" ||
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
     value === "startup-folder" ||
@@ -1696,6 +1698,21 @@ const CONTEXT_MENU_REGISTRY_ROOTS = [
   "HKLM\\Software\\Classes\\Folder\\shell"
 ] as const;
 
+const SHELL_EXTENSION_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers",
+  "HKCU\\Software\\Classes\\AllFilesystemObjects\\shellex\\ContextMenuHandlers",
+  "HKCU\\Software\\Classes\\Directory\\shellex\\ContextMenuHandlers",
+  "HKCU\\Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers",
+  "HKCU\\Software\\Classes\\Drive\\shellex\\ContextMenuHandlers",
+  "HKCU\\Software\\Classes\\Folder\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\*\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\AllFilesystemObjects\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\Directory\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\Directory\\Background\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\Drive\\shellex\\ContextMenuHandlers",
+  "HKLM\\Software\\Classes\\Folder\\shellex\\ContextMenuHandlers"
+] as const;
+
 function contextMenuNames(app: InstalledApp): string[] {
   const candidates = new Set<string>();
   for (const name of genericFolderNames(app)) {
@@ -1728,6 +1745,32 @@ async function contextMenuRegistryLeftoverPaths(
       paths.push({
         id: makePathId(`context-menu-registry:${keyPath}`),
         kind: "context-menu-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
+async function shellExtensionRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const names = contextMenuNames(app);
+  if (names.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of SHELL_EXTENSION_REGISTRY_ROOTS) {
+    for (const name of names) {
+      const keyPath = `${root}\\${name}`;
+      if (!isSafeShellExtensionRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`shell-extension-registry:${keyPath}`),
+        kind: "shell-extension-registry",
         path: keyPath,
         exists: true,
         sizeBytes: null,
@@ -1928,7 +1971,8 @@ export async function planAppLeftovers(
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
-              ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner))
+              ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner))
             ]
           : []),
         ...(await startupLeftoverPaths(app, env, options.startupEntries))
@@ -1965,6 +2009,7 @@ export async function planAppLeftovers(
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
 
@@ -2613,6 +2658,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (path.kind === "context-menu-registry" && !isSafeContextMenuRegistryKeyPath(path.path)) {
       invalid.push("context menu registry key");
     }
+    if (path.kind === "shell-extension-registry" && !isSafeShellExtensionRegistryKeyPath(path.path)) {
+      invalid.push("shell extension registry key");
+    }
     if (
       path.kind === "protocol-handler-registry" &&
       !isSafeProtocolHandlerRegistryKeyPath(path.path)
@@ -2761,7 +2809,8 @@ export async function cleanupAppLeftovers(
       path.kind === "open-with-registry" ||
       path.kind === "protocol-handler-registry" ||
       path.kind === "native-messaging-host-registry" ||
-      path.kind === "context-menu-registry"
+      path.kind === "context-menu-registry" ||
+      path.kind === "shell-extension-registry"
     ) {
       try {
         const backup = await backupAndDeleteRegistryKey({
@@ -2774,11 +2823,13 @@ export async function cleanupAppLeftovers(
                 ? "open-with-key"
                 : path.kind === "context-menu-registry"
                   ? "context-menu-key"
-                  : path.kind === "protocol-handler-registry"
-                    ? "protocol-handler-key"
-                    : path.kind === "native-messaging-host-registry"
-                      ? "native-messaging-host-key"
-                      : "key",
+                  : path.kind === "shell-extension-registry"
+                    ? "shell-extension-key"
+                    : path.kind === "protocol-handler-registry"
+                      ? "protocol-handler-key"
+                      : path.kind === "native-messaging-host-registry"
+                        ? "native-messaging-host-key"
+                        : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined

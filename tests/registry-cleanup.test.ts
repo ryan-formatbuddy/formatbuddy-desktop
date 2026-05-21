@@ -13,6 +13,7 @@ import {
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
+  isSafeShellExtensionRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
@@ -542,6 +543,37 @@ describe("registry leftover cleanup", () => {
     ).toBe(false);
   });
 
+  it("accepts only narrow right-click extension registry keys", () => {
+    expect(
+      isSafeShellExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeShellExtensionRegistryKeyPath(
+        "HKLM\\Software\\Classes\\AllFilesystemObjects\\shellex\\ContextMenuHandlers\\Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeShellExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers"
+      )
+    ).toBe(false);
+    expect(
+      isSafeShellExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\Acme Notes\\command"
+      )
+    ).toBe(false);
+    expect(
+      isSafeShellExtensionRegistryKeyPath("HKCU\\Software\\Classes\\*\\shell\\Acme Notes")
+    ).toBe(false);
+    expect(
+      isSafeShellExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\Acme & Notes"
+      )
+    ).toBe(false);
+  });
+
   it("exports a backup before deleting a right-click menu registry key", async () => {
     const keyPath = "HKCU\\Software\\Classes\\*\\shell\\Acme Notes";
     const calls: string[] = [];
@@ -574,6 +606,71 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "context-menu-key"
+    });
+  });
+
+  it("exports a backup before deleting a right-click extension registry key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\Acme Notes";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "shell-extension-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "shell-extension-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "shell-extension-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "우클릭 확장 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "shell-extension-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "shell-extension-key",
+      registryKeyPath: keyPath
     });
   });
 

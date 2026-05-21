@@ -54,6 +54,8 @@ const PROTOCOL_HANDLER_KEY = `HKCU\\Software\\Classes\\${FIELD_PROTOCOL_SCHEME}`
 const NATIVE_MESSAGING_HOST_KEY =
   `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.formatbuddy.field_e2e_${process.pid}`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
+const SHELL_EXTENSION_KEY =
+  `HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\${FIELD_VALUE_NAME}`;
 const ENVIRONMENT_KEY = "HKCU\\Environment";
 const FIELD_ENV_VALUE_NAME = `${FIELD_VALUE_NAME}_HOME`;
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
@@ -224,6 +226,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", PROTOCOL_HANDLER_KEY, "/f"]).catch(() => {});
     await runReg(["delete", NATIVE_MESSAGING_HOST_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", SHELL_EXTENSION_KEY, "/f"]).catch(() => {});
     await deleteRegistryValue(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME).catch(() => {});
     if (originalUserPath) {
       if (originalUserPath.exists && originalUserPath.type && originalUserPath.data !== undefined) {
@@ -503,7 +506,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
   }, 45_000);
 
-  it("backs up, removes, and restores isolated default-app, app path, app connection, protocol handler, browser helper, and context menu registry traces", async () => {
+  it("backs up, removes, and restores isolated default-app, app path, app connection, protocol handler, browser helper, context menu, and right-click extension registry traces", async () => {
     root = mkdtempSync(join(tmpdir(), "fb-windows-field-app-registry-"));
     userDataDir = join(root, "userdata");
     const firstAt = new Date("2026-05-20T11:20:00.000Z");
@@ -573,12 +576,23 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       FIELD_VALUE_NAME,
       "/f"
     ]);
+    await runReg([
+      "add",
+      SHELL_EXTENSION_KEY,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      "{00000000-0000-0000-0000-000000000000}",
+      "/f"
+    ]);
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
+    expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
 
     const registeredAppBackup = await backupAndDeleteRegistryValue({
       userDataDir,
@@ -623,6 +637,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
+    const shellExtensionBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: SHELL_EXTENSION_KEY,
+      backupKind: "shell-extension-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
 
     expect(registeredAppBackup.backupKind).toBe("registered-app-value");
     expect(appPathBackup.backupKind).toBe("app-path-key");
@@ -630,12 +651,14 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(protocolHandlerBackup.backupKind).toBe("protocol-handler-key");
     expect(nativeMessagingHostBackup.backupKind).toBe("native-messaging-host-key");
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
+    expect(shellExtensionBackup.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(false);
     expect(await registryKeyExists(PROTOCOL_HANDLER_KEY)).toBe(false);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(false);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(false);
+    expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(false);
 
     const restoredRegisteredApp = await restoreRegistryBackup({
       userDataDir,
@@ -667,6 +690,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       backupId: contextMenuBackup.id,
       now: () => restoredAt
     });
+    const restoredShellExtension = await restoreRegistryBackup({
+      userDataDir,
+      backupId: shellExtensionBackup.id,
+      now: () => restoredAt
+    });
 
     expect(restoredRegisteredApp.status).toBe("restored");
     expect(restoredAppPath.status).toBe("restored");
@@ -674,18 +702,21 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredProtocolHandler.status).toBe("restored");
     expect(restoredNativeMessagingHost.status).toBe("restored");
     expect(restoredContextMenu.status).toBe("restored");
+    expect(restoredShellExtension.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
     expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
     expect(restoredOpenWith.entry?.backupKind).toBe("open-with-key");
     expect(restoredProtocolHandler.entry?.backupKind).toBe("protocol-handler-key");
     expect(restoredNativeMessagingHost.entry?.backupKind).toBe("native-messaging-host-key");
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
+    expect(restoredShellExtension.entry?.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
+    expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
   }, 45_000);
 
   it("backs up, removes, and restores one isolated user PATH app segment", async () => {

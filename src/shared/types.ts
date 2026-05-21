@@ -850,7 +850,7 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
   backupKind?:
     | "key"
     | "startup-value"
@@ -860,6 +860,7 @@ export interface RegistryBackupEntry {
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
+    | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "service-key";
@@ -918,6 +919,7 @@ export interface RegistryBackupPurgedItem {
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
+    | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "service-key";
@@ -1337,6 +1339,7 @@ export interface AppLeftoverPath {
     | "app-path-registry"
     | "open-with-registry"
     | "context-menu-registry"
+    | "shell-extension-registry"
     | "protocol-handler-registry"
     | "native-messaging-host-registry"
     | "startup-folder"

@@ -328,6 +328,7 @@ export function registryBackupKindLabel(entry: RegistryBackupKindSource): string
   if (entry.backupKind === "app-path-key") return "앱 실행 경로 백업";
   if (entry.backupKind === "open-with-key") return "앱 연결 흔적 백업";
   if (entry.backupKind === "context-menu-key") return "우클릭 메뉴 백업";
+  if (entry.backupKind === "shell-extension-key") return "우클릭 확장 백업";
   if (entry.backupKind === "protocol-handler-key") return "프로토콜 연결 백업";
   if (entry.backupKind === "native-messaging-host-key") return "브라우저 연결 도우미 백업";
   if (entry.backupKind === "service-key") return "서비스 백업";
@@ -341,6 +342,7 @@ export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource
   if (entry.backupKind === "app-path-key") return "실행 경로 되돌리기";
   if (entry.backupKind === "open-with-key") return "앱 연결 되돌리기";
   if (entry.backupKind === "context-menu-key") return "우클릭 메뉴 되돌리기";
+  if (entry.backupKind === "shell-extension-key") return "우클릭 확장 되돌리기";
   if (entry.backupKind === "protocol-handler-key") return "프로토콜 연결 되돌리기";
   if (entry.backupKind === "native-messaging-host-key") return "브라우저 연결 되돌리기";
   if (entry.backupKind === "service-key") return "서비스 되돌리기";

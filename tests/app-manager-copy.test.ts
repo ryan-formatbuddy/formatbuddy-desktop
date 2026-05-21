@@ -60,9 +60,10 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("프로토콜 연결");
     expect(source).toContain("브라우저 연결 도우미");
     expect(source).toContain("우클릭 메뉴");
-    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/서비스/시작 항목 백업");
+    expect(source).toContain("우클릭 확장");
+    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업");
     expect(source).toContain("30일 동안 되돌릴 수 있게 백업해요");
-    expect(source).toContain("폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 환경 설정 흔적, 앱 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게");
+    expect(source).toContain("폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 환경 설정 흔적, 앱 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴, 우클릭 확장 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("숨은 앱 데이터 폴더");
     expect(source).toContain("바탕화면·시작 메뉴·작업표시줄 바로가기");
     expect(source).toContain("고정 바로가기");
@@ -158,7 +159,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 파일/폴더");
-    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/서비스/시작 항목 백업");
+    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요");
     expect(source).toContain("서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요");

@@ -166,7 +166,7 @@ function normalizeRegistryBackupPurgedItems(
     const item = raw as Partial<RegistryBackupPurgedItem>;
     if (!item.id || !allowedIds.has(item.id) || seen.has(item.id)) continue;
     const label = sanitizePurgeLabel(item.label);
-    const backupKind = item.backupKind === "startup-value" ? "startup-value" : item.backupKind === "key" ? "key" : null;
+    const backupKind = normalizeRegistryBackupPurgedKind(item.backupKind);
     if (!label || !backupKind) continue;
     seen.add(item.id);
     items.push({
@@ -177,6 +177,24 @@ function normalizeRegistryBackupPurgedItems(
     });
   }
   return items;
+}
+
+function normalizeRegistryBackupPurgedKind(
+  value: unknown
+): RegistryBackupPurgedItem["backupKind"] | null {
+  if (value === "key") return "key";
+  if (value === "startup-value") return "startup-value";
+  if (value === "registered-app-value") return "registered-app-value";
+  if (value === "environment-path-value") return "environment-path-value";
+  if (value === "environment-variable-value") return "environment-variable-value";
+  if (value === "app-path-key") return "app-path-key";
+  if (value === "open-with-key") return "open-with-key";
+  if (value === "context-menu-key") return "context-menu-key";
+  if (value === "shell-extension-key") return "shell-extension-key";
+  if (value === "protocol-handler-key") return "protocol-handler-key";
+  if (value === "native-messaging-host-key") return "native-messaging-host-key";
+  if (value === "service-key") return "service-key";
+  return null;
 }
 
 function normalizeStartupDisabledPurgedItems(
