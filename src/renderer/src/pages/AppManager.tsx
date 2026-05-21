@@ -8,6 +8,14 @@ import {
 } from "./appManagerConfirmCopy";
 import { appLeftoverPanelDecision } from "./appManagerLeftoverState";
 import {
+  APP_RECENT_RESTORE_EMPTY_MESSAGE,
+  APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
+  appRecentRestoreMissingBridge,
+  appRecentRestorePlan,
+  appRecentRestorePlanCount,
+  appRecentRestoreSummary
+} from "./appManagerRecentRestore";
+import {
   appLeftoverEffectLines,
   appLeftoverRestorableCount,
   appLeftoverRestoreBinBreakdown,
@@ -22,13 +30,6 @@ import {
   selectableLeftoverPathIds,
   summarizeLeftoverSnapshot
 } from "@shared/app-leftovers";
-import {
-  recoverableRegistryBackupIds,
-  recoverableScheduledTaskBackupIds,
-  restorableStartupDisabledIds,
-  restorableTrashEntryIds,
-  summarizeRestoreAllResults
-} from "@shared/cleanup-result";
 import {
   CLEANUP_FOLLOWUP_SAVE_WARNING,
   CLEANUP_HISTORY_SAVE_WARNING
@@ -1181,28 +1182,24 @@ export function AppManager({
 
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
-      const entryIds = restorableTrashEntryIds(result);
-      const registryBackupIds = recoverableRegistryBackupIds(result);
-      const startupDisabledIds = restorableStartupDisabledIds(result);
-      const scheduledTaskBackupIds = recoverableScheduledTaskBackupIds(result);
-      if (
-        entryIds.length === 0 &&
-        registryBackupIds.length === 0 &&
-        startupDisabledIds.length === 0 &&
-        scheduledTaskBackupIds.length === 0
-      ) {
-        setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
+      const plan = appRecentRestorePlan(result);
+      if (appRecentRestorePlanCount(plan) === 0) {
+        setRecentRestoreMessage(APP_RECENT_RESTORE_EMPTY_MESSAGE);
         return;
       }
-      const missingRestoreBridge =
-        (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
-        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
-        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) ||
-        (scheduledTaskBackupIds.length > 0 && !window.fb?.restoreScheduledTaskBackup);
-      if (missingRestoreBridge) {
-        setRecentRestoreMessage(
-          "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
-        );
+      const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
+      const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
+      const restoreStartupAuto = window.fb?.restoreStartupAuto;
+      const restoreScheduledTaskBackup = window.fb?.restoreScheduledTaskBackup;
+      if (
+        appRecentRestoreMissingBridge(plan, {
+          restoreCleanupTrash: Boolean(restoreCleanupTrash),
+          restoreRegistryBackup: Boolean(restoreRegistryBackup),
+          restoreStartupAuto: Boolean(restoreStartupAuto),
+          restoreScheduledTaskBackup: Boolean(restoreScheduledTaskBackup)
+        })
+      ) {
+        setRecentRestoreMessage(APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE);
         return;
       }
 
@@ -1214,46 +1211,42 @@ export function AppManager({
         const startupResults: StartupFolderToggleResult[] = [];
         const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
         let restoreFailureCount = 0;
-        for (const entryId of entryIds) {
+        for (const entryId of plan.entryIds) {
           try {
-            results.push(await window.fb.restoreCleanupTrash({ entryId }));
+            results.push(await restoreCleanupTrash!({ entryId }));
           } catch {
             restoreFailureCount += 1;
           }
         }
-        for (const backupId of registryBackupIds) {
+        for (const backupId of plan.registryBackupIds) {
           try {
-            registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
+            registryResults.push(await restoreRegistryBackup!({ backupId }));
           } catch {
             restoreFailureCount += 1;
           }
         }
-        for (const disabledId of startupDisabledIds) {
+        for (const disabledId of plan.startupDisabledIds) {
           try {
-            if (window.fb?.restoreStartupAuto) {
-              startupResults.push(await window.fb.restoreStartupAuto({ disabledId }));
-            }
+            startupResults.push(await restoreStartupAuto!({ disabledId }));
           } catch {
             restoreFailureCount += 1;
           }
         }
-        for (const backupId of scheduledTaskBackupIds) {
+        for (const backupId of plan.scheduledTaskBackupIds) {
           try {
-            if (window.fb?.restoreScheduledTaskBackup) {
-              scheduledTaskResults.push(await window.fb.restoreScheduledTaskBackup({ backupId }));
-            }
+            scheduledTaskResults.push(await restoreScheduledTaskBackup!({ backupId }));
           } catch {
             restoreFailureCount += 1;
           }
         }
         setRecentRestoreMessage(
-          summarizeRestoreAllResults(
-            results,
+          appRecentRestoreSummary({
+            trashResults: results,
             registryResults,
-            restoreFailureCount,
+            unexpectedFailureCount: restoreFailureCount,
             startupResults,
             scheduledTaskResults
-          )
+          })
         );
         await loadLeftovers();
       } finally {

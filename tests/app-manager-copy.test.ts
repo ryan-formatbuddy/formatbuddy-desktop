@@ -47,6 +47,15 @@ const APP_MANAGER_LEFTOVER_STATE = join(
   "pages",
   "appManagerLeftoverState.ts"
 );
+const APP_MANAGER_RECENT_RESTORE = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "appManagerRecentRestore.ts"
+);
 
 function readAppManagerSources(): string {
   return [
@@ -54,7 +63,8 @@ function readAppManagerSources(): string {
     APP_MANAGER_ACTIONS,
     APP_MANAGER_RESULT_COPY,
     APP_MANAGER_CONFIRM_COPY,
-    APP_MANAGER_LEFTOVER_STATE
+    APP_MANAGER_LEFTOVER_STATE,
+    APP_MANAGER_RECENT_RESTORE
   ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
@@ -148,7 +158,8 @@ describe("AppManager uninstall copy", () => {
   it("shows a friendly message when recent restore cannot reach the app bridge", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("const missingRestoreBridge =");
+    expect(source).toContain("appRecentRestoreMissingBridge");
+    expect(source).toContain("APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE");
     expect(source).toContain("방금 정리 되돌리기를 연결하지 못했어요");
     expect(source).not.toContain("if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;");
     expect(source).not.toContain("if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;");
