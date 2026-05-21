@@ -194,4 +194,21 @@ describe("AuditLog copy", () => {
     expect(source).not.toContain("purgedBytes !== null) lines.push");
     expect(source).not.toContain("totalFreedBytes !== null) lines.push");
   });
+
+  it("summarizes restore-bin automatic emptying at the top of the audit log", () => {
+    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+
+    expect(source).toContain("interface RestoreBinAutoEmptySummary");
+    expect(source).toContain("function auditRestoreBinAutoEmptySummary");
+    expect(source).toContain("isRestoreBinAutoEmptyEntry");
+    expect(source).toContain('entry.action.includes("expired-purge")');
+    expect(source).toContain("const autoEmptySummary = useMemo");
+    expect(source).toContain("30일 자동 비움 요약");
+    expect(source).toContain("자동 비움 기록");
+    expect(source).toContain("비운 항목");
+    expect(source).toContain("아직 남은 항목");
+    expect(source).toContain("마지막 확인");
+    expect(source).toContain("아직 자동 비움 기록은 없어요");
+    expect(source).toContain("확보한 공간");
+  });
 });

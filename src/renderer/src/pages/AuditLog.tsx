@@ -27,6 +27,14 @@ const CATEGORY_COLOR: Record<AuditCategory, string> = {
 
 type FilterMode = "all" | AuditCategory;
 
+interface RestoreBinAutoEmptySummary {
+  entryCount: number;
+  purgedCount: number;
+  failedCount: number;
+  purgedBytes: number;
+  latestAt?: string;
+}
+
 function formatLocal(at: string): string {
   const t = Date.parse(at);
   if (!Number.isFinite(t)) return at;
@@ -56,6 +64,10 @@ function isRestoreBinAuditEntry(entry: AuditEntry): boolean {
     (entry.action === "trash" || entry.action === "app-leftovers-trash") &&
     auditRestorableDetailCount(entry.detail) > 0
   );
+}
+
+function isRestoreBinAutoEmptyEntry(entry: AuditEntry): boolean {
+  return entry.category === "cleanup" && entry.action.includes("expired-purge");
 }
 
 function auditActionLabel(entry: AuditEntry): string {
@@ -137,6 +149,30 @@ function auditRestoreNeedsAttention(entry: AuditEntry): boolean {
 function auditFailureDetailCount(detail: AuditEntry["detail"]): number {
   if (!detail) return 0;
   return arrayCountDetail(detail, "failedEntryIds") + arrayCountDetail(detail, "failedIds");
+}
+
+function auditRestoreBinAutoEmptySummary(entries: AuditEntry[]): RestoreBinAutoEmptySummary {
+  const autoEmptyEntries = entries.filter(isRestoreBinAutoEmptyEntry);
+  let purgedCount = 0;
+  let failedCount = 0;
+  let purgedBytes = 0;
+
+  for (const entry of autoEmptyEntries) {
+    const detail = entry.detail;
+    if (!detail) continue;
+    purgedCount += numberDetail(detail, "purgedCount") ?? 0;
+    failedCount += auditFailureDetailCount(detail);
+    failedCount += numberDetail(detail, "failedBucketCount") ?? 0;
+    purgedBytes += numberDetail(detail, "purgedBytes") ?? 0;
+  }
+
+  return {
+    entryCount: autoEmptyEntries.length,
+    purgedCount,
+    failedCount,
+    purgedBytes,
+    latestAt: autoEmptyEntries[0]?.at
+  };
 }
 
 function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number {
@@ -273,6 +309,10 @@ export function AuditLog({ onBack }: AuditLogProps) {
     }
     return map;
   }, [snapshot]);
+  const autoEmptySummary = useMemo(
+    () => auditRestoreBinAutoEmptySummary(snapshot?.entries ?? []),
+    [snapshot]
+  );
 
   return (
     <main className="fb-report" aria-label="활동 기록">
@@ -333,6 +373,33 @@ export function AuditLog({ onBack }: AuditLogProps) {
               );
             }
           )}
+        </section>
+      )}
+
+      {snapshot && (
+        <section
+          className="fb-card fb-card-hover"
+          aria-label="30일 자동 비움 요약"
+          style={{
+            marginBottom: 16,
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            alignItems: "center"
+          }}
+        >
+          <div>
+            <strong>30일 자동 비움 요약</strong>
+            <p style={{ margin: "6px 0 0", fontSize: 13, opacity: 0.78 }}>
+              {autoEmptySummary.entryCount > 0
+                ? `자동 비움 기록 ${autoEmptySummary.entryCount}건 · 비운 항목 ${autoEmptySummary.purgedCount}개 · 아직 남은 항목 ${autoEmptySummary.failedCount}개 · 확보한 공간 ${formatBytes(autoEmptySummary.purgedBytes)}`
+                : "아직 자동 비움 기록은 없어요. 30일이 지난 항목이 생기면 여기에 남겨요."}
+            </p>
+          </div>
+          <span style={{ fontSize: 12, opacity: 0.68 }}>
+            마지막 확인 {autoEmptySummary.latestAt ? formatLocal(autoEmptySummary.latestAt) : "아직 없음"}
+          </span>
         </section>
       )}
 
