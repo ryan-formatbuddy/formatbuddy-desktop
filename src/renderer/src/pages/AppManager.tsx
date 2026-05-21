@@ -63,6 +63,9 @@ type LeftoverCleanupConfirm = {
   selectedBytes: number;
   folderCount: number;
   shortcutCount: number;
+  restoreBinCount: number;
+  appTraceBackupCount: number;
+  windowsTraceBackupCount: number;
   backupCount: number;
   startupHoldCount: number;
   serviceCount: number;
@@ -172,6 +175,56 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
   return path.path;
 }
 
+function isRestoreBinLeftover(path: AppLeftoverPath): boolean {
+  return (
+    path.kind === "folder" ||
+    path.kind === "install-folder" ||
+    path.kind === "shortcut" ||
+    path.kind === "pinned-shortcut" ||
+    path.kind === "shortcut-folder" ||
+    path.kind === "startup-folder"
+  );
+}
+
+function isAppTraceLeftover(path: AppLeftoverPath): boolean {
+  return (
+    path.kind === "registry" ||
+    path.kind === "registered-app-registry" ||
+    path.kind === "app-path-registry" ||
+    path.kind === "open-with-registry" ||
+    path.kind === "file-association-registry" ||
+    path.kind === "protocol-handler-registry" ||
+    path.kind === "native-messaging-host-registry" ||
+    path.kind === "context-menu-registry" ||
+    path.kind === "shell-extension-registry"
+  );
+}
+
+function isWindowsTraceLeftover(path: AppLeftoverPath): boolean {
+  return (
+    path.kind === "environment-path-registry" ||
+    path.kind === "environment-variable-registry" ||
+    path.kind === "firewall-rule-registry" ||
+    path.kind === "service-registry" ||
+    path.kind === "startup-registry" ||
+    path.kind === "startup-entry"
+  );
+}
+
+function compactCount(label: string, count: number): string | null {
+  return count > 0 ? `${label} ${count}개` : null;
+}
+
+function leftoverFamilySummary(paths: AppLeftoverPath[]): string {
+  const counts = [
+    compactCount("복구함 보관", paths.filter(isRestoreBinLeftover).length),
+    compactCount("앱 연결 흔적", paths.filter(isAppTraceLeftover).length),
+    compactCount("Windows 연결 흔적", paths.filter(isWindowsTraceLeftover).length),
+    compactCount("수동 확인", paths.filter(leftoverPathNeedsManualCheck).length)
+  ].filter((value): value is string => Boolean(value));
+  return counts.length > 0 ? counts.join(" · ") : "확인할 잔여 항목 없음";
+}
+
 function manualLeftoverReviewHint(path: AppLeftoverPath): string | null {
   if (!leftoverPathNeedsManualCheck(path)) return null;
   if (path.startupEntryKind === "service") {
@@ -198,7 +251,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
     lines.push(`잔여 파일/폴더 ${fileOrFolderCount}개는 복구함에 30일 동안 보관해요.`);
   }
   if (backupCount > 0) {
-    lines.push(`앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/방화벽 규칙/실행 경로/앱 연결/파일 형식 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+    lines.push(`앱 연결 흔적과 Windows 연결 흔적 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (startupCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
@@ -337,24 +390,10 @@ function buildLeftoverCleanupConfirm(
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
     folderCount: paths.filter((path) => path.kind === "folder" || path.kind === "install-folder").length,
     shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "pinned-shortcut" || path.kind === "shortcut-folder").length,
-    backupCount: paths.filter(
-      (path) =>
-        path.kind === "registry" ||
-        path.kind === "registered-app-registry" ||
-        path.kind === "environment-path-registry" ||
-        path.kind === "environment-variable-registry" ||
-        path.kind === "firewall-rule-registry" ||
-        path.kind === "app-path-registry" ||
-        path.kind === "open-with-registry" ||
-        path.kind === "file-association-registry" ||
-        path.kind === "protocol-handler-registry" ||
-        path.kind === "native-messaging-host-registry" ||
-        path.kind === "service-registry" ||
-        path.kind === "context-menu-registry" ||
-        path.kind === "shell-extension-registry" ||
-        (path.kind === "startup-entry" && path.startupEntryKind === "service") ||
-        path.kind === "startup-registry"
-    ).length,
+    restoreBinCount: paths.filter(isRestoreBinLeftover).length,
+    appTraceBackupCount: paths.filter(isAppTraceLeftover).length,
+    windowsTraceBackupCount: paths.filter(isWindowsTraceLeftover).length,
+    backupCount: paths.filter((path) => isAppTraceLeftover(path) || isWindowsTraceLeftover(path)).length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length,
     serviceCount: paths.filter(
       (path) =>
@@ -552,15 +591,19 @@ function AppLeftoverConfirmDialog({
           )}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 환경 설정 흔적, 방화벽 규칙, 앱 연결, 파일 형식 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴, 우클릭 확장 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+          먼저 챙겨두고 정리해요. 폴더와 바로가기는 복구함에 보관하고, 앱 연결 흔적과 Windows 연결 흔적은 백업해 30일 동안 되돌릴 수 있어요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
-          <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
-          <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
-          <li>앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/방화벽 규칙/실행 경로/앱 연결/파일 형식 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
-          <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
-          <li>서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
-          <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
+          {confirm.restoreBinCount > 0 && (
+            <li>복구함 보관 {confirm.restoreBinCount}개: 폴더·바로가기·시작 항목을 30일 동안 챙겨요.</li>
+          )}
+          {confirm.appTraceBackupCount > 0 && (
+            <li>앱 연결 흔적 {confirm.appTraceBackupCount}개: 기본 앱·파일 형식·프로토콜·브라우저 도우미·우클릭 메뉴를 백업해요.</li>
+          )}
+          {confirm.windowsTraceBackupCount > 0 && (
+            <li>Windows 연결 흔적 {confirm.windowsTraceBackupCount}개: 서비스·예약 작업·방화벽·PATH·환경 설정을 백업해요.</li>
+          )}
+          <li>전체 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
         </ul>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
@@ -716,9 +759,8 @@ function LeftoverPanel({
     <section style={{ marginTop: 16 }}>
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
-        Windows가 앱을 제거해도 남는 경우가 있는 숨은 앱 데이터 폴더, 바탕화면·시작 메뉴·작업표시줄 바로가기,
-        PATH 경로와 앱 삭제 흔적, 방화벽 규칙, 파일 형식 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 확장 후보예요. 직접 고른 항목만 정리하고, 폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
-        30일 동안 되돌릴 수 있게 백업해요.
+        앱 제거 뒤 남는 후보를 복구함 보관, 앱 연결 흔적, Windows 연결 흔적으로 나눠 보여드려요.
+        직접 고른 항목만 정리하고 30일 동안 되돌릴 수 있게 챙겨둬요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         총 {leftoverSummary.total}개 후보 중 {leftoverSummary.selectable}개를 선택할 수 있어요.
@@ -919,6 +961,9 @@ function LeftoverGroupCard({
       <header>
         <h3 style={{ margin: 0 }}>{group.appName}</h3>
         {groupMeta && <small style={{ opacity: 0.7 }}>{groupMeta}</small>}
+        <small style={{ opacity: 0.7, display: "block" }}>
+          {leftoverFamilySummary(group.paths)}
+        </small>
         {!cleanupAllowed && (
           <small style={{ opacity: 0.7, display: "block" }}>
             {lockCopy}

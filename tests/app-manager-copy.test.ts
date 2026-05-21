@@ -63,13 +63,13 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("브라우저 연결 도우미");
     expect(source).toContain("우클릭 메뉴");
     expect(source).toContain("우클릭 확장");
-    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/방화벽 규칙/실행 경로/앱 연결/파일 형식 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업");
-    expect(source).toContain("30일 동안 되돌릴 수 있게 백업해요");
-    expect(source).toContain("폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 환경 설정 흔적, 방화벽 규칙, 앱 연결, 파일 형식 연결, 프로토콜 연결, 브라우저 연결 도우미, 우클릭 메뉴, 우클릭 확장 흔적은 30일 안에 되돌릴 수 있게");
-    expect(source).toContain("숨은 앱 데이터 폴더");
-    expect(source).toContain("바탕화면·시작 메뉴·작업표시줄 바로가기");
+    expect(source).toContain("복구함 보관");
+    expect(source).toContain("앱 연결 흔적");
+    expect(source).toContain("Windows 연결 흔적");
+    expect(source).toContain("먼저 챙겨두고 정리해요");
+    expect(source).toContain("앱 제거 뒤 남는 후보를");
+    expect(source).toContain("직접 고른 항목만 정리");
     expect(source).toContain("고정 바로가기");
-    expect(source).toContain("바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요");
     expect(source).toContain("시작 항목");
     expect(source).not.toContain("시작 레지스트리");
     expect(source).toContain("시작 흔적");
@@ -161,13 +161,27 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 파일/폴더");
-    expect(source).toContain("앱 삭제 흔적/기본 앱 목록/PATH 경로/환경 설정 흔적/방화벽 규칙/실행 경로/앱 연결/파일 형식 연결/프로토콜 연결/브라우저 연결 도우미/우클릭 메뉴/우클릭 확장/서비스/시작 항목 백업");
+    expect(source).toContain("앱 연결 흔적과 Windows 연결 흔적 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
-    expect(source).toContain("폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요");
-    expect(source).toContain("서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요");
+    expect(source).toContain("복구함 보관 {confirm.restoreBinCount}개");
+    expect(source).toContain("앱 연결 흔적 {confirm.appTraceBackupCount}개");
+    expect(source).toContain("Windows 연결 흔적 {confirm.windowsTraceBackupCount}개");
+    expect(source).toContain("전체 백업 {confirm.backupCount}개");
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
     expect(source).toContain("선택하지 않은 후보");
     expect(source).toContain("그대로 남겨뒀어요");
+  });
+
+  it("groups app leftover candidates into friendly families", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("leftoverFamilySummary");
+    expect(source).toContain("isRestoreBinLeftover");
+    expect(source).toContain("isAppTraceLeftover");
+    expect(source).toContain("isWindowsTraceLeftover");
+    expect(source).toContain("복구함 보관, 앱 연결 흔적, Windows 연결 흔적");
+    expect(source).toContain("기본 앱·파일 형식·프로토콜·브라우저 도우미·우클릭 메뉴");
+    expect(source).toContain("서비스·예약 작업·방화벽·PATH·환경 설정");
   });
 
   it("includes failed app-leftover removed items in the failed or skipped count", () => {
