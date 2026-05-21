@@ -155,6 +155,11 @@ function registryBackupTitle(entry: RegistryBackupEntry): string {
     if (valueName) return `${valueName} 시작 항목`;
     return "시작 항목 이름을 확인하지 못했어요";
   }
+  if (entry.backupKind === "environment-path-value") {
+    const appName = entry.appName?.trim();
+    if (appName) return `${appName} PATH 경로`;
+    return "PATH 경로를 확인하지 못했어요";
+  }
 
   const appName = entry.appName?.trim();
   return appName ? `${appName} 삭제 흔적` : "앱 이름을 확인하지 못한 삭제 흔적";
@@ -167,32 +172,47 @@ function registryBackupSubtitle(entry: RegistryBackupEntry): string {
     const detail = valueName ? `시작 항목 이름 ${valueName}` : "Windows 시작 때 실행되는 항목";
     return appPublisher ? `${appPublisher} · ${detail}` : detail;
   }
+  if (entry.backupKind === "environment-path-value") {
+    const appPublisher = entry.appPublisher?.trim();
+    const segment = entry.environmentPathSegment?.trim();
+    const detail = segment ? `남은 경로 ${segment}` : "앱 삭제 후 PATH에 남은 경로";
+    return appPublisher ? `${appPublisher} · ${detail}` : detail;
+  }
 
   const appPublisher = entry.appPublisher?.trim();
   return appPublisher ? `${appPublisher} · 앱 삭제 흔적 위치` : "앱 삭제 흔적 위치";
 }
 
 function registryRestoreErrorLabel(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "environment-path-value") return "PATH 경로";
   return entry.backupKind === "startup-value" ? "시작 항목" : "앱 흔적";
 }
 
 function registryBackupChangedNotice(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "environment-path-value") {
+    return "PATH 경로 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+  }
   return entry.backupKind === "startup-value"
     ? "시작 항목 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요."
     : "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
 }
 
 function registryBackupChangedButtonLabel(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "environment-path-value") return "PATH 경로 확인 필요";
   return entry.backupKind === "startup-value" ? "시작 항목 확인 필요" : "앱 삭제 흔적 확인 필요";
 }
 
 function registryBackupLegacyNotice(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "environment-path-value") {
+    return "PATH 경로 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
+  }
   return entry.backupKind === "startup-value"
     ? "시작 항목 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요."
     : "앱 삭제 흔적 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
 }
 
 function registryBackupLegacyButtonLabel(entry: RegistryBackupEntry): string {
+  if (entry.backupKind === "environment-path-value") return "PATH 경로 기록 확인 필요";
   return entry.backupKind === "startup-value" ? "시작 항목 기록 확인 필요" : "앱 삭제 흔적 기록 확인 필요";
 }
 

@@ -24,6 +24,8 @@ export interface RegistryCleanupRunner {
   keyExists?: (keyPath: string) => Promise<boolean>;
   deleteService?: (serviceName: string) => Promise<void>;
   serviceExists?: (serviceName: string) => Promise<boolean>;
+  queryValue?: (keyPath: string, valueName: string) => Promise<RegistryValueRecord | undefined>;
+  setValue?: (keyPath: string, valueName: string, type: string, data: string) => Promise<void>;
   exportValue?: (keyPath: string, valueName: string, backupPath: string) => Promise<void>;
   deleteValue?: (keyPath: string, valueName: string) => Promise<void>;
   valueExists?: (keyPath: string, valueName: string) => Promise<boolean>;
@@ -65,6 +67,7 @@ type RegistryBackupRestoredApp = {
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "environment-path-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
@@ -80,6 +83,10 @@ type RegistryKeyBackupKind =
   | "context-menu-key"
   | "service-key";
 type RegistryValueBackupKind = "startup-value" | "registered-app-value";
+type RegistryValueRecord = {
+  type: string;
+  data: string;
+};
 
 const SAFE_UNINSTALL_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+)$/i;
@@ -87,6 +94,8 @@ const SAFE_STARTUP_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?)$/i;
 const SAFE_REGISTERED_APPLICATIONS_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\RegisteredApplications|HKLM\\Software\\RegisteredApplications)$/i;
+const SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN =
+  /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
 const SAFE_APP_PATHS_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
 const SAFE_OPEN_WITH_KEY_PATTERN =
@@ -212,6 +221,29 @@ export function isSafeRegisteredApplicationRegistryValuePath(
   return SAFE_REGISTERED_APPLICATIONS_VALUE_KEY_PATTERN.test(normalized) && isSafeRegistryValueName(valueName);
 }
 
+export function isSafeEnvironmentPathRegistryValuePath(
+  keyPath: string,
+  valueName: string
+): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  return SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN.test(normalized) && /^Path$/i.test(valueName.trim());
+}
+
+export function normalizeSafeEnvironmentPathSegment(segment: unknown): string | undefined {
+  if (typeof segment !== "string") return undefined;
+  const trimmed = segment.trim();
+  if (!trimmed || trimmed !== segment) return undefined;
+  if (trimmed.length > 1024) return undefined;
+  if (/[\0\r\n"'`|&<>;]/.test(trimmed)) return undefined;
+  if (/[*?]/.test(trimmed)) return undefined;
+  if (!/^[A-Za-z]:\\[^:]+/.test(trimmed)) return undefined;
+  return trimmed.replace(/\//g, "\\").replace(/\\+/g, "\\").replace(/\\+$/g, "");
+}
+
 export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
   if (typeof backupId !== "string") return false;
   const trimmed = backupId.trim();
@@ -298,7 +330,9 @@ function registryBackupItemsRoot(userDataDir: string): string {
 function registryBackupPurgeLabel(entry: RegistryBackupEntry): string {
   if (entry.appName) return entry.appName;
   if (
-    (entry.backupKind === "startup-value" || entry.backupKind === "registered-app-value") &&
+    (entry.backupKind === "startup-value" ||
+      entry.backupKind === "registered-app-value" ||
+      entry.backupKind === "environment-path-value") &&
     entry.valueName
   ) {
     return entry.valueName;
@@ -526,16 +560,6 @@ async function registryKeyExistsWithReg(keyPath: string): Promise<boolean> {
   }
 }
 
-async function registryValueExistsWithReg(keyPath: string, valueName: string): Promise<boolean> {
-  try {
-    await runRegQuery(["query", keyPath, "/v", valueName]);
-    return true;
-  } catch (err) {
-    if (isRegistryMissingError(err)) return false;
-    throw err;
-  }
-}
-
 function canonicalRegistryKeyForFile(keyPath: string): string {
   return normalizeRegistryKeyPath(keyPath)
     .replace(/^HKCU\\/i, "HKEY_CURRENT_USER\\")
@@ -592,6 +616,22 @@ async function exportRegistryValueWithReg(
   valueName: string,
   backupPath: string
 ): Promise<void> {
+  const { type, data } = await queryRegistryValueWithReg(keyPath, valueName);
+  const content = [
+    "Windows Registry Editor Version 5.00",
+    "",
+    `[${canonicalRegistryKeyForFile(keyPath)}]`,
+    registryValueLine(valueName, type, data),
+    ""
+  ].join("\r\n");
+  await fs.mkdir(dirname(backupPath), { recursive: true });
+  await fs.writeFile(backupPath, content, "utf8");
+}
+
+async function queryRegistryValueWithReg(
+  keyPath: string,
+  valueName: string
+): Promise<RegistryValueRecord> {
   const stdout = await runRegQuery(["query", keyPath, "/v", valueName]);
   const row = stdout
     .split(/\r?\n/)
@@ -603,15 +643,42 @@ async function exportRegistryValueWithReg(
   if (parts.length < 3) throw new Error("레지스트리 값을 읽지 못했어요.");
   const [, type, ...dataParts] = parts;
   const data = dataParts.join("  ");
-  const content = [
-    "Windows Registry Editor Version 5.00",
-    "",
-    `[${canonicalRegistryKeyForFile(keyPath)}]`,
-    registryValueLine(valueName, type, data),
-    ""
-  ].join("\r\n");
-  await fs.mkdir(dirname(backupPath), { recursive: true });
-  await fs.writeFile(backupPath, content, "utf8");
+  return { type, data };
+}
+
+async function registryValueExistsWithReg(keyPath: string, valueName: string): Promise<boolean> {
+  try {
+    await queryRegistryValueWithReg(keyPath, valueName);
+    return true;
+  } catch (err) {
+    if (isRegistryMissingError(err)) return false;
+    throw err;
+  }
+}
+
+function normalizeWritableRegistryValueType(type: string): string {
+  const normalized = type.trim().toUpperCase();
+  if (normalized === "REG_SZ" || normalized === "REG_EXPAND_SZ") return normalized;
+  throw new Error("지원하는 PATH 값 형식이 아니라 자동 정리하지 않아요.");
+}
+
+async function setRegistryValueWithReg(
+  keyPath: string,
+  valueName: string,
+  type: string,
+  data: string
+): Promise<void> {
+  await runRegCommand([
+    "add",
+    keyPath,
+    "/v",
+    valueName,
+    "/t",
+    normalizeWritableRegistryValueType(type),
+    "/d",
+    data,
+    "/f"
+  ]);
 }
 
 async function assertRestorableRegistryBackupFile(
@@ -807,6 +874,9 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
     keyExists: (keyPath) => registryKeyExistsWithReg(keyPath),
     deleteService: (serviceName) => runScCommand(["delete", serviceName]).then(() => undefined),
     serviceExists: (serviceName) => serviceExistsWithSc(serviceName),
+    queryValue: (keyPath, valueName) => queryRegistryValueWithReg(keyPath, valueName),
+    setValue: (keyPath, valueName, type, data) =>
+      setRegistryValueWithReg(keyPath, valueName, type, data),
     exportValue: (keyPath, valueName, backupPath) =>
       exportRegistryValueWithReg(keyPath, valueName, backupPath),
     deleteValue: (keyPath, valueName) => runRegCommand(["delete", keyPath, "/v", valueName, "/f"]),
@@ -1045,6 +1115,136 @@ export async function backupAndDeleteRegistryValue(options: {
   }
 }
 
+function environmentPathSegments(value: string): string[] {
+  return value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function environmentPathSegmentKey(value: string): string {
+  return normalizePath(value).replace(/\\+$/g, "").toLowerCase();
+}
+
+function removeEnvironmentPathSegment(currentValue: string, segment: string): string {
+  const safeSegment = normalizeSafeEnvironmentPathSegment(segment);
+  if (!safeSegment) throw new Error("지원하는 PATH 경로가 아니라 자동 정리하지 않아요.");
+  const target = environmentPathSegmentKey(safeSegment);
+  const nextSegments = environmentPathSegments(currentValue).filter(
+    (candidate) => environmentPathSegmentKey(candidate) !== target
+  );
+  if (nextSegments.length === environmentPathSegments(currentValue).length) {
+    throw new Error("PATH에서 정리할 앱 경로를 찾지 못했어요.");
+  }
+  if (nextSegments.length === 0) {
+    throw new Error("PATH 값이 비게 되어 자동 정리하지 않아요.");
+  }
+  return nextSegments.join(";");
+}
+
+function environmentPathContainsSegment(currentValue: string, segment: string): boolean {
+  const safeSegment = normalizeSafeEnvironmentPathSegment(segment);
+  if (!safeSegment) return false;
+  const target = environmentPathSegmentKey(safeSegment);
+  return environmentPathSegments(currentValue).some(
+    (candidate) => environmentPathSegmentKey(candidate) === target
+  );
+}
+
+export async function backupAndRemoveEnvironmentPathSegment(options: {
+  userDataDir: string;
+  keyPath: string;
+  valueName: string;
+  segment: string;
+  now?: () => Date;
+  runner?: RegistryCleanupRunner;
+  app?: Pick<InstalledApp, "name" | "publisher">;
+}): Promise<RegistryBackupEntry> {
+  if (!isSafeEnvironmentPathRegistryValuePath(options.keyPath, options.valueName)) {
+    throw new Error("지원하는 PATH 레지스트리 위치가 아니라 자동 정리하지 않아요.");
+  }
+  const segment = normalizeSafeEnvironmentPathSegment(options.segment);
+  if (!segment) {
+    throw new Error("지원하는 PATH 경로가 아니라 자동 정리하지 않아요.");
+  }
+  const keyPath = normalizeRegistryKeyPath(options.keyPath);
+  const valueName = options.valueName;
+
+  const createdAtDate = options.now?.() ?? new Date();
+  const createdAt = createdAtDate.toISOString();
+  const expiresAt = registryBackupExpiry(createdAtDate);
+  const id = randomUUID();
+  const entryDir = join(registryBackupItemsRoot(options.userDataDir), id);
+  await ensureSafeOutputDirectoryPath(entryDir, { label: "Registry value backup" });
+
+  const backupPath = join(entryDir, "backup.reg");
+  const metaPath = join(entryDir, "meta.json");
+  const runner = options.runner ?? defaultRegistryCleanupRunner();
+  const queryValue = runner.queryValue ?? defaultRegistryCleanupRunner().queryValue;
+  const setValue = runner.setValue ?? defaultRegistryCleanupRunner().setValue;
+  const exportValue = runner.exportValue ?? defaultRegistryCleanupRunner().exportValue;
+  const appName = cleanDisplayString(options.app?.name);
+  const appPublisher = cleanDisplayString(options.app?.publisher);
+  let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
+  let updateInvoked = false;
+
+  if (!queryValue || !setValue || !exportValue) {
+    throw new Error("PATH 값을 백업할 준비가 되지 않았어요.");
+  }
+
+  try {
+    const before = await queryValue(keyPath, valueName);
+    if (!before) {
+      throw new Error("PATH 값을 찾지 못했어요.");
+    }
+    const valueType = normalizeWritableRegistryValueType(before.type);
+    const nextValue = removeEnvironmentPathSegment(before.data, segment);
+    await exportValue(keyPath, valueName, backupPath);
+    const sizeBytes = await assertRestorableRegistryBackupFile(entryDir, backupPath, keyPath, valueName);
+    const contentHash = { algorithm: "sha256" as const, value: await hashFile(backupPath) };
+    metaPayload = {
+      id,
+      keyPath,
+      valueName,
+      environmentPathSegment: segment,
+      backupKind: "environment-path-value",
+      backupPath,
+      sizeBytes,
+      contentHash,
+      appName,
+      appPublisher,
+      createdAt,
+      expiresAt
+    };
+    await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
+    await setValue(keyPath, valueName, valueType, nextValue);
+    updateInvoked = true;
+    const after = await queryValue(keyPath, valueName);
+    if (!after) {
+      throw new Error("PATH 값을 다시 확인하지 못해서 완료로 보지 않았어요.");
+    }
+    if (environmentPathContainsSegment(after.data, segment)) {
+      throw new Error("PATH 경로가 아직 남아 있어서 완료로 보지 않았어요.");
+    }
+    await ensureRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
+    return await assertRegistryBackupEntryStillRestorable(options.userDataDir, id);
+  } catch (err) {
+    if (updateInvoked) {
+      const preservedBackup = await restorableRegistryBackupEntry(options.userDataDir, id);
+      if (preservedBackup) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new RegistryBackupPreservedError(
+          message,
+          { id: preservedBackup.id, expiresAt: preservedBackup.expiresAt },
+          err
+        );
+      }
+    }
+    await fs.rm(entryDir, { recursive: true, force: true }).catch(() => {});
+    throw err;
+  }
+}
+
 function isValidIso(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
@@ -1171,15 +1371,17 @@ async function readRegistryBackupEntryForRestore(
       ? "startup-value"
       : raw.backupKind === "registered-app-value"
         ? "registered-app-value"
-        : raw.backupKind === "app-path-key"
-          ? "app-path-key"
-          : raw.backupKind === "open-with-key"
-            ? "open-with-key"
-            : raw.backupKind === "context-menu-key"
-              ? "context-menu-key"
-              : raw.backupKind === "service-key"
-                ? "service-key"
-                : "key";
+        : raw.backupKind === "environment-path-value"
+          ? "environment-path-value"
+          : raw.backupKind === "app-path-key"
+            ? "app-path-key"
+            : raw.backupKind === "open-with-key"
+              ? "open-with-key"
+              : raw.backupKind === "context-menu-key"
+                ? "context-menu-key"
+                : raw.backupKind === "service-key"
+                  ? "service-key"
+                  : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1188,15 +1390,17 @@ async function readRegistryBackupEntryForRestore(
       ? isSafeStartupRegistryValuePath(rawKeyPath, valueName)
       : backupKind === "registered-app-value" && valueName
         ? isSafeRegisteredApplicationRegistryValuePath(rawKeyPath, valueName)
-        : backupKind === "app-path-key"
-          ? isSafeAppPathRegistryKeyPath(rawKeyPath)
-          : backupKind === "open-with-key"
-            ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
-            : backupKind === "context-menu-key"
-              ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
-              : backupKind === "service-key"
-                ? isSafeServiceRegistryKeyPath(rawKeyPath)
-                : isSafeUninstallRegistryKeyPath(rawKeyPath));
+        : backupKind === "environment-path-value" && valueName
+          ? isSafeEnvironmentPathRegistryValuePath(rawKeyPath, valueName)
+          : backupKind === "app-path-key"
+            ? isSafeAppPathRegistryKeyPath(rawKeyPath)
+            : backupKind === "open-with-key"
+              ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
+              : backupKind === "context-menu-key"
+                ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
+                : backupKind === "service-key"
+                  ? isSafeServiceRegistryKeyPath(rawKeyPath)
+                  : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -1234,6 +1438,11 @@ async function readRegistryBackupEntryForRestore(
   } else if (backupKind === "registered-app-value") {
     entry.backupKind = "registered-app-value";
     entry.valueName = valueName ?? null;
+  } else if (backupKind === "environment-path-value") {
+    entry.backupKind = "environment-path-value";
+    entry.valueName = valueName ?? null;
+    entry.environmentPathSegment =
+      cleanOptionalString(raw.environmentPathSegment) ?? null;
   } else if (backupKind === "app-path-key") {
     entry.backupKind = "app-path-key";
   } else if (backupKind === "open-with-key") {
@@ -1279,7 +1488,9 @@ async function readRegistryBackupEntryForRestore(
         entryDir,
         backupPath,
         entry.keyPath,
-        entry.backupKind === "startup-value" || entry.backupKind === "registered-app-value"
+        entry.backupKind === "startup-value" ||
+          entry.backupKind === "registered-app-value" ||
+          entry.backupKind === "environment-path-value"
           ? entry.valueName ?? undefined
           : undefined
       );
@@ -1569,15 +1780,17 @@ export async function purgeExpiredRegistryBackups(options: {
               ? "startup-value"
               : readableEntry.backupKind === "registered-app-value"
                 ? "registered-app-value"
-                : readableEntry.backupKind === "app-path-key"
-                  ? "app-path-key"
-                  : readableEntry.backupKind === "open-with-key"
-                    ? "open-with-key"
-                    : readableEntry.backupKind === "context-menu-key"
-                      ? "context-menu-key"
-                      : readableEntry.backupKind === "service-key"
-                        ? "service-key"
-                        : "key",
+                : readableEntry.backupKind === "environment-path-value"
+                  ? "environment-path-value"
+                  : readableEntry.backupKind === "app-path-key"
+                    ? "app-path-key"
+                    : readableEntry.backupKind === "open-with-key"
+                      ? "open-with-key"
+                      : readableEntry.backupKind === "context-menu-key"
+                        ? "context-menu-key"
+                        : readableEntry.backupKind === "service-key"
+                          ? "service-key"
+                          : "key",
           sizeBytes: entryBytes
         });
       }
@@ -1680,17 +1893,21 @@ export async function restoreRegistryBackup(options: {
           ? "startup-value"
           : entry.backupKind === "registered-app-value"
             ? "registered-app-value"
-            : entry.backupKind === "app-path-key"
-              ? "app-path-key"
-              : entry.backupKind === "open-with-key"
-                ? "open-with-key"
-                : entry.backupKind === "context-menu-key"
-                  ? "context-menu-key"
-                  : entry.backupKind === "service-key"
-                    ? "service-key"
-                    : "key";
+            : entry.backupKind === "environment-path-value"
+              ? "environment-path-value"
+              : entry.backupKind === "app-path-key"
+                ? "app-path-key"
+                : entry.backupKind === "open-with-key"
+                  ? "open-with-key"
+                  : entry.backupKind === "context-menu-key"
+                    ? "context-menu-key"
+                    : entry.backupKind === "service-key"
+                      ? "service-key"
+                      : "key";
       const restoredApp: RegistryBackupRestoredApp =
-        backupKind === "startup-value" || backupKind === "registered-app-value"
+        backupKind === "startup-value" ||
+        backupKind === "registered-app-value" ||
+        backupKind === "environment-path-value"
           ? {
               name: appName,
               publisher: appPublisher,
@@ -1731,7 +1948,11 @@ async function assertRegistryBackupRestored(
   runner: RegistryCleanupRunner
 ): Promise<void> {
   const label = registryBackupKindLabel(entry);
-  if (entry.backupKind === "startup-value" || entry.backupKind === "registered-app-value") {
+  if (
+    entry.backupKind === "startup-value" ||
+    entry.backupKind === "registered-app-value" ||
+    entry.backupKind === "environment-path-value"
+  ) {
     if (!entry.valueName || !runner.valueExists) return;
     if (!(await runner.valueExists(entry.keyPath, entry.valueName))) {
       throw new Error(`${label}이 아직 되살아나지 않았어요.`);

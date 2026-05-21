@@ -488,6 +488,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "environment-path-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"

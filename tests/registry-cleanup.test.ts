@@ -4,17 +4,20 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+  backupAndRemoveEnvironmentPathSegment,
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
+  normalizeSafeEnvironmentPathSegment,
   normalizeSafeServiceName,
   purgeExpiredRegistryBackups,
   restoreRegistryBackup,
@@ -616,6 +619,132 @@ describe("registry leftover cleanup", () => {
       valueName,
       backupKind: "registered-app-value"
     });
+  });
+
+  it("only allows PATH registry values and safe drive-letter PATH segments", () => {
+    expect(isSafeEnvironmentPathRegistryValuePath("HKCU\\Environment", "Path")).toBe(true);
+    expect(
+      isSafeEnvironmentPathRegistryValuePath(
+        "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+        "Path"
+      )
+    ).toBe(true);
+    expect(isSafeEnvironmentPathRegistryValuePath("HKCU\\Environment", "PATHEXT")).toBe(false);
+    expect(isSafeEnvironmentPathRegistryValuePath("HKCU\\Software\\Environment", "Path")).toBe(
+      false
+    );
+    expect(isSafeEnvironmentPathRegistryValuePath(" HKCU\\Environment", "Path")).toBe(false);
+    expect(normalizeSafeEnvironmentPathSegment("C:\\Program Files\\Acme Notes\\bin")).toBe(
+      "C:\\Program Files\\Acme Notes\\bin"
+    );
+    expect(normalizeSafeEnvironmentPathSegment("%APPDATA%\\Acme")).toBeUndefined();
+    expect(normalizeSafeEnvironmentPathSegment("C:\\Program Files\\Acme;C:\\Temp")).toBeUndefined();
+    expect(normalizeSafeEnvironmentPathSegment("C:\\Program Files\\Acme Notes\\bin ")).toBeUndefined();
+  });
+
+  it("backs up the whole PATH value before removing one dead app segment", async () => {
+    const keyPath = "HKCU\\Environment";
+    const valueName = "Path";
+    const segment = "C:\\Program Files\\Acme Notes\\bin";
+    let currentPathValue = `${segment};C:\\Windows\\System32`;
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      queryValue: vi.fn(async () => ({ type: "REG_SZ", data: currentPathValue })),
+      setValue: vi.fn(async (_keyPath: string, _valueName: string, type: string, data: string) => {
+        expect(type).toBe("REG_SZ");
+        currentPathValue = data;
+      }),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Environment]\n"Path"="C:\\\\Program Files\\\\Acme Notes\\\\bin;C:\\\\Windows\\\\System32"\n`,
+          "utf8"
+        );
+      }),
+      valueExists: vi.fn(async () => true),
+      importFile: vi.fn(async () => undefined)
+    };
+
+    const result = await backupAndRemoveEnvironmentPathSegment({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      segment,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(runner.exportValue).toHaveBeenCalledWith(keyPath, valueName, result.backupPath);
+    expect(runner.setValue).toHaveBeenCalledWith(
+      keyPath,
+      valueName,
+      "REG_SZ",
+      "C:\\Windows\\System32"
+    );
+    expect(currentPathValue).toBe("C:\\Windows\\System32");
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      environmentPathSegment: segment,
+      backupKind: "environment-path-value",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      valueName,
+      environmentPathSegment: segment,
+      backupKind: "environment-path-value"
+    });
+
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner
+    });
+
+    expect(restored).toMatchObject({ status: "restored", keyPath });
+    expect(runner.importFile).toHaveBeenCalledWith(result.backupPath);
+  });
+
+  it("does not keep a PATH backup when the target segment is missing before update", async () => {
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      queryValue: vi.fn(async () => ({
+        type: "REG_SZ",
+        data: "C:\\Windows\\System32"
+      })),
+      setValue: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Environment]\n"Path"="C:\\\\Windows\\\\System32"\n`,
+          "utf8"
+        );
+      })
+    };
+
+    await expect(
+      backupAndRemoveEnvironmentPathSegment({
+        userDataDir: fx.userDataDir,
+        keyPath: "HKCU\\Environment",
+        valueName: "Path",
+        segment: "C:\\Program Files\\Acme Notes\\bin",
+        runner
+      })
+    ).rejects.toThrow(/찾지 못했어요/);
+
+    expect(runner.setValue).not.toHaveBeenCalled();
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries).toEqual([]);
   });
 
   it("does not keep a registry backup entry when the key still exists after deletion", async () => {

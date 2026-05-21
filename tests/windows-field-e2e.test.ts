@@ -24,6 +24,7 @@ import {
   restoreStartupFolderEntry
 } from "../src/main/startup/folderToggle";
 import {
+  backupAndRemoveEnvironmentPathSegment,
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   purgeExpiredRegistryBackups,
@@ -49,6 +50,7 @@ const APP_PATH_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${FIELD_VALUE_NAME}.exe`;
 const OPEN_WITH_KEY = `HKCU\\Software\\Classes\\Applications\\${FIELD_VALUE_NAME}.exe`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
+const ENVIRONMENT_KEY = "HKCU\\Environment";
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const FIELD_SERVICE_KEY = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${FIELD_SERVICE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
@@ -136,6 +138,38 @@ async function registryKeyExists(keyPath: string): Promise<boolean> {
   }
 }
 
+async function registryValueRecord(
+  keyPath: string,
+  valueName: string
+): Promise<{ type: string; data: string } | null> {
+  try {
+    const { stdout } = await runReg(["query", keyPath, "/v", valueName]);
+    const row = stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.toLowerCase().startsWith(valueName.toLowerCase()));
+    if (!row) return null;
+    const [, type, ...dataParts] = row.split(/\s{2,}/);
+    if (!type || dataParts.length === 0) return null;
+    return { type, data: dataParts.join("  ") };
+  } catch {
+    return null;
+  }
+}
+
+async function setRegistryValue(
+  keyPath: string,
+  valueName: string,
+  type: string,
+  data: string
+): Promise<void> {
+  await runReg(["add", keyPath, "/v", valueName, "/t", type, "/d", data, "/f"]);
+}
+
+async function deleteRegistryValue(keyPath: string, valueName: string): Promise<void> {
+  await runReg(["delete", keyPath, "/v", valueName, "/f"]);
+}
+
 async function serviceExists(serviceName: string): Promise<boolean> {
   try {
     await runSc(["query", serviceName]);
@@ -173,6 +207,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
   let root = "";
   let userDataDir = "";
   let home = "";
+  let originalUserPath: { exists: boolean; type?: string; data?: string } | null = null;
 
   afterEach(async () => {
     __resetPlanCacheForTests();
@@ -182,6 +217,16 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", APP_PATH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", OPEN_WITH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
+    if (originalUserPath) {
+      if (originalUserPath.exists && originalUserPath.type && originalUserPath.data !== undefined) {
+        await setRegistryValue(ENVIRONMENT_KEY, "Path", originalUserPath.type, originalUserPath.data).catch(
+          () => {}
+        );
+      } else {
+        await deleteRegistryValue(ENVIRONMENT_KEY, "Path").catch(() => {});
+      }
+      originalUserPath = null;
+    }
     await runSc(["delete", FIELD_SERVICE_NAME]).catch(() => {});
     await runReg(["delete", FIELD_SERVICE_KEY, "/f"]).catch(() => {});
     await runSchtasks(["/Delete", "/TN", FIELD_TASK_NAME, "/F"]).catch(() => {});
@@ -576,6 +621,47 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
+  }, 45_000);
+
+  it("backs up, removes, and restores one isolated user PATH app segment", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-path-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T11:30:00.000Z");
+    const restoredAt = new Date("2026-05-20T11:35:00.000Z");
+    const segment = join(root, "Acme Notes", "bin");
+    const existingPath = await registryValueRecord(ENVIRONMENT_KEY, "Path");
+    originalUserPath = existingPath
+      ? { exists: true, type: existingPath.type, data: existingPath.data }
+      : { exists: false };
+    const pathType = existingPath?.type === "REG_SZ" ? "REG_SZ" : "REG_EXPAND_SZ";
+    const fallbackPath = "C:\\Windows\\System32";
+    const pathValue = `${segment};${existingPath?.data || fallbackPath}`;
+
+    await setRegistryValue(ENVIRONMENT_KEY, "Path", pathType, pathValue);
+    expect((await registryValueRecord(ENVIRONMENT_KEY, "Path"))?.data).toContain(segment);
+
+    const backup = await backupAndRemoveEnvironmentPathSegment({
+      userDataDir,
+      keyPath: ENVIRONMENT_KEY,
+      valueName: "Path",
+      segment,
+      now: () => firstAt,
+      app: { name: "Acme Notes", publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.backupKind).toBe("environment-path-value");
+    expect(backup.environmentPathSegment).toBe(segment);
+    expect((await registryValueRecord(ENVIRONMENT_KEY, "Path"))?.data).not.toContain(segment);
+
+    const restored = await restoreRegistryBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.backupKind).toBe("environment-path-value");
+    expect((await registryValueRecord(ENVIRONMENT_KEY, "Path"))?.data).toContain(segment);
   }, 45_000);
 
   it("backs up, removes, and restores an isolated Windows service trace", async () => {

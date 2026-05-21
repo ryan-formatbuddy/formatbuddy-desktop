@@ -60,15 +60,18 @@ import {
   type ScheduledTaskBackupRunner
 } from "../startup/scheduledTaskBackup";
 import {
+  backupAndRemoveEnvironmentPathSegment,
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
+  normalizeSafeEnvironmentPathSegment,
   serviceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
@@ -429,7 +432,7 @@ export interface PlanLeftoversOptions {
    * default-app list, and right-click menu traces before surfacing them.
    * Defaults to reg.exe on Windows and no-op elsewhere.
    */
-  registryRunner?: Pick<RegistryCleanupRunner, "keyExists" | "valueExists">;
+  registryRunner?: Pick<RegistryCleanupRunner, "keyExists" | "queryValue" | "valueExists">;
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -614,6 +617,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "shortcut-folder" ||
     value === "registry" ||
     value === "registered-app-registry" ||
+    value === "environment-path-registry" ||
     value === "app-path-registry" ||
     value === "open-with-registry" ||
     value === "context-menu-registry" ||
@@ -1248,6 +1252,11 @@ const REGISTERED_APPLICATIONS_REGISTRY_ROOTS = [
   "HKLM\\Software\\RegisteredApplications"
 ] as const;
 
+const ENVIRONMENT_PATH_REGISTRY_VALUES = [
+  { keyPath: "HKCU\\Environment", valueName: "Path" },
+  { keyPath: "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", valueName: "Path" }
+] as const;
+
 function appExecutableNames(app: InstalledApp): string[] {
   const candidates = new Set<string>();
   const installLocation = app.installLocation?.trim();
@@ -1316,6 +1325,22 @@ async function registryValueExists(
   }
 }
 
+async function registryValueRecord(
+  keyPath: string,
+  valueName: string,
+  runner?: Pick<RegistryCleanupRunner, "queryValue">
+): Promise<{ type: string; data: string } | undefined> {
+  const queryValue =
+    runner?.queryValue ??
+    (process.platform === "win32" ? defaultRegistryCleanupRunner().queryValue : undefined);
+  if (!queryValue) return undefined;
+  try {
+    return await queryValue(keyPath, valueName);
+  } catch {
+    return undefined;
+  }
+}
+
 async function appPathRegistryLeftoverPaths(
   app: InstalledApp,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
@@ -1365,6 +1390,57 @@ async function registeredApplicationRegistryLeftoverPaths(
       });
     }
   }
+  return paths;
+}
+
+function environmentPathSegments(value: string): string[] {
+  return value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function environmentPathSegmentMatchesApp(segment: string, app: InstalledApp): boolean {
+  const portableSegment = segment.replace(/\\/g, "/");
+  const candidates = [
+    portableSegment,
+    dirname(portableSegment),
+    dirname(dirname(portableSegment))
+  ];
+  return candidates.some((candidate) => installFolderNameMatchesApp(candidate, app));
+}
+
+async function environmentPathRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "queryValue">
+): Promise<AppLeftoverPath[]> {
+  const paths: AppLeftoverPath[] = [];
+  const seen = new Set<string>();
+
+  for (const { keyPath, valueName } of ENVIRONMENT_PATH_REGISTRY_VALUES) {
+    if (!isSafeEnvironmentPathRegistryValuePath(keyPath, valueName)) continue;
+    const record = await registryValueRecord(keyPath, valueName, runner);
+    if (!record?.data) continue;
+    for (const rawSegment of environmentPathSegments(record.data)) {
+      const segment = normalizeSafeEnvironmentPathSegment(rawSegment);
+      if (!segment) continue;
+      if (!environmentPathSegmentMatchesApp(segment, app)) continue;
+      const key = normalizePath(`${keyPath}\\${valueName}\\${segment}`).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      paths.push({
+        id: makePathId(`environment-path-registry:${keyPath}:${valueName}:${segment}`),
+        kind: "environment-path-registry",
+        path: keyPath,
+        registryValueName: valueName,
+        environmentPathSegment: segment,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
   return paths;
 }
 
@@ -1565,10 +1641,12 @@ async function startupLeftoverPaths(
 
 function leftoverUniqueKey(path: AppLeftoverPath): string {
   const registryValueName = path.registryValueName?.trim().toLowerCase() ?? "";
+  const environmentPathSegment = path.environmentPathSegment?.trim().toLowerCase() ?? "";
   return [
     path.kind ?? "folder",
     normalizePath(path.path),
-    registryValueName
+    registryValueName,
+    environmentPathSegment
   ].join("|");
 }
 
@@ -1634,6 +1712,7 @@ export async function planAppLeftovers(
         ...(source === "uninstall-launched"
           ? [
               ...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner))
@@ -1666,6 +1745,7 @@ export async function planAppLeftovers(
     paths.push(...registryLeftoverPaths(app));
     if (source === "uninstall-launched") {
       paths.push(...(await registeredApplicationRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await environmentPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
@@ -1873,6 +1953,9 @@ function preservedRegistryBackupSkipFields(err: unknown): Pick<
 }
 
 function friendlyRegistryLeftoverFailureDetail(message: string): string {
+  if (/PATH/i.test(message)) {
+    return "PATH에 남은 앱 경로를 안전하게 확인하지 못해서 그대로 뒀어요.";
+  }
   if (/지원하는 앱 제거 레지스트리 위치|지원하는 시작 항목 레지스트리 위치|registry location/i.test(message)) {
     return "지원하는 앱 삭제 흔적 위치가 아니라 자동 정리하지 않았어요.";
   }
@@ -2232,6 +2315,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (group && !isSafeLeftoverGroupSource(group.source)) invalid.push("source");
     if (group && !isSafeLeftoverCleanupState(group.cleanupState)) invalid.push("cleanup state");
     if (!isOptionalStrictPlanString(path.registryValueName)) invalid.push("registry value name");
+    if (!isOptionalStrictPlanString(path.environmentPathSegment)) {
+      invalid.push("environment path segment");
+    }
     if (!isOptionalStrictPlanString(path.protectedBy)) invalid.push("protection reason");
     if (path.kind === "startup-folder") {
       if (!isStrictPlanString(path.startupEntryId)) invalid.push("startup entry id");
@@ -2285,6 +2371,15 @@ function assertSelectedLeftoverPlanMetadataUsable(
         !isSafeRegisteredApplicationRegistryValuePath(path.path, path.registryValueName))
     ) {
       invalid.push("registered application registry value");
+    }
+    if (
+      path.kind === "environment-path-registry" &&
+      (typeof path.registryValueName !== "string" ||
+        typeof path.environmentPathSegment !== "string" ||
+        !isSafeEnvironmentPathRegistryValuePath(path.path, path.registryValueName) ||
+        !normalizeSafeEnvironmentPathSegment(path.environmentPathSegment))
+    ) {
+      invalid.push("environment PATH registry value");
     }
     if (path.kind === "app-path-registry" && !isSafeAppPathRegistryKeyPath(path.path)) {
       invalid.push("app paths registry key");
@@ -2512,6 +2607,54 @@ export async function cleanupAppLeftovers(
           itemId: path.id,
           path: path.path,
           reason: /지원하는 레지스트리 값 위치|registry value/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "environment-path-registry") {
+      try {
+        const valueName = path.registryValueName;
+        const segment = path.environmentPathSegment;
+        if (!valueName || !segment) {
+          throw new Error("PATH 경로 정보를 확인하지 못했어요.");
+        }
+        const backup = await backupAndRemoveEnvironmentPathSegment({
+          userDataDir: options.userDataDir,
+          keyPath: path.path,
+          valueName,
+          segment,
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group ? groupInstallIdentity(group) : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: `${path.path}\\${valueName}:${segment}`,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        resolvedPathIds.add(path.id);
+      } catch (err) {
+        const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /지원하는 PATH|PATH 경로|registry value/i.test(message)
             ? "blocked-path"
             : "execute-failed",
           detail: preservedBackup?.detail ?? friendlyRegistryLeftoverFailureDetail(message),

@@ -850,17 +850,20 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "service-key" for Windows services. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "service-key" for Windows services. */
   backupKind?:
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "environment-path-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
     | "service-key";
-  /** Present when backupKind is a value-level backup such as "startup-value" or "registered-app-value". */
+  /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", or "environment-path-value". */
   valueName?: string | null;
+  /** Present when backupKind === "environment-path-value". */
+  environmentPathSegment?: string | null;
   backupPath: string;
   sizeBytes: number;
   contentHash?: {
@@ -907,6 +910,7 @@ export interface RegistryBackupPurgedItem {
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "environment-path-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
@@ -1322,6 +1326,7 @@ export interface AppLeftoverPath {
     | "shortcut-folder"
     | "registry"
     | "registered-app-registry"
+    | "environment-path-registry"
     | "app-path-registry"
     | "open-with-registry"
     | "context-menu-registry"
@@ -1342,6 +1347,7 @@ export interface AppLeftoverPath {
   /** Original Task Scheduler folder when startupEntryKind === "scheduled-task". */
   scheduledTaskPath?: string | null;
   registryValueName?: string | null;
+  environmentPathSegment?: string | null;
   exists: boolean;
   sizeBytes?: number | null;
   lastModifiedAt?: string | null;
