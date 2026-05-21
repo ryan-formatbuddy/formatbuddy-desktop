@@ -812,6 +812,22 @@ async function movePathAcceptingLateSuccess(
   }
 }
 
+async function removeEntryDirAcceptingLateSuccess(
+  removeEntryDir: (dir: string, entry: CleanupTrashEntry) => Promise<void>,
+  dir: string,
+  entry: CleanupTrashEntry
+): Promise<void> {
+  try {
+    await removeEntryDir(dir, entry);
+  } catch (err) {
+    if (!(await exists(dir))) return;
+    throw err;
+  }
+  if (await exists(dir)) {
+    throw new Error("Expired trash entry still exists after purge");
+  }
+}
+
 async function hashPath(path: string, root = path): Promise<string> {
   const stat = await lstat(path);
   if (stat.isSymbolicLink()) {
@@ -1285,10 +1301,7 @@ export async function purgeExpiredTrash(
       const entryBytes = linkedStoredPath
         ? 0
         : await measureStoredPath(entry.storedPath).catch(() => entry.sizeBytes);
-      await removeEntryDir(dir, entry);
-      if (await exists(dir)) {
-        throw new Error("Expired trash entry still exists after purge");
-      }
+      await removeEntryDirAcceptingLateSuccess(removeEntryDir, dir, entry);
       purgedBytes += entryBytes;
       purgedEntryIds.push(entry.id);
       purgedItems.push({

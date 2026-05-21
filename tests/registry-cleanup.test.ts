@@ -1210,6 +1210,37 @@ describe("registry leftover cleanup", () => {
     await expect(readFile(ok.backupPath, "utf8")).rejects.toThrow();
   });
 
+  it("counts an expired registry backup as purged when folder removal reports a late failure after deletion", async () => {
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => undefined)
+    };
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath: "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Late Notes",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const backupDir = join(__testing.registryBackupItemsRoot(fx.userDataDir), result.id);
+
+    const purge = await purgeExpiredRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-18T00:00:00.000Z"),
+      removeEntryDir: async (dir) => {
+        await rm(dir, { recursive: true, force: true });
+        throw new Error("registry backup remove reported a late failure");
+      }
+    });
+
+    expect(purge.purgedCount).toBe(1);
+    expect(purge.purgedIds).toEqual([result.id]);
+    expect(purge.failedIds).toBeUndefined();
+    expect(existsSync(backupDir)).toBe(false);
+  });
+
   it("lists registry backups for the restore bin surface", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {

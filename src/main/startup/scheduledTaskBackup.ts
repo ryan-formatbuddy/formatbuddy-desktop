@@ -154,6 +154,22 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
+async function removeScheduledTaskBackupDirAcceptingLateSuccess(
+  removeEntryDir: (dir: string, entryId: string) => Promise<void>,
+  dir: string,
+  entryId: string
+): Promise<void> {
+  try {
+    await removeEntryDir(dir, entryId);
+  } catch (err) {
+    if (!(await pathExists(dir))) return;
+    throw err;
+  }
+  if (await pathExists(dir)) {
+    throw new Error("Expired scheduled task backup still exists after purge");
+  }
+}
+
 async function hashFile(path: string): Promise<string> {
   const content = await fs.readFile(path);
   return createHash("sha256").update(content).digest("hex");
@@ -680,15 +696,10 @@ export async function purgeExpiredScheduledTaskBackups(options: {
 
     try {
       const dirPath = await assertSafeTaskBackupEntryDirForPurge(options.userDataDir, dir.name);
-      if (options.removeEntryDir) {
-        await options.removeEntryDir(dirPath, dir.name);
-      } else {
-        await fs.rm(dirPath, { recursive: true, force: true });
-      }
-      if (await pathExists(dirPath)) {
-        failedIds.push(dir.name);
-        continue;
-      }
+      const removeEntryDir =
+        options.removeEntryDir ??
+        ((targetDir: string) => fs.rm(targetDir, { recursive: true, force: true }));
+      await removeScheduledTaskBackupDirAcceptingLateSuccess(removeEntryDir, dirPath, dir.name);
       purgedIds.push(dir.name);
       purgedBytes += Math.max(0, entry.sizeBytes);
       purgedItems.push({

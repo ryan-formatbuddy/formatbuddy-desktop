@@ -1624,6 +1624,35 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.entries.map((trashEntry) => trashEntry.id)).toEqual([entry.id]);
   });
 
+  it("counts an expired entry as purged when folder removal reports a late failure after deletion", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z")
+    });
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-06-18T00:00:01.000Z"),
+      removeEntryDir: async (dir) => {
+        await rm(dir, { recursive: true, force: true });
+        throw new Error("remove reported a late failure");
+      }
+    });
+
+    expect(purged.purgedCount).toBe(1);
+    expect(purged.purgedBytes).toBe(5);
+    expect(purged.purgedEntryIds).toEqual([entry.id]);
+    expect(purged.failedEntryIds).toEqual([]);
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
   it("blocks purge preflight when the stored path is outside its restore entry folder", async () => {
     const entry = makeTrashEntry(fx.userData, "expired-outside-stored");
 

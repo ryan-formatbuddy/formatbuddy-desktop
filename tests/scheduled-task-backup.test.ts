@@ -275,6 +275,32 @@ describe("scheduled task backup", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("counts an expired scheduled task backup as purged when folder removal reports a late failure after deletion", async () => {
+    const runner = makeRunner();
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-01T00:00:00.000Z"),
+      runner
+    });
+    const backupDir = join(fx.userDataDir, "formatbuddy-scheduled-task-backups", "items", backup.id);
+
+    const purged = await purgeExpiredScheduledTaskBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-01T00:00:00.000Z"),
+      removeEntryDir: async (dir) => {
+        await fs.rm(dir, { recursive: true, force: true });
+        throw new Error("scheduled task backup remove reported a late failure");
+      }
+    });
+
+    expect(purged.purgedCount).toBe(1);
+    expect(purged.purgedIds).toEqual([backup.id]);
+    expect(purged.failedIds).toBeUndefined();
+    expect(existsSync(backupDir)).toBe(false);
+  });
+
   it("removes a linked scheduled task backup root without touching the external target", async () => {
     const linkedRoot = join(fx.userDataDir, "formatbuddy-scheduled-task-backups", "items");
     const outside = join(fx.root, "outside-task-backups");

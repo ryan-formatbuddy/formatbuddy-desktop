@@ -229,6 +229,20 @@ async function pathExists(targetPath: string): Promise<boolean> {
   }
 }
 
+async function removeStartupHoldingDirAcceptingLateSuccess(
+  removeEntryDir: (dir: string, entry: StartupAutoDisabledEntry) => Promise<void>,
+  dir: string,
+  entry: StartupAutoDisabledEntry
+): Promise<void> {
+  try {
+    await removeEntryDir(dir, entry);
+  } catch (err) {
+    if (!(await pathExists(dir))) return;
+    throw err;
+  }
+  if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
+}
+
 async function hashHeldStartupFile(targetPath: string): Promise<string> {
   const stat = await lstat(targetPath);
   if (!stat.isFile() || stat.isSymbolicLink()) {
@@ -848,8 +862,7 @@ export async function purgeExpiredStartupFolderEntries(
         (stat) => (stat.isFile() && !stat.isSymbolicLink() ? stat.size : 0),
         () => 0
       );
-      await removeEntryDir(dir, entry);
-      if (await pathExists(dir)) throw new Error("Expired startup holding entry still exists");
+      await removeStartupHoldingDirAcceptingLateSuccess(removeEntryDir, dir, entry);
       purgedIds.push(entry.id);
       purgedItems.push({
         id: entry.id,

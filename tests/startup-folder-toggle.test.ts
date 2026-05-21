@@ -128,6 +128,35 @@ describe("startup folder toggle", () => {
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
   });
 
+  it("counts an expired startup holding as purged when folder removal reports a late failure after deletion", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Slack.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Slack.lnk"),
+      now: () => new Date("2026-05-20T10:00:00.000Z")
+    });
+    const entryDir = __testing.entryDir(fx.userDataDir, disabled.entry!.id);
+
+    const result = await purgeExpiredStartupFolderEntries({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-19T10:00:01.000Z"),
+      removeEntryDir: async (dir) => {
+        await rm(dir, { recursive: true, force: true });
+        throw new Error("startup holding remove reported a late failure");
+      }
+    });
+
+    expect(result.purgedCount).toBe(1);
+    expect(result.purgedIds).toEqual([disabled.entry!.id]);
+    expect(result.failedIds).toBeUndefined();
+    expect(existsSync(entryDir)).toBe(false);
+  });
+
   it("does not purge an expired startup holding record with a stored path outside the holding entry", async () => {
     const fx = makeFixture();
     roots.push(fx.root);

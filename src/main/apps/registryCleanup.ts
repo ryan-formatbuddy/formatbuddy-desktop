@@ -1135,6 +1135,22 @@ async function measureRegistryBackupPurgeBytes(entryDir: string): Promise<number
   }
 }
 
+async function removeRegistryBackupDirAcceptingLateSuccess(
+  removeEntryDir: (dir: string, entryId: string) => Promise<void>,
+  entryDir: string,
+  entryId: string
+): Promise<void> {
+  try {
+    await removeEntryDir(entryDir, entryId);
+  } catch (err) {
+    if (!(await pathExists(entryDir))) return;
+    throw err;
+  }
+  if (await pathExists(entryDir)) {
+    throw new Error("Expired registry backup still exists after purge");
+  }
+}
+
 async function assertSafeRegistryBackupEntryDirForPurge(
   userDataDir: string,
   backupId: string
@@ -1288,10 +1304,7 @@ export async function purgeExpiredRegistryBackups(options: {
         () => null
       );
       const entryBytes = await measureRegistryBackupPurgeBytes(entryDir);
-      await removeEntryDir(entryDir, entry.name);
-      if (await pathExists(entryDir)) {
-        throw new Error("Expired registry backup still exists after purge");
-      }
+      await removeRegistryBackupDirAcceptingLateSuccess(removeEntryDir, entryDir, entry.name);
       purgedBytes += entryBytes;
       purgedIds.push(entry.name);
       if (readableEntry) {
