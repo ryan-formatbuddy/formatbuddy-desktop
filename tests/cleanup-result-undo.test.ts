@@ -678,6 +678,9 @@ describe("Cleanup result undo helper", () => {
       "PATH 경로 백업"
     );
     expect(registryBackupKindLabel({ backupKind: "context-menu-key" })).toBe("우클릭 메뉴 백업");
+    expect(registryBackupKindLabel({ backupKind: "protocol-handler-key" })).toBe(
+      "프로토콜 연결 백업"
+    );
     expect(registryBackupKindLabel({ backupKind: "service-key" })).toBe("서비스 백업");
     expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
     expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
@@ -691,6 +694,9 @@ describe("Cleanup result undo helper", () => {
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "context-menu-key" })).toBe(
       "우클릭 메뉴 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "protocol-handler-key" })).toBe(
+      "프로토콜 연결 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "service-key" })).toBe("서비스 되돌리기");
   });

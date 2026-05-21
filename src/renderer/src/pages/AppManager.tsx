@@ -177,7 +177,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
     lines.push(`잔여 파일/폴더 ${fileOrFolderCount}개는 복구함에 30일 동안 보관해요.`);
   }
   if (backupCount > 0) {
-    lines.push(`앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+    lines.push(`앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/프로토콜 연결/우클릭 메뉴/서비스/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (startupCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
@@ -523,12 +523,12 @@ function AppLeftoverConfirmDialog({
           )}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 앱 연결, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, PATH 경로, 앱 연결, 프로토콜 연결, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
           <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
-          <li>앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
+          <li>앱 삭제 흔적/기본 앱 목록/PATH 경로/실행 경로/앱 연결/프로토콜 연결/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
           <li>서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
           <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
@@ -688,7 +688,7 @@ function LeftoverPanel({
       <h2 className="fb-h2">앱별 잔여 후보</h2>
       <p style={{ fontSize: 13, opacity: 0.75 }}>
         Windows가 앱을 제거해도 남는 경우가 있는 숨은 앱 데이터 폴더, 바탕화면·시작 메뉴·작업표시줄 바로가기,
-        PATH 경로와 앱 삭제 흔적 후보예요. 직접 고른 항목만 정리하고, 폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
+        PATH 경로와 앱 삭제 흔적, 프로토콜 연결 후보예요. 직접 고른 항목만 정리하고, 폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요. 앱 삭제 흔적도
         30일 동안 되돌릴 수 있게 백업해요.
       </p>
       <p style={{ fontSize: 13, opacity: 0.75 }}>

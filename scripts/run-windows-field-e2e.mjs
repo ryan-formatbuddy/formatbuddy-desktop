@@ -20,6 +20,7 @@ const evidenceRequirements = [
   "RegisteredApplications default-app list value is backed up, removed, and restored",
   "App Paths registry alias is backed up, removed, and restored",
   "Open With app connection registry key is backed up, removed, and restored",
+  "URL protocol handler registry key is backed up, removed, and restored",
   "right-click menu registry key is backed up, removed, and restored",
   "isolated user PATH app segment is backed up, removed, and restored",
   "Windows service trace is backed up, removed with sc.exe, and restored as a 30-day registry backup",

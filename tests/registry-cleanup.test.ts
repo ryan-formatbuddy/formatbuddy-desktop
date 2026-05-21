@@ -12,11 +12,13 @@ import {
   isSafeContextMenuRegistryKeyPath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
+  isSafeProtocolHandlerRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
+  normalizeSafeProtocolScheme,
   normalizeSafeEnvironmentPathSegment,
   normalizeSafeServiceName,
   purgeExpiredRegistryBackups,
@@ -156,6 +158,33 @@ describe("registry leftover cleanup", () => {
       isSafeOpenWithRegistryKeyPath(
         "HKCR\\Applications\\AcmeNotes.exe"
       )
+    ).toBe(false);
+  });
+
+  it("only allows narrow app protocol handler registry keys", () => {
+    expect(normalizeSafeProtocolScheme("zoommtg")).toBe("zoommtg");
+    expect(normalizeSafeProtocolScheme("ZoomMTG")).toBe("zoommtg");
+    expect(normalizeSafeProtocolScheme(" zoommtg")).toBeUndefined();
+    expect(normalizeSafeProtocolScheme("http")).toBeUndefined();
+    expect(normalizeSafeProtocolScheme("ms-settings")).toBeUndefined();
+    expect(normalizeSafeProtocolScheme("zoom mtg")).toBeUndefined();
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\zoommtg")
+    ).toBe(true);
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKLM\\Software\\Classes\\slack")
+    ).toBe(true);
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\http")
+    ).toBe(false);
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\ms-settings")
+    ).toBe(false);
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\zoommtg\\shell")
+    ).toBe(false);
+    expect(
+      isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\zoom mtg")
     ).toBe(false);
   });
 
@@ -318,6 +347,71 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "open-with-key"
+    });
+  });
+
+  it("exports a backup before deleting a protocol handler registry key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\zoommtg";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "protocol-handler-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Zoom", publisher: "Zoom Video Communications" }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "protocol-handler-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "protocol-handler-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "프로토콜 연결 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "protocol-handler-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Zoom",
+      publisher: "Zoom Video Communications",
+      backupKind: "protocol-handler-key",
+      registryKeyPath: keyPath
     });
   });
 
