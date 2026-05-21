@@ -1585,7 +1585,7 @@ async function fileAssociationRegistryLeftoverPaths(
 
 async function registeredApplicationRegistryLeftoverPaths(
   app: InstalledApp,
-  runner?: Pick<RegistryCleanupRunner, "valueExists" | "queryValue" | "keyExists">
+  runner?: Pick<RegistryCleanupRunner, "valueExists" | "queryValue" | "keyExists" | "listValues">
 ): Promise<AppLeftoverPath[]> {
   const valueNames = registeredApplicationValueNames(app);
   if (valueNames.length === 0) return [];
@@ -1619,6 +1619,7 @@ async function registeredApplicationRegistryLeftoverPaths(
         sizeBytes: null,
         lastModifiedAt: null
       });
+      paths.push(...(await capabilitiesFileAssociationRegistryLeftoverPaths(capabilitiesKeyPath, runner)));
     }
   }
   return paths;
@@ -1637,6 +1638,35 @@ function registeredApplicationCapabilitiesKeyPath(
   }
   const keyPath = `${root}\\${relativePath}`;
   return isSafeAppCapabilitiesRegistryKeyPath(keyPath) ? keyPath : undefined;
+}
+
+async function capabilitiesFileAssociationRegistryLeftoverPaths(
+  capabilitiesKeyPath: string,
+  runner?: Pick<RegistryCleanupRunner, "listValues" | "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const classRoot = capabilitiesKeyPath.startsWith("HKLM\\")
+    ? "HKLM\\Software\\Classes"
+    : "HKCU\\Software\\Classes";
+  const paths: AppLeftoverPath[] = [];
+
+  for (const record of await registryValues(`${capabilitiesKeyPath}\\FileAssociations`, runner)) {
+    if (!/^\.[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(record.valueName)) continue;
+    const progId = record.data.trim();
+    if (progId !== record.data) continue;
+    const keyPath = `${classRoot}\\${progId}`;
+    if (!isSafeFileAssociationRegistryKeyPath(keyPath)) continue;
+    if (!(await registryKeyExists(keyPath, runner))) continue;
+    paths.push({
+      id: makePathId(`file-association-registry:${keyPath}`),
+      kind: "file-association-registry",
+      path: keyPath,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null
+    });
+  }
+
+  return paths;
 }
 
 async function protocolHandlerRegistryLeftoverPaths(

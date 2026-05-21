@@ -1670,6 +1670,51 @@ describe("planAppLeftovers", () => {
     );
   });
 
+  it("also shows file type ProgID keys listed under a default-app Capabilities key", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const capabilitiesKey = "HKCU\\Software\\Acme\\Notes\\Capabilities";
+    const fileAssociationsKey = `${capabilitiesKey}\\FileAssociations`;
+    const progIdKey = "HKCU\\Software\\Classes\\AcmeNotes.Document";
+    const registryRunner = {
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+          ? { type: "REG_SZ", data: "Software\\Acme\\Notes\\Capabilities" }
+          : undefined
+      ),
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === fileAssociationsKey
+          ? [
+              { valueName: ".acme", type: "REG_SZ", data: "AcmeNotes.Document" },
+              { valueName: ".txt", type: "REG_SZ", data: "txtfile" }
+            ]
+          : []
+      ),
+      keyExists: vi.fn(async (keyPath: string) => keyPath === capabilitiesKey || keyPath === progIdKey)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+
+    expect(registryRunner.listValues).toHaveBeenCalledWith(fileAssociationsKey);
+    expect(snapshot.groups[0].paths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "file-association-registry",
+          path: progIdKey,
+          exists: true
+        })
+      ])
+    );
+    expect(
+      snapshot.groups[0].paths.some((path) => path.path === "HKCU\\Software\\Classes\\txtfile")
+    ).toBe(false);
+  });
+
   it("does not follow unsafe RegisteredApplications capabilities targets", async () => {
     const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
     const registeredApplicationsValue = "Acme Notes";
