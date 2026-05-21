@@ -58,7 +58,8 @@ import { defaultDeps, executeCleanup } from "./cleanup/executor";
 import { enforceAppLeftoversCleanupPolicy, enforceProductCleanupPolicy } from "./cleanup/policy";
 import {
   normalizeCleanupTrashRestoreRequest,
-  normalizeRegistryBackupRestoreRequest
+  normalizeRegistryBackupRestoreRequest,
+  normalizeScheduledTaskBackupRestoreRequest
 } from "./cleanup/restoreRequestPolicy";
 import { getCleanupHistory } from "./cleanup/log";
 import { getTrashSnapshot, restoreTrashEntry } from "./cleanup/trash";
@@ -1126,6 +1127,7 @@ function registerIpc() {
     IpcChannels.scheduledTaskBackupRestore,
     async (_e, request: ScheduledTaskBackupRestoreRequest): Promise<ScheduledTaskBackupRestoreResult> => {
       const userDataDir = app.getPath("userData");
+      const safeRequest = normalizeScheduledTaskBackupRestoreRequest(request);
       await purgeExpiredScheduledTaskBackupsWithAudit({
         userDataDir,
         trigger: "scheduled-task-restore"
@@ -1134,7 +1136,8 @@ function registerIpc() {
       });
       const result = await restoreScheduledTaskBackup({
         userDataDir,
-        backupId: request?.backupId
+        backupId: safeRequest.backupId,
+        beforeRestore: () => maybeCreateRestorePoint("예약 작업 되돌리기")
       });
       await appendAuditEntry(userDataDir, {
         category: "cleanup",
@@ -1144,7 +1147,7 @@ function registerIpc() {
             ? "예약 작업을 복구함에서 되돌렸어요."
             : `예약 작업 되돌리기 결과: ${result.message}`,
         detail: {
-          backupId: result.backupId,
+          backupId: safeRequest.backupId,
           taskName: result.taskName,
           taskPath: result.taskPath,
           status: result.status

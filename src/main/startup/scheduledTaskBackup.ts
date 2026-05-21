@@ -678,6 +678,7 @@ export async function restoreScheduledTaskBackup(options: {
   backupId: string;
   now?: () => Date;
   runner?: ScheduledTaskBackupRunner;
+  beforeRestore?: (entry: ScheduledTaskBackupEntry) => Promise<void>;
   removeEntryDir?: (dir: string, entry: ScheduledTaskBackupEntry) => Promise<void>;
 }): Promise<ScheduledTaskBackupRestoreResult> {
   const now = options.now?.() ?? new Date();
@@ -697,6 +698,7 @@ export async function restoreScheduledTaskBackup(options: {
 
   const runner = options.runner ?? defaultScheduledTaskBackupRunner();
   try {
+    await options.beforeRestore?.(entry);
     await runner.restoreTask(entry.taskName, entry.taskPath, entry.backupPath);
     if (runner.taskExists && !(await runner.taskExists(entry.taskName, entry.taskPath))) {
       return {

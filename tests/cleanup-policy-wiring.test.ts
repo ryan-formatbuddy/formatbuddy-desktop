@@ -67,6 +67,7 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("normalizeCleanupTrashRestoreRequest(request)");
     expect(source).toContain("normalizeRegistryBackupRestoreRequest(request)");
     expect(source).toContain("normalizeStartupFolderRestoreRequest(request)");
+    expect(source).toContain("normalizeScheduledTaskBackupRestoreRequest(request)");
     expect(source).toContain("entryId: safeRequest.entryId");
     expect(source).toContain("backupId: safeRequest.backupId");
     expect(source).toContain("disabledId: safeRequest.disabledId");
@@ -84,6 +85,20 @@ describe("cleanup policy wiring", () => {
     expect(policyIndex).toBeLessThan(restorePointIndex);
     expect(policyIndex).toBeLessThan(restoreIndex);
     expect(source.indexOf("disabledId: safeRequest.disabledId", restoreIndex)).toBeGreaterThan(restoreIndex);
+  });
+
+  it("normalizes scheduled task backup restores before creating restore points", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const policyIndex = source.indexOf("const safeRequest = normalizeScheduledTaskBackupRestoreRequest(request)");
+    const restorePointIndex = source.indexOf('beforeRestore: () => maybeCreateRestorePoint("예약 작업 되돌리기")');
+    const restoreIndex = source.indexOf("restoreScheduledTaskBackup({", policyIndex);
+    expect(policyIndex).toBeGreaterThanOrEqual(0);
+    expect(restorePointIndex).toBeGreaterThanOrEqual(0);
+    expect(restoreIndex).toBeGreaterThanOrEqual(0);
+    expect(policyIndex).toBeLessThan(restoreIndex);
+    expect(restorePointIndex).toBeGreaterThan(restoreIndex);
+    expect(source.indexOf("backupId: safeRequest.backupId", restoreIndex)).toBeGreaterThan(restoreIndex);
   });
 
   it("enforces the app leftovers cleanup policy before creating restore points", () => {

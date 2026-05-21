@@ -120,6 +120,46 @@ describe("scheduled task backup", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("runs the safety hook only after a scheduled task backup is proven restorable", async () => {
+    const state = { exists: true };
+    const runner = makeRunner(state);
+    const beforeRestore = vi.fn(async () => undefined);
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    await restoreScheduledTaskBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner,
+      beforeRestore
+    });
+
+    expect(beforeRestore).toHaveBeenCalledTimes(1);
+    expect(beforeRestore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: backup.id,
+        taskName: "Acme Notes Update",
+        taskPath: "\\Acme\\"
+      })
+    );
+
+    await restoreScheduledTaskBackup({
+      userDataDir: fx.userDataDir,
+      backupId: "missing-backup",
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner,
+      beforeRestore
+    });
+
+    expect(beforeRestore).toHaveBeenCalledTimes(1);
+  });
+
   it("auto-purges expired scheduled task backups after 30 days", async () => {
     const runner = makeRunner();
     const backup = await backupAndDeleteScheduledTask({

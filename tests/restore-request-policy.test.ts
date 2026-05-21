@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeCleanupTrashRestoreRequest,
-  normalizeRegistryBackupRestoreRequest
+  normalizeRegistryBackupRestoreRequest,
+  normalizeScheduledTaskBackupRestoreRequest
 } from "../src/main/cleanup/restoreRequestPolicy";
 
 describe("restore request policy", () => {
@@ -56,6 +57,27 @@ describe("restore request policy", () => {
       "registry\nid"
     ]) {
       expect(normalizeRegistryBackupRestoreRequest({ backupId })).toEqual({ backupId: "" });
+    }
+  });
+
+  it("keeps valid scheduled task backup restore ids", () => {
+    expect(normalizeScheduledTaskBackupRestoreRequest({ backupId: "scheduled-task-1" })).toEqual({
+      backupId: "scheduled-task-1"
+    });
+  });
+
+  it("blocks unsafe scheduled task backup restore ids at the request boundary", () => {
+    for (const backupId of [
+      "../outside",
+      "scheduled/id",
+      "scheduled\\id",
+      "  ",
+      " scheduled-task-1",
+      "scheduled-task-1 ",
+      "scheduled task 1",
+      "scheduled\nid"
+    ]) {
+      expect(normalizeScheduledTaskBackupRestoreRequest({ backupId })).toEqual({ backupId: "" });
     }
   });
 });

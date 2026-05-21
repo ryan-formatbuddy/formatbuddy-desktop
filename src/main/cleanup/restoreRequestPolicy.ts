@@ -1,7 +1,9 @@
 import type {
   CleanupTrashRestoreRequest,
-  RegistryBackupRestoreRequest
+  RegistryBackupRestoreRequest,
+  ScheduledTaskBackupRestoreRequest
 } from "@shared/types";
+import { isSafeScheduledTaskBackupId } from "../startup/scheduledTaskBackup";
 
 function objectField(value: unknown, field: string): string {
   if (!value || typeof value !== "object") return "";
@@ -36,4 +38,11 @@ export function normalizeRegistryBackupRestoreRequest(
   request: unknown
 ): RegistryBackupRestoreRequest {
   return { backupId: objectSafeId(request, "backupId") };
+}
+
+export function normalizeScheduledTaskBackupRestoreRequest(
+  request: unknown
+): ScheduledTaskBackupRestoreRequest {
+  const backupId = objectField(request, "backupId");
+  return { backupId: isSafeScheduledTaskBackupId(backupId) ? backupId : "" };
 }
