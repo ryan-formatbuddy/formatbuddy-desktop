@@ -642,6 +642,16 @@ button { font-family: inherit; }
   background: #f7fbff;
   padding: 20px 22px;
 }
+.fb-home-restore {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid rgba(39,196,154,0.22);
+  border-radius: 18px;
+  background: #edfbf7;
+  padding: 20px 22px;
+}
 .fb-home-security-attention {
   background: #fff7e8;
   border-color: rgba(245,158,11,0.2);
@@ -675,10 +685,13 @@ button { font-family: inherit; }
 .fb-home-security-attention .fb-home-security-dot { background: #f59e0b; }
 .fb-home-security-ok .fb-home-security-kicker { color: #0b7257; }
 .fb-home-security-ok .fb-home-security-dot { background: #27c49a; }
+.fb-home-restore .fb-home-security-kicker { color: #0b7257; }
+.fb-home-restore .fb-home-security-dot { background: #27c49a; }
 .fb-home-security .fb-h2 {
   margin: 0;
 }
-.fb-home-security p {
+.fb-home-security p,
+.fb-home-restore p {
   margin: 0;
   color: var(--color-fb-ink-2);
   font-size: 13px;
@@ -802,6 +815,7 @@ button { font-family: inherit; }
   }
   .fb-home-quick-head,
   .fb-home-security,
+  .fb-home-restore,
   .fb-home-monitor {
     flex-direction: column;
     display: flex;
@@ -2721,6 +2735,7 @@ button { font-family: inherit; }
 :root[data-theme="dark"] .fb-home-monitor,
 :root[data-theme="dark"] .fb-home-privacy,
 :root[data-theme="dark"] .fb-home-security,
+:root[data-theme="dark"] .fb-home-restore,
 :root[data-theme="dark"] .fb-home-security-action,
 :root[data-theme="dark"] .fb-home-quick,
 :root[data-theme="dark"] .fb-home-quick-action,
@@ -2785,6 +2800,7 @@ button { font-family: inherit; }
   :root:not([data-theme="light"]) .fb-home-monitor,
   :root:not([data-theme="light"]) .fb-home-privacy,
   :root:not([data-theme="light"]) .fb-home-security,
+  :root:not([data-theme="light"]) .fb-home-restore,
   :root:not([data-theme="light"]) .fb-home-security-action,
   :root:not([data-theme="light"]) .fb-home-quick,
   :root:not([data-theme="light"]) .fb-home-quick-action,

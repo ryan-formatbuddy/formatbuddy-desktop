@@ -3,6 +3,7 @@ import { Button, ArrowRight } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
 import { applyThemeMode } from "../theme";
+import { restoreBinExpiryInsight } from "@shared/cleanup-result";
 import { copy } from "@shared/copy";
 import {
   buildSecurityCareSummary,
@@ -10,9 +11,13 @@ import {
   type SecurityCareSummary
 } from "@shared/security-care";
 import type {
+  CleanupTrashSnapshot,
   DefenderLiveStatus,
   MonitorPreferences,
+  RegistryBackupSnapshot,
+  ScheduledTaskBackupSnapshot,
   StatusMonitorSnapshot,
+  StartupAutoDisabledSnapshot,
   ThemeMode
 } from "@shared/types";
 
@@ -241,6 +246,146 @@ function MonitorCard({ monitor }: { monitor?: StatusMonitorSnapshot }) {
   );
 }
 
+type HomeRestoreBinItem = { expiresAt: string };
+
+interface HomeRestoreBinState {
+  loading: boolean;
+  message: string;
+  detail: string;
+  count: number;
+  partial: boolean;
+}
+
+function settledValue<T>(result: PromiseSettledResult<T>): T | undefined {
+  return result.status === "fulfilled" ? result.value : undefined;
+}
+
+function restoreItemsFromSnapshots({
+  fileSnapshot,
+  registrySnapshot,
+  startupSnapshot,
+  scheduledTaskSnapshot
+}: {
+  fileSnapshot?: CleanupTrashSnapshot;
+  registrySnapshot?: RegistryBackupSnapshot;
+  startupSnapshot?: StartupAutoDisabledSnapshot;
+  scheduledTaskSnapshot?: ScheduledTaskBackupSnapshot;
+}): HomeRestoreBinItem[] {
+  return [
+    ...(fileSnapshot?.entries ?? []),
+    ...(registrySnapshot?.entries ?? []),
+    ...(startupSnapshot?.entries ?? []),
+    ...(scheduledTaskSnapshot?.entries ?? [])
+  ];
+}
+
+function HomeRestoreBinCard({
+  onOpenTrashRestore
+}: {
+  onOpenTrashRestore?: () => void;
+}) {
+  const [state, setState] = useState<HomeRestoreBinState>({
+    loading: true,
+    message: "복구함 상태를 확인하는 중이에요.",
+    detail: "정리한 항목이 있으면 30일 보관 기간도 같이 살펴볼게요.",
+    count: 0,
+    partial: false
+  });
+
+  useEffect(() => {
+    if (
+      !window.fb?.getCleanupTrash ||
+      !window.fb.getRegistryBackups ||
+      !window.fb.listDisabledStartupAuto ||
+      !window.fb.getScheduledTaskBackups
+    ) {
+      setState({
+        loading: false,
+        message: "복구함 상태를 연결하지 못했어요.",
+        detail: "포맷버디를 다시 열고 한 번 더 확인해주세요.",
+        count: 0,
+        partial: true
+      });
+      return;
+    }
+
+    let active = true;
+    setState((current) => ({ ...current, loading: true }));
+
+    void Promise.allSettled([
+      window.fb.getCleanupTrash(),
+      window.fb.getRegistryBackups(),
+      window.fb.listDisabledStartupAuto(),
+      window.fb.getScheduledTaskBackups()
+    ]).then(([fileResult, registryResult, startupResult, scheduledTaskResult]) => {
+      if (!active) return;
+
+      const partial = [fileResult, registryResult, startupResult, scheduledTaskResult].some(
+        (result) => result.status === "rejected"
+      );
+      const restoreItems = restoreItemsFromSnapshots({
+        fileSnapshot: settledValue(fileResult),
+        registrySnapshot: settledValue(registryResult),
+        startupSnapshot: settledValue(startupResult),
+        scheduledTaskSnapshot: settledValue(scheduledTaskResult)
+      });
+      const insight = restoreBinExpiryInsight(restoreItems);
+
+      if (restoreItems.length === 0) {
+        setState({
+          loading: false,
+          message: partial ? "보이는 항목만 먼저 확인했어요." : "복구함이 비어 있어요.",
+          detail: partial
+            ? "일부 복구 목록은 지금 불러오지 못했어요. 포맷버디를 다시 열면 다시 살펴볼게요."
+            : "정리한 항목이 생기면 30일 동안 챙겨둘게요.",
+          count: 0,
+          partial
+        });
+        return;
+      }
+
+      setState({
+        loading: false,
+        message: partial ? "보이는 항목만 먼저 확인했어요." : insight?.message ?? "복구함에 보관 중인 항목이 있어요.",
+        detail: partial ? insight?.message ?? "복구함에서 남은 항목을 확인해 주세요." : insight?.detail ?? "필요한 항목은 복구함에서 다시 원래 자리로 되돌릴 수 있어요.",
+        count: restoreItems.length,
+        partial
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <section className="fb-home-restore" aria-label="복구함 상태">
+      <div className="fb-home-security-main">
+        <span className="fb-home-security-kicker">
+          <span className="fb-home-security-dot" aria-hidden="true" />
+          복구함 상태
+        </span>
+        <h2 className="fb-h2">{state.message}</h2>
+        <p>{state.detail}</p>
+        {state.count > 0 && !state.loading && (
+          <p className="fb-home-security-next">
+            <strong>{state.count}개 보관 중</strong>
+            <span>{state.partial ? "전체 목록은 복구함에서 다시 확인해 주세요." : "보관 기간 안에는 되돌릴 수 있어요."}</span>
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        className="fb-home-security-action"
+        onClick={onOpenTrashRestore}
+        disabled={!onOpenTrashRestore}
+      >
+        복구함 열기
+      </button>
+    </section>
+  );
+}
+
 interface HomeSecurityState {
   loading: boolean;
   data?: DefenderLiveStatus;
@@ -397,6 +542,8 @@ export function Home({
       </section>
 
       <MonitorCard monitor={monitor} />
+
+      <HomeRestoreBinCard onOpenTrashRestore={onOpenTrashRestore} />
 
       <HomeSecuritySummaryCard isMacPreview={isMacPreview} onOpenSecurity={onOpenSecurity} />
 
