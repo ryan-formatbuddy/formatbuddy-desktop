@@ -148,13 +148,22 @@ function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number
   ]).size;
 }
 
+function auditScheduledTaskBackupDetailCount(detail: Record<string, unknown>): number {
+  const recoverableCount = arrayCountDetail(detail, "recoverableScheduledTaskBackupIds");
+  if (recoverableCount > 0) return recoverableCount;
+  return new Set([
+    ...stringArrayDetail(detail, "scheduledTaskBackupIds"),
+    ...stringArrayDetail(detail, "preservedScheduledTaskBackupIds")
+  ]).size;
+}
+
 function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
   if (!detail) return 0;
   return (
     arrayCountDetail(detail, "trashEntryIds") +
     auditRegistryBackupDetailCount(detail) +
     arrayCountDetail(detail, "startupDisabledIds") +
-    arrayCountDetail(detail, "scheduledTaskBackupIds")
+    auditScheduledTaskBackupDetailCount(detail)
   );
 }
 

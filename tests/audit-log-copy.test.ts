@@ -105,12 +105,15 @@ describe("AuditLog copy", () => {
 
     expect(source).toContain("function auditRestorableDetailCount(detail: AuditEntry[\"detail\"]): number");
     expect(source).toContain("function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number");
+    expect(source).toContain("function auditScheduledTaskBackupDetailCount(detail: Record<string, unknown>): number");
     expect(source).toContain('arrayCountDetail(detail, "recoverableRegistryBackupIds")');
+    expect(source).toContain('arrayCountDetail(detail, "recoverableScheduledTaskBackupIds")');
     expect(source).toContain('arrayCountDetail(detail, "trashEntryIds")');
     expect(source).toContain('stringArrayDetail(detail, "registryBackupIds")');
     expect(source).toContain('stringArrayDetail(detail, "preservedRegistryBackupIds")');
     expect(source).toContain('arrayCountDetail(detail, "startupDisabledIds")');
-    expect(source).toContain('arrayCountDetail(detail, "scheduledTaskBackupIds")');
+    expect(source).toContain('stringArrayDetail(detail, "scheduledTaskBackupIds")');
+    expect(source).toContain('stringArrayDetail(detail, "preservedScheduledTaskBackupIds")');
     expect(source).toContain("new Set([");
     expect(source).toContain("auditRestorableDetailCount(entry.detail) > 0");
   });

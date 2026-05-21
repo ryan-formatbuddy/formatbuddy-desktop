@@ -1331,8 +1331,9 @@ function registerIpc() {
             preservedRegistryBackupIds: preservedBackupIds,
             recoverableRegistryBackupIds: recoverableBackupIds,
             startupDisabledIds,
-            scheduledTaskBackupIds: recoverableScheduledTaskIds,
-            preservedScheduledTaskBackupIds: preservedScheduledTaskIds
+            scheduledTaskBackupIds,
+            preservedScheduledTaskBackupIds: preservedScheduledTaskIds,
+            recoverableScheduledTaskBackupIds: recoverableScheduledTaskIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
         return result;
