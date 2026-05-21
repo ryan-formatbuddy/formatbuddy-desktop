@@ -74,6 +74,12 @@ type LeftoverCleanupConfirm = {
 
 type UninstallConfirm = AppManagerItem;
 
+type RestoreBinBreakdownRow = {
+  label: string;
+  count: number;
+  detail: string;
+};
+
 function formatBytes(value?: number | null): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
   const mb = value / 1024 / 1024;
@@ -269,6 +275,36 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   return lines;
 }
 
+function appLeftoverRestoreBinBreakdown(result: CleanupExecuteResult): RestoreBinBreakdownRow[] {
+  const fileOrFolderCount = restorableTrashEntryIds(result).length;
+  const backupCount = recoverableRegistryBackupIds(result).length;
+  const startupCount = restorableStartupDisabledIds(result).length;
+  const scheduledTaskCount = recoverableScheduledTaskBackupIds(result).length;
+
+  return [
+    {
+      label: "파일·폴더",
+      count: fileOrFolderCount,
+      detail: "복구함에서 원래 자리로 되돌릴 수 있어요."
+    },
+    {
+      label: "앱·Windows 연결 흔적",
+      count: backupCount,
+      detail: "앱 연결과 Windows 연결 백업을 30일 동안 챙겨요."
+    },
+    {
+      label: "시작 항목",
+      count: startupCount,
+      detail: "잠시 꺼둔 시작 항목을 다시 켤 수 있어요."
+    },
+    {
+      label: "예약 작업",
+      count: scheduledTaskCount,
+      detail: "정리한 예약 작업 백업을 되돌릴 수 있어요."
+    }
+  ].filter((row) => row.count > 0);
+}
+
 function appLeftoverRestorableCount(result: CleanupExecuteResult): number {
   return (
     restorableTrashEntryIds(result).length +
@@ -409,6 +445,31 @@ function buildLeftoverCleanupConfirm(
       (path) => path.kind === "startup-entry" && path.startupEntryKind === "scheduled-task"
     ).length
   };
+}
+
+function appLeftoverConfirmRestorePlan(confirm: LeftoverCleanupConfirm): RestoreBinBreakdownRow[] {
+  return [
+    {
+      label: "파일·폴더",
+      count: confirm.restoreBinCount,
+      detail: "폴더·바로가기·시작 항목을 복구함에 30일 동안 보관해요."
+    },
+    {
+      label: "앱 연결 흔적",
+      count: confirm.appTraceBackupCount,
+      detail: "기본 앱·파일 형식·프로토콜·브라우저 도우미·우클릭 메뉴를 백업해요."
+    },
+    {
+      label: "Windows 연결 흔적",
+      count: confirm.windowsTraceBackupCount,
+      detail: "서비스·예약 작업·방화벽·PATH·환경 설정을 백업해요."
+    },
+    {
+      label: "시작 항목",
+      count: confirm.startupHoldCount,
+      detail: "시작 폴더 항목은 바로 지우지 않고 잠시 꺼둬요."
+    }
+  ].filter((row) => row.count > 0);
 }
 
 function uninstallStatusDetailLabel(result: AppUninstallResult): string {
@@ -554,6 +615,7 @@ function AppLeftoverConfirmDialog({
 }) {
   const selectedCount = confirm.selectedPathIds.length;
   const hasSizedItems = confirm.selectedBytes > 0;
+  const restorePlan = appLeftoverConfirmRestorePlan(confirm);
 
   return (
     <div
@@ -598,6 +660,31 @@ function AppLeftoverConfirmDialog({
         <p style={{ fontSize: 13, opacity: 0.8 }}>
           먼저 챙겨두고 정리해요. 폴더와 바로가기는 복구함에 보관하고, 앱 연결 흔적과 Windows 연결 흔적은 백업해 30일 동안 되돌릴 수 있어요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
+        <div
+          style={{
+            border: "1px solid rgba(39,196,154,0.22)",
+            borderRadius: 10,
+            background: "rgba(39,196,154,0.08)",
+            padding: 12,
+            marginBottom: 12
+          }}
+        >
+          <strong style={{ display: "block", fontSize: 13, marginBottom: 6 }}>30일 보관 계획</strong>
+          {restorePlan.length > 0 ? (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+              {restorePlan.map((row) => (
+                <div key={row.label} style={{ fontSize: 12, lineHeight: "18px" }}>
+                  <strong>{row.label} {row.count}개</strong>
+                  <div style={{ opacity: 0.72 }}>{row.detail}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <small style={{ opacity: 0.72 }}>
+              보관할 항목이 없으면 정리 전 한 번 더 알려드려요.
+            </small>
+          )}
+        </div>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           {confirm.restoreBinCount > 0 && (
             <li>복구함 보관 {confirm.restoreBinCount}개: 폴더·바로가기·시작 항목을 30일 동안 챙겨요.</li>
@@ -718,6 +805,7 @@ function LeftoverCleanupResultBody({
   const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
   const needsCheckCount = failedRemovedCount + skippedCount;
   const resultLines = appLeftoverResultLines(result);
+  const restoreBreakdown = appLeftoverRestoreBinBreakdown(result);
   const skippedPreviewLines = appLeftoverSkippedPreviewLines(result);
 
   return (
@@ -729,6 +817,39 @@ function LeftoverCleanupResultBody({
         <p style={{ fontSize: 12, opacity: 0.75, margin: "0 0 8px" }}>
           확인 필요한 항목 {needsCheckCount}개는 건드리지 않았어요.
         </p>
+      )}
+      {restoreBreakdown.length > 0 && (
+        <div
+          style={{
+            border: "1px solid rgba(39,196,154,0.18)",
+            borderRadius: 10,
+            background: "rgba(39,196,154,0.07)",
+            padding: 10,
+            margin: "0 0 8px"
+          }}
+        >
+          <strong style={{ display: "block", fontSize: 12, marginBottom: 6 }}>30일 보관 요약</strong>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {restoreBreakdown.map((row) => (
+              <span
+                key={row.label}
+                title={row.detail}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  minHeight: 26,
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.78)",
+                  padding: "0 10px",
+                  fontSize: 12,
+                  fontWeight: 800
+                }}
+              >
+                {row.label} {row.count}개
+              </span>
+            ))}
+          </div>
+        </div>
       )}
       {skippedPreviewLines.length > 0 && (
         <div style={{ margin: "0 0 8px" }}>

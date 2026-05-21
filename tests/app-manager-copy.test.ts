@@ -158,12 +158,19 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("appLeftoverResultLines");
+    expect(source).toContain("appLeftoverRestoreBinBreakdown");
+    expect(source).toContain("restoreBreakdown.map");
     expect(source).toContain("const fileOrFolderCount = restorableTrashEntryIds(result).length");
     expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
+    expect(source).toContain("const scheduledTaskCount = recoverableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("30일 보관 요약");
+    expect(source).toContain("파일·폴더");
     expect(source).toContain("잔여 파일/폴더");
+    expect(source).toContain("앱·Windows 연결 흔적");
     expect(source).toContain("앱 연결 흔적과 Windows 연결 흔적 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
+    expect(source).toContain("예약 작업");
     expect(source).toContain("복구함 보관 {confirm.restoreBinCount}개");
     expect(source).toContain("앱 연결 흔적 {confirm.appTraceBackupCount}개");
     expect(source).toContain("Windows 연결 흔적 {confirm.windowsTraceBackupCount}개");
@@ -171,6 +178,20 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
     expect(source).toContain("선택하지 않은 후보");
     expect(source).toContain("그대로 남겨뒀어요");
+  });
+
+  it("shows a pre-cleanup 30-day holding plan before app leftovers are cleaned", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("appLeftoverConfirmRestorePlan");
+    expect(source).toContain("const restorePlan = appLeftoverConfirmRestorePlan(confirm)");
+    expect(source).toContain("30일 보관 계획");
+    expect(source).toContain("restorePlan.map");
+    expect(source).toContain("파일·폴더");
+    expect(source).toContain("앱 연결 흔적");
+    expect(source).toContain("Windows 연결 흔적");
+    expect(source).toContain("시작 항목");
+    expect(source).toContain("보관할 항목이 없으면 정리 전 한 번 더 알려드려요");
   });
 
   it("groups app leftover candidates into friendly families", () => {
