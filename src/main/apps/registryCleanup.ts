@@ -685,8 +685,20 @@ export async function backupAndDeleteRegistryKey(options: {
       expiresAt
     };
     await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
-    await runner.deleteKey(keyPath);
-    deleteInvoked = true;
+    try {
+      await runner.deleteKey(keyPath);
+      deleteInvoked = true;
+    } catch (deleteErr) {
+      if (runner.keyExists) {
+        const stillExists = await runner.keyExists(keyPath);
+        if (!stillExists) {
+          deleteInvoked = true;
+        } else {
+          deleteConfirmedIncomplete = true;
+        }
+      }
+      throw deleteErr;
+    }
     if (runner.keyExists && (await runner.keyExists(keyPath))) {
       deleteConfirmedIncomplete = true;
       throw new Error("Registry key still exists after deletion");
@@ -771,8 +783,20 @@ export async function backupAndDeleteRegistryValue(options: {
       expiresAt
     };
     await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
-    await deleteValue(keyPath, valueName);
-    deleteInvoked = true;
+    try {
+      await deleteValue(keyPath, valueName);
+      deleteInvoked = true;
+    } catch (deleteErr) {
+      if (runner.valueExists) {
+        const stillExists = await runner.valueExists(keyPath, valueName);
+        if (!stillExists) {
+          deleteInvoked = true;
+        } else {
+          deleteConfirmedIncomplete = true;
+        }
+      }
+      throw deleteErr;
+    }
     if (runner.valueExists && (await runner.valueExists(keyPath, valueName))) {
       deleteConfirmedIncomplete = true;
       throw new Error("Registry value still exists after deletion");

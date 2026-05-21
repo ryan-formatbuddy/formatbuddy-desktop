@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
+  isRegistryBackupPreservedError,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
@@ -360,6 +361,42 @@ describe("registry leftover cleanup", () => {
     );
   });
 
+  it("preserves a registry key backup when delete reports an error after the key disappeared", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        throw new Error("reg delete reported a late failure");
+      }),
+      keyExists: vi.fn(async () => false)
+    };
+
+    let thrown: unknown;
+    try {
+      await backupAndDeleteRegistryKey({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(isRegistryBackupPreservedError(thrown)).toBe(true);
+    const backup = isRegistryBackupPreservedError(thrown) ? thrown.backup : null;
+    expect(backup?.expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    const backups = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(backups.entries.map((entry) => entry.id)).toEqual([backup?.id]);
+    expect(backups.entries[0]).toMatchObject({ keyPath, integrityStatus: "verified" });
+  });
+
   it("does not report a registry key cleanup as restorable when the backup file disappears after deletion", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     let exportedBackupPath = "";
@@ -450,6 +487,55 @@ describe("registry leftover cleanup", () => {
       keyPath,
       backupKind: "startup-value",
       valueName,
+      integrityStatus: "verified"
+    });
+  });
+
+  it("preserves a startup value backup when delete reports an error after the value disappeared", async () => {
+    const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    const valueName = "Acme Notes";
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run]\n"Acme Notes"="C:\\\\Acme\\\\Acme.exe"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        throw new Error("reg value delete reported a late failure");
+      }),
+      valueExists: vi.fn(async () => false)
+    };
+
+    let thrown: unknown;
+    try {
+      await backupAndDeleteRegistryValue({
+        userDataDir: fx.userDataDir,
+        keyPath,
+        valueName,
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(isRegistryBackupPreservedError(thrown)).toBe(true);
+    const backup = isRegistryBackupPreservedError(thrown) ? thrown.backup : null;
+    expect(backup?.expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    const backups = await listRegistryBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(backups.entries.map((entry) => entry.id)).toEqual([backup?.id]);
+    expect(backups.entries[0]).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "startup-value",
       integrityStatus: "verified"
     });
   });
