@@ -34,11 +34,18 @@ describe("SecurityCenter copy", () => {
     expect(source).toContain("windows-policy-blocked");
     expect(source).toContain("Windows 보안 검사를 시작하지 못했어요");
     expect(source).toContain("Windows 보안에서 다시 확인해주세요");
+    expect(source).toContain("Windows 보안 점검 요약");
+    expect(source).toContain("먼저 확인");
+    expect(source).toContain("확인해봐요");
+    expect(source).toContain("괜찮아요");
+    expect(source).toContain("Windows 기록: 조치됨");
     expect(source).toContain("클라우드 보호");
     expect(source).toContain("원치 않는 앱 차단");
     expect(source).toContain("랜섬웨어 폴더 보호");
     expect(source).toContain("보호 설정은 Windows가 관리해요");
     expect(source).not.toContain('{lastResult.detail ? ` (${lastResult.detail})` : ""}');
     expect(source).not.toContain('return `Windows 처리: ${record.rawStatus ?? "알 수 없음"}`;');
+    expect(source).not.toContain("Windows 처리: 제거됨");
+    expect(source).not.toContain("Windows 처리: 정리됨");
   });
 });

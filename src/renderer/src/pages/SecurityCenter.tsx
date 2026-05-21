@@ -2,6 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { friendlyErrorMessage } from "@shared/error-friendly";
+import {
+  buildSecurityCareSummary,
+  type SecurityCareLevel,
+  type SecurityCareSummary
+} from "@shared/security-care";
 import type {
   DefenderLiveStatus,
   DefenderQuickScanResult,
@@ -96,17 +101,17 @@ function threatActionLabel(record: DefenderThreatRecord): string {
   // Pure read-out. We never claim FormatBuddy did anything to the threat.
   switch (record.actionStatus) {
     case "cleaned":
-      return "Windows 처리: 정리됨";
+      return "Windows 기록: 조치됨";
     case "quarantined":
-      return "Windows 처리: 격리됨";
+      return "Windows 기록: 격리됨";
     case "removed":
-      return "Windows 처리: 제거됨";
+      return "Windows 기록: 조치됨";
     case "allowed":
-      return "Windows 처리: 허용됨";
+      return "Windows 기록: 허용됨";
     case "blocked":
-      return "Windows 처리: 차단됨";
+      return "Windows 기록: 차단됨";
     case "no-action":
-      return "Windows 처리: 동작 없음";
+      return "Windows 기록: 동작 없음";
     case "unknown":
       return "Windows 보안에서 다시 확인해주세요";
   }
@@ -155,6 +160,114 @@ function quickScanDetailLabel(result: DefenderQuickScanResult): string | null {
   }
 }
 
+function careLevelLabel(level: SecurityCareLevel): string {
+  switch (level) {
+    case "attention":
+      return "먼저 확인";
+    case "check":
+      return "확인해봐요";
+    case "ok":
+      return "괜찮아요";
+  }
+}
+
+function careLevelColor(level: SecurityCareLevel): { background: string; color: string; dot: string } {
+  switch (level) {
+    case "attention":
+      return { background: "#fff4df", color: "#8a4f00", dot: "#f59e0b" };
+    case "check":
+      return { background: "#eef7ff", color: "#1456c0", dot: "#1d6cf2" };
+    case "ok":
+      return { background: "#eafbf5", color: "#0b7257", dot: "#27c49a" };
+  }
+}
+
+function SecurityCareSummaryPanel({ summary }: { summary: SecurityCareSummary }) {
+  const meta = careLevelColor(summary.level);
+
+  return (
+    <section
+      aria-label="Windows 보안 점검 요약"
+      style={{
+        marginTop: 14,
+        padding: 14,
+        borderRadius: 14,
+        background: meta.background,
+        color: meta.color
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: 999,
+            background: meta.dot,
+            display: "inline-block"
+          }}
+        />
+        <strong>{careLevelLabel(summary.level)}</strong>
+        <span style={{ fontWeight: 700 }}>{summary.title}</span>
+      </div>
+      <p style={{ margin: "8px 0 0", fontSize: 13, color: "inherit", opacity: 0.86 }}>
+        {summary.detail}
+      </p>
+
+      {summary.items.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
+          {summary.items.map((item) => {
+            const itemMeta = careLevelColor(item.level);
+            return (
+              <li
+                key={item.id}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) auto",
+                  gap: 12,
+                  padding: "9px 0",
+                  borderTop: "1px solid rgba(0,0,0,0.07)"
+                }}
+              >
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: 999,
+                        background: itemMeta.dot,
+                        display: "inline-block",
+                        flex: "0 0 auto"
+                      }}
+                    />
+                    <strong style={{ color: "#111827" }}>{item.title}</strong>
+                  </div>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#4b5563" }}>
+                    {item.detail}
+                  </p>
+                </div>
+                <span
+                  style={{
+                    alignSelf: "start",
+                    whiteSpace: "nowrap",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: itemMeta.color
+                  }}
+                >
+                  {item.action}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function StatusPanel({
   state,
   onRefresh,
@@ -192,6 +305,10 @@ function StatusPanel({
         <p style={{ color: "#a36400" }}>
           {state.data.unavailableReason ?? "Windows 보안 정보를 가져오지 못했어요."}
         </p>
+      )}
+
+      {state.data && (
+        <SecurityCareSummaryPanel summary={buildSecurityCareSummary(state.data)} />
       )}
 
       {state.data && state.data.available && (
