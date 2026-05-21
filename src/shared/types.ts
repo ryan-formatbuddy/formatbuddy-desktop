@@ -1348,6 +1348,7 @@ export interface AppLeftoverPath {
     | "shell-extension-registry"
     | "protocol-handler-registry"
     | "native-messaging-host-registry"
+    | "service-registry"
     | "startup-folder"
     | "startup-registry"
     | "startup-entry";
@@ -1360,7 +1361,7 @@ export interface AppLeftoverPath {
   startupOrigin?: string | null;
   /** Service / scheduled-task provenance when kind === "startup-entry". */
   startupEntryKind?: StartupAutoKind | null;
-  /** Raw Windows service name when startupEntryKind === "service". */
+  /** Raw Windows service name when startupEntryKind === "service" or kind === "service-registry". */
   serviceName?: string | null;
   /** Original Task Scheduler folder when startupEntryKind === "scheduled-task". */
   scheduledTaskPath?: string | null;

@@ -292,6 +292,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("leftoverDisplayPath");
     expect(source).toContain("path.registryValueName");
     expect(source).toContain('path.kind === "startup-registry"');
+    expect(source).toContain('path.kind === "service-registry"');
+    expect(source).toContain("서비스: ${serviceName}");
     expect(source).toContain("${path.path}\\\\${valueName}");
     expect(source).toContain("leftoverDisplayPath(path)} 선택");
   });

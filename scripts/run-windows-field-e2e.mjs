@@ -28,7 +28,7 @@ const evidenceRequirements = [
   "isolated user PATH app segment is backed up, removed, and restored",
   "isolated app environment setting is backed up, removed, and restored",
   "isolated app firewall rule is backed up, removed, and restored",
-  "Windows service trace is backed up, removed with sc.exe, and restored as a 30-day registry backup",
+  "manual Windows service leftover is discovered from Services registry, backed up, removed with sc.exe, and restored as a 30-day registry backup",
   "unified 30-day retention tick empties file, app-deletion, startup holding, and scheduled task backup bins"
 ];
 let stdoutTail = "";

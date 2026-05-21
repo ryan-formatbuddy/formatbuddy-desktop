@@ -75,6 +75,7 @@ import {
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
+  isSafeServiceRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
   normalizeSafeEnvironmentPathSegment,
@@ -440,7 +441,10 @@ export interface PlanLeftoversOptions {
    * default-app list, and right-click menu traces before surfacing them.
    * Defaults to reg.exe on Windows and no-op elsewhere.
    */
-  registryRunner?: Pick<RegistryCleanupRunner, "keyExists" | "queryValue" | "valueExists" | "listValues">;
+  registryRunner?: Pick<
+    RegistryCleanupRunner,
+    "keyExists" | "queryValue" | "valueExists" | "listValues" | "listSubKeys"
+  >;
 }
 
 function defaultEnv(home: string, override?: Partial<LeftoverEnv>): LeftoverEnv {
@@ -635,6 +639,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "shell-extension-registry" ||
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
+    value === "service-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
     value === "startup-entry"
@@ -1504,6 +1509,21 @@ async function registryValues(
   }
 }
 
+async function registrySubKeys(
+  keyPath: string,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys">
+): Promise<string[]> {
+  const listSubKeys =
+    runner?.listSubKeys ??
+    (process.platform === "win32" ? defaultRegistryCleanupRunner().listSubKeys : undefined);
+  if (!listSubKeys) return [];
+  try {
+    return await listSubKeys(keyPath);
+  } catch {
+    return [];
+  }
+}
+
 async function appPathRegistryLeftoverPaths(
   app: InstalledApp,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
@@ -1725,6 +1745,7 @@ async function environmentVariableRegistryLeftoverPaths(
 
 const FIREWALL_RULES_REGISTRY_KEY =
   "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
+const SERVICE_REGISTRY_ROOT = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
 
 function firewallRuleFields(data: string): Map<string, string> {
   const fields = new Map<string, string>();
@@ -1738,22 +1759,36 @@ function firewallRuleFields(data: string): Map<string, string> {
   return fields;
 }
 
+function executablePathFromCommand(rawPath: string): string | undefined {
+  const trimmed = rawPath.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.startsWith('"')) {
+    const closingQuoteIndex = trimmed.indexOf('"', 1);
+    const quoted = closingQuoteIndex > 1 ? trimmed.slice(1, closingQuoteIndex) : "";
+    if (/\.exe$/i.test(quoted)) return quoted;
+  }
+  return trimmed.match(/^[A-Za-z]:\\.*?\.exe\b/i)?.[0];
+}
+
 function executablePathMatchesApp(rawPath: string, app: InstalledApp): boolean {
-  if (!/\.exe$/i.test(rawPath)) return false;
-  const normalizedPath = normalizePath(rawPath).toLowerCase();
+  const executablePath = executablePathFromCommand(rawPath) ?? rawPath.trim();
+  if (!/\.exe$/i.test(executablePath)) return false;
+  const normalizedPath = normalizePath(executablePath).toLowerCase();
   const installLocation = app.installLocation?.trim();
   if (installLocation) {
     const normalizedInstall = normalizePath(installLocation).toLowerCase();
     if (/\.exe$/i.test(installLocation) && normalizedPath === normalizedInstall) return true;
-    if (!/\.exe$/i.test(installLocation) && isAtOrInside(rawPath, installLocation)) return true;
+    if (!/\.exe$/i.test(installLocation) && isAtOrInside(executablePath, installLocation)) {
+      return true;
+    }
   }
 
-  const executableBaseName = basename(rawPath).toLowerCase();
+  const executableBaseName = basename(executablePath).toLowerCase();
   if (appExecutableNames(app).some((candidate) => candidate.toLowerCase() === executableBaseName)) {
     return true;
   }
 
-  const executableStem = cleanGenericName(basename(rawPath).replace(/\.exe$/i, ""))
+  const executableStem = cleanGenericName(basename(executablePath).replace(/\.exe$/i, ""))
     .replace(/\s+/g, "")
     .toLowerCase();
   return genericFolderNames(app)
@@ -1796,6 +1831,35 @@ async function firewallRuleRegistryLeftoverPaths(
       lastModifiedAt: null
     });
   }
+  return paths;
+}
+
+async function serviceRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys" | "queryValue">
+): Promise<AppLeftoverPath[]> {
+  const serviceNames = await registrySubKeys(SERVICE_REGISTRY_ROOT, runner);
+  if (serviceNames.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const rawServiceName of serviceNames) {
+    const serviceName = normalizeSafeServiceName(rawServiceName);
+    if (!serviceName) continue;
+    const keyPath = serviceRegistryKeyPath(serviceName);
+    if (!isSafeServiceRegistryKeyPath(keyPath)) continue;
+    const imagePath = await registryValueRecord(keyPath, "ImagePath", runner);
+    if (!imagePath?.data || !executablePathMatchesApp(imagePath.data, app)) continue;
+    paths.push({
+      id: makePathId(`service-registry:${keyPath}`),
+      kind: "service-registry",
+      path: keyPath,
+      serviceName,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null
+    });
+  }
+
   return paths;
 }
 
@@ -2116,6 +2180,7 @@ export async function planAppLeftovers(
               ...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await serviceRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner))
             ]
@@ -2155,6 +2220,7 @@ export async function planAppLeftovers(
       paths.push(...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await serviceRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)));
     }
@@ -2830,6 +2896,22 @@ function assertSelectedLeftoverPlanMetadataUsable(
     ) {
       invalid.push("native messaging host registry key");
     }
+    if (
+      path.kind === "service-registry" &&
+      (!normalizeSafeServiceName(path.serviceName) ||
+        !isSafeServiceRegistryKeyPath(path.path) ||
+        serviceRegistryKeyPath(normalizeSafeServiceName(path.serviceName) ?? "") !== path.path)
+    ) {
+      invalid.push("service registry key");
+    }
+    if (
+      path.kind !== "startup-entry" &&
+      path.kind !== "service-registry" &&
+      path.serviceName !== undefined &&
+      path.serviceName !== null
+    ) {
+      invalid.push("service name");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
@@ -2957,6 +3039,62 @@ export async function cleanupAppLeftovers(
         reason: "blocked-path",
         detail: "앱이 다시 설치된 상태예요. 제거가 끝난 뒤 다시 점검하고 정리해주세요."
       });
+      continue;
+    }
+
+    if (path.kind === "service-registry") {
+      const serviceName = normalizeSafeServiceName(path.serviceName);
+      if (
+        !serviceName ||
+        !isSafeServiceRegistryKeyPath(path.path) ||
+        serviceRegistryKeyPath(serviceName) !== path.path
+      ) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: SERVICE_TRACE_PROTECTION
+        });
+        continue;
+      }
+      try {
+        const backup = await backupAndDeleteRegistryKey({
+          userDataDir: options.userDataDir,
+          keyPath: serviceRegistryKeyPath(serviceName),
+          backupKind: "service-key",
+          now: options.now,
+          runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+          app: group ? groupInstallIdentity(group) : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: `서비스: ${serviceName}`,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          registryBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        resolvedPathIds.add(path.id);
+      } catch (err) {
+        const message = (err as Error).message;
+        const preservedBackup = preservedRegistryBackupSkipFields(err);
+        skippedItems.push({
+          itemId: path.id,
+          path: `서비스: ${serviceName}`,
+          reason: /서비스 이름|service.*safe|Windows 서비스 정리 방식/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: preservedBackup?.detail ?? friendlyServiceTraceFailureDetail(message),
+          ...(preservedBackup
+            ? {
+                registryBackupId: preservedBackup.registryBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
+        });
+      }
       continue;
     }
 

@@ -126,6 +126,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "프로토콜 연결";
     case "native-messaging-host-registry":
       return "브라우저 연결 도우미";
+    case "service-registry":
+      return "서비스";
     case "context-menu-registry":
       return "우클릭 메뉴";
     case "shell-extension-registry":
@@ -162,6 +164,10 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
           ? `: ${path.environmentPathSegment}`
           : "";
     return valueName ? `${path.path}\\${valueName}${suffix}` : path.path;
+  }
+  if (path.kind === "service-registry") {
+    const serviceName = path.serviceName?.trim();
+    return serviceName ? `서비스: ${serviceName}` : "서비스";
   }
   return path.path;
 }
@@ -343,6 +349,7 @@ function buildLeftoverCleanupConfirm(
         path.kind === "file-association-registry" ||
         path.kind === "protocol-handler-registry" ||
         path.kind === "native-messaging-host-registry" ||
+        path.kind === "service-registry" ||
         path.kind === "context-menu-registry" ||
         path.kind === "shell-extension-registry" ||
         (path.kind === "startup-entry" && path.startupEntryKind === "service") ||
@@ -350,7 +357,9 @@ function buildLeftoverCleanupConfirm(
     ).length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length,
     serviceCount: paths.filter(
-      (path) => path.kind === "startup-entry" && path.startupEntryKind === "service"
+      (path) =>
+        path.kind === "service-registry" ||
+        (path.kind === "startup-entry" && path.startupEntryKind === "service")
     ).length,
     scheduledTaskCount: paths.filter(
       (path) => path.kind === "startup-entry" && path.startupEntryKind === "scheduled-task"

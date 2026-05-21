@@ -35,6 +35,7 @@ import {
   purgeExpiredScheduledTaskBackups,
   restoreScheduledTaskBackup
 } from "../src/main/startup/scheduledTaskBackup";
+import { planAppLeftovers } from "../src/main/apps/leftovers";
 import { runRetentionPurgeTick } from "../src/main/retentionPurge";
 
 const execFileAsync = promisify(execFile);
@@ -881,6 +882,17 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       "add",
       FIELD_SERVICE_KEY,
       "/v",
+      "ImagePath",
+      "/t",
+      "REG_EXPAND_SZ",
+      "/d",
+      `"C:\\Program Files\\${FIELD_VALUE_NAME}\\${FIELD_VALUE_NAME}.exe" --service`,
+      "/f"
+    ]);
+    await runReg([
+      "add",
+      FIELD_SERVICE_KEY,
+      "/v",
       "Description",
       "/t",
       "REG_SZ",
@@ -890,6 +902,25 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     ]);
     expect(await serviceExists(FIELD_SERVICE_NAME)).toBe(true);
     expect(await registryKeyExists(FIELD_SERVICE_KEY)).toBe(true);
+
+    const leftoverSnapshot = await planAppLeftovers([], {
+      extraApps: [
+        {
+          name: FIELD_VALUE_NAME,
+          publisher: "FormatBuddy Field E2E",
+          installLocation: `C:\\Program Files\\${FIELD_VALUE_NAME}`
+        }
+      ]
+    });
+    const serviceLeftover = leftoverSnapshot.groups
+      .flatMap((group) => group.paths)
+      .find((path) => path.kind === "service-registry" && path.serviceName === FIELD_SERVICE_NAME);
+    expect(serviceLeftover).toMatchObject({
+      kind: "service-registry",
+      path: FIELD_SERVICE_KEY,
+      serviceName: FIELD_SERVICE_NAME,
+      exists: true
+    });
 
     const backup = await backupAndDeleteRegistryKey({
       userDataDir,

@@ -3162,6 +3162,124 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("surfaces manual Windows service registry leftovers matched by ImagePath", async () => {
+    const serviceRoot = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
+    const serviceKeyPath = `${serviceRoot}\\AcmeNotesSvc`;
+    const registryRunner = {
+      listSubKeys: vi.fn(async (keyPath: string) => {
+        expect(keyPath).toBe(serviceRoot);
+        return ["AcmeNotesSvc", "Spooler", "Acme Notes Bad"];
+      }),
+      queryValue: vi.fn(async (keyPath: string, valueName: string) => {
+        expect(valueName).toBe("ImagePath");
+        if (keyPath === serviceKeyPath) {
+          return {
+            type: "REG_EXPAND_SZ",
+            data: '"C:\\Program Files\\Acme Notes\\AcmeNotesSvc.exe" --service'
+          };
+        }
+        return { type: "REG_SZ", data: "C:\\Windows\\System32\\spoolsv.exe" };
+      })
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+
+    const services = snapshot.groups[0].paths.filter((p) => p.kind === "service-registry");
+    expect(services).toHaveLength(1);
+    expect(services[0]).toMatchObject({
+      kind: "service-registry",
+      path: serviceKeyPath,
+      serviceName: "AcmeNotesSvc",
+      exists: true
+    });
+    expect(services[0].protectedBy).toBeUndefined();
+    expect(registryRunner.queryValue).toHaveBeenCalledWith(serviceKeyPath, "ImagePath");
+  });
+
+  it("backs up and deletes a selected manual Windows service registry leftover", async () => {
+    const serviceRoot = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
+    const serviceKeyPath = `${serviceRoot}\\AcmeNotesSvc`;
+    let serviceExists = true;
+    const registryRunner = {
+      listSubKeys: vi.fn(async () => ["AcmeNotesSvc"]),
+      queryValue: vi.fn(async () => ({
+        type: "REG_SZ",
+        data: '"C:\\Program Files\\Acme Notes\\AcmeNotesSvc.exe" --service'
+      })),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        throw new Error("deleteKey should not run for services");
+      }),
+      deleteService: vi.fn(async (serviceName: string) => {
+        expect(serviceName).toBe("AcmeNotesSvc");
+        serviceExists = false;
+      }),
+      serviceExists: vi.fn(async () => serviceExists)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.kind === "service-registry")!;
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      serviceKeyPath,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteService).toHaveBeenCalledWith("AcmeNotesSvc");
+    expect(registryRunner.deleteKey).not.toHaveBeenCalled();
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: "서비스: AcmeNotesSvc",
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: serviceKeyPath,
+      backupKind: "service-key"
+    });
+  });
+
   it("rejects tampered manual startup trace metadata before cleanup", async () => {
     const snapshot = await planAppLeftovers([], {
       home: fx.home,

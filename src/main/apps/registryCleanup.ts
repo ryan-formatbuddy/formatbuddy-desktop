@@ -22,6 +22,7 @@ export interface RegistryCleanupRunner {
   exportKey: (keyPath: string, backupPath: string) => Promise<void>;
   deleteKey: (keyPath: string) => Promise<void>;
   keyExists?: (keyPath: string) => Promise<boolean>;
+  listSubKeys?: (keyPath: string) => Promise<string[]>;
   deleteService?: (serviceName: string) => Promise<void>;
   serviceExists?: (serviceName: string) => Promise<boolean>;
   queryValue?: (keyPath: string, valueName: string) => Promise<RegistryValueRecord | undefined>;
@@ -909,6 +910,30 @@ async function listRegistryValuesWithReg(keyPath: string): Promise<RegistryNamed
   return values;
 }
 
+function registrySubKeysFromRegOutput(keyPath: string, stdout: string): string[] {
+  const rootKey = canonicalRegistryKeyForComparison(keyPath);
+  const rootPrefix = `${rootKey}\\`;
+  const names = new Set<string>();
+
+  for (const line of stdout.split(/\r?\n/)) {
+    const row = normalizeRegistryKeyPath(line.trim());
+    if (!/^(?:HKEY_|HKCU\\|HKLM\\)/i.test(row)) continue;
+    const canonicalRow = canonicalRegistryKeyForComparison(row);
+    if (!canonicalRow.startsWith(rootPrefix)) continue;
+    const remainder = canonicalRow.slice(rootPrefix.length);
+    if (!remainder || remainder.includes("\\")) continue;
+    const subkeyName = row.split("\\").pop()?.trim();
+    if (subkeyName) names.add(subkeyName);
+  }
+
+  return Array.from(names);
+}
+
+async function listRegistrySubKeysWithReg(keyPath: string): Promise<string[]> {
+  const stdout = await runRegQuery(["query", keyPath]);
+  return registrySubKeysFromRegOutput(keyPath, stdout);
+}
+
 async function registryValueExistsWithReg(keyPath: string, valueName: string): Promise<boolean> {
   try {
     await queryRegistryValueWithReg(keyPath, valueName);
@@ -1135,6 +1160,7 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
     deleteKey: (keyPath) => runRegCommand(["delete", keyPath, "/f"]),
     keyExists: (keyPath) => registryKeyExistsWithReg(keyPath),
+    listSubKeys: (keyPath) => listRegistrySubKeysWithReg(keyPath),
     deleteService: (serviceName) => runScCommand(["delete", serviceName]).then(() => undefined),
     serviceExists: (serviceName) => serviceExistsWithSc(serviceName),
     queryValue: (keyPath, valueName) => queryRegistryValueWithReg(keyPath, valueName),
@@ -2273,6 +2299,7 @@ async function assertRegistryBackupRestored(
 
 export const __testing = {
   normalizeRegistryKeyPath,
+  registrySubKeysFromRegOutput,
   registryBackupExpiry,
   registryBackupItemsRoot,
   assertSafeRegistryBackupEntryDirForPurge

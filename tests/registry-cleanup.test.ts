@@ -261,6 +261,23 @@ describe("registry leftover cleanup", () => {
     expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\Acme Notes")).toBe(false);
   });
 
+  it("lists only immediate registry subkeys from reg.exe output", () => {
+    const stdout = [
+      "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services",
+      "    Type    REG_DWORD    0x10",
+      "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc",
+      "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc\\Parameters",
+      "HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\OtherSvc"
+    ].join("\r\n");
+
+    expect(
+      __testing.registrySubKeysFromRegOutput(
+        "HKLM\\SYSTEM\\CurrentControlSet\\Services",
+        stdout
+      )
+    ).toEqual(["AcmeNotesSvc", "OtherSvc"]);
+  });
+
   it("only allows app firewall rule values in the Windows Firewall rules location", () => {
     const keyPath =
       "HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules";
