@@ -58,13 +58,14 @@ const FIELD_REQUIREMENTS = {
   protocolHandlerKey: fieldRequirements[10],
   nativeMessagingHostKey: fieldRequirements[11],
   fileAssociationKey: fieldRequirements[12],
-  contextMenuKey: fieldRequirements[13],
-  shellExtensionKey: fieldRequirements[14],
-  userPathSegment: fieldRequirements[15],
-  appEnvironmentSetting: fieldRequirements[16],
-  appFirewallRule: fieldRequirements[17],
-  serviceLeftover: fieldRequirements[18],
-  unifiedRetentionTick: fieldRequirements[19]
+  fileAssociationOpenCommandKey: fieldRequirements[13],
+  contextMenuKey: fieldRequirements[14],
+  shellExtensionKey: fieldRequirements[15],
+  userPathSegment: fieldRequirements[16],
+  appEnvironmentSetting: fieldRequirements[17],
+  appFirewallRule: fieldRequirements[18],
+  serviceLeftover: fieldRequirements[19],
+  unifiedRetentionTick: fieldRequirements[20]
 } as const;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
@@ -80,6 +81,8 @@ const PROTOCOL_HANDLER_KEY = `HKCU\\Software\\Classes\\${FIELD_PROTOCOL_SCHEME}`
 const NATIVE_MESSAGING_HOST_KEY =
   `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.formatbuddy.field_e2e_${process.pid}`;
 const FILE_ASSOCIATION_KEY = `HKCU\\Software\\Classes\\${FIELD_VALUE_NAME}.Document`;
+const FILE_ASSOCIATION_OPEN_COMMAND_KEY =
+  `HKCU\\Software\\Classes\\${FIELD_VALUE_NAME}.OpenCommand`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
 const SHELL_EXTENSION_KEY =
   `HKCU\\Software\\Classes\\*\\shellex\\ContextMenuHandlers\\${FIELD_VALUE_NAME}`;
@@ -201,6 +204,27 @@ async function registryValueRecord(
   }
 }
 
+async function registryDefaultValueRecord(
+  keyPath: string
+): Promise<{ type: string; data: string } | undefined> {
+  try {
+    const { stdout } = await runReg(["query", keyPath, "/ve"]);
+    for (const line of stdout.split(/\r?\n/)) {
+      const row = line.trim();
+      if (!row || /^HKEY_/i.test(row)) continue;
+      const parts = row.split(/\s{2,}/);
+      const typeIndex = parts.findIndex((part) => /^REG_/i.test(part));
+      if (typeIndex < 0) continue;
+      const type = parts[typeIndex];
+      const data = parts.slice(typeIndex + 1).join("  ");
+      if (data) return { type, data };
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function setRegistryValue(
   keyPath: string,
   valueName: string,
@@ -264,6 +288,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", PROTOCOL_HANDLER_KEY, "/f"]).catch(() => {});
     await runReg(["delete", NATIVE_MESSAGING_HOST_KEY, "/f"]).catch(() => {});
     await runReg(["delete", FILE_ASSOCIATION_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", FILE_ASSOCIATION_OPEN_COMMAND_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
     await runReg(["delete", SHELL_EXTENSION_KEY, "/f"]).catch(() => {});
     await deleteRegistryValue(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME).catch(() => {});
@@ -635,6 +660,16 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     ]);
     await runReg([
       "add",
+      `${FILE_ASSOCIATION_OPEN_COMMAND_KEY}\\shell\\open\\command`,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      `"C:\\Program Files\\${FIELD_VALUE_NAME}\\${FIELD_VALUE_NAME}.exe" "%1"`,
+      "/f"
+    ]);
+    await runReg([
+      "add",
       CONTEXT_MENU_KEY,
       "/v",
       "MUIVerb",
@@ -661,8 +696,35 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(true);
+    expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
+    const openCommandLeftovers = await planAppLeftovers([], {
+      extraApps: [
+        {
+          name: FIELD_VALUE_NAME,
+          publisher: "FormatBuddy Field E2E",
+          installLocation: `C:\\Program Files\\${FIELD_VALUE_NAME}`
+        }
+      ],
+      registryRunner: {
+        listSubKeys: async (keyPath: string) =>
+          keyPath === "HKCU\\Software\\Classes" &&
+          (await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY))
+            ? [FILE_ASSOCIATION_OPEN_COMMAND_KEY.split("\\").pop()!]
+            : [],
+        queryDefaultValue: registryDefaultValueRecord,
+        keyExists: registryKeyExists
+      }
+    });
+    const openCommandLeftover = openCommandLeftovers.groups
+      .flatMap((group) => group.paths)
+      .find((path) => path.kind === "file-association-registry" && path.path === FILE_ASSOCIATION_OPEN_COMMAND_KEY);
+    expect(openCommandLeftover).toMatchObject({
+      kind: "file-association-registry",
+      path: FILE_ASSOCIATION_OPEN_COMMAND_KEY,
+      exists: true
+    });
 
     const registeredAppBackup = await backupAndDeleteRegistryValue({
       userDataDir,
@@ -714,6 +776,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
+    const fileAssociationOpenCommandBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: FILE_ASSOCIATION_OPEN_COMMAND_KEY,
+      backupKind: "file-association-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
     const contextMenuBackup = await backupAndDeleteRegistryKey({
       userDataDir,
       keyPath: CONTEXT_MENU_KEY,
@@ -736,6 +805,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(protocolHandlerBackup.backupKind).toBe("protocol-handler-key");
     expect(nativeMessagingHostBackup.backupKind).toBe("native-messaging-host-key");
     expect(fileAssociationBackup.backupKind).toBe("file-association-key");
+    expect(fileAssociationOpenCommandBackup.backupKind).toBe("file-association-key");
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
     expect(shellExtensionBackup.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
@@ -745,6 +815,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(PROTOCOL_HANDLER_KEY)).toBe(false);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(false);
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(false);
+    expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(false);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(false);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(false);
 
@@ -783,6 +854,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       backupId: fileAssociationBackup.id,
       now: () => restoredAt
     });
+    const restoredFileAssociationOpenCommand = await restoreRegistryBackup({
+      userDataDir,
+      backupId: fileAssociationOpenCommandBackup.id,
+      now: () => restoredAt
+    });
     const restoredContextMenu = await restoreRegistryBackup({
       userDataDir,
       backupId: contextMenuBackup.id,
@@ -801,6 +877,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredProtocolHandler.status).toBe("restored");
     expect(restoredNativeMessagingHost.status).toBe("restored");
     expect(restoredFileAssociation.status).toBe("restored");
+    expect(restoredFileAssociationOpenCommand.status).toBe("restored");
     expect(restoredContextMenu.status).toBe("restored");
     expect(restoredShellExtension.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
@@ -810,6 +887,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredProtocolHandler.entry?.backupKind).toBe("protocol-handler-key");
     expect(restoredNativeMessagingHost.entry?.backupKind).toBe("native-messaging-host-key");
     expect(restoredFileAssociation.entry?.backupKind).toBe("file-association-key");
+    expect(restoredFileAssociationOpenCommand.entry?.backupKind).toBe("file-association-key");
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
     expect(restoredShellExtension.entry?.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
@@ -819,6 +897,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
     expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(FILE_ASSOCIATION_KEY)).toBe(true);
+    expect(await registryKeyExists(FILE_ASSOCIATION_OPEN_COMMAND_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
     proveFieldRequirement(FIELD_REQUIREMENTS.registeredApplicationsValue);
@@ -827,6 +906,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     proveFieldRequirement(FIELD_REQUIREMENTS.protocolHandlerKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.nativeMessagingHostKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.fileAssociationKey);
+    proveFieldRequirement(FIELD_REQUIREMENTS.fileAssociationOpenCommandKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.contextMenuKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.shellExtensionKey);
   }, 45_000);
