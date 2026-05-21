@@ -425,6 +425,138 @@ describe("planAppLeftovers", () => {
     expect(trash.entries[0].expiresAt).toBe("2026-06-18T00:00:00.000Z");
   });
 
+  it("restores and auto-empties app leftovers through the same 30-day restore bin", async () => {
+    const userDataDir = join(fx.root, "userdata");
+    const localLowFolder = join(fx.localLow, "Acme Notes");
+    await fs.mkdir(localLowFolder, { recursive: true });
+    await fs.writeFile(join(localLowFolder, "unity-cache.bin"), "cache", "utf8");
+
+    const firstSnapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: {
+        roaming: fx.roaming,
+        localAppData: fx.localAppData,
+        localLow: fx.localLow,
+        programData: fx.programData
+      },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const firstPath = firstSnapshot.groups[0].paths.find((p) => p.path === localLowFolder)!;
+
+    const firstResult = await cleanupAppLeftovers(
+      {
+        planId: firstSnapshot.planId,
+        confirmationToken: firstSnapshot.confirmationToken,
+        selectedPathIds: [firstPath.id]
+      },
+      {
+        userDataDir,
+        now: () => new Date("2026-05-19T00:00:00.000Z")
+      }
+    );
+
+    expect(firstResult.removedItems).toHaveLength(1);
+    const firstRemoved = firstResult.removedItems[0];
+    expect(firstRemoved).toMatchObject({
+      path: localLowFolder,
+      categoryId: "app-leftovers",
+      mode: "trash",
+      succeeded: true,
+      sizeBytes: 5,
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    expect(firstRemoved.trashEntryId).toBeTruthy();
+    await expect(fs.stat(localLowFolder)).rejects.toThrow();
+
+    const afterFirstCleanup = await getTrashSnapshot({
+      userDataDir,
+      home: fx.home,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(afterFirstCleanup.entries).toHaveLength(1);
+    expect(afterFirstCleanup.entries[0]).toMatchObject({
+      id: firstRemoved.trashEntryId,
+      originalPath: localLowFolder,
+      categoryId: "app-leftovers",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      sizeBytes: 5,
+      integrityStatus: "verified"
+    });
+
+    const onAppLeftoverRestored = vi.fn();
+    const restored = await restoreTrashEntry({
+      userDataDir,
+      home: fx.home,
+      entryId: firstRemoved.trashEntryId!,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      onAppLeftoverRestored
+    });
+    expect(restored.status).toBe("restored");
+    expect(onAppLeftoverRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp."
+    });
+    await expect(fs.readFile(join(localLowFolder, "unity-cache.bin"), "utf8")).resolves.toBe("cache");
+
+    const secondSnapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: {
+        roaming: fx.roaming,
+        localAppData: fx.localAppData,
+        localLow: fx.localLow,
+        programData: fx.programData
+      },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }]
+    });
+    const secondPath = secondSnapshot.groups[0].paths.find((p) => p.path === localLowFolder)!;
+    const secondResult = await cleanupAppLeftovers(
+      {
+        planId: secondSnapshot.planId,
+        confirmationToken: secondSnapshot.confirmationToken,
+        selectedPathIds: [secondPath.id]
+      },
+      {
+        userDataDir,
+        now: () => new Date("2026-05-20T00:00:00.000Z")
+      }
+    );
+
+    expect(secondResult.removedItems).toHaveLength(1);
+    const secondRemoved = secondResult.removedItems[0];
+    expect(secondRemoved.trashEntryId).toBeTruthy();
+    expect(secondRemoved.expiresAt).toBe("2026-06-19T00:00:00.000Z");
+
+    const purged = await purgeExpiredTrash({
+      userDataDir,
+      home: fx.home,
+      now: () => new Date("2026-06-19T00:00:01.000Z")
+    });
+    expect(purged).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: 5,
+      purgedEntryIds: [secondRemoved.trashEntryId],
+      failedEntryIds: [],
+      retentionDays: 30
+    });
+    expect(purged.purgedItems).toEqual([
+      {
+        id: secondRemoved.trashEntryId,
+        label: "Acme Notes",
+        categoryId: "app-leftovers",
+        sizeBytes: 5
+      }
+    ]);
+
+    const finalTrash = await getTrashSnapshot({
+      userDataDir,
+      home: fx.home,
+      now: () => new Date("2026-06-19T00:00:02.000Z")
+    });
+    expect(finalTrash.entries).toEqual([]);
+    await expect(fs.stat(localLowFolder)).rejects.toThrow();
+  });
+
   it("rolls back an unverified app-leftover trash move only through a normal original parent", async () => {
     const userDataDir = join(fx.root, "userdata");
     const entryId = "entry-safe";
