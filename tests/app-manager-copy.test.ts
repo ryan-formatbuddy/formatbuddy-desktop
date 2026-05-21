@@ -54,9 +54,9 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("앱 삭제 흔적도 30일 안에 되돌릴 수 있게 챙겨요");
     expect(source).toContain("앱 실행 경로");
     expect(source).toContain("앱 연결 흔적");
-    expect(source).toContain("앱 삭제 흔적/실행 경로/앱 연결/시작 항목 백업");
+    expect(source).toContain("앱 삭제 흔적/실행 경로/앱 연결/서비스/시작 항목 백업");
     expect(source).toContain("30일 동안 되돌릴 수 있게 백업해요");
-    expect(source).toContain("폴더·바로가기와 시작 항목, 앱 삭제 흔적과 앱 연결 흔적은 30일 안에 되돌릴 수 있게");
+    expect(source).toContain("폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 앱 연결 흔적은 30일 안에 되돌릴 수 있게");
     expect(source).toContain("숨은 앱 데이터 폴더");
     expect(source).toContain("바탕화면·시작 메뉴·작업표시줄 바로가기");
     expect(source).toContain("고정 바로가기");
@@ -152,9 +152,10 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
     expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
     expect(source).toContain("잔여 파일/폴더");
-    expect(source).toContain("앱 삭제 흔적/실행 경로/앱 연결/시작 항목 백업");
+    expect(source).toContain("앱 삭제 흔적/실행 경로/앱 연결/서비스/시작 항목 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
     expect(source).toContain("폴더와 바로가기, 시작 항목은 복구함에 30일 동안 보관해요");
+    expect(source).toContain("서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요");
     expect(source).toContain("30일 안에 되돌릴 수 있어요");
     expect(source).toContain("선택하지 않은 후보");
     expect(source).toContain("그대로 남겨뒀어요");
@@ -299,7 +300,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("서비스·예약 작업 같은");
     expect(source).toContain("시작 항목에서 확인");
     expect(source).toContain("manualLeftoverReviewHint");
-    expect(source).toContain("서비스는 보안·프린터·드라이버와 가까워서 앱에서 바로 지우지 않아요");
+    expect(source).toContain("서비스 이름을 안전하게 확인하지 못해서 바로 지우지 않아요");
     expect(source).toContain("예약 작업은 업데이트·동기화 조건이 섞여 있어 앱에서 바로 지우지 않아요");
     expect(source).toContain("안전하게 확인되지 않은 흔적은 앱에서 바로 지우지 않아요");
   });

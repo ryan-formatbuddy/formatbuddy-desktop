@@ -22,6 +22,8 @@ export interface RegistryCleanupRunner {
   exportKey: (keyPath: string, backupPath: string) => Promise<void>;
   deleteKey: (keyPath: string) => Promise<void>;
   keyExists?: (keyPath: string) => Promise<boolean>;
+  deleteService?: (serviceName: string) => Promise<void>;
+  serviceExists?: (serviceName: string) => Promise<boolean>;
   exportValue?: (keyPath: string, valueName: string, backupPath: string) => Promise<void>;
   deleteValue?: (keyPath: string, valueName: string) => Promise<void>;
   valueExists?: (keyPath: string, valueName: string) => Promise<boolean>;
@@ -59,10 +61,12 @@ export function isRegistryBackupPreservedError(err: unknown): err is RegistryBac
 type RegistryBackupRestoredApp = {
   name: string;
   publisher?: string | null;
-  backupKind: "key" | "startup-value" | "app-path-key" | "open-with-key";
+  backupKind: "key" | "startup-value" | "app-path-key" | "open-with-key" | "service-key";
   registryKeyPath?: string;
   valueName?: string;
 };
+
+type RegistryKeyBackupKind = "key" | "app-path-key" | "open-with-key" | "service-key";
 
 const SAFE_UNINSTALL_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+)$/i;
@@ -72,6 +76,9 @@ const SAFE_APP_PATHS_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
 const SAFE_OPEN_WITH_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\Applications\\[^\\]+\.exe|HKLM\\Software\\Classes\\Applications\\[^\\]+\.exe)$/i;
+const SAFE_SERVICE_KEY_PATTERN =
+  /^HKLM\\SYSTEM\\CurrentControlSet\\Services\\[A-Za-z0-9._-]{1,128}$/i;
+const SERVICE_KEY_PREFIX = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\";
 
 function normalizeRegistryKeyPath(keyPath: string): string {
   return keyPath.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
@@ -111,6 +118,42 @@ export function isSafeOpenWithRegistryKeyPath(keyPath: string): boolean {
   return SAFE_OPEN_WITH_KEY_PATTERN.test(normalized);
 }
 
+export function normalizeSafeServiceName(serviceName: unknown): string | undefined {
+  if (typeof serviceName !== "string") return undefined;
+  const trimmed = serviceName.trim();
+  if (!trimmed || trimmed !== serviceName) return undefined;
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(trimmed)) return undefined;
+  if (/^(?:win|windows|microsoft|ms|wuauserv|bits|spooler|themes|eventlog|windefend|securityhealthservice)$/i.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+export function serviceRegistryKeyPath(serviceName: string): string {
+  const safeServiceName = normalizeSafeServiceName(serviceName);
+  if (!safeServiceName) {
+    throw new Error("지원하는 Windows 서비스 이름이 아니라 자동 정리하지 않아요.");
+  }
+  return `${SERVICE_KEY_PREFIX}${safeServiceName}`;
+}
+
+export function isSafeServiceRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  if (!SAFE_SERVICE_KEY_PATTERN.test(normalized)) return false;
+  const serviceName = normalized.slice(SERVICE_KEY_PREFIX.length);
+  return normalizeSafeServiceName(serviceName) === serviceName;
+}
+
+function serviceNameFromRegistryKeyPath(keyPath: string): string | undefined {
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!isSafeServiceRegistryKeyPath(normalized)) return undefined;
+  return normalizeSafeServiceName(normalized.slice(SERVICE_KEY_PREFIX.length));
+}
+
 function isSafeRegistryValueName(valueName: string): boolean {
   const trimmed = valueName.trim();
   if (!trimmed) return false;
@@ -143,6 +186,30 @@ export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
     !backupId.includes("\\") &&
     !/[\u0000-\u001f\u007f]/.test(backupId)
   );
+}
+
+function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
+  if (value === "app-path-key") return "app-path-key";
+  if (value === "open-with-key") return "open-with-key";
+  if (value === "service-key") return "service-key";
+  return "key";
+}
+
+async function registryTargetStillExistsAfterDelete(
+  options: {
+    backupKind: RegistryKeyBackupKind;
+    keyPath: string;
+    serviceName?: string;
+    runner: RegistryCleanupRunner;
+  }
+): Promise<boolean | undefined> {
+  if (options.backupKind === "service-key" && options.serviceName) {
+    if (options.runner.serviceExists) return options.runner.serviceExists(options.serviceName);
+    if (options.runner.keyExists) return options.runner.keyExists(options.keyPath);
+    return undefined;
+  }
+  if (options.runner.keyExists) return options.runner.keyExists(options.keyPath);
+  return undefined;
 }
 
 function registryBackupExpiry(now: Date): string {
@@ -332,6 +399,31 @@ function runRegCommand(args: string[]): Promise<void> {
   });
 }
 
+function runScCommand(args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const child = spawn("sc.exe", args, {
+      windowsHide: true,
+      shell: false
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", (err) => reject(err));
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout);
+        return;
+      }
+      reject(new Error((stderr || stdout).trim() || `sc.exe exited with code ${code ?? "unknown"}`));
+    });
+  });
+}
+
 function runRegQuery(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("reg.exe", args, {
@@ -355,6 +447,21 @@ function runRegQuery(args: string[]): Promise<string> {
       reject(new Error(stderr.trim() || `reg.exe exited with code ${code ?? "unknown"}`));
     });
   });
+}
+
+function isServiceMissingError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /1060|does not exist|service.*not.*exist|not found|찾을 수|지정된.*서비스/i.test(message);
+}
+
+async function serviceExistsWithSc(serviceName: string): Promise<boolean> {
+  try {
+    await runScCommand(["query", serviceName]);
+    return true;
+  } catch (err) {
+    if (isServiceMissingError(err)) return false;
+    throw err;
+  }
 }
 
 function isRegistryMissingError(err: unknown): boolean {
@@ -653,6 +760,8 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
     exportKey: (keyPath, backupPath) => runRegCommand(["export", keyPath, backupPath, "/y"]),
     deleteKey: (keyPath) => runRegCommand(["delete", keyPath, "/f"]),
     keyExists: (keyPath) => registryKeyExistsWithReg(keyPath),
+    deleteService: (serviceName) => runScCommand(["delete", serviceName]).then(() => undefined),
+    serviceExists: (serviceName) => serviceExistsWithSc(serviceName),
     exportValue: (keyPath, valueName, backupPath) =>
       exportRegistryValueWithReg(keyPath, valueName, backupPath),
     deleteValue: (keyPath, valueName) => runRegCommand(["delete", keyPath, "/v", valueName, "/f"]),
@@ -664,23 +773,20 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
 export async function backupAndDeleteRegistryKey(options: {
   userDataDir: string;
   keyPath: string;
-  backupKind?: "key" | "app-path-key" | "open-with-key";
+  backupKind?: "key" | "app-path-key" | "open-with-key" | "service-key";
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
-  const backupKind =
-    options.backupKind === "app-path-key"
-      ? "app-path-key"
-      : options.backupKind === "open-with-key"
-        ? "open-with-key"
-        : "key";
+  const backupKind = normalizeRegistryKeyBackupKind(options.backupKind);
   const safeKey =
     backupKind === "app-path-key"
       ? isSafeAppPathRegistryKeyPath(options.keyPath)
       : backupKind === "open-with-key"
         ? isSafeOpenWithRegistryKeyPath(options.keyPath)
-      : isSafeUninstallRegistryKeyPath(options.keyPath);
+        : backupKind === "service-key"
+          ? isSafeServiceRegistryKeyPath(options.keyPath)
+          : isSafeUninstallRegistryKeyPath(options.keyPath);
   if (!safeKey) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -703,6 +809,7 @@ export async function backupAndDeleteRegistryKey(options: {
   let metaPayload: Omit<RegistryBackupEntry, "integrityStatus"> | null = null;
   let deleteInvoked = false;
   let deleteConfirmedIncomplete = false;
+  const serviceName = backupKind === "service-key" ? serviceNameFromRegistryKeyPath(keyPath) : undefined;
 
   try {
     await runner.exportKey(keyPath, backupPath);
@@ -722,13 +829,31 @@ export async function backupAndDeleteRegistryKey(options: {
     };
     await writeRegistryBackupMetaFile(entryDir, metaPath, metaPayload);
     try {
-      await runner.deleteKey(keyPath);
+      if (backupKind === "service-key") {
+        if (!serviceName || !runner.deleteService) {
+          throw new Error("지원하는 Windows 서비스 정리 방식이 아니라 자동 정리하지 않아요.");
+        }
+        await runner.deleteService(serviceName);
+      } else {
+        await runner.deleteKey(keyPath);
+      }
       deleteInvoked = true;
     } catch (deleteErr) {
-      if (runner.keyExists) {
+      const hasExistenceCheck =
+        backupKind === "service-key"
+          ? Boolean(runner.serviceExists || runner.keyExists)
+          : Boolean(runner.keyExists);
+      if (hasExistenceCheck) {
         try {
-          const stillExists = await runner.keyExists(keyPath);
-          if (stillExists) {
+          const stillExists = await registryTargetStillExistsAfterDelete({
+            backupKind,
+            keyPath,
+            serviceName,
+            runner
+          });
+          if (stillExists === undefined) {
+            deleteInvoked = true;
+          } else if (stillExists) {
             deleteConfirmedIncomplete = true;
           } else {
             deleteInvoked = true;
@@ -739,7 +864,9 @@ export async function backupAndDeleteRegistryKey(options: {
       }
       throw deleteErr;
     }
-    if (runner.keyExists && (await runner.keyExists(keyPath))) {
+    const stillExists =
+      (await registryTargetStillExistsAfterDelete({ backupKind, keyPath, serviceName, runner })) ?? false;
+    if (stillExists) {
       deleteConfirmedIncomplete = true;
       throw new Error("Registry key still exists after deletion");
     }
@@ -992,7 +1119,9 @@ async function readRegistryBackupEntryForRestore(
         ? "app-path-key"
         : raw.backupKind === "open-with-key"
           ? "open-with-key"
-          : "key";
+          : raw.backupKind === "service-key"
+            ? "service-key"
+            : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1003,6 +1132,8 @@ async function readRegistryBackupEntryForRestore(
         ? isSafeAppPathRegistryKeyPath(rawKeyPath)
         : backupKind === "open-with-key"
           ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
+        : backupKind === "service-key"
+          ? isSafeServiceRegistryKeyPath(rawKeyPath)
         : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
@@ -1042,6 +1173,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "app-path-key";
   } else if (backupKind === "open-with-key") {
     entry.backupKind = "open-with-key";
+  } else if (backupKind === "service-key") {
+    entry.backupKind = "service-key";
   }
   const appName = cleanDisplayString(raw.appName);
   const appPublisher = cleanDisplayString(raw.appPublisher);
@@ -1369,7 +1502,9 @@ export async function purgeExpiredRegistryBackups(options: {
                 ? "app-path-key"
                 : readableEntry.backupKind === "open-with-key"
                   ? "open-with-key"
-                  : "key",
+                  : readableEntry.backupKind === "service-key"
+                    ? "service-key"
+                    : "key",
           sizeBytes: entryBytes
         });
       }
@@ -1474,7 +1609,9 @@ export async function restoreRegistryBackup(options: {
             ? "app-path-key"
             : entry.backupKind === "open-with-key"
               ? "open-with-key"
-              : "key";
+              : entry.backupKind === "service-key"
+                ? "service-key"
+                : "key";
       const restoredApp: RegistryBackupRestoredApp =
         backupKind === "startup-value"
           ? {

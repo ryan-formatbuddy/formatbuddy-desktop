@@ -2170,6 +2170,83 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("backs up and deletes a selected Windows service trace after uninstall follow-up", async () => {
+    const serviceKeyPath = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc";
+    let serviceExists = true;
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "service|acme-notes",
+        kind: "service",
+        name: "Acme Notes Helper",
+        serviceName: "AcmeNotesSvc",
+        path: "C:\\Program Files\\Acme Notes\\helper.exe",
+        publisher: "Acme Corp.",
+        origin: "Windows 서비스",
+        enabled: true
+      }
+    ];
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.startupEntryKind === "service")!;
+    expect(path).toMatchObject({
+      kind: "startup-entry",
+      serviceName: "AcmeNotesSvc",
+      protectedBy: undefined
+    });
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        throw new Error("deleteKey should not run for services");
+      }),
+      deleteService: vi.fn(async (serviceName: string) => {
+        expect(serviceName).toBe("AcmeNotesSvc");
+        serviceExists = false;
+      }),
+      serviceExists: vi.fn(async () => serviceExists)
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      serviceKeyPath,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteService).toHaveBeenCalledWith("AcmeNotesSvc");
+    expect(registryRunner.deleteKey).not.toHaveBeenCalled();
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: "Windows 서비스: Acme Notes Helper",
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: serviceKeyPath,
+      backupKind: "service-key"
+    });
+  });
+
   it("rejects tampered manual startup trace metadata before cleanup", async () => {
     const snapshot = await planAppLeftovers([], {
       home: fx.home,

@@ -849,8 +849,8 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces. */
-  backupKind?: "key" | "startup-value" | "app-path-key" | "open-with-key";
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "service-key" for Windows services. */
+  backupKind?: "key" | "startup-value" | "app-path-key" | "open-with-key" | "service-key";
   /** Present when backupKind === "startup-value". */
   valueName?: string | null;
   backupPath: string;
@@ -895,7 +895,7 @@ export interface RegistryBackupRestoreResult {
 export interface RegistryBackupPurgedItem {
   id: string;
   label: string;
-  backupKind: "key" | "startup-value" | "app-path-key" | "open-with-key";
+  backupKind: "key" | "startup-value" | "app-path-key" | "open-with-key" | "service-key";
   sizeBytes: number;
 }
 
@@ -1112,6 +1112,8 @@ export interface StartupAutoEntry {
   registryKeyPath?: string;
   /** Registry value name when kind === "registry". */
   registryValueName?: string;
+  /** Raw Windows service name when kind === "service"; display name stays in name. */
+  serviceName?: string;
   /** Vendor / publisher when we can read it. */
   publisher?: string;
   /** Free-form Korean note: 어디서 켜지는지 한 줄 (e.g. "HKCU Run", "TaskScheduler"). */
@@ -1318,6 +1320,8 @@ export interface AppLeftoverPath {
   startupOrigin?: string | null;
   /** Service / scheduled-task provenance when kind === "startup-entry". */
   startupEntryKind?: StartupAutoKind | null;
+  /** Raw Windows service name when startupEntryKind === "service". */
+  serviceName?: string | null;
   /** Original Task Scheduler folder when startupEntryKind === "scheduled-task". */
   scheduledTaskPath?: string | null;
   registryValueName?: string | null;

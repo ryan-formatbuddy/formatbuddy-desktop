@@ -9,9 +9,11 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
+  isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
+  normalizeSafeServiceName,
   purgeExpiredRegistryBackups,
   restoreRegistryBackup,
   __testing
@@ -150,6 +152,17 @@ describe("registry leftover cleanup", () => {
         "HKCR\\Applications\\AcmeNotes.exe"
       )
     ).toBe(false);
+  });
+
+  it("only allows safe Windows service registry subkeys", () => {
+    expect(normalizeSafeServiceName("AcmeNotesSvc")).toBe("AcmeNotesSvc");
+    expect(normalizeSafeServiceName(" AcmeNotesSvc")).toBeUndefined();
+    expect(normalizeSafeServiceName("Acme Notes Svc")).toBeUndefined();
+    expect(normalizeSafeServiceName("WinDefend")).toBeUndefined();
+    expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc")).toBe(true);
+    expect(isSafeServiceRegistryKeyPath("HKCU\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc")).toBe(false);
+    expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc\\Parameters")).toBe(false);
+    expect(isSafeServiceRegistryKeyPath("HKLM\\SYSTEM\\CurrentControlSet\\Services\\Acme Notes")).toBe(false);
   });
 
   it("only allows Run and RunOnce startup registry values", () => {
@@ -300,6 +313,48 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "open-with-key"
+    });
+  });
+
+  it("exports a service backup before deleting a Windows service", async () => {
+    const keyPath = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\AcmeNotesSvc";
+    let serviceExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        throw new Error("deleteKey should not run for services");
+      }),
+      deleteService: vi.fn(async (serviceName: string) => {
+        calls.push(`delete-service:${serviceName}`);
+        serviceExists = false;
+      }),
+      serviceExists: vi.fn(async () => serviceExists)
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "service-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    expect(calls).toEqual(["export", "delete-service:AcmeNotesSvc"]);
+    expect(runner.deleteKey).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "service-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "service-key"
     });
   });
 

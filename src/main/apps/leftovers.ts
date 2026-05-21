@@ -66,6 +66,8 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
+  normalizeSafeServiceName,
+  serviceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   type RegistryCleanupRunner
@@ -123,7 +125,7 @@ const PERSONAL_INSTALL_LOCATION_PROTECTION =
 const STARTUP_TRACE_PROTECTION =
   "서비스·예약 작업·레지스트리 시작 항목은 아직 자동 삭제하지 않아요. 시작 항목 화면에서 확인해주세요.";
 const SERVICE_TRACE_PROTECTION =
-  "서비스는 보안·프린터·드라이버와 가까워서 앱에서 바로 지우지 않아요. 시작 항목 화면에서 이름을 다시 확인해주세요.";
+  "서비스 이름을 안전하게 확인하지 못해서 자동 정리하지 않아요. 시작 항목 화면에서 다시 확인해주세요.";
 const SCHEDULED_TASK_TRACE_PROTECTION =
   "예약 작업 위치를 안전하게 확인하지 못해서 자동 정리하지 않아요. 시작 항목 화면에서 다시 확인해주세요.";
 const GENERIC_NAME_BLOCKLIST =
@@ -1404,6 +1406,24 @@ async function startupLeftoverPaths(
       });
       continue;
     }
+    if (entry.kind === "service") {
+      const safeServiceName = normalizeSafeServiceName(entry.serviceName);
+      paths.push({
+        id: makePathId(`startup-entry:${entry.id}:${label}`),
+        kind: "startup-entry",
+        path: label,
+        startupEntryId: entry.id,
+        startupEntryName: entryName,
+        startupEntryKind: entry.kind,
+        startupOrigin: entryOrigin,
+        serviceName: safeServiceName,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null,
+        protectedBy: safeServiceName ? undefined : SERVICE_TRACE_PROTECTION
+      });
+      continue;
+    }
     paths.push({
       id: makePathId(`startup-entry:${entry.id}:${label}`),
       kind: "startup-entry",
@@ -1415,7 +1435,7 @@ async function startupLeftoverPaths(
       exists: true,
       sizeBytes: null,
       lastModifiedAt: null,
-      protectedBy: entry.kind === "service" ? SERVICE_TRACE_PROTECTION : STARTUP_TRACE_PROTECTION
+      protectedBy: STARTUP_TRACE_PROTECTION
     });
   }
 
@@ -1791,6 +1811,22 @@ function friendlyScheduledTaskFailureDetail(message: string): string {
   return "예약 작업 정리 중 문제가 생겨서 그대로 뒀어요.";
 }
 
+function friendlyServiceTraceFailureDetail(message: string): string {
+  if (/서비스 이름|service.*name|service.*safe|Windows 서비스 정리 방식/i.test(message)) {
+    return "서비스 이름을 안전하게 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/export|backup|백업|reg\.exe|access|denied|eacces|eperm|permission/i.test(message)) {
+    return "서비스 백업을 만들지 못해서 정리하지 않았어요.";
+  }
+  if (/missing|not found|보이지|찾지|disappear/i.test(message)) {
+    return "서비스 백업을 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/still exists|아직|sc\.exe/i.test(message)) {
+    return "서비스가 아직 남아 있어서 완료로 보지 않았어요.";
+  }
+  return "서비스 정리 중 문제가 생겨서 그대로 뒀어요.";
+}
+
 function friendlyTrashFailureDetail(message: string): string {
   if (/restore entry size|size is not safe|용량 정보/i.test(message)) {
     return CLEANUP_RESTORE_SIZE_WARNING;
@@ -2090,12 +2126,22 @@ function assertSelectedLeftoverPlanMetadataUsable(
       ) {
         invalid.push("scheduled task path");
       }
+      if (path.startupEntryKind === "service" && !normalizeSafeServiceName(path.serviceName)) {
+        invalid.push("service name");
+      }
       if (
         path.startupEntryKind !== "scheduled-task" &&
         path.scheduledTaskPath !== undefined &&
         path.scheduledTaskPath !== null
       ) {
         invalid.push("scheduled task path");
+      }
+      if (
+        path.startupEntryKind !== "service" &&
+        path.serviceName !== undefined &&
+        path.serviceName !== null
+      ) {
+        invalid.push("service name");
       }
     }
     if (
@@ -2435,6 +2481,57 @@ export async function cleanupAppLeftovers(
     }
 
     if (path.kind === "startup-entry") {
+      if (path.startupEntryKind === "service") {
+        const serviceName = normalizeSafeServiceName(path.serviceName);
+        if (!serviceName) {
+          skippedItems.push({
+            itemId: path.id,
+            path: path.path,
+            reason: "blocked-path",
+            detail: SERVICE_TRACE_PROTECTION
+          });
+          continue;
+        }
+        try {
+          const backup = await backupAndDeleteRegistryKey({
+            userDataDir: options.userDataDir,
+            keyPath: serviceRegistryKeyPath(serviceName),
+            backupKind: "service-key",
+            now: options.now,
+            runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
+            app: group ? groupInstallIdentity(group) : undefined
+          });
+          removedItems.push({
+            itemId: path.id,
+            path: path.path,
+            sizeBytes: 0,
+            categoryId: "app-leftovers",
+            mode: "trash",
+            succeeded: true,
+            registryBackupId: backup.id,
+            expiresAt: backup.expiresAt
+          });
+          resolvedPathIds.add(path.id);
+        } catch (err) {
+          const message = (err as Error).message;
+          const preservedBackup = preservedRegistryBackupSkipFields(err);
+          skippedItems.push({
+            itemId: path.id,
+            path: path.path,
+            reason: /서비스 이름|service.*safe|Windows 서비스 정리 방식/i.test(message)
+              ? "blocked-path"
+              : "execute-failed",
+            detail: preservedBackup?.detail ?? friendlyServiceTraceFailureDetail(message),
+            ...(preservedBackup
+              ? {
+                  registryBackupId: preservedBackup.registryBackupId,
+                  expiresAt: preservedBackup.expiresAt
+                }
+              : {})
+          });
+        }
+        continue;
+      }
       if (path.startupEntryKind !== "scheduled-task") {
         skippedItems.push({
           itemId: path.id,

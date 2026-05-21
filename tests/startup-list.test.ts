@@ -22,7 +22,13 @@ describe("parseStartupPayload", () => {
         ],
         tasks: [{ name: "Update", path: "\\Microsoft\\", enabled: true, author: "Microsoft" }],
         services: [
-          { name: "Spooler", displayName: "Print Spooler", enabled: true, status: "Running" }
+          {
+            name: "Spooler",
+            displayName: "Print Spooler",
+            path: "C:\\Windows\\System32\\spoolsv.exe",
+            enabled: true,
+            status: "Running"
+          }
         ],
         folderItems: [
           { name: "Steam.lnk", path: "C:\\Users\\Ryan\\AppData\\…\\Startup\\Steam.lnk", origin: "user" }
@@ -40,6 +46,11 @@ describe("parseStartupPayload", () => {
       "service",
       "startup-folder"
     ]);
+    expect(entries.find((e) => e.kind === "service")).toMatchObject({
+      name: "Print Spooler",
+      path: "C:\\Windows\\System32\\spoolsv.exe",
+      serviceName: "Spooler"
+    });
   });
 
   it("skips entries missing a name", () => {

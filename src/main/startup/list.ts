@@ -9,7 +9,9 @@
  *      without spawning powershell.exe.
  *   3. Toggle support stays narrower than inventory. Startup-folder
  *      files and safe Run/RunOnce registry values can be held in the
- *      30-day restore bin; scheduled tasks and services remain read-only.
+ *      30-day restore bin; scheduled tasks and services stay read-only
+ *      on the startup page. App deletion follow-up has separate guards
+ *      for safe leftover traces.
  *
  * Safety:
  *   - We never auto-disable. This pass is inventory-only; explicit
@@ -130,14 +132,15 @@ try {
 
 $services = @()
 try {
-  $services = Get-Service | Where-Object {
-    $_.StartType -in @('Automatic','AutomaticDelayedStart')
+  $services = Get-CimInstance -ClassName Win32_Service | Where-Object {
+    $_.StartMode -eq 'Auto'
   } | ForEach-Object {
     [ordered]@{
       name = $_.Name
       displayName = $_.DisplayName
-      enabled = ($_.StartType -ne 'Disabled')
-      status = "$($_.Status)"
+      path = $_.PathName
+      enabled = ($_.StartMode -ne 'Disabled')
+      status = "$($_.State)"
     }
   }
 } catch { }
@@ -188,6 +191,7 @@ interface TaskRow {
 interface ServiceRow {
   name?: string;
   displayName?: string;
+  path?: string;
   enabled?: boolean;
   status?: string;
 }
@@ -245,6 +249,8 @@ function entriesFromServices(rows: ServiceRow[] | undefined): StartupAutoEntry[]
       id: safeId("service", r.name as string),
       kind: "service" as const,
       name: typeof r.displayName === "string" && r.displayName.length > 0 ? r.displayName : (r.name as string),
+      path: typeof r.path === "string" ? r.path : undefined,
+      serviceName: r.name as string,
       origin: r.status ? `Windows 서비스 · ${r.status}` : "Windows 서비스",
       enabled: typeof r.enabled === "boolean" ? r.enabled : undefined
     }));

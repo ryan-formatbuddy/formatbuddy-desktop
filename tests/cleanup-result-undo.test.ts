@@ -673,10 +673,12 @@ describe("Cleanup result undo helper", () => {
   it("labels startup value backups without exposing registry jargon", () => {
     expect(registryBackupKindLabel({ backupKind: "key" })).toBe("앱 삭제 흔적 백업");
     expect(registryBackupKindLabel({ backupKind: "startup-value" })).toBe("시작 항목 백업");
+    expect(registryBackupKindLabel({ backupKind: "service-key" })).toBe("서비스 백업");
     expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
     expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
       "시작 항목 되돌리기"
     );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "service-key" })).toBe("서비스 되돌리기");
   });
 
   it("calculates friendly 30-day trash expiry windows", () => {
