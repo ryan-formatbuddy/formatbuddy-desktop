@@ -11,10 +11,23 @@ const AUDIT_LOG_PAGE = join(
   "pages",
   "AuditLog.tsx"
 );
+const AUDIT_LOG_FORMAT = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "auditLogFormat.ts"
+);
+
+function readAuditSource(): string {
+  return [AUDIT_LOG_PAGE, AUDIT_LOG_FORMAT].map((path) => readFileSync(path, "utf8")).join("\n");
+}
 
 describe("AuditLog copy", () => {
   it("shows automatic-empty failures as user-friendly check-needed items", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("auditActionLabel");
     expect(source).toContain("isAuditWarning");
@@ -25,7 +38,7 @@ describe("AuditLog copy", () => {
   });
 
   it("marks entries with failed detail ids as check-needed even if the summary changes", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("function auditFailureDetailCount(detail: AuditEntry[\"detail\"]): number");
     expect(source).toContain('arrayCountDetail(detail, "failedEntryIds")');
@@ -34,7 +47,7 @@ describe("AuditLog copy", () => {
   });
 
   it("marks non-restored restore audit entries as check-needed", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("function auditRestoreNeedsAttention(entry: AuditEntry): boolean");
     expect(source).toContain("isActualRestoreAuditEntry(entry)");
@@ -43,7 +56,7 @@ describe("AuditLog copy", () => {
   });
 
   it("does not treat restore point audit entries as restore failures", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("function isActualRestoreAuditEntry(entry: AuditEntry): boolean");
     expect(source).toContain('entry.action.startsWith("trash-restore-")');
@@ -54,7 +67,7 @@ describe("AuditLog copy", () => {
   });
 
   it("labels restore audit entries by restore target", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain('if (entry.action.startsWith("restore-point-")) return "복원 지점"');
     expect(source).toContain('if (entry.action.startsWith("trash-restore-")) return "복구함 되돌리기"');
@@ -68,7 +81,7 @@ describe("AuditLog copy", () => {
   });
 
   it("keeps restore-bin warning text separate from general failure text", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("function auditWarningMessage(entry: AuditEntry): string");
     expect(source).toContain('entry.action.includes("expired-purge")');
@@ -78,19 +91,19 @@ describe("AuditLog copy", () => {
   });
 
   it("labels app leftover cleanup records clearly", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain('if (entry.action === "app-leftovers-trash") return "앱 잔여 정리"');
   });
 
   it("labels resolved app leftover follow-up records clearly", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain('if (entry.action === "uninstall-followup-resolved") return "잔여 없음 확인"');
   });
 
   it("shows restore-bin guidance for app leftover cleanup records too", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain(
       'function isRestoreBinAuditEntry(entry: AuditEntry): boolean'
@@ -101,7 +114,7 @@ describe("AuditLog copy", () => {
   });
 
   it("shows restore-bin guidance only when restorable ids are recorded", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("function auditRestorableDetailCount(detail: AuditEntry[\"detail\"]): number");
     expect(source).toContain("function auditRegistryBackupDetailCount(detail: Record<string, unknown>): number");
@@ -119,7 +132,7 @@ describe("AuditLog copy", () => {
   });
 
   it("renders audit details as friendly lines instead of raw JSON", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("auditDetailLines");
     expect(source).toContain("비운 항목");
@@ -139,14 +152,14 @@ describe("AuditLog copy", () => {
   });
 
   it("shows bucket-level automatic-empty failures as friendly detail lines", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain('const failedBucketCount = numberDetail(detail, "failedBucketCount")');
     expect(source).toContain("확인 못 한 복구함 영역 ${failedBucketCount}곳");
   });
 
   it("shows a friendly restorable count across files, app traces, and disabled startup items", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("const restorableCount = auditRestorableDetailCount(detail)");
     expect(source).toContain('const fileTrashCount = numberDetail(detail, "fileTrashCount")');
@@ -164,7 +177,7 @@ describe("AuditLog copy", () => {
   });
 
   it("shows scheduled task restore details without falling back to a generic label", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain('const scheduledTaskName = stringDetail(detail, "taskName")');
     expect(source).toContain("예약 작업 ${scheduledTaskName}");
@@ -173,7 +186,7 @@ describe("AuditLog copy", () => {
   });
 
   it("reads count details from numeric audit fields before legacy arrays", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain(
       'const removedCount = numberDetail(detail, "removedCount") ?? arrayCountDetail(detail, "removedItems")'
@@ -185,7 +198,7 @@ describe("AuditLog copy", () => {
   });
 
   it("does not show zero-count audit detail lines as if they mattered", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("purgedCount !== null && purgedCount > 0");
     expect(source).toContain("purgedBytes !== null && purgedBytes > 0");
@@ -196,7 +209,7 @@ describe("AuditLog copy", () => {
   });
 
   it("summarizes restore-bin automatic emptying at the top of the audit log", () => {
-    const source = readFileSync(AUDIT_LOG_PAGE, "utf8");
+    const source = readAuditSource();
 
     expect(source).toContain("interface RestoreBinAutoEmptySummary");
     expect(source).toContain("function auditRestoreBinAutoEmptySummary");

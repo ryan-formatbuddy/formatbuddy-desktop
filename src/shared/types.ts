@@ -1036,8 +1036,9 @@ export interface RestoreBinPurgeResult {
  * reader prunes anything older than retentionDays (default 90) on load.
  *
  * The structured `detail` object is intentionally untyped at the shared
- * boundary — each emitter decides its own shape. Renderer only renders
- * `summary`; detail is shown verbatim in a collapsible debug block.
+ * boundary — each emitter decides its own shape. Renderer turns known detail
+ * fields into friendly Korean lines and ignores unknown fields instead of
+ * showing raw JSON.
  */
 export type AuditCategory =
   | "cleanup"
