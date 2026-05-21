@@ -698,6 +698,9 @@ describe("Cleanup result undo helper", () => {
     expect(registryBackupKindLabel({ backupKind: "com-local-server-key" })).toBe(
       "앱 실행 연결 백업"
     );
+    expect(registryBackupKindLabel({ backupKind: "com-app-id-key" })).toBe(
+      "앱 실행 연결 정보 백업"
+    );
     expect(registryBackupKindLabel({ backupKind: "service-key" })).toBe("서비스 백업");
     expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
     expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
@@ -732,6 +735,9 @@ describe("Cleanup result undo helper", () => {
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "com-local-server-key" })).toBe(
       "앱 실행 연결 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "com-app-id-key" })).toBe(
+      "앱 실행 연결 정보 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "service-key" })).toBe("서비스 되돌리기");
   });

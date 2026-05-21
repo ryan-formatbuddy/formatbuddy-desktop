@@ -77,6 +77,7 @@ import {
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
   isSafeComLocalServerRegistryKeyPath,
+  isSafeComAppIdRegistryKeyPath,
   isSafeServiceRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
@@ -643,6 +644,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
     value === "com-local-server-registry" ||
+    value === "com-app-id-registry" ||
     value === "service-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
@@ -1305,6 +1307,21 @@ const COM_LOCAL_SERVER_CLSID_ROOTS = [
   "HKLM\\Software\\WOW6432Node\\Classes\\CLSID"
 ] as const;
 
+const COM_APP_ID_ROOT_BY_CLSID_ROOT = [
+  {
+    clsidRoot: "HKCU\\Software\\Classes\\CLSID",
+    appIdRoot: "HKCU\\Software\\Classes\\AppID"
+  },
+  {
+    clsidRoot: "HKLM\\Software\\Classes\\CLSID",
+    appIdRoot: "HKLM\\Software\\Classes\\AppID"
+  },
+  {
+    clsidRoot: "HKLM\\Software\\WOW6432Node\\Classes\\CLSID",
+    appIdRoot: "HKLM\\Software\\WOW6432Node\\Classes\\AppID"
+  }
+] as const;
+
 const KNOWN_PROTOCOL_HANDLER_SCHEMES: Array<{ match: RegExp; schemes: string[] }> = [
   { match: /zoom/i, schemes: ["zoommtg", "zoomphonecall", "zoomus"] },
   { match: /slack/i, schemes: ["slack"] },
@@ -1823,6 +1840,48 @@ async function comLocalServerRegistryLeftoverPaths(
       paths.push({
         id: makePathId(`com-local-server-registry:${keyPath}`),
         kind: "com-local-server-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
+  return paths;
+}
+
+function normalizeSafeComAppIdValue(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed !== value) return undefined;
+  if (!/^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$/.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+}
+
+async function comAppIdRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys" | "queryDefaultValue" | "queryValue" | "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const paths: AppLeftoverPath[] = [];
+
+  for (const { clsidRoot, appIdRoot } of COM_APP_ID_ROOT_BY_CLSID_ROOT) {
+    for (const clsid of await registrySubKeys(clsidRoot, runner)) {
+      const clsidKeyPath = `${clsidRoot}\\${clsid}`;
+      if (!isSafeComLocalServerRegistryKeyPath(clsidKeyPath)) continue;
+      const localServer = await registryDefaultValueRecord(`${clsidKeyPath}\\LocalServer32`, runner);
+      if (!localServer?.data || !executablePathMatchesApp(localServer.data, app)) continue;
+      const appIdRecord = await registryValueRecord(clsidKeyPath, "AppID", runner);
+      const appId = normalizeSafeComAppIdValue(appIdRecord?.data);
+      if (!appId) continue;
+      const keyPath = `${appIdRoot}\\${appId}`;
+      if (!isSafeComAppIdRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`com-app-id-registry:${keyPath}`),
+        kind: "com-app-id-registry",
         path: keyPath,
         exists: true,
         sizeBytes: null,
@@ -2356,6 +2415,7 @@ export async function planAppLeftovers(
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await comAppIdRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await serviceRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner))
@@ -2397,6 +2457,7 @@ export async function planAppLeftovers(
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await comAppIdRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await serviceRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)));
@@ -3086,6 +3147,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
       invalid.push("COM local server registry key");
     }
     if (
+      path.kind === "com-app-id-registry" &&
+      !isSafeComAppIdRegistryKeyPath(path.path)
+    ) {
+      invalid.push("COM AppID registry key");
+    }
+    if (
       path.kind === "service-registry" &&
       (!normalizeSafeServiceName(path.serviceName) ||
         !isSafeServiceRegistryKeyPath(path.path) ||
@@ -3296,6 +3363,7 @@ export async function cleanupAppLeftovers(
       path.kind === "protocol-handler-registry" ||
       path.kind === "native-messaging-host-registry" ||
       path.kind === "com-local-server-registry" ||
+      path.kind === "com-app-id-registry" ||
       path.kind === "context-menu-registry" ||
       path.kind === "shell-extension-registry"
     ) {
@@ -3322,6 +3390,8 @@ export async function cleanupAppLeftovers(
                         ? "native-messaging-host-key"
                         : path.kind === "com-local-server-registry"
                           ? "com-local-server-key"
+                          : path.kind === "com-app-id-registry"
+                            ? "com-app-id-key"
                           : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),

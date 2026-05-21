@@ -36,6 +36,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("방화벽 규칙");
     expect(source).toContain("프로토콜 연결");
     expect(source).toContain("브라우저 연결 도우미");
+    expect(source).toContain("앱 실행 연결 정보");
     expect(source).toContain("파일 형식 연결");
     expect(source).toContain("우클릭 확장");
     expect(source).toContain("시작 항목 백업");
@@ -85,6 +86,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('entry.backupKind === "protocol-handler-key"');
     expect(source).toContain('entry.backupKind === "native-messaging-host-key"');
     expect(source).toContain('entry.backupKind === "com-local-server-key"');
+    expect(source).toContain('entry.backupKind === "com-app-id-key"');
     expect(source).toContain('entry.backupKind === "file-association-key"');
     expect(source).toContain('entry.backupKind === "shell-extension-key"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
@@ -96,6 +98,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("방화벽 규칙을 확인하지 못했어요");
     expect(source).toContain("프로토콜 연결을 확인하지 못했어요");
     expect(source).toContain("브라우저 연결 도우미를 확인하지 못했어요");
+    expect(source).toContain("앱 실행 연결 정보를 확인하지 못했어요");
     expect(source).toContain("파일 형식 연결을 확인하지 못했어요");
     expect(source).toContain("우클릭 확장을 확인하지 못했어요");
     expect(source).toContain("시작 항목 이름을 확인하지 못했어요");

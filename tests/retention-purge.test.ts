@@ -53,13 +53,19 @@ describe("retention purge scheduler", () => {
     const purgeRegistryBackups = vi.fn(async () => ({
       purgedCount: 1,
       purgedBytes: 128,
-      purgedIds: ["reg-com"],
+      purgedIds: ["reg-com", "reg-app-id"],
       purgedItems: [
         {
           id: "reg-com",
           label: "앱 실행 연결 백업",
           backupKind: "com-local-server-key" as const,
           sizeBytes: 128
+        },
+        {
+          id: "reg-app-id",
+          label: "앱 실행 연결 정보 백업",
+          backupKind: "com-app-id-key" as const,
+          sizeBytes: 64
         }
       ],
       retentionDays: 30
@@ -77,6 +83,12 @@ describe("retention purge scheduler", () => {
         label: "앱 실행 연결 백업",
         backupKind: "com-local-server-key",
         sizeBytes: 128
+      },
+      {
+        id: "reg-app-id",
+        label: "앱 실행 연결 정보 백업",
+        backupKind: "com-app-id-key",
+        sizeBytes: 64
       }
     ]);
   });

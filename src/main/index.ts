@@ -500,6 +500,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "com-local-server-key"
+    | "com-app-id-key"
     | "service-key";
   registryKeyPath?: string;
 }): InstalledApp {

@@ -197,6 +197,7 @@ function normalizeRegistryBackupPurgedKind(
   if (value === "protocol-handler-key") return "protocol-handler-key";
   if (value === "native-messaging-host-key") return "native-messaging-host-key";
   if (value === "com-local-server-key") return "com-local-server-key";
+  if (value === "com-app-id-key") return "com-app-id-key";
   if (value === "service-key") return "service-key";
   return null;
 }
