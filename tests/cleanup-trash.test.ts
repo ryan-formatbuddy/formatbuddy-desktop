@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { chmod, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type {
@@ -102,6 +102,35 @@ describe("FormatBuddy Trash", () => {
     expect(snapshot.retentionDays).toBe(FORMATBUDDY_TRASH_RETENTION_DAYS);
     expect(snapshot.entries).toHaveLength(1);
     expect(snapshot.totalBytes).toBe(5);
+    expect(snapshot.entries[0].integrityStatus).toBe("verified");
+  });
+
+  it("keeps a moved item in the 30-day restore bin when the move reports a late failure", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "late-move.tmp");
+    await mkdir(dirname(source), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const lateMove = vi.fn(async (from: string, to: string) => {
+      await mkdir(dirname(to), { recursive: true });
+      await rename(from, to);
+      throw new Error("move reported a late failure");
+    });
+
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5,
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      movePath: lateMove
+    });
+
+    expect(lateMove).toHaveBeenCalledWith(source, entry.storedPath);
+    expect(existsSync(source)).toBe(false);
+    expect(existsSync(entry.storedPath)).toBe(true);
+    const snapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      now: () => new Date("2026-05-20T00:00:00.000Z")
+    });
+    expect(snapshot.entries.map((trashEntry) => trashEntry.id)).toEqual([entry.id]);
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
   });
 
@@ -1069,6 +1098,36 @@ describe("FormatBuddy Trash", () => {
     expect(result.message).toContain("되돌리지 못했어요");
     expect(existsSync(source)).toBe(true);
     expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(true);
+  });
+
+  it("reports restore success when the restore move reports a late failure after the file returned", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "late-restore.tmp");
+    await mkdir(dirname(source), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+    const lateRestoreMove = vi.fn(async (from: string, to: string) => {
+      await mkdir(dirname(to), { recursive: true });
+      await rename(from, to);
+      throw new Error("restore move reported a late failure");
+    });
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      movePath: lateRestoreMove
+    });
+
+    expect(lateRestoreMove).toHaveBeenCalledWith(entry.storedPath, source);
+    expect(result.status).toBe("restored");
+    expect(await readFile(source, "utf8")).toBe("hello");
+    expect(existsSync(entry.storedPath)).toBe(false);
+    expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
   });
 
   it("keeps restore failure messages friendly when the original folder cannot be recreated", async () => {

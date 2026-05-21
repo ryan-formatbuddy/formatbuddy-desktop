@@ -50,12 +50,15 @@ interface PersistedTrashIndex {
   entries: CleanupTrashEntry[];
 }
 
+type TrashMovePath = (source: string, destination: string) => Promise<void>;
+
 export interface MoveToTrashOptions {
   userDataDir: string;
   item: CleanupItem;
   sizeBytes: number;
   home?: string;
   now?: () => Date;
+  movePath?: TrashMovePath;
   trustedSource?: {
     kind: "app-shortcut" | "app-shortcut-folder" | "app-install-folder";
     allowRoots: string[];
@@ -66,6 +69,7 @@ export interface TrashRuntimeOptions {
   userDataDir: string;
   home?: string;
   now?: () => Date;
+  movePath?: TrashMovePath;
   removeEntryDir?: (dir: string, entry: CleanupTrashEntry) => Promise<void>;
   onAppLeftoverRestored?: (
     app: { name: string; publisher?: string | null }
@@ -790,6 +794,24 @@ async function movePath(source: string, destination: string): Promise<void> {
   await rm(source, { recursive: true, force: true });
 }
 
+async function movePathAcceptingLateSuccess(
+  move: TrashMovePath,
+  source: string,
+  destination: string
+): Promise<void> {
+  try {
+    await move(source, destination);
+    return;
+  } catch (err) {
+    const [sourceStillExists, destinationExists] = await Promise.all([
+      exists(source),
+      exists(destination)
+    ]);
+    if (!sourceStillExists && destinationExists) return;
+    throw err;
+  }
+}
+
 async function hashPath(path: string, root = path): Promise<string> {
   const stat = await lstat(path);
   if (stat.isSymbolicLink()) {
@@ -926,6 +948,7 @@ export async function moveToFormatBuddyTrash(
   }
   const appName = cleanDisplayMetadataString(options.item.appName) ?? null;
   const appPublisher = cleanDisplayMetadataString(options.item.appPublisher) ?? null;
+  const move = options.movePath ?? movePath;
   await ensureUsableItemsRootForWrite(options.userDataDir);
   const targetDir = entryDir(options.userDataDir, entryId);
   const storedPath = storedPathFor(options.userDataDir, entryId, options.item.path);
@@ -957,7 +980,7 @@ export async function moveToFormatBuddyTrash(
     await ensureSafeEntryManifestForWrite(options.userDataDir, entryId);
     await ensureSafeEntryDirForWrite(options.userDataDir, entryId);
     await ensureSafeStoredPathForWrite(options.userDataDir, entryId, storedPath);
-    await movePath(options.item.path, storedPath);
+    await movePathAcceptingLateSuccess(move, options.item.path, storedPath);
   } catch (err) {
     await rm(targetDir, { recursive: true, force: true }).catch(() => {});
     throw err;
@@ -1189,7 +1212,11 @@ export async function restoreTrashEntry(
       options.removeEntryDir ??
       ((dir: string) => rm(dir, { recursive: true, force: true }));
     await mkdir(dirname(entry.originalPath), { recursive: true });
-    await movePath(entry.storedPath, entry.originalPath);
+    await movePathAcceptingLateSuccess(
+      options.movePath ?? movePath,
+      entry.storedPath,
+      entry.originalPath
+    );
     if (!(await exists(entry.originalPath))) {
       throw new Error("Restored path was not created");
     }
