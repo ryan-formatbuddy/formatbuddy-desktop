@@ -251,6 +251,27 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("다시 점검해서 효과 보기");
   });
 
+  it("compares app-leftover candidates before and after cleanup", () => {
+    const source = readFileSync(APP_MANAGER_PAGE, "utf8");
+
+    expect(source).toContain("type LeftoverEffectSummary");
+    expect(source).toContain("function appLeftoverEffectLines");
+    expect(source).toContain("cleanupBeforeSummary");
+    expect(source).toContain("setCleanupBeforeSummary(summarizeLeftoverSnapshot(snapshot))");
+    expect(source).toContain("beforeSummary={cleanupBeforeSummary}");
+    expect(source).toContain("afterSnapshot={state.snapshot}");
+    expect(source).toContain("정리 전후 비교");
+    expect(source).toContain("정리 전 후보");
+    expect(source).toContain("지금 후보");
+    expect(source).toContain("이번 정리로 후보");
+    expect(source).toContain("아직 설치된 앱 데이터");
+    expect(source).toContain("보호된 항목");
+    expect(source).toContain("수동 확인 항목");
+    expect(source).toContain("다시 점검 후 정리 가능");
+    expect(source).toContain("현재 없는 항목");
+    expect(source).toContain("잔여 후보를 다시 확인하지 못했어요");
+  });
+
   it("keeps cleanup result actions visible when leftover refresh fails after cleanup", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 

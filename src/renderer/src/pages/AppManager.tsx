@@ -80,6 +80,8 @@ type RestoreBinBreakdownRow = {
   detail: string;
 };
 
+type LeftoverEffectSummary = ReturnType<typeof summarizeLeftoverSnapshot>;
+
 function formatBytes(value?: number | null): string {
   if (!value || !Number.isFinite(value) || value <= 0) return "—";
   const mb = value / 1024 / 1024;
@@ -270,6 +272,46 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   }
   if (notSelectedCount > 0) {
     lines.push(`선택하지 않은 후보 ${notSelectedCount}개는 그대로 남겨뒀어요.`);
+  }
+
+  return lines;
+}
+
+function appLeftoverEffectLines({
+  beforeSummary,
+  afterSnapshot
+}: {
+  beforeSummary?: LeftoverEffectSummary;
+  afterSnapshot?: AppLeftoversSnapshot;
+}): string[] {
+  if (!beforeSummary) return [];
+  if (!afterSnapshot) {
+    return ["잔여 후보를 다시 확인하지 못했어요. 방금 정리 결과는 그대로 남겨둘게요."];
+  }
+
+  const afterSummary = summarizeLeftoverSnapshot(afterSnapshot);
+  const reducedCount = Math.max(0, beforeSummary.total - afterSummary.total);
+  const lines = [
+    `정리 전 후보 ${beforeSummary.total}개 → 지금 후보 ${afterSummary.total}개`
+  ];
+  const remainingReasons = [
+    compactCount("아직 설치된 앱 데이터", afterSummary.installedLocked),
+    compactCount("보호된 항목", afterSummary.protected),
+    compactCount("수동 확인 항목", afterSummary.manualCheck),
+    compactCount("다시 점검 후 정리 가능", afterSummary.notChecked),
+    compactCount("현재 없는 항목", afterSummary.missing)
+  ].filter((value): value is string => Boolean(value));
+
+  if (reducedCount > 0) {
+    lines.push(`이번 정리로 후보 ${reducedCount}개가 줄었어요.`);
+  } else {
+    lines.push("이번 정리 후에도 후보 수는 그대로예요. 남은 항목은 아래 이유를 확인해주세요.");
+  }
+
+  if (remainingReasons.length > 0) {
+    lines.push(`남은 후보: ${remainingReasons.join(" · ")}`);
+  } else {
+    lines.push("남은 후보가 없어요.");
   }
 
   return lines;
@@ -783,6 +825,8 @@ function UninstallConfirmDialog({
 function LeftoverCleanupResultBody({
   result,
   restorableCount,
+  beforeSummary,
+  afterSnapshot,
   onRescan,
   onQuickRescan,
   onRestoreRecent,
@@ -793,6 +837,8 @@ function LeftoverCleanupResultBody({
 }: {
   result: CleanupExecuteResult;
   restorableCount: number;
+  beforeSummary?: LeftoverEffectSummary;
+  afterSnapshot?: AppLeftoversSnapshot;
   onRescan: () => void;
   onQuickRescan?: () => void;
   onRestoreRecent: (result: CleanupExecuteResult) => void;
@@ -807,6 +853,7 @@ function LeftoverCleanupResultBody({
   const resultLines = appLeftoverResultLines(result);
   const restoreBreakdown = appLeftoverRestoreBinBreakdown(result);
   const skippedPreviewLines = appLeftoverSkippedPreviewLines(result);
+  const effectLines = appLeftoverEffectLines({ beforeSummary, afterSnapshot });
 
   return (
     <div style={{ marginTop: 10 }}>
@@ -849,6 +896,26 @@ function LeftoverCleanupResultBody({
               </span>
             ))}
           </div>
+        </div>
+      )}
+      {effectLines.length > 0 && (
+        <div
+          style={{
+            border: "1px solid rgba(34,118,255,0.18)",
+            borderRadius: 10,
+            background: "rgba(34,118,255,0.06)",
+            padding: 10,
+            margin: "0 0 8px"
+          }}
+        >
+          <strong style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
+            정리 전후 비교
+          </strong>
+          <ul style={{ fontSize: 12, opacity: 0.78, margin: 0, paddingLeft: 18 }}>
+            {effectLines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
         </div>
       )}
       {skippedPreviewLines.length > 0 && (
@@ -920,6 +987,7 @@ function LeftoverPanel({
   selected,
   busy,
   result,
+  beforeSummary,
   onToggle,
   onSelectAllSelectable,
   onClearSelection,
@@ -937,6 +1005,7 @@ function LeftoverPanel({
   selected: Set<string>;
   busy: boolean;
   result?: CleanupExecuteResult;
+  beforeSummary?: LeftoverEffectSummary;
   onToggle: (pathId: string, checked: boolean) => void;
   onSelectAllSelectable: () => void;
   onClearSelection: () => void;
@@ -990,6 +1059,8 @@ function LeftoverPanel({
           <LeftoverCleanupResultBody
             result={result}
             restorableCount={restorableCount}
+            beforeSummary={beforeSummary}
+            afterSnapshot={state.snapshot}
             onRescan={onRescan}
             onQuickRescan={onQuickRescan}
             onRestoreRecent={onRestoreRecent}
@@ -1090,6 +1161,8 @@ function LeftoverPanel({
           <LeftoverCleanupResultBody
             result={result}
             restorableCount={restorableCount}
+            beforeSummary={beforeSummary}
+            afterSnapshot={state.snapshot}
             onRescan={onRescan}
             onQuickRescan={onQuickRescan}
             onRestoreRecent={onRestoreRecent}
@@ -1231,6 +1304,7 @@ export function AppManager({
   const [leftoverCleanupConfirm, setLeftoverCleanupConfirm] = useState<LeftoverCleanupConfirm | null>(null);
   const [cleanupBusy, setCleanupBusy] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupExecuteResult | undefined>();
+  const [cleanupBeforeSummary, setCleanupBeforeSummary] = useState<LeftoverEffectSummary | undefined>();
   const [recentRestoreBusy, setRecentRestoreBusy] = useState(false);
   const [recentRestoreMessage, setRecentRestoreMessage] = useState<string | undefined>();
   const [activeUninstall, setActiveUninstall] = useState<string | null>(null);
@@ -1334,6 +1408,8 @@ export function AppManager({
     }
     setCleanupBusy(true);
     setRecentRestoreMessage(undefined);
+    const snapshot = leftovers.snapshot;
+    if (snapshot) setCleanupBeforeSummary(summarizeLeftoverSnapshot(snapshot));
     try {
       const result = await window.fb.cleanupAppLeftovers({
         planId: leftoverCleanupConfirm.planId,
@@ -1350,7 +1426,7 @@ export function AppManager({
     } finally {
       setCleanupBusy(false);
     }
-  }, [leftoverCleanupConfirm, loadLeftovers]);
+  }, [leftoverCleanupConfirm, loadLeftovers, leftovers.snapshot]);
 
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
@@ -1660,6 +1736,7 @@ export function AppManager({
         selected={selectedLeftovers}
         busy={cleanupBusy}
         result={cleanupResult}
+        beforeSummary={cleanupBeforeSummary}
         onToggle={toggleLeftover}
         onSelectAllSelectable={selectAllSelectableLeftovers}
         onClearSelection={() => setSelectedLeftovers(new Set())}
