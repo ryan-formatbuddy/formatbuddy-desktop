@@ -916,6 +916,7 @@ export interface StartupDisabledPurgedItem {
 
 export interface StartupDisabledPurgeResult {
   purgedCount: number;
+  purgedBytes: number;
   purgedIds: string[];
   purgedItems?: StartupDisabledPurgedItem[];
   failedIds?: string[];

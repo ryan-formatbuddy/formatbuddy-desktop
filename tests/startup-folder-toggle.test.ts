@@ -146,6 +146,7 @@ describe("startup folder toggle", () => {
     expect(early.purgedCount).toBe(0);
     expect(late).toMatchObject({
       purgedCount: 1,
+      purgedBytes: Buffer.byteLength("shortcut"),
       purgedIds: [disabled.entry!.id],
       retentionDays: 30
     });
@@ -177,6 +178,7 @@ describe("startup folder toggle", () => {
     });
 
     expect(result.purgedCount).toBe(1);
+    expect(result.purgedBytes).toBe(Buffer.byteLength("shortcut"));
     expect(result.purgedIds).toEqual([disabled.entry!.id]);
     expect(result.failedIds).toBeUndefined();
     expect(existsSync(entryDir)).toBe(false);
@@ -209,6 +211,7 @@ describe("startup folder toggle", () => {
 
     expect(result).toMatchObject({
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       failedIds: [disabled.entry!.id],
       retentionDays: 30
@@ -270,6 +273,7 @@ describe("startup folder toggle", () => {
 
     expect(result).toEqual({
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       failedIds: [disabled.entry!.id],
       retentionDays: 30
@@ -297,6 +301,7 @@ describe("startup folder toggle", () => {
 
     expect(result).toEqual({
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       failedIds: [],
       retentionDays: 30

@@ -830,6 +830,7 @@ export async function purgeExpiredStartupFolderEntries(
     await removeLinkedStartupDisabledRootIfManaged(options.userDataDir, linkedRoot);
     return {
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       failedIds: [],
       retentionDays: STARTUP_DISABLED_RETENTION_DAYS
@@ -842,6 +843,7 @@ export async function purgeExpiredStartupFolderEntries(
   } catch {
     return {
       purgedCount: 0,
+      purgedBytes: 0,
       purgedIds: [],
       retentionDays: STARTUP_DISABLED_RETENTION_DAYS
     };
@@ -850,6 +852,7 @@ export async function purgeExpiredStartupFolderEntries(
   const purgedIds: string[] = [];
   const purgedItems: StartupDisabledPurgedItem[] = [];
   const failedIds: string[] = [];
+  let purgedBytes = 0;
   const removeEntryDir =
     options.removeEntryDir ??
     ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
@@ -873,6 +876,7 @@ export async function purgeExpiredStartupFolderEntries(
         () => 0
       );
       await removeStartupHoldingDirAcceptingLateSuccess(removeEntryDir, dir, entry);
+      purgedBytes += Math.max(0, storedSize);
       purgedIds.push(entry.id);
       purgedItems.push({
         id: entry.id,
@@ -886,6 +890,7 @@ export async function purgeExpiredStartupFolderEntries(
 
   return {
     purgedCount: purgedIds.length,
+    purgedBytes,
     purgedIds,
     ...(purgedItems.length > 0 ? { purgedItems } : {}),
     ...(failedIds.length > 0 ? { failedIds } : {}),

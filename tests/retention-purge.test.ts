@@ -221,6 +221,7 @@ describe("retention purge scheduler", () => {
     }));
     const purgeStartupDisabled = vi.fn(async () => ({
       purgedCount: 1,
+      purgedBytes: 7,
       purgedIds: ["startup-a"],
       retentionDays: 30
     }));
@@ -237,6 +238,7 @@ describe("retention purge scheduler", () => {
     expect(purgeStartupDisabled).toHaveBeenCalledWith("scheduled");
     expect(result.failed).toEqual([]);
     expect(result.startupDisabled?.purgedCount).toBe(1);
+    expect(result.startupDisabled?.purgedBytes).toBe(7);
     expect(logInfo).toHaveBeenCalledWith(
       "30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 0개, 잠시 꺼둔 시작 항목 1개"
     );
@@ -351,6 +353,7 @@ describe("retention purge scheduler", () => {
     });
     expect(result.startupDisabled).toMatchObject({
       purgedCount: 1,
+      purgedBytes: 0,
       purgedIds: ["startup-ok"],
       purgedItems: [
         { id: "startup-ok", label: "KakaoTalk .lnk", sizeBytes: 7 }
@@ -402,6 +405,7 @@ describe("retention purge scheduler", () => {
     } as unknown as RegistryBackupPurgeResult));
     const purgeStartupDisabled = vi.fn(async () => ({
       purgedCount: 4,
+      purgedBytes: 17,
       purgedIds: ["startup-ok", "startup/path", "."],
       failedIds: ["startup-busy", "startup\\bad"],
       retentionDays: 30
@@ -426,6 +430,7 @@ describe("retention purge scheduler", () => {
     expect(result.registryBackups?.purgedIds).toEqual(["reg-ok"]);
     expect(result.registryBackups?.failedIds).toEqual(["reg-busy"]);
     expect(result.startupDisabled?.purgedIds).toEqual(["startup-ok"]);
+    expect(result.startupDisabled?.purgedBytes).toBe(17);
     expect(result.startupDisabled?.failedIds).toEqual(["startup-busy"]);
     expect(result.failed).toEqual([
       { kind: "trash", message: "파일 복구함 1개를 아직 비우지 못했어요." },
@@ -452,6 +457,7 @@ describe("retention purge scheduler", () => {
       })),
       purgeStartupDisabled: vi.fn(async () => ({
         purgedCount: 0,
+        purgedBytes: 0,
         purgedIds: [],
         retentionDays: 30
       }))

@@ -54,6 +54,7 @@ describe("purgeExpiredStartupFolderEntriesWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(1);
+    expect(result.purgedBytes).toBe(Buffer.byteLength("shortcut"));
     expect(result.purgedIds).toEqual([disabled.entry!.id]);
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     const audit = await getAuditSnapshot(fx.userDataDir, new Date("2026-06-19T10:00:02.000Z"));
@@ -66,6 +67,7 @@ describe("purgeExpiredStartupFolderEntriesWithAudit", () => {
     expect(audit.entries[0].summary).not.toContain("영구");
     expect(audit.entries[0].detail).toMatchObject({
       purgedCount: 1,
+      purgedBytes: Buffer.byteLength("shortcut"),
       purgedIds: [disabled.entry!.id],
       purgedItems: [
         {
@@ -101,6 +103,7 @@ describe("purgeExpiredStartupFolderEntriesWithAudit", () => {
     });
 
     expect(result.purgedCount).toBe(0);
+    expect(result.purgedBytes).toBe(0);
     expect(result.failedIds).toEqual([disabled.entry!.id]);
     expect(existsSync(__testing.entryDir(fx.userDataDir, disabled.entry!.id))).toBe(true);
     const audit = await getAuditSnapshot(fx.userDataDir, new Date("2026-06-19T10:00:02.000Z"));

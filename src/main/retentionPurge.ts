@@ -262,6 +262,7 @@ function normalizeStartupDisabledPurgeResult(
   return {
     ...result,
     purgedCount: purgedIds.length,
+    purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
     purgedIds,
     purgedItems: normalizeStartupDisabledPurgedItems(result.purgedItems, purgedIdSet),
     failedIds: coerceOptionalSafeIdList(result.failedIds),
