@@ -138,6 +138,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "우클릭 메뉴";
     case "shell-extension-registry":
       return "우클릭 확장";
+    case "explorer-extension-registry":
+      return "탐색기 확장 연결";
     case "startup-folder":
       return "시작 항목";
     case "startup-registry":
@@ -203,7 +205,8 @@ function isAppTraceLeftover(path: AppLeftoverPath): boolean {
     path.kind === "com-inproc-server-registry" ||
     path.kind === "com-app-id-registry" ||
     path.kind === "context-menu-registry" ||
-    path.kind === "shell-extension-registry"
+    path.kind === "shell-extension-registry" ||
+    path.kind === "explorer-extension-registry"
   );
 }
 

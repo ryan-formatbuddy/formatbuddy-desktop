@@ -3364,6 +3364,95 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("backs up and deletes selected Explorer extension registry leftovers after uninstall follow-up", async () => {
+    const clsidRoot = "HKCU\\Software\\Classes\\CLSID";
+    const clsid = "{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000040}";
+    const explorerExtensionRoot = "HKCU\\Software\\Classes\\Directory\\shellex\\CopyHookHandlers";
+    const explorerExtensionRegistryKey = `${explorerExtensionRoot}\\AcmeCopyHook`;
+    const unrelatedExplorerExtensionRegistryKey = `${explorerExtensionRoot}\\SystemCopyHook`;
+    let keyExists = true;
+    const registryRunner = {
+      listSubKeys: vi.fn(async (keyPath: string) => {
+        if (keyPath === explorerExtensionRoot) return ["AcmeCopyHook", "SystemCopyHook"];
+        return [];
+      }),
+      queryDefaultValue: vi.fn(async (keyPath: string) => {
+        if (keyPath === explorerExtensionRegistryKey) {
+          return { type: "REG_SZ", data: clsid };
+        }
+        if (keyPath === unrelatedExplorerExtensionRegistryKey) {
+          return { type: "REG_SZ", data: "{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000041}" };
+        }
+        if (keyPath === `${clsidRoot}\\${clsid}\\InprocServer32`) {
+          return { type: "REG_SZ", data: "C:\\Program Files\\Acme Notes\\AcmeNotesShell.dll" };
+        }
+        if (
+          keyPath ===
+          `${clsidRoot}\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000041}\\InprocServer32`
+        ) {
+          return { type: "REG_SZ", data: "C:\\Windows\\System32\\shell32.dll" };
+        }
+        return undefined;
+      }),
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === explorerExtensionRegistryKey),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === explorerExtensionRegistryKey)!;
+    expect(path).toMatchObject({ kind: "explorer-extension-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      explorerExtensionRegistryKey,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(explorerExtensionRegistryKey);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: explorerExtensionRegistryKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: explorerExtensionRegistryKey,
+      backupKind: "explorer-extension-key"
+    });
+  });
+
   it("rejects unsafe uninstall registry key paths before consuming the leftover plan", async () => {
     const registryKeyPath =
       "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";

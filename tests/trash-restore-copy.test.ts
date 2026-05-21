@@ -90,6 +90,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('entry.backupKind === "com-app-id-key"');
     expect(source).toContain('entry.backupKind === "file-association-key"');
     expect(source).toContain('entry.backupKind === "shell-extension-key"');
+    expect(source).toContain('entry.backupKind === "explorer-extension-key"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
     expect(source).toContain("기본 앱 기능을 확인하지 못했어요");
     expect(source).toContain("앱 삭제 흔적 위치");
@@ -97,6 +98,8 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("앱 삭제 후 남은 환경 설정");
     expect(source).toContain("앱 확장 연결을 확인하지 못했어요");
     expect(source).toContain("앱 삭제 후 남은 확장 연결");
+    expect(source).toContain("탐색기 확장 연결을 확인하지 못했어요");
+    expect(source).toContain("탐색기와 앱을 연결하는 확장");
     expect(source).toContain("앱 삭제 후 남은 네트워크 허용 규칙");
     expect(source).toContain("방화벽 규칙을 확인하지 못했어요");
     expect(source).toContain("프로토콜 연결을 확인하지 못했어요");

@@ -194,6 +194,7 @@ function normalizeRegistryBackupPurgedKind(
   if (value === "file-association-key") return "file-association-key";
   if (value === "context-menu-key") return "context-menu-key";
   if (value === "shell-extension-key") return "shell-extension-key";
+  if (value === "explorer-extension-key") return "explorer-extension-key";
   if (value === "protocol-handler-key") return "protocol-handler-key";
   if (value === "native-messaging-host-key") return "native-messaging-host-key";
   if (value === "com-local-server-key") return "com-local-server-key";

@@ -79,6 +79,7 @@ type RegistryBackupRestoredApp = {
     | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
+    | "explorer-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "com-local-server-key"
@@ -97,6 +98,7 @@ type RegistryKeyBackupKind =
   | "file-association-key"
   | "context-menu-key"
   | "shell-extension-key"
+  | "explorer-extension-key"
   | "protocol-handler-key"
   | "native-messaging-host-key"
   | "com-local-server-key"
@@ -118,6 +120,7 @@ function restoreAppBackupKindFromEntry(
   if (backupKind === "file-association-key") return "file-association-key";
   if (backupKind === "context-menu-key") return "context-menu-key";
   if (backupKind === "shell-extension-key") return "shell-extension-key";
+  if (backupKind === "explorer-extension-key") return "explorer-extension-key";
   if (backupKind === "protocol-handler-key") return "protocol-handler-key";
   if (backupKind === "native-messaging-host-key") return "native-messaging-host-key";
   if (backupKind === "com-local-server-key") return "com-local-server-key";
@@ -169,6 +172,8 @@ const SAFE_CONTEXT_MENU_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}|HKLM\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128})$/i;
 const SAFE_SHELL_EXTENSION_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\(?:\*|AllFilesystemObjects|Directory|Directory\\Background|Drive|Folder)\\shellex\\ContextMenuHandlers\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}|HKLM\\Software\\Classes\\(?:\*|AllFilesystemObjects|Directory|Directory\\Background|Drive|Folder)\\shellex\\ContextMenuHandlers\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128})$/i;
+const SAFE_EXPLORER_EXTENSION_KEY_PATTERN =
+  /^(?:HKCU\\Software\\Classes\\(?:\*|AllFilesystemObjects|Directory|Directory\\Background|Drive|Folder)\\shellex\\(?:ContextMenuHandlers|CopyHookHandlers|DragDropHandlers|PropertySheetHandlers|ColumnHandlers)\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}|HKLM\\Software\\Classes\\(?:\*|AllFilesystemObjects|Directory|Directory\\Background|Drive|Folder)\\shellex\\(?:ContextMenuHandlers|CopyHookHandlers|DragDropHandlers|PropertySheetHandlers|ColumnHandlers)\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128})$/i;
 const SAFE_PROTOCOL_HANDLER_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63}|HKLM\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63})$/i;
 const SAFE_NATIVE_MESSAGING_HOST_KEY_PATTERN =
@@ -330,6 +335,16 @@ export function isSafeShellExtensionRegistryKeyPath(keyPath: string): boolean {
   if (normalized.includes("*") && !/\\\*\\shellex\\ContextMenuHandlers\\/i.test(normalized)) return false;
   if (/\?/.test(normalized)) return false;
   return SAFE_SHELL_EXTENSION_KEY_PATTERN.test(normalized);
+}
+
+export function isSafeExplorerExtensionRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (normalized.includes("*") && !/\\\*\\shellex\\/i.test(normalized)) return false;
+  if (/\?/.test(normalized)) return false;
+  return SAFE_EXPLORER_EXTENSION_KEY_PATTERN.test(normalized);
 }
 
 export function normalizeSafeProtocolScheme(scheme: unknown): string | undefined {
@@ -583,6 +598,7 @@ function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
   if (value === "file-association-key") return "file-association-key";
   if (value === "context-menu-key") return "context-menu-key";
   if (value === "shell-extension-key") return "shell-extension-key";
+  if (value === "explorer-extension-key") return "explorer-extension-key";
   if (value === "protocol-handler-key") return "protocol-handler-key";
   if (value === "native-messaging-host-key") return "native-messaging-host-key";
   if (value === "com-local-server-key") return "com-local-server-key";
@@ -1280,6 +1296,7 @@ export async function backupAndDeleteRegistryKey(options: {
     | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
+    | "explorer-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "com-local-server-key"
@@ -1304,6 +1321,8 @@ export async function backupAndDeleteRegistryKey(options: {
             ? isSafeContextMenuRegistryKeyPath(options.keyPath)
             : backupKind === "shell-extension-key"
               ? isSafeShellExtensionRegistryKeyPath(options.keyPath)
+              : backupKind === "explorer-extension-key"
+                ? isSafeExplorerExtensionRegistryKeyPath(options.keyPath)
               : backupKind === "protocol-handler-key"
                 ? isSafeProtocolHandlerRegistryKeyPath(options.keyPath)
                 : backupKind === "native-messaging-host-key"
@@ -1816,6 +1835,8 @@ async function readRegistryBackupEntryForRestore(
                       ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
                       : backupKind === "shell-extension-key"
                         ? isSafeShellExtensionRegistryKeyPath(rawKeyPath)
+                        : backupKind === "explorer-extension-key"
+                          ? isSafeExplorerExtensionRegistryKeyPath(rawKeyPath)
                         : backupKind === "protocol-handler-key"
                           ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
                           : backupKind === "native-messaging-host-key"
@@ -1889,6 +1910,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "context-menu-key";
   } else if (backupKind === "shell-extension-key") {
     entry.backupKind = "shell-extension-key";
+  } else if (backupKind === "explorer-extension-key") {
+    entry.backupKind = "explorer-extension-key";
   } else if (backupKind === "protocol-handler-key") {
     entry.backupKind = "protocol-handler-key";
   } else if (backupKind === "native-messaging-host-key") {

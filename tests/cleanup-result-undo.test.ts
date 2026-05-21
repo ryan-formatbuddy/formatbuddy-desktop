@@ -689,6 +689,9 @@ describe("Cleanup result undo helper", () => {
       "파일 형식 연결 백업"
     );
     expect(registryBackupKindLabel({ backupKind: "shell-extension-key" })).toBe("우클릭 확장 백업");
+    expect(registryBackupKindLabel({ backupKind: "explorer-extension-key" })).toBe(
+      "탐색기 확장 연결 백업"
+    );
     expect(registryBackupKindLabel({ backupKind: "protocol-handler-key" })).toBe(
       "프로토콜 연결 백업"
     );
@@ -729,6 +732,9 @@ describe("Cleanup result undo helper", () => {
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "shell-extension-key" })).toBe(
       "우클릭 확장 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "explorer-extension-key" })).toBe(
+      "탐색기 확장 연결 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "protocol-handler-key" })).toBe(
       "프로토콜 연결 되돌리기"

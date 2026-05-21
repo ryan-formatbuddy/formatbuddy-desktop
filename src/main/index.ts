@@ -497,6 +497,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
+    | "explorer-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
     | "com-local-server-key"

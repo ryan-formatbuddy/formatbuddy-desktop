@@ -53,7 +53,7 @@ describe("retention purge scheduler", () => {
     const purgeRegistryBackups = vi.fn(async () => ({
       purgedCount: 1,
       purgedBytes: 128,
-      purgedIds: ["reg-com", "reg-inproc", "reg-app-id"],
+      purgedIds: ["reg-com", "reg-inproc", "reg-explorer", "reg-app-id"],
       purgedItems: [
         {
           id: "reg-com",
@@ -66,6 +66,12 @@ describe("retention purge scheduler", () => {
           label: "앱 확장 연결 백업",
           backupKind: "com-inproc-server-key" as const,
           sizeBytes: 96
+        },
+        {
+          id: "reg-explorer",
+          label: "탐색기 확장 연결 백업",
+          backupKind: "explorer-extension-key" as const,
+          sizeBytes: 72
         },
         {
           id: "reg-app-id",
@@ -95,6 +101,12 @@ describe("retention purge scheduler", () => {
         label: "앱 확장 연결 백업",
         backupKind: "com-inproc-server-key",
         sizeBytes: 96
+      },
+      {
+        id: "reg-explorer",
+        label: "탐색기 확장 연결 백업",
+        backupKind: "explorer-extension-key",
+        sizeBytes: 72
       },
       {
         id: "reg-app-id",

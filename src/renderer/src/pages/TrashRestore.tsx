@@ -233,6 +233,11 @@ function registryBackupTitle(entry: RegistryBackupEntry): string {
     if (appName) return `${appName} 우클릭 확장`;
     return "우클릭 확장을 확인하지 못했어요";
   }
+  if (entry.backupKind === "explorer-extension-key") {
+    const appName = entry.appName?.trim();
+    if (appName) return `${appName} 탐색기 확장 연결`;
+    return "탐색기 확장 연결을 확인하지 못했어요";
+  }
 
   const appName = entry.appName?.trim();
   return appName ? `${appName} 삭제 흔적` : "앱 이름을 확인하지 못한 삭제 흔적";
@@ -301,6 +306,11 @@ function registryBackupSubtitle(entry: RegistryBackupEntry): string {
     const detail = "우클릭 메뉴를 깊게 연결하는 확장";
     return appPublisher ? `${appPublisher} · ${detail}` : detail;
   }
+  if (entry.backupKind === "explorer-extension-key") {
+    const appPublisher = entry.appPublisher?.trim();
+    const detail = "탐색기와 앱을 연결하는 확장";
+    return appPublisher ? `${appPublisher} · ${detail}` : detail;
+  }
 
   const appPublisher = entry.appPublisher?.trim();
   return appPublisher ? `${appPublisher} · 앱 삭제 흔적 위치` : "앱 삭제 흔적 위치";
@@ -318,6 +328,7 @@ function registryRestoreErrorLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "com-app-id-key") return "앱 실행 연결 정보";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결";
   if (entry.backupKind === "shell-extension-key") return "우클릭 확장";
+  if (entry.backupKind === "explorer-extension-key") return "탐색기 확장 연결";
   return entry.backupKind === "startup-value" ? "시작 항목" : "앱 흔적";
 }
 
@@ -355,6 +366,9 @@ function registryBackupChangedNotice(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "shell-extension-key") {
     return "우클릭 확장 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
   }
+  if (entry.backupKind === "explorer-extension-key") {
+    return "탐색기 확장 연결 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+  }
   return entry.backupKind === "startup-value"
     ? "시작 항목 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요."
     : "앱 삭제 흔적 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
@@ -372,6 +386,7 @@ function registryBackupChangedButtonLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "com-app-id-key") return "앱 실행 연결 정보 확인 필요";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 확인 필요";
   if (entry.backupKind === "shell-extension-key") return "우클릭 확장 확인 필요";
+  if (entry.backupKind === "explorer-extension-key") return "탐색기 확장 연결 확인 필요";
   return entry.backupKind === "startup-value" ? "시작 항목 확인 필요" : "앱 삭제 흔적 확인 필요";
 }
 
@@ -409,6 +424,9 @@ function registryBackupLegacyNotice(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "shell-extension-key") {
     return "우클릭 확장 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
   }
+  if (entry.backupKind === "explorer-extension-key") {
+    return "탐색기 확장 연결 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
+  }
   return entry.backupKind === "startup-value"
     ? "시작 항목 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요."
     : "앱 삭제 흔적 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
@@ -426,6 +444,7 @@ function registryBackupLegacyButtonLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "com-app-id-key") return "앱 실행 연결 정보 기록 확인 필요";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 기록 확인 필요";
   if (entry.backupKind === "shell-extension-key") return "우클릭 확장 기록 확인 필요";
+  if (entry.backupKind === "explorer-extension-key") return "탐색기 확장 연결 기록 확인 필요";
   return entry.backupKind === "startup-value" ? "시작 항목 기록 확인 필요" : "앱 삭제 흔적 기록 확인 필요";
 }
 

@@ -17,6 +17,7 @@
   "COM in-process extension leftover is discovered from a matching module path, backed up, removed, and restored",
   "right-click menu registry key is backed up, removed, and restored",
   "right-click shell extension handler key is backed up, removed, and restored",
+  "Explorer extension handler key is discovered from a matching COM module path, backed up, removed, and restored",
   "isolated user PATH app segment is backed up, removed, and restored",
   "isolated app environment setting is backed up, removed, and restored",
   "isolated app firewall rule is backed up, removed, and restored",

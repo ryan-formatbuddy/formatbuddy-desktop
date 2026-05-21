@@ -11,6 +11,7 @@ import {
   isSafeAppCapabilitiesRegistryKeyPath,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeExplorerExtensionRegistryKeyPath,
   isSafeComAppIdRegistryKeyPath,
   isSafeComLocalServerRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
@@ -1030,6 +1031,44 @@ describe("registry leftover cleanup", () => {
     ).toBe(false);
   });
 
+  it("accepts only narrow Explorer extension registry keys", () => {
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Directory\\shellex\\CopyHookHandlers\\Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKLM\\Software\\Classes\\Folder\\shellex\\PropertySheetHandlers\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000040}"
+      )
+    ).toBe(true);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\*\\shellex\\DragDropHandlers\\Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\.txt\\shellex\\CopyHookHandlers\\Acme Notes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Directory\\shellex\\CopyHookHandlers"
+      )
+    ).toBe(false);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Directory\\shellex\\IconHandler\\Acme Notes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeExplorerExtensionRegistryKeyPath(
+        "HKCU\\Software\\Classes\\Directory\\shellex\\CopyHookHandlers\\Acme & Notes"
+      )
+    ).toBe(false);
+  });
+
   it("exports a backup before deleting a right-click menu registry key", async () => {
     const keyPath = "HKCU\\Software\\Classes\\*\\shell\\Acme Notes";
     const calls: string[] = [];
@@ -1126,6 +1165,71 @@ describe("registry leftover cleanup", () => {
       name: "Acme Notes",
       publisher: "Acme Corp.",
       backupKind: "shell-extension-key",
+      registryKeyPath: keyPath
+    });
+  });
+
+  it("exports a backup before deleting an Explorer extension registry key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\Directory\\shellex\\CopyHookHandlers\\Acme Notes";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "explorer-extension-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "explorer-extension-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "explorer-extension-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "탐색기 확장 연결 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "explorer-extension-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "explorer-extension-key",
       registryKeyPath: keyPath
     });
   });

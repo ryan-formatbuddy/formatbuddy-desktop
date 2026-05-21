@@ -70,6 +70,7 @@ import {
   isSafeContextMenuRegistryKeyPath,
   isSafeFileAssociationRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
+  isSafeExplorerExtensionRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeFirewallRuleRegistryValuePath,
@@ -642,6 +643,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "file-association-registry" ||
     value === "context-menu-registry" ||
     value === "shell-extension-registry" ||
+    value === "explorer-extension-registry" ||
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
     value === "com-local-server-registry" ||
@@ -1879,7 +1881,21 @@ async function comInprocServerRegistryLeftoverPaths(
   return paths;
 }
 
-function normalizeSafeComAppIdValue(value: unknown): string | undefined {
+async function comInprocServerModuleMatchesApp(
+  clsid: string,
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "queryDefaultValue">
+): Promise<boolean> {
+  for (const root of COM_LOCAL_SERVER_CLSID_ROOTS) {
+    const keyPath = `${root}\\${clsid}`;
+    if (!isSafeComInprocServerRegistryKeyPath(keyPath)) continue;
+    const inprocServer = await registryDefaultValueRecord(`${keyPath}\\InprocServer32`, runner);
+    if (inprocServer?.data && modulePathMatchesApp(inprocServer.data, app)) return true;
+  }
+  return false;
+}
+
+function normalizeSafeComGuidValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   if (trimmed !== value) return undefined;
@@ -1887,6 +1903,10 @@ function normalizeSafeComAppIdValue(value: unknown): string | undefined {
     return undefined;
   }
   return trimmed;
+}
+
+function normalizeSafeComAppIdValue(value: unknown): string | undefined {
+  return normalizeSafeComGuidValue(value);
 }
 
 async function comAppIdRegistryLeftoverPaths(
@@ -2214,6 +2234,34 @@ const SHELL_EXTENSION_REGISTRY_ROOTS = [
   "HKLM\\Software\\Classes\\Folder\\shellex\\ContextMenuHandlers"
 ] as const;
 
+const EXPLORER_EXTENSION_HANDLER_TYPES = [
+  "ContextMenuHandlers",
+  "CopyHookHandlers",
+  "DragDropHandlers",
+  "PropertySheetHandlers",
+  "ColumnHandlers"
+] as const;
+const EXPLORER_EXTENSION_CLASSES = [
+  "*",
+  "AllFilesystemObjects",
+  "Directory",
+  "Directory\\Background",
+  "Drive",
+  "Folder"
+] as const;
+const EXPLORER_EXTENSION_REGISTRY_ROOTS = [
+  ...EXPLORER_EXTENSION_CLASSES.flatMap((className) =>
+    EXPLORER_EXTENSION_HANDLER_TYPES.map(
+      (handlerType) => `HKCU\\Software\\Classes\\${className}\\shellex\\${handlerType}`
+    )
+  ),
+  ...EXPLORER_EXTENSION_CLASSES.flatMap((className) =>
+    EXPLORER_EXTENSION_HANDLER_TYPES.map(
+      (handlerType) => `HKLM\\Software\\Classes\\${className}\\shellex\\${handlerType}`
+    )
+  )
+] as const;
+
 function contextMenuNames(app: InstalledApp): string[] {
   const candidates = new Set<string>();
   for (const name of genericFolderNames(app)) {
@@ -2279,6 +2327,38 @@ async function shellExtensionRegistryLeftoverPaths(
       });
     }
   }
+  return paths;
+}
+
+async function explorerExtensionRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys" | "queryDefaultValue">
+): Promise<AppLeftoverPath[]> {
+  const appNamedContextHandlers = new Set(contextMenuNames(app).map((name) => name.toLowerCase()));
+  const paths: AppLeftoverPath[] = [];
+
+  for (const root of EXPLORER_EXTENSION_REGISTRY_ROOTS) {
+    for (const handlerName of await registrySubKeys(root, runner)) {
+      if (/\\ContextMenuHandlers$/i.test(root) && appNamedContextHandlers.has(handlerName.toLowerCase())) {
+        continue;
+      }
+      const keyPath = `${root}\\${handlerName}`;
+      if (!isSafeExplorerExtensionRegistryKeyPath(keyPath)) continue;
+      const handlerRecord = await registryDefaultValueRecord(keyPath, runner);
+      const clsid = normalizeSafeComGuidValue(handlerRecord?.data) ?? normalizeSafeComGuidValue(handlerName);
+      if (!clsid) continue;
+      if (!(await comInprocServerModuleMatchesApp(clsid, app, runner))) continue;
+      paths.push({
+        id: makePathId(`explorer-extension-registry:${keyPath}`),
+        kind: "explorer-extension-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
   return paths;
 }
 
@@ -2479,7 +2559,8 @@ export async function planAppLeftovers(
               ...(await comAppIdRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await serviceRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
-              ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner))
+              ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await explorerExtensionRegistryLeftoverPaths(app, options.registryRunner))
             ]
           : []),
         ...(await startupLeftoverPaths(app, env, options.startupEntries))
@@ -2523,6 +2604,7 @@ export async function planAppLeftovers(
       paths.push(...(await serviceRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await explorerExtensionRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
 
@@ -3191,6 +3273,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
       invalid.push("shell extension registry key");
     }
     if (
+      path.kind === "explorer-extension-registry" &&
+      !isSafeExplorerExtensionRegistryKeyPath(path.path)
+    ) {
+      invalid.push("Explorer extension registry key");
+    }
+    if (
       path.kind === "protocol-handler-registry" &&
       !isSafeProtocolHandlerRegistryKeyPath(path.path)
     ) {
@@ -3434,7 +3522,8 @@ export async function cleanupAppLeftovers(
       path.kind === "com-inproc-server-registry" ||
       path.kind === "com-app-id-registry" ||
       path.kind === "context-menu-registry" ||
-      path.kind === "shell-extension-registry"
+      path.kind === "shell-extension-registry" ||
+      path.kind === "explorer-extension-registry"
     ) {
       try {
         const backup = await backupAndDeleteRegistryKey({
@@ -3453,17 +3542,19 @@ export async function cleanupAppLeftovers(
                     ? "context-menu-key"
                     : path.kind === "shell-extension-registry"
                       ? "shell-extension-key"
-                      : path.kind === "protocol-handler-registry"
-                        ? "protocol-handler-key"
-                      : path.kind === "native-messaging-host-registry"
-                        ? "native-messaging-host-key"
-                        : path.kind === "com-local-server-registry"
-                          ? "com-local-server-key"
-                          : path.kind === "com-inproc-server-registry"
-                            ? "com-inproc-server-key"
-                            : path.kind === "com-app-id-registry"
-                              ? "com-app-id-key"
-                              : "key",
+                      : path.kind === "explorer-extension-registry"
+                        ? "explorer-extension-key"
+                        : path.kind === "protocol-handler-registry"
+                          ? "protocol-handler-key"
+                        : path.kind === "native-messaging-host-registry"
+                          ? "native-messaging-host-key"
+                          : path.kind === "com-local-server-registry"
+                            ? "com-local-server-key"
+                            : path.kind === "com-inproc-server-registry"
+                              ? "com-inproc-server-key"
+                              : path.kind === "com-app-id-registry"
+                                ? "com-app-id-key"
+                                : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined
