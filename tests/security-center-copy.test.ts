@@ -48,4 +48,17 @@ describe("SecurityCenter copy", () => {
     expect(source).not.toContain("Windows 처리: 제거됨");
     expect(source).not.toContain("Windows 처리: 정리됨");
   });
+
+  it("turns security summary actions into real buttons", () => {
+    const source = readFileSync(SECURITY_CENTER_PAGE, "utf8");
+
+    expect(source).toContain("function securityCareActionKind(item: SecurityCareSummary[\"items\"][number])");
+    expect(source).toContain('item.id.startsWith("quick-scan")');
+    expect(source).toContain("onRunScan");
+    expect(source).toContain("onOpenSecurity");
+    expect(source).toContain("actionKind === \"quick-scan\" ? onRunScan : onOpenSecurity");
+    expect(source).toContain("{item.action}");
+    expect(source).toContain("item.id === \"security-ok\"");
+    expect(source).not.toContain("<span\n                  style={{\n                    alignSelf: \"start\"");
+  });
 });

@@ -182,7 +182,25 @@ function careLevelColor(level: SecurityCareLevel): { background: string; color: 
   }
 }
 
-function SecurityCareSummaryPanel({ summary }: { summary: SecurityCareSummary }) {
+function securityCareActionKind(item: SecurityCareSummary["items"][number]): "quick-scan" | "open-security" | "none" {
+  if (item.id === "security-ok") return "none";
+  if (item.id.startsWith("quick-scan")) return "quick-scan";
+  return "open-security";
+}
+
+function SecurityCareSummaryPanel({
+  summary,
+  isWindows,
+  onRunScan,
+  onOpenSecurity,
+  actionBusy
+}: {
+  summary: SecurityCareSummary;
+  isWindows: boolean;
+  onRunScan: () => void;
+  onOpenSecurity: () => void;
+  actionBusy: boolean;
+}) {
   const meta = careLevelColor(summary.level);
 
   return (
@@ -218,6 +236,7 @@ function SecurityCareSummaryPanel({ summary }: { summary: SecurityCareSummary })
         <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0" }}>
           {summary.items.map((item) => {
             const itemMeta = careLevelColor(item.level);
+            const actionKind = securityCareActionKind(item);
             return (
               <li
                 key={item.id}
@@ -248,17 +267,28 @@ function SecurityCareSummaryPanel({ summary }: { summary: SecurityCareSummary })
                     {item.detail}
                   </p>
                 </div>
-                <span
-                  style={{
-                    alignSelf: "start",
-                    whiteSpace: "nowrap",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: itemMeta.color
-                  }}
-                >
-                  {item.action}
-                </span>
+                {actionKind === "none" ? (
+                  <span
+                    style={{
+                      alignSelf: "start",
+                      whiteSpace: "nowrap",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: itemMeta.color
+                    }}
+                  >
+                    {item.action}
+                  </span>
+                ) : (
+                  <Button
+                    variant={actionKind === "quick-scan" ? "secondary" : "ghost"}
+                    size="sm"
+                    onClick={actionKind === "quick-scan" ? onRunScan : onOpenSecurity}
+                    disabled={!isWindows || actionBusy}
+                  >
+                    {item.action}
+                  </Button>
+                )}
               </li>
             );
           })}
@@ -271,11 +301,19 @@ function SecurityCareSummaryPanel({ summary }: { summary: SecurityCareSummary })
 function StatusPanel({
   state,
   onRefresh,
-  busy
+  onRunScan,
+  onOpenSecurity,
+  busy,
+  actionBusy,
+  isWindows
 }: {
   state: StatusState;
   onRefresh: () => void;
+  onRunScan: () => void;
+  onOpenSecurity: () => void;
   busy: boolean;
+  actionBusy: boolean;
+  isWindows: boolean;
 }) {
   const protectionOff =
     state.data && state.data.available && state.data.realTimeProtectionEnabled === false;
@@ -308,7 +346,13 @@ function StatusPanel({
       )}
 
       {state.data && (
-        <SecurityCareSummaryPanel summary={buildSecurityCareSummary(state.data)} />
+        <SecurityCareSummaryPanel
+          summary={buildSecurityCareSummary(state.data)}
+          isWindows={isWindows}
+          onRunScan={onRunScan}
+          onOpenSecurity={onOpenSecurity}
+          actionBusy={actionBusy}
+        />
       )}
 
       {state.data && state.data.available && (
@@ -611,7 +655,15 @@ export function SecurityCenter({ isWindows, onBack }: SecurityCenterProps) {
         )}
       </section>
 
-      <StatusPanel state={status} onRefresh={() => void refreshStatus()} busy={status.loading} />
+      <StatusPanel
+        state={status}
+        onRefresh={() => void refreshStatus()}
+        onRunScan={() => void runScan()}
+        onOpenSecurity={() => void openSecurity()}
+        busy={status.loading}
+        actionBusy={scanBusy}
+        isWindows={isWindows}
+      />
 
       <QuickScanCard
         isWindows={isWindows}
