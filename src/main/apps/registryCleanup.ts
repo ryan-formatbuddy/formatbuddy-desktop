@@ -26,6 +26,7 @@ export interface RegistryCleanupRunner {
   deleteService?: (serviceName: string) => Promise<void>;
   serviceExists?: (serviceName: string) => Promise<boolean>;
   queryValue?: (keyPath: string, valueName: string) => Promise<RegistryValueRecord | undefined>;
+  queryDefaultValue?: (keyPath: string) => Promise<RegistryValueRecord | undefined>;
   listValues?: (keyPath: string) => Promise<RegistryNamedValueRecord[]>;
   setValue?: (keyPath: string, valueName: string, type: string, data: string) => Promise<void>;
   exportValue?: (keyPath: string, valueName: string, backupPath: string) => Promise<void>;
@@ -80,6 +81,7 @@ type RegistryBackupRestoredApp = {
     | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
+    | "com-local-server-key"
     | "service-key";
   registryKeyPath?: string;
   valueName?: string;
@@ -95,6 +97,7 @@ type RegistryKeyBackupKind =
   | "shell-extension-key"
   | "protocol-handler-key"
   | "native-messaging-host-key"
+  | "com-local-server-key"
   | "service-key";
 
 function restoreAppBackupKindFromEntry(
@@ -113,6 +116,7 @@ function restoreAppBackupKindFromEntry(
   if (backupKind === "shell-extension-key") return "shell-extension-key";
   if (backupKind === "protocol-handler-key") return "protocol-handler-key";
   if (backupKind === "native-messaging-host-key") return "native-messaging-host-key";
+  if (backupKind === "com-local-server-key") return "com-local-server-key";
   if (backupKind === "service-key") return "service-key";
   return "key";
 }
@@ -163,6 +167,8 @@ const SAFE_PROTOCOL_HANDLER_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63}|HKLM\\Software\\Classes\\[A-Za-z][A-Za-z0-9+.-]{1,63})$/i;
 const SAFE_NATIVE_MESSAGING_HOST_KEY_PATTERN =
   /^(?:HKCU\\Software\\(?:Google\\Chrome|Microsoft\\Edge|Mozilla)\\NativeMessagingHosts\\[A-Za-z0-9][A-Za-z0-9._-]{0,127}|HKLM\\Software\\(?:Google\\Chrome|Microsoft\\Edge|Mozilla)\\NativeMessagingHosts\\[A-Za-z0-9][A-Za-z0-9._-]{0,127})$/i;
+const SAFE_COM_LOCAL_SERVER_KEY_PATTERN =
+  /^(?:HKCU\\Software\\Classes\\CLSID\\\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}|HKLM\\Software\\Classes\\CLSID\\\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}|HKLM\\Software\\WOW6432Node\\Classes\\CLSID\\\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\})$/i;
 const SAFE_SERVICE_KEY_PATTERN =
   /^HKLM\\SYSTEM\\CurrentControlSet\\Services\\[A-Za-z0-9._-]{1,128}$/i;
 const SERVICE_KEY_PREFIX = "HKLM\\SYSTEM\\CurrentControlSet\\Services\\";
@@ -361,6 +367,15 @@ export function isSafeNativeMessagingHostRegistryKeyPath(keyPath: string): boole
   return normalizeSafeNativeMessagingHostName(hostName) === hostName?.toLowerCase();
 }
 
+export function isSafeComLocalServerRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  return SAFE_COM_LOCAL_SERVER_KEY_PATTERN.test(normalized);
+}
+
 export function normalizeSafeServiceName(serviceName: unknown): string | undefined {
   if (typeof serviceName !== "string") return undefined;
   const trimmed = serviceName.trim();
@@ -543,6 +558,7 @@ function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
   if (value === "shell-extension-key") return "shell-extension-key";
   if (value === "protocol-handler-key") return "protocol-handler-key";
   if (value === "native-messaging-host-key") return "native-messaging-host-key";
+  if (value === "com-local-server-key") return "com-local-server-key";
   if (value === "service-key") return "service-key";
   return "key";
 }
@@ -928,6 +944,21 @@ async function queryRegistryValueWithReg(
   return { type, data };
 }
 
+async function queryRegistryDefaultValueWithReg(keyPath: string): Promise<RegistryValueRecord> {
+  const stdout = await runRegQuery(["query", keyPath, "/ve"]);
+  for (const line of stdout.split(/\r?\n/)) {
+    const row = line.trim();
+    if (!row || /^HKEY_/i.test(row)) continue;
+    const parts = row.split(/\s{2,}/);
+    const typeIndex = parts.findIndex((part) => /^REG_/i.test(part));
+    if (typeIndex < 0) continue;
+    const type = parts[typeIndex];
+    const data = parts.slice(typeIndex + 1).join("  ");
+    if (data) return { type, data };
+  }
+  throw new Error("레지스트리 기본값을 읽지 못했어요.");
+}
+
 async function listRegistryValuesWithReg(keyPath: string): Promise<RegistryNamedValueRecord[]> {
   const stdout = await runRegQuery(["query", keyPath]);
   const values: RegistryNamedValueRecord[] = [];
@@ -1197,6 +1228,7 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
     deleteService: (serviceName) => runScCommand(["delete", serviceName]).then(() => undefined),
     serviceExists: (serviceName) => serviceExistsWithSc(serviceName),
     queryValue: (keyPath, valueName) => queryRegistryValueWithReg(keyPath, valueName),
+    queryDefaultValue: (keyPath) => queryRegistryDefaultValueWithReg(keyPath),
     setValue: (keyPath, valueName, type, data) =>
       setRegistryValueWithReg(keyPath, valueName, type, data),
     exportValue: (keyPath, valueName, backupPath) =>
@@ -1221,6 +1253,7 @@ export async function backupAndDeleteRegistryKey(options: {
     | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
+    | "com-local-server-key"
     | "service-key";
   now?: () => Date;
   runner?: RegistryCleanupRunner;
@@ -1244,9 +1277,11 @@ export async function backupAndDeleteRegistryKey(options: {
                 ? isSafeProtocolHandlerRegistryKeyPath(options.keyPath)
                 : backupKind === "native-messaging-host-key"
                   ? isSafeNativeMessagingHostRegistryKeyPath(options.keyPath)
-                  : backupKind === "service-key"
-                    ? isSafeServiceRegistryKeyPath(options.keyPath)
-                    : isSafeUninstallRegistryKeyPath(options.keyPath);
+                  : backupKind === "com-local-server-key"
+                    ? isSafeComLocalServerRegistryKeyPath(options.keyPath)
+                    : backupKind === "service-key"
+                      ? isSafeServiceRegistryKeyPath(options.keyPath)
+                      : isSafeUninstallRegistryKeyPath(options.keyPath);
   if (!safeKey) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -1750,9 +1785,11 @@ async function readRegistryBackupEntryForRestore(
                           ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
                           : backupKind === "native-messaging-host-key"
                             ? isSafeNativeMessagingHostRegistryKeyPath(rawKeyPath)
-                            : backupKind === "service-key"
-                              ? isSafeServiceRegistryKeyPath(rawKeyPath)
-                              : isSafeUninstallRegistryKeyPath(rawKeyPath));
+                            : backupKind === "com-local-server-key"
+                              ? isSafeComLocalServerRegistryKeyPath(rawKeyPath)
+                              : backupKind === "service-key"
+                                ? isSafeServiceRegistryKeyPath(rawKeyPath)
+                                : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -1817,6 +1854,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "protocol-handler-key";
   } else if (backupKind === "native-messaging-host-key") {
     entry.backupKind = "native-messaging-host-key";
+  } else if (backupKind === "com-local-server-key") {
+    entry.backupKind = "com-local-server-key";
   } else if (backupKind === "service-key") {
     entry.backupKind = "service-key";
   }

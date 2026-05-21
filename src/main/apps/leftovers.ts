@@ -76,6 +76,7 @@ import {
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
   isSafeNativeMessagingHostRegistryKeyPath,
+  isSafeComLocalServerRegistryKeyPath,
   isSafeServiceRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
@@ -444,7 +445,7 @@ export interface PlanLeftoversOptions {
    */
   registryRunner?: Pick<
     RegistryCleanupRunner,
-    "keyExists" | "queryValue" | "valueExists" | "listValues" | "listSubKeys"
+    "keyExists" | "queryValue" | "queryDefaultValue" | "valueExists" | "listValues" | "listSubKeys"
   >;
 }
 
@@ -641,6 +642,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "shell-extension-registry" ||
     value === "protocol-handler-registry" ||
     value === "native-messaging-host-registry" ||
+    value === "com-local-server-registry" ||
     value === "service-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
@@ -1297,6 +1299,12 @@ const NATIVE_MESSAGING_HOST_REGISTRY_ROOTS = [
   "HKLM\\Software\\Mozilla\\NativeMessagingHosts"
 ] as const;
 
+const COM_LOCAL_SERVER_CLSID_ROOTS = [
+  "HKCU\\Software\\Classes\\CLSID",
+  "HKLM\\Software\\Classes\\CLSID",
+  "HKLM\\Software\\WOW6432Node\\Classes\\CLSID"
+] as const;
+
 const KNOWN_PROTOCOL_HANDLER_SCHEMES: Array<{ match: RegExp; schemes: string[] }> = [
   { match: /zoom/i, schemes: ["zoommtg", "zoomphonecall", "zoomus"] },
   { match: /slack/i, schemes: ["slack"] },
@@ -1491,6 +1499,21 @@ async function registryValueRecord(
   if (!queryValue) return undefined;
   try {
     return await queryValue(keyPath, valueName);
+  } catch {
+    return undefined;
+  }
+}
+
+async function registryDefaultValueRecord(
+  keyPath: string,
+  runner?: Pick<RegistryCleanupRunner, "queryDefaultValue">
+): Promise<{ type: string; data: string } | undefined> {
+  const queryDefaultValue =
+    runner?.queryDefaultValue ??
+    (process.platform === "win32" ? defaultRegistryCleanupRunner().queryDefaultValue : undefined);
+  if (!queryDefaultValue) return undefined;
+  try {
+    return await queryDefaultValue(keyPath);
   } catch {
     return undefined;
   }
@@ -1748,6 +1771,32 @@ async function nativeMessagingHostRegistryLeftoverPaths(
       });
     }
   }
+  return paths;
+}
+
+async function comLocalServerRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "listSubKeys" | "queryDefaultValue">
+): Promise<AppLeftoverPath[]> {
+  const paths: AppLeftoverPath[] = [];
+
+  for (const root of COM_LOCAL_SERVER_CLSID_ROOTS) {
+    for (const clsid of await registrySubKeys(root, runner)) {
+      const keyPath = `${root}\\${clsid}`;
+      if (!isSafeComLocalServerRegistryKeyPath(keyPath)) continue;
+      const localServer = await registryDefaultValueRecord(`${keyPath}\\LocalServer32`, runner);
+      if (!localServer?.data || !executablePathMatchesApp(localServer.data, app)) continue;
+      paths.push({
+        id: makePathId(`com-local-server-registry:${keyPath}`),
+        kind: "com-local-server-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+
   return paths;
 }
 
@@ -2272,6 +2321,7 @@ export async function planAppLeftovers(
               ...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await serviceRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner))
@@ -2312,6 +2362,7 @@ export async function planAppLeftovers(
       paths.push(...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await comLocalServerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await serviceRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await shellExtensionRegistryLeftoverPaths(app, options.registryRunner)));
@@ -2995,6 +3046,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
       invalid.push("native messaging host registry key");
     }
     if (
+      path.kind === "com-local-server-registry" &&
+      !isSafeComLocalServerRegistryKeyPath(path.path)
+    ) {
+      invalid.push("COM local server registry key");
+    }
+    if (
       path.kind === "service-registry" &&
       (!normalizeSafeServiceName(path.serviceName) ||
         !isSafeServiceRegistryKeyPath(path.path) ||
@@ -3204,6 +3261,7 @@ export async function cleanupAppLeftovers(
       path.kind === "file-association-registry" ||
       path.kind === "protocol-handler-registry" ||
       path.kind === "native-messaging-host-registry" ||
+      path.kind === "com-local-server-registry" ||
       path.kind === "context-menu-registry" ||
       path.kind === "shell-extension-registry"
     ) {
@@ -3226,8 +3284,10 @@ export async function cleanupAppLeftovers(
                       ? "shell-extension-key"
                       : path.kind === "protocol-handler-registry"
                         ? "protocol-handler-key"
-                        : path.kind === "native-messaging-host-registry"
-                          ? "native-messaging-host-key"
+                      : path.kind === "native-messaging-host-registry"
+                        ? "native-messaging-host-key"
+                        : path.kind === "com-local-server-registry"
+                          ? "com-local-server-key"
                           : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),

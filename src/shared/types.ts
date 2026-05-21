@@ -850,7 +850,7 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "app-capabilities-key" for Default Apps capability keys, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "file-association-key" for app-specific file type links, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services, "firewall-rule-value" for app firewall rules. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "app-capabilities-key" for Default Apps capability keys, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "file-association-key" for app-specific file type links, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "com-local-server-key" for app-specific COM local server registrations, "service-key" for Windows services, "firewall-rule-value" for app firewall rules. */
   backupKind?:
     | "key"
     | "startup-value"
@@ -866,6 +866,7 @@ export interface RegistryBackupEntry {
     | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
+    | "com-local-server-key"
     | "service-key";
   /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", "environment-path-value", "environment-variable-value", or "firewall-rule-value". */
   valueName?: string | null;
@@ -928,6 +929,7 @@ export interface RegistryBackupPurgedItem {
     | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
+    | "com-local-server-key"
     | "service-key";
   sizeBytes: number;
 }
@@ -1352,6 +1354,7 @@ export interface AppLeftoverPath {
     | "shell-extension-registry"
     | "protocol-handler-registry"
     | "native-messaging-host-registry"
+    | "com-local-server-registry"
     | "service-registry"
     | "startup-folder"
     | "startup-registry"

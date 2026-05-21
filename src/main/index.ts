@@ -499,6 +499,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "shell-extension-key"
     | "protocol-handler-key"
     | "native-messaging-host-key"
+    | "com-local-server-key"
     | "service-key";
   registryKeyPath?: string;
 }): InstalledApp {

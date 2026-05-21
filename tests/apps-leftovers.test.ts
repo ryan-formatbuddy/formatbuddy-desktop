@@ -2818,6 +2818,102 @@ describe("planAppLeftovers", () => {
     });
   });
 
+  it("backs up and deletes selected COM local server registry leftovers after uninstall follow-up", async () => {
+    const clsidRoot = "HKCU\\Software\\Classes\\CLSID";
+    const comRegistryKey =
+      `${clsidRoot}\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000001}`;
+    const unrelatedComRegistryKey =
+      `${clsidRoot}\\{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000002}`;
+    let keyExists = true;
+    const registryRunner = {
+      listSubKeys: vi.fn(async (keyPath: string) =>
+        keyPath === clsidRoot
+          ? [
+              "{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000001}",
+              "{A6E0BCA2-2CC0-4B8C-A29D-ABCD00000002}",
+              "AcmeNotes"
+            ]
+          : []
+      ),
+      queryDefaultValue: vi.fn(async (keyPath: string) => {
+        if (keyPath === `${comRegistryKey}\\LocalServer32`) {
+          return {
+            type: "REG_SZ",
+            data: '"C:\\Program Files\\Acme Notes\\AcmeNotes.exe" /automation'
+          };
+        }
+        if (keyPath === `${unrelatedComRegistryKey}\\LocalServer32`) {
+          return {
+            type: "REG_SZ",
+            data: "C:\\Windows\\System32\\notepad.exe"
+          };
+        }
+        return undefined;
+      }),
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === comRegistryKey),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const paths = snapshot.groups[0].paths.filter((p) => p.kind === "com-local-server-registry");
+    expect(paths).toHaveLength(1);
+    expect(paths[0]).toMatchObject({
+      kind: "com-local-server-registry",
+      path: comRegistryKey,
+      exists: true
+    });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [paths[0].id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      comRegistryKey,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(comRegistryKey);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: paths[0].id,
+      path: comRegistryKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: comRegistryKey,
+      backupKind: "com-local-server-key"
+    });
+  });
+
   it("backs up and deletes selected right-click menu registry leftovers after uninstall follow-up", async () => {
     const contextMenuRegistryKey = "HKCU\\Software\\Classes\\*\\shell\\Acme Notes";
     let keyExists = true;
