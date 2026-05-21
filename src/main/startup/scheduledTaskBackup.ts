@@ -738,6 +738,16 @@ export async function restoreScheduledTaskBackup(options: {
     } else {
       await fs.rm(dir, { recursive: true, force: true });
     }
+    if (await pathExists(dir)) {
+      return {
+        backupId: options.backupId,
+        status: "restore-failed",
+        message: "예약 작업은 되돌렸지만 복구함 기록을 아직 지우지 못했어요. 다음 확인 때 다시 정리할게요.",
+        taskName: entry.taskName,
+        taskPath: entry.taskPath,
+        entry
+      };
+    }
     return {
       backupId: options.backupId,
       status: "restored",

@@ -120,6 +120,35 @@ describe("scheduled task backup", () => {
     expect(snapshot.entries).toHaveLength(0);
   });
 
+  it("does not report a scheduled task restore as finished when the backup item remains", async () => {
+    const state = { exists: true };
+    const runner = makeRunner(state);
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const result = await restoreScheduledTaskBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner,
+      removeEntryDir: async () => undefined
+    });
+
+    expect(result).toMatchObject({
+      status: "restore-failed",
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\"
+    });
+    expect(result.message).toContain("아직");
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
+  });
+
   it("runs the safety hook only after a scheduled task backup is proven restorable", async () => {
     const state = { exists: true };
     const runner = makeRunner(state);
