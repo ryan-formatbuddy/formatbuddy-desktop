@@ -673,11 +673,15 @@ describe("Cleanup result undo helper", () => {
   it("labels startup value backups without exposing registry jargon", () => {
     expect(registryBackupKindLabel({ backupKind: "key" })).toBe("앱 삭제 흔적 백업");
     expect(registryBackupKindLabel({ backupKind: "startup-value" })).toBe("시작 항목 백업");
+    expect(registryBackupKindLabel({ backupKind: "registered-app-value" })).toBe("기본 앱 목록 백업");
     expect(registryBackupKindLabel({ backupKind: "context-menu-key" })).toBe("우클릭 메뉴 백업");
     expect(registryBackupKindLabel({ backupKind: "service-key" })).toBe("서비스 백업");
     expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
     expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
       "시작 항목 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "registered-app-value" })).toBe(
+      "기본 앱 목록 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "context-menu-key" })).toBe(
       "우클릭 메뉴 되돌리기"

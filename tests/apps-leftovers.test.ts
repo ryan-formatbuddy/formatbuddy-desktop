@@ -1460,6 +1460,42 @@ describe("planAppLeftovers", () => {
     expect(appPathCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("shows default-app list registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const registryRunner = {
+      valueExists: vi.fn(
+        async (keyPath: string, valueName: string) =>
+          keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+      )
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp."
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.valueExists).toHaveBeenCalledWith(
+      registeredApplicationsKey,
+      registeredApplicationsValue
+    );
+    const registeredAppCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === registeredApplicationsKey && p.registryValueName === registeredApplicationsValue
+    );
+    expect(registeredAppCandidate).toMatchObject({
+      kind: "registered-app-registry",
+      exists: true
+    });
+    expect(registeredAppCandidate?.protectedBy).toBeUndefined();
+  });
+
   it("shows app connection registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const openWithRegistryKey = "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe";
     const registryRunner = {
@@ -1632,6 +1668,82 @@ describe("planAppLeftovers", () => {
       appPublisher: "Acme Corp.",
       keyPath: appPathRegistryKey,
       backupKind: "app-path-key"
+    });
+  });
+
+  it("backs up and deletes selected default-app list registry leftovers after uninstall follow-up", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    let valueExists = true;
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      valueExists: vi.fn(
+        async (keyPath: string, valueName: string) =>
+          valueExists &&
+          keyPath === registeredApplicationsKey &&
+          valueName === registeredApplicationsValue
+      ),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `Windows Registry Editor Version 5.00\n\n[HKEY_CURRENT_USER\\Software\\RegisteredApplications]\n"Acme Notes"="Software\\\\Acme\\\\Notes\\\\Capabilities"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find(
+      (p) => p.path === registeredApplicationsKey && p.registryValueName === registeredApplicationsValue
+    )!;
+    expect(path).toMatchObject({ kind: "registered-app-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportValue).toHaveBeenCalledWith(
+      registeredApplicationsKey,
+      registeredApplicationsValue,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteValue).toHaveBeenCalledWith(
+      registeredApplicationsKey,
+      registeredApplicationsValue
+    );
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: `${registeredApplicationsKey}\\${registeredApplicationsValue}`,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: registeredApplicationsKey,
+      valueName: registeredApplicationsValue,
+      backupKind: "registered-app-value"
     });
   });
 

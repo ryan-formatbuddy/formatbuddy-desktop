@@ -322,6 +322,7 @@ export function isStartupRegistryBackup(entry: RegistryBackupKindSource | null |
 }
 
 export function registryBackupKindLabel(entry: RegistryBackupKindSource): string {
+  if (entry.backupKind === "registered-app-value") return "기본 앱 목록 백업";
   if (entry.backupKind === "app-path-key") return "앱 실행 경로 백업";
   if (entry.backupKind === "open-with-key") return "앱 연결 흔적 백업";
   if (entry.backupKind === "context-menu-key") return "우클릭 메뉴 백업";
@@ -330,6 +331,7 @@ export function registryBackupKindLabel(entry: RegistryBackupKindSource): string
 }
 
 export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource): string {
+  if (entry.backupKind === "registered-app-value") return "기본 앱 목록 되돌리기";
   if (entry.backupKind === "app-path-key") return "실행 경로 되돌리기";
   if (entry.backupKind === "open-with-key") return "앱 연결 되돌리기";
   if (entry.backupKind === "context-menu-key") return "우클릭 메뉴 되돌리기";

@@ -10,6 +10,7 @@ import {
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
+  isSafeRegisteredApplicationRegistryValuePath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
@@ -539,6 +540,84 @@ describe("registry leftover cleanup", () => {
     });
   });
 
+  it("accepts only narrow default-app list registry values", () => {
+    expect(
+      isSafeRegisteredApplicationRegistryValuePath(
+        "HKCU\\Software\\RegisteredApplications",
+        "Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeRegisteredApplicationRegistryValuePath(
+        "HKLM\\Software\\RegisteredApplications",
+        "Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeRegisteredApplicationRegistryValuePath(
+        "HKCU\\Software\\RegisteredApplications\\Acme",
+        "Acme Notes"
+      )
+    ).toBe(false);
+    expect(
+      isSafeRegisteredApplicationRegistryValuePath(
+        "HKCU\\Software\\RegisteredApplications",
+        "Acme & Notes"
+      )
+    ).toBe(false);
+  });
+
+  it("exports a value-only backup before deleting a default-app list registry value", async () => {
+    const keyPath = "HKCU\\Software\\RegisteredApplications";
+    const valueName = "Acme Notes";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        calls.push("export-value");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\RegisteredApplications]\n"Acme Notes"="Software\\\\Acme\\\\Notes\\\\Capabilities"\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        calls.push("delete-value");
+      }),
+      valueExists: vi.fn(async () => false)
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      backupKind: "registered-app-value",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export-value", "delete-value"]);
+    expect(runner.exportValue).toHaveBeenCalledWith(keyPath, valueName, result.backupPath);
+    expect(runner.deleteValue).toHaveBeenCalledWith(keyPath, valueName);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "registered-app-value",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "registered-app-value"
+    });
+  });
+
   it("does not keep a registry backup entry when the key still exists after deletion", async () => {
     const keyPath = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Acme Notes";
     const runner = {
@@ -1044,7 +1123,7 @@ describe("registry leftover cleanup", () => {
         valueName: " Acme Notes",
         runner
       })
-    ).rejects.toThrow(/지원하는 시작 항목 레지스트리 위치|registry/i);
+    ).rejects.toThrow(/지원하는 레지스트리 값 위치|registry/i);
 
     expect(runner.exportValue).not.toHaveBeenCalled();
     expect(runner.deleteValue).not.toHaveBeenCalled();

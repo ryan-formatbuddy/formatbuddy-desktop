@@ -108,6 +108,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return path.exists ? formatBytes(path.sizeBytes) : "설치 폴더";
     case "registry":
       return "앱 삭제 흔적";
+    case "registered-app-registry":
+      return "기본 앱 목록";
     case "app-path-registry":
       return "앱 실행 경로";
     case "open-with-registry":
@@ -167,7 +169,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
     lines.push(`잔여 파일/폴더 ${fileOrFolderCount}개는 복구함에 30일 동안 보관해요.`);
   }
   if (backupCount > 0) {
-    lines.push(`앱 삭제 흔적/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+    lines.push(`앱 삭제 흔적/기본 앱 목록/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (startupCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
@@ -309,6 +311,7 @@ function buildLeftoverCleanupConfirm(
     backupCount: paths.filter(
       (path) =>
         path.kind === "registry" ||
+        path.kind === "registered-app-registry" ||
         path.kind === "app-path-registry" ||
         path.kind === "open-with-registry" ||
         path.kind === "context-menu-registry" ||
@@ -510,12 +513,12 @@ function AppLeftoverConfirmDialog({
           )}
         </p>
         <p style={{ fontSize: 13, opacity: 0.8 }}>
-          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 앱 연결, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
+          폴더·바로가기와 시작 항목, 서비스, 앱 삭제 흔적과 기본 앱 목록, 앱 연결, 우클릭 메뉴 흔적은 30일 안에 되돌릴 수 있게 챙겨둘게요. 보호 경로나 점검 후 바뀐 항목은 자동으로 건드리지 않아요.
         </p>
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
           <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
-          <li>앱 삭제 흔적/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
+          <li>앱 삭제 흔적/기본 앱 목록/실행 경로/앱 연결/우클릭 메뉴/서비스/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
           <li>서비스 {confirm.serviceCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
           <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>

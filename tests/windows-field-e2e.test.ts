@@ -24,6 +24,7 @@ import {
   restoreStartupFolderEntry
 } from "../src/main/startup/folderToggle";
 import {
+  backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   purgeExpiredRegistryBackups,
   restoreRegistryBackup
@@ -43,6 +44,7 @@ const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const UNINSTALL_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${FIELD_VALUE_NAME}`;
+const REGISTERED_APPLICATIONS_KEY = "HKCU\\Software\\RegisteredApplications";
 const APP_PATH_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${FIELD_VALUE_NAME}.exe`;
 const OPEN_WITH_KEY = `HKCU\\Software\\Classes\\Applications\\${FIELD_VALUE_NAME}.exe`;
@@ -113,9 +115,12 @@ async function runSc(args: string[]): Promise<{ stdout: string; stderr: string }
   return { stdout: String(stdout), stderr: String(stderr) };
 }
 
-async function registryValueExists(): Promise<boolean> {
+async function registryValueExists(
+  keyPath = RUN_KEY,
+  valueName = FIELD_VALUE_NAME
+): Promise<boolean> {
   try {
-    await runReg(["query", RUN_KEY, "/v", FIELD_VALUE_NAME]);
+    await runReg(["query", keyPath, "/v", valueName]);
     return true;
   } catch {
     return false;
@@ -172,6 +177,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
   afterEach(async () => {
     __resetPlanCacheForTests();
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
+    await runReg(["delete", REGISTERED_APPLICATIONS_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
     await runReg(["delete", UNINSTALL_KEY, "/f"]).catch(() => {});
     await runReg(["delete", APP_PATH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", OPEN_WITH_KEY, "/f"]).catch(() => {});
@@ -444,12 +450,23 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
   }, 45_000);
 
-  it("backs up, removes, and restores isolated app path, app connection, and context menu registry keys", async () => {
+  it("backs up, removes, and restores isolated default-app, app path, app connection, and context menu registry traces", async () => {
     root = mkdtempSync(join(tmpdir(), "fb-windows-field-app-registry-"));
     userDataDir = join(root, "userdata");
     const firstAt = new Date("2026-05-20T11:20:00.000Z");
     const restoredAt = new Date("2026-05-20T11:25:00.000Z");
 
+    await runReg([
+      "add",
+      REGISTERED_APPLICATIONS_KEY,
+      "/v",
+      FIELD_VALUE_NAME,
+      "/t",
+      "REG_SZ",
+      "/d",
+      `Software\\${FIELD_VALUE_NAME}\\Capabilities`,
+      "/f"
+    ]);
     await runReg([
       "add",
       APP_PATH_KEY,
@@ -482,10 +499,19 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       FIELD_VALUE_NAME,
       "/f"
     ]);
+    expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
 
+    const registeredAppBackup = await backupAndDeleteRegistryValue({
+      userDataDir,
+      keyPath: REGISTERED_APPLICATIONS_KEY,
+      valueName: FIELD_VALUE_NAME,
+      backupKind: "registered-app-value",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
     const appPathBackup = await backupAndDeleteRegistryKey({
       userDataDir,
       keyPath: APP_PATH_KEY,
@@ -508,13 +534,20 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
 
+    expect(registeredAppBackup.backupKind).toBe("registered-app-value");
     expect(appPathBackup.backupKind).toBe("app-path-key");
     expect(openWithBackup.backupKind).toBe("open-with-key");
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
+    expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(false);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(false);
 
+    const restoredRegisteredApp = await restoreRegistryBackup({
+      userDataDir,
+      backupId: registeredAppBackup.id,
+      now: () => restoredAt
+    });
     const restoredAppPath = await restoreRegistryBackup({
       userDataDir,
       backupId: appPathBackup.id,
@@ -531,12 +564,15 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => restoredAt
     });
 
+    expect(restoredRegisteredApp.status).toBe("restored");
     expect(restoredAppPath.status).toBe("restored");
     expect(restoredOpenWith.status).toBe("restored");
     expect(restoredContextMenu.status).toBe("restored");
+    expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
     expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
     expect(restoredOpenWith.entry?.backupKind).toBe("open-with-key");
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
+    expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);

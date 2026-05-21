@@ -17,6 +17,7 @@ const evidenceRequirements = [
   "isolated Windows scheduled scan task is registered and removed",
   "isolated scheduled task cleanup trace is backed up, removed, and restored",
   "uninstall registry key is backed up, removed, and restored",
+  "RegisteredApplications default-app list value is backed up, removed, and restored",
   "App Paths registry alias is backed up, removed, and restored",
   "Open With app connection registry key is backed up, removed, and restored",
   "right-click menu registry key is backed up, removed, and restored",

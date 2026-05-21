@@ -487,6 +487,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
   backupKind?:
     | "key"
     | "startup-value"
+    | "registered-app-value"
     | "app-path-key"
     | "open-with-key"
     | "context-menu-key"
