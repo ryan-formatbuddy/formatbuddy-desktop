@@ -1138,6 +1138,7 @@ export interface StartupAutoDisabledEntry {
   originalPath: string;
   /** Managed local copy path inside FormatBuddy userData. */
   storedPath: string;
+  sizeBytes: number;
   /** Original Startup folder label/path. */
   origin: string;
   disabledAt: string;

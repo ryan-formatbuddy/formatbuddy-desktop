@@ -1602,6 +1602,7 @@ describe("planAppLeftovers", () => {
           "files",
           "Acme Notes.lnk"
         ),
+        sizeBytes: Buffer.byteLength("shortcut"),
         origin: dirname(startupShortcut),
         disabledAt: "2026-05-19T00:00:00.000Z",
         expiresAt: "2026-06-18T00:00:00.000Z",
@@ -1680,6 +1681,7 @@ describe("planAppLeftovers", () => {
           name: "Acme Notes.lnk",
           originalPath: startupShortcut,
           storedPath: missingStoredPath,
+          sizeBytes: Buffer.byteLength("shortcut"),
           origin: dirname(startupShortcut),
           disabledAt: "2026-05-19T00:00:00.000Z",
           expiresAt: "2026-06-18T00:00:00.000Z",
@@ -1763,6 +1765,7 @@ describe("planAppLeftovers", () => {
           name: "Acme Notes.lnk",
           originalPath: startupShortcut,
           storedPath,
+          sizeBytes: Buffer.byteLength("shortcut"),
           origin: dirname(startupShortcut),
           disabledAt: "2026-05-19T00:00:00.000Z",
           expiresAt: "2026-06-18T00:00:00.000Z",

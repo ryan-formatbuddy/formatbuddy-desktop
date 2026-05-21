@@ -157,6 +157,7 @@ describe("Cleanup result undo helper", () => {
       overrides.originalPath ?? "C:\\Users\\Ryan\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Acme Helper.lnk",
     storedPath:
       overrides.storedPath ?? "C:\\Users\\Ryan\\AppData\\Roaming\\FormatBuddy\\startup-disabled\\Acme Helper.lnk",
+    sizeBytes: overrides.sizeBytes ?? 12,
     origin: overrides.origin ?? "Startup",
     disabledAt: overrides.disabledAt ?? "2026-05-19T00:00:00.000Z",
     expiresAt: overrides.expiresAt ?? "2026-06-18T00:00:00.000Z",

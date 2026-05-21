@@ -81,7 +81,8 @@ describe("TrashRestore copy", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 
     expect(source).toContain("registryBytes");
-    expect(source).toContain("snapshot.totalBytes + registryBytes + scheduledTaskBytes");
+    expect(source).toContain("startupDisabledBytes");
+    expect(source).toContain("snapshot.totalBytes + registryBytes + startupDisabledBytes + scheduledTaskBytes");
     expect(source).toContain("{formatBytes(entry.sizeBytes)} · 보낸 시각");
   });
 

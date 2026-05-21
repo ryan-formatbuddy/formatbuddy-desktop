@@ -176,6 +176,11 @@ function canonicalDisabledExpiry(disabledAt: string): string {
   return disabledExpiry(new Date(disabledAt));
 }
 
+function coerceStartupHoldingSizeBytes(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(value));
+}
+
 function isOutsideDisabledRetentionWindow(
   entry: Pick<StartupAutoDisabledEntry, "disabledAt" | "expiresAt">,
   now: Date
@@ -204,6 +209,7 @@ function coerceDisabledEntry(value: unknown): StartupAutoDisabledEntry | null {
     name,
     originalPath: raw.originalPath,
     storedPath: raw.storedPath,
+    sizeBytes: coerceStartupHoldingSizeBytes(raw.sizeBytes),
     origin: raw.origin,
     disabledAt: raw.disabledAt,
     expiresAt: canonicalDisabledExpiry(raw.disabledAt),
@@ -249,6 +255,11 @@ async function hashHeldStartupFile(targetPath: string): Promise<string> {
     throw new Error("Startup holding file is not a regular file");
   }
   return createHash("sha256").update(await readFile(targetPath)).digest("hex");
+}
+
+async function startupHoldingSizeBytes(targetPath: string): Promise<number> {
+  const stat = await lstat(targetPath);
+  return stat.isFile() && !stat.isSymbolicLink() ? Math.max(0, stat.size) : 0;
 }
 
 async function startupHoldingIntegrityStatus(
@@ -324,6 +335,7 @@ async function withStartupHoldingIntegrity(
 ): Promise<StartupAutoDisabledEntry> {
   return {
     ...entry,
+    sizeBytes: await startupHoldingSizeBytes(entry.storedPath).catch(() => entry.sizeBytes),
     integrityStatus: await startupHoldingIntegrityStatus(entry)
   };
 }
@@ -599,6 +611,7 @@ export async function disableStartupFolderEntry(
     name,
     originalPath: source,
     storedPath,
+    sizeBytes: sourceStat.size,
     origin,
     disabledAt,
     expiresAt: disabledExpiry(disabledAtDate)

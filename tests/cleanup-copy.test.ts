@@ -22,6 +22,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("listDisabledStartupAuto");
     expect(source).toContain("getScheduledTaskBackups");
     expect(source).toContain("registryBackupKindCounts");
+    expect(source).toContain("startupDisabledBytes");
     expect(source).toContain("전체 {totalCount}개");
     expect(source).toContain("앱 삭제 흔적, 시작 항목, 예약 작업은 전체 복구함에서 같이 확인할 수 있어요");
     expect(source).toContain("지금은 정리 파일보다 앱 삭제 흔적, 시작 항목, 예약 작업 보관분이 남아 있어요");

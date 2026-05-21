@@ -356,6 +356,10 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     () => scheduledTaskEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
     [scheduledTaskEntries]
   );
+  const startupDisabledBytes = useMemo(
+    () => startupEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
+    [startupEntries]
+  );
   const totalEntryCount =
     entries.length + registryEntries.length + startupEntries.length + scheduledTaskEntries.length;
   const hasPartialLoadIssue = Boolean(error);
@@ -606,7 +610,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     if (totalEntryCount === 0) {
       return hasPartialLoadIssue ? "불러온 복구 항목은 아직 없어요." : "복구함이 비어 있어요.";
     }
-    const totalBytes = snapshot.totalBytes + registryBytes + scheduledTaskBytes;
+    const totalBytes = snapshot.totalBytes + registryBytes + startupDisabledBytes + scheduledTaskBytes;
     const appTraceCount = registryEntries.filter(
       (entry) => entry.backupKind !== "startup-value"
     ).length;
@@ -627,6 +631,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     entries.length,
     registryEntries,
     registryBytes,
+    startupDisabledBytes,
     scheduledTaskBytes,
     startupEntries.length,
     scheduledTaskEntries.length,
@@ -919,7 +924,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                 {entry.originalPath}
               </div>
               <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
-                보낸 시각 {formatLocal(entry.disabledAt)}
+                {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.disabledAt)}
               </div>
               {isChanged && (
                 <div

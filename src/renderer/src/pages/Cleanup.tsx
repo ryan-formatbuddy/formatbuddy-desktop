@@ -95,6 +95,10 @@ function scheduledTaskBackupBytes(snapshot?: ScheduledTaskBackupSnapshot): numbe
   return snapshot?.entries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0) ?? 0;
 }
 
+function startupDisabledBytes(snapshot?: StartupAutoDisabledSnapshot): number {
+  return snapshot?.entries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0) ?? 0;
+}
+
 function registryBackupKindCounts(snapshot?: RegistryBackupSnapshot): {
   appBackupCount: number;
   startupBackupCount: number;
@@ -652,6 +656,7 @@ function TrashPanel({
   const totalBytes =
     (snapshot?.totalBytes ?? 0) +
     registryBackupBytes(registrySnapshot) +
+    startupDisabledBytes(startupSnapshot) +
     scheduledTaskBackupBytes(scheduledTaskSnapshot);
   const nextExpiryAt = earliestRestoreBinExpiryAt([
     snapshot,

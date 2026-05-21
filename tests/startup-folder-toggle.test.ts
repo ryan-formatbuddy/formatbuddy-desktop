@@ -74,6 +74,7 @@ describe("startup folder toggle", () => {
     expect(existsSync(source)).toBe(false);
     expect(disabled.entry?.originalPath).toBe(source);
     expect(disabled.entry?.storedPath).toContain("formatbuddy-startup-disabled");
+    expect(disabled.entry?.sizeBytes).toBe(Buffer.byteLength("shortcut"));
     expect(disabled.entry?.disabledAt).toBe("2026-05-20T10:00:00.000Z");
     expect(disabled.entry?.expiresAt).toBe("2026-06-19T10:00:00.000Z");
     expect(disabled.entry?.contentHash?.algorithm).toBe("sha256");
@@ -83,6 +84,7 @@ describe("startup folder toggle", () => {
 
     const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([disabled.entry!.id]);
+    expect(snapshot.entries[0].sizeBytes).toBe(Buffer.byteLength("shortcut"));
     expect(snapshot.entries[0].integrityStatus).toBe("verified");
 
     const restored = await restoreStartupFolderEntry({
@@ -94,6 +96,29 @@ describe("startup folder toggle", () => {
     expect(readFileSync(source, "utf8")).toBe("shortcut");
     expect(existsSync(disabled.entry!.storedPath)).toBe(false);
     expect((await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir })).entries).toEqual([]);
+  });
+
+  it("refreshes legacy startup holding size from the stored file", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "Legacy.lnk");
+    writeFileSync(source, "legacy shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir, "Legacy.lnk")
+    });
+    const { sizeBytes: _sizeBytes, ...legacyEntry } = disabled.entry!;
+    writeFileSync(
+      join(__testing.entryDir(fx.userDataDir, disabled.entry!.id), "meta.json"),
+      JSON.stringify(legacyEntry, null, 2),
+      "utf8"
+    );
+
+    const snapshot = await listDisabledStartupFolderEntries({ userDataDir: fx.userDataDir });
+
+    expect(snapshot.entries[0].sizeBytes).toBe(Buffer.byteLength("legacy shortcut"));
   });
 
   it("keeps disabled startup items for 30 days and purges them after expiry", async () => {
@@ -205,6 +230,7 @@ describe("startup folder toggle", () => {
       name: "Linked.lnk",
       originalPath: join(fx.startupDir, "Linked.lnk"),
       storedPath: join(__testing.filesRoot(fx.userDataDir, disabledId), "Linked.lnk"),
+      sizeBytes: 0,
       origin: fx.startupDir,
       disabledAt: "2026-05-20T10:00:00.000Z",
       expiresAt: "2026-06-19T10:00:00.000Z"
