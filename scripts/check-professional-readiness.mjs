@@ -7,6 +7,9 @@ const FIELD_REPORT_PREFIX = "windows-field-e2e-";
 const FIELD_REPORT_SUFFIX = ".json";
 const READINESS_REPORT_PREFIX = "professional-readiness-";
 const maxBlockersToPrint = 8;
+const expectedRequirements = JSON.parse(
+  readFileSync(join(projectRoot, "scripts", "windows-field-requirements.json"), "utf8")
+);
 
 function defaultFieldReportDir() {
   return process.env.FORMATBUDDY_FIELD_E2E_REPORT_DIR || join(projectRoot, "dist", "field-e2e");
@@ -32,10 +35,23 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function requirementDescription(value) {
+  return typeof value === "string" && value.trim() === value && value.length > 0
+    ? value
+    : null;
+}
+
 function requirementSummary(report) {
   const results = Array.isArray(report?.requirementResults) ? report.requirementResults : [];
-  const total = results.length;
-  const passed = results.filter((item) => item?.status === "passed").length;
+  const resultByDescription = new Map(
+    results
+      .map((item) => [requirementDescription(item?.description), item?.status])
+      .filter(([description]) => description)
+  );
+  const total = expectedRequirements.length;
+  const passed = expectedRequirements.filter(
+    (description) => resultByDescription.get(description) === "passed"
+  ).length;
   const notProven = total - passed;
   return { total, passed, notProven };
 }
@@ -47,6 +63,15 @@ function evaluateFieldEvidence(report, reportPath) {
   const status = report?.status;
   const platform = report?.platform;
   const results = Array.isArray(report?.requirementResults) ? report.requirementResults : [];
+  const reportedRequirements = Array.isArray(report?.requirements)
+    ? report.requirements.map(requirementDescription).filter(Boolean)
+    : [];
+  const reportedRequirementSet = new Set(reportedRequirements);
+  const resultByDescription = new Map(
+    results
+      .map((item) => [requirementDescription(item?.description), item])
+      .filter(([description]) => description)
+  );
 
   if (kind !== "formatbuddy-windows-field-e2e") {
     blockers.push("Windows 실기 확인 필요: field E2E 증거 파일 형식이 맞지 않아요.");
@@ -60,9 +85,20 @@ function evaluateFieldEvidence(report, reportPath) {
   if (results.length === 0) {
     blockers.push("Windows 실기 확인 필요: 증거 파일에 요구사항별 결과가 없어요.");
   }
-  for (const item of results) {
-    if (item?.status !== "passed") {
-      blockers.push(`Windows 실기 확인 필요: '${item?.description ?? "이름 없는 항목"}' 증거가 ${item?.status ?? "없음"} 상태입니다.`);
+  if (reportedRequirements.length === 0) {
+    blockers.push("Windows 실기 확인 필요: field E2E 증거에 필수 요구사항 목록이 없어요.");
+  }
+  for (const description of expectedRequirements) {
+    if (!reportedRequirementSet.has(description)) {
+      blockers.push(`Windows 실기 확인 필요: 필수 Windows 실기 요구사항 '${description}'가 증거 목록에 없어요.`);
+    }
+    const item = resultByDescription.get(description);
+    if (!item) {
+      blockers.push(`Windows 실기 확인 필요: '${description}' 증거 결과가 없어요.`);
+      continue;
+    }
+    if (item.status !== "passed") {
+      blockers.push(`Windows 실기 확인 필요: '${description}' 증거가 ${item.status ?? "없음"} 상태입니다.`);
     }
   }
 

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 const projectRoot = join(__dirname, "..");
 const scriptPath = join(projectRoot, "scripts", "check-professional-readiness.mjs");
+const requirementsPath = join(projectRoot, "scripts", "windows-field-requirements.json");
 
 async function runReadiness(
   fieldReportDir: string,
@@ -38,6 +39,7 @@ async function writeFieldReport(
   name: string,
   payload: Record<string, unknown>
 ): Promise<void> {
+  const requirements = JSON.parse(await readFile(requirementsPath, "utf8")) as string[];
   await writeFile(
     join(dir, name),
     `${JSON.stringify(
@@ -46,12 +48,8 @@ async function writeFieldReport(
         kind: "formatbuddy-windows-field-e2e",
         platform: "win32",
         status: "passed",
-        requirementResults: [
-          {
-            description: "cleanup file enters the 30-day restore bin, restores, and auto-purges after expiry",
-            status: "passed"
-          }
-        ],
+        requirements,
+        requirementResults: requirements.map((description) => ({ description, status: "passed" })),
         ...payload
       },
       null,
@@ -104,11 +102,7 @@ describe("professional readiness gate", () => {
     const actualReadinessDir = await mkdtemp(join(root, "readiness-"));
     await writeFieldReport(actualFieldDir, "windows-field-e2e-2026-05-21T07-30-00-000Z.json", {
       platform: "win32",
-      status: "passed",
-      requirementResults: [
-        { description: "cleanup executor consumes a confirmation-token plan", status: "passed" },
-        { description: "unified 30-day retention tick", status: "passed" }
-      ]
+      status: "passed"
     });
 
     const result = await runReadiness(actualFieldDir, actualReadinessDir);
@@ -118,5 +112,31 @@ describe("professional readiness gate", () => {
     expect(result.stdout).toContain("전문급 준비 확인 통과");
     expect(report.status).toBe("passed");
     expect(report.ready).toBe(true);
+  });
+
+  it("blocks passed field reports that omit any required Windows evidence item", async () => {
+    const root = await mkdtemp(join(tmpdir(), "fb-professional-readiness-missing-"));
+    const actualFieldDir = await mkdtemp(join(root, "field-"));
+    const actualReadinessDir = await mkdtemp(join(root, "readiness-"));
+    const requirements = JSON.parse(await readFile(requirementsPath, "utf8")) as string[];
+    const shortenedRequirements = requirements.slice(0, 2);
+    await writeFieldReport(actualFieldDir, "windows-field-e2e-2026-05-21T07-31-00-000Z.json", {
+      platform: "win32",
+      status: "passed",
+      requirements: shortenedRequirements,
+      requirementResults: shortenedRequirements.map((description) => ({
+        description,
+        status: "passed"
+      }))
+    });
+
+    const result = await runReadiness(actualFieldDir, actualReadinessDir);
+    const report = await latestReadinessReport(actualReadinessDir);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("필수 Windows 실기 요구사항");
+    expect(report.status).toBe("blocked");
+    expect(report.ready).toBe(false);
+    expect(JSON.stringify(report)).toContain(requirements.at(-1));
   });
 });

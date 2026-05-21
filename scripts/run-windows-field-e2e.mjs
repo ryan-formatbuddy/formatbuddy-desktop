@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 
@@ -9,28 +9,9 @@ const testFile = "tests/windows-field-e2e.test.ts";
 const startedAt = new Date().toISOString();
 const maxCapturedLogChars = 120_000;
 const vitestCommand = [process.execPath, vitestPath, "run", testFile];
-const evidenceRequirements = [
-  "cleanup executor consumes a confirmation-token plan and sends the selected item to the 30-day restore bin",
-  "cleanup file enters the 30-day restore bin, restores, and auto-purges after expiry",
-  "startup-folder item is held for 30 days and restored",
-  "HKCU Run value is backed up, disabled, and restored",
-  "isolated Windows scheduled scan task is registered and removed",
-  "isolated scheduled task cleanup trace is backed up, removed, and restored",
-  "uninstall registry key is backed up, removed, and restored",
-  "RegisteredApplications default-app list value is backed up, removed, and restored",
-  "App Paths registry alias is backed up, removed, and restored",
-  "Open With app connection registry key is backed up, removed, and restored",
-  "URL protocol handler registry key is backed up, removed, and restored",
-  "browser native messaging host registry key is backed up, removed, and restored",
-  "file type association registry key is backed up, removed, and restored",
-  "right-click menu registry key is backed up, removed, and restored",
-  "right-click shell extension handler key is backed up, removed, and restored",
-  "isolated user PATH app segment is backed up, removed, and restored",
-  "isolated app environment setting is backed up, removed, and restored",
-  "isolated app firewall rule is backed up, removed, and restored",
-  "manual Windows service leftover is discovered from Services registry, backed up, removed with sc.exe, and restored as a 30-day registry backup",
-  "unified 30-day retention tick empties file, app-deletion, startup holding, and scheduled task backup bins"
-];
+const evidenceRequirements = JSON.parse(
+  readFileSync(join(projectRoot, "scripts", "windows-field-requirements.json"), "utf8")
+);
 let stdoutTail = "";
 let stderrTail = "";
 let stdoutTruncated = false;
