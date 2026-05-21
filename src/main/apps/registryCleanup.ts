@@ -71,6 +71,7 @@ type RegistryBackupRestoredApp = {
     | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
+    | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
     | "protocol-handler-key"
@@ -84,6 +85,7 @@ type RegistryKeyBackupKind =
   | "key"
   | "app-path-key"
   | "open-with-key"
+  | "file-association-key"
   | "context-menu-key"
   | "shell-extension-key"
   | "protocol-handler-key"
@@ -99,6 +101,7 @@ function restoreAppBackupKindFromEntry(
   if (backupKind === "environment-variable-value") return "environment-variable-value";
   if (backupKind === "app-path-key") return "app-path-key";
   if (backupKind === "open-with-key") return "open-with-key";
+  if (backupKind === "file-association-key") return "file-association-key";
   if (backupKind === "context-menu-key") return "context-menu-key";
   if (backupKind === "shell-extension-key") return "shell-extension-key";
   if (backupKind === "protocol-handler-key") return "protocol-handler-key";
@@ -132,6 +135,8 @@ const SAFE_APP_PATHS_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
 const SAFE_OPEN_WITH_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\Applications\\[^\\]+\.exe|HKLM\\Software\\Classes\\Applications\\[^\\]+\.exe)$/i;
+const SAFE_FILE_ASSOCIATION_KEY_PATTERN =
+  /^(?:HKCU\\Software\\Classes\\[A-Za-z][A-Za-z0-9._-]{2,127}|HKLM\\Software\\Classes\\[A-Za-z][A-Za-z0-9._-]{2,127})$/i;
 const SAFE_CONTEXT_MENU_KEY_PATTERN =
   /^(?:HKCU\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}|HKLM\\Software\\Classes\\(?:\*|Directory|Directory\\Background|Folder)\\shell\\[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128})$/i;
 const SAFE_SHELL_EXTENSION_KEY_PATTERN =
@@ -158,6 +163,41 @@ const COMMON_PROTOCOL_SCHEME_BLOCKLIST = new Set([
   "tel",
   "urn",
   "webcal"
+]);
+const COMMON_FILE_ASSOCIATION_KEY_BLOCKLIST = new Set([
+  "app",
+  "appid",
+  "application",
+  "applications",
+  "batfile",
+  "cmdfile",
+  "clsid",
+  "comfile",
+  "directory",
+  "dllfile",
+  "drive",
+  "exefile",
+  "folder",
+  "helpfile",
+  "htmlfile",
+  "http",
+  "https",
+  "inffile",
+  "inifile",
+  "interface",
+  "jpegfile",
+  "jsfile",
+  "lnkfile",
+  "mscfile",
+  "pdffile",
+  "piffile",
+  "pngfile",
+  "regfile",
+  "scrfile",
+  "sysfile",
+  "txtfile",
+  "typelib",
+  "unknown"
 ]);
 
 function normalizeRegistryKeyPath(keyPath: string): string {
@@ -196,6 +236,20 @@ export function isSafeOpenWithRegistryKeyPath(keyPath: string): boolean {
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
   if (/[*?]/.test(normalized)) return false;
   return SAFE_OPEN_WITH_KEY_PATTERN.test(normalized);
+}
+
+export function isSafeFileAssociationRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  if (!SAFE_FILE_ASSOCIATION_KEY_PATTERN.test(normalized)) return false;
+  const className = normalized.split("\\").pop();
+  if (!className) return false;
+  if (className.startsWith(".")) return false;
+  if (COMMON_FILE_ASSOCIATION_KEY_BLOCKLIST.has(className.toLowerCase())) return false;
+  return true;
 }
 
 export function isSafeContextMenuRegistryKeyPath(keyPath: string): boolean {
@@ -425,6 +479,7 @@ export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
 function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
   if (value === "app-path-key") return "app-path-key";
   if (value === "open-with-key") return "open-with-key";
+  if (value === "file-association-key") return "file-association-key";
   if (value === "context-menu-key") return "context-menu-key";
   if (value === "shell-extension-key") return "shell-extension-key";
   if (value === "protocol-handler-key") return "protocol-handler-key";
@@ -1059,6 +1114,7 @@ export async function backupAndDeleteRegistryKey(options: {
     | "key"
     | "app-path-key"
     | "open-with-key"
+    | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
     | "protocol-handler-key"
@@ -1074,17 +1130,19 @@ export async function backupAndDeleteRegistryKey(options: {
       ? isSafeAppPathRegistryKeyPath(options.keyPath)
       : backupKind === "open-with-key"
         ? isSafeOpenWithRegistryKeyPath(options.keyPath)
-        : backupKind === "context-menu-key"
-          ? isSafeContextMenuRegistryKeyPath(options.keyPath)
-          : backupKind === "shell-extension-key"
-            ? isSafeShellExtensionRegistryKeyPath(options.keyPath)
-            : backupKind === "protocol-handler-key"
-              ? isSafeProtocolHandlerRegistryKeyPath(options.keyPath)
-              : backupKind === "native-messaging-host-key"
-                ? isSafeNativeMessagingHostRegistryKeyPath(options.keyPath)
-                : backupKind === "service-key"
-                  ? isSafeServiceRegistryKeyPath(options.keyPath)
-                  : isSafeUninstallRegistryKeyPath(options.keyPath);
+        : backupKind === "file-association-key"
+          ? isSafeFileAssociationRegistryKeyPath(options.keyPath)
+          : backupKind === "context-menu-key"
+            ? isSafeContextMenuRegistryKeyPath(options.keyPath)
+            : backupKind === "shell-extension-key"
+              ? isSafeShellExtensionRegistryKeyPath(options.keyPath)
+              : backupKind === "protocol-handler-key"
+                ? isSafeProtocolHandlerRegistryKeyPath(options.keyPath)
+                : backupKind === "native-messaging-host-key"
+                  ? isSafeNativeMessagingHostRegistryKeyPath(options.keyPath)
+                  : backupKind === "service-key"
+                    ? isSafeServiceRegistryKeyPath(options.keyPath)
+                    : isSafeUninstallRegistryKeyPath(options.keyPath);
   if (!safeKey) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
@@ -1566,17 +1624,19 @@ async function readRegistryBackupEntryForRestore(
             ? "app-path-key"
             : raw.backupKind === "open-with-key"
               ? "open-with-key"
-              : raw.backupKind === "context-menu-key"
-                ? "context-menu-key"
-                : raw.backupKind === "shell-extension-key"
-                  ? "shell-extension-key"
-                  : raw.backupKind === "protocol-handler-key"
-                    ? "protocol-handler-key"
-                    : raw.backupKind === "native-messaging-host-key"
-                      ? "native-messaging-host-key"
-                      : raw.backupKind === "service-key"
-                        ? "service-key"
-                        : "key";
+              : raw.backupKind === "file-association-key"
+                ? "file-association-key"
+                : raw.backupKind === "context-menu-key"
+                  ? "context-menu-key"
+                  : raw.backupKind === "shell-extension-key"
+                    ? "shell-extension-key"
+                    : raw.backupKind === "protocol-handler-key"
+                      ? "protocol-handler-key"
+                      : raw.backupKind === "native-messaging-host-key"
+                        ? "native-messaging-host-key"
+                        : raw.backupKind === "service-key"
+                          ? "service-key"
+                          : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1593,17 +1653,19 @@ async function readRegistryBackupEntryForRestore(
               ? isSafeAppPathRegistryKeyPath(rawKeyPath)
               : backupKind === "open-with-key"
                 ? isSafeOpenWithRegistryKeyPath(rawKeyPath)
-                : backupKind === "context-menu-key"
-                  ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
-                  : backupKind === "shell-extension-key"
-                    ? isSafeShellExtensionRegistryKeyPath(rawKeyPath)
-                    : backupKind === "protocol-handler-key"
-                      ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
-                      : backupKind === "native-messaging-host-key"
-                        ? isSafeNativeMessagingHostRegistryKeyPath(rawKeyPath)
-                        : backupKind === "service-key"
-                          ? isSafeServiceRegistryKeyPath(rawKeyPath)
-                          : isSafeUninstallRegistryKeyPath(rawKeyPath));
+                : backupKind === "file-association-key"
+                  ? isSafeFileAssociationRegistryKeyPath(rawKeyPath)
+                  : backupKind === "context-menu-key"
+                    ? isSafeContextMenuRegistryKeyPath(rawKeyPath)
+                    : backupKind === "shell-extension-key"
+                      ? isSafeShellExtensionRegistryKeyPath(rawKeyPath)
+                      : backupKind === "protocol-handler-key"
+                        ? isSafeProtocolHandlerRegistryKeyPath(rawKeyPath)
+                        : backupKind === "native-messaging-host-key"
+                          ? isSafeNativeMessagingHostRegistryKeyPath(rawKeyPath)
+                          : backupKind === "service-key"
+                            ? isSafeServiceRegistryKeyPath(rawKeyPath)
+                            : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -1653,6 +1715,8 @@ async function readRegistryBackupEntryForRestore(
     entry.backupKind = "app-path-key";
   } else if (backupKind === "open-with-key") {
     entry.backupKind = "open-with-key";
+  } else if (backupKind === "file-association-key") {
+    entry.backupKind = "file-association-key";
   } else if (backupKind === "context-menu-key") {
     entry.backupKind = "context-menu-key";
   } else if (backupKind === "shell-extension-key") {

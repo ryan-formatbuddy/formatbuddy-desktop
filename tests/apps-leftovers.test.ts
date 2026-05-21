@@ -1597,6 +1597,35 @@ describe("planAppLeftovers", () => {
     expect(openWithCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("shows file type association registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const fileAssociationRegistryKey = "HKCU\\Software\\Classes\\AcmeNotes.Document";
+    const registryRunner = {
+      keyExists: vi.fn(async (keyPath: string) => keyPath === fileAssociationRegistryKey)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp."
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.keyExists).toHaveBeenCalledWith(fileAssociationRegistryKey);
+    const fileAssociationCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === fileAssociationRegistryKey
+    );
+    expect(fileAssociationCandidate).toMatchObject({
+      kind: "file-association-registry",
+      exists: true
+    });
+    expect(fileAssociationCandidate?.protectedBy).toBeUndefined();
+  });
+
   it("shows protocol handler registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const protocolRegistryKey = "HKCU\\Software\\Classes\\zoommtg";
     const registryRunner = {
@@ -2118,6 +2147,63 @@ describe("planAppLeftovers", () => {
       appPublisher: "Acme Corp.",
       keyPath: openWithRegistryKey,
       backupKind: "open-with-key"
+    });
+  });
+
+  it("backs up and deletes selected file type association registry leftovers after uninstall follow-up", async () => {
+    const fileAssociationRegistryKey = "HKCU\\Software\\Classes\\AcmeNotes.Document";
+    let keyExists = true;
+    const registryRunner = {
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === fileAssociationRegistryKey),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === fileAssociationRegistryKey)!;
+    expect(path).toMatchObject({ kind: "file-association-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      fileAssociationRegistryKey,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(fileAssociationRegistryKey);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: fileAssociationRegistryKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: fileAssociationRegistryKey,
+      backupKind: "file-association-key"
     });
   });
 

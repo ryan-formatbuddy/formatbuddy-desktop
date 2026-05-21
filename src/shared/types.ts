@@ -850,7 +850,7 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "file-association-key" for app-specific file type links, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "service-key" for Windows services. */
   backupKind?:
     | "key"
     | "startup-value"
@@ -859,6 +859,7 @@ export interface RegistryBackupEntry {
     | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
+    | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
     | "protocol-handler-key"
@@ -918,6 +919,7 @@ export interface RegistryBackupPurgedItem {
     | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
+    | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
     | "protocol-handler-key"
@@ -1338,6 +1340,7 @@ export interface AppLeftoverPath {
     | "environment-variable-registry"
     | "app-path-registry"
     | "open-with-registry"
+    | "file-association-registry"
     | "context-menu-registry"
     | "shell-extension-registry"
     | "protocol-handler-registry"

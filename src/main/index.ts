@@ -492,6 +492,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "environment-variable-value"
     | "app-path-key"
     | "open-with-key"
+    | "file-association-key"
     | "context-menu-key"
     | "shell-extension-key"
     | "protocol-handler-key"

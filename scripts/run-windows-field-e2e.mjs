@@ -22,6 +22,7 @@ const evidenceRequirements = [
   "Open With app connection registry key is backed up, removed, and restored",
   "URL protocol handler registry key is backed up, removed, and restored",
   "browser native messaging host registry key is backed up, removed, and restored",
+  "file type association registry key is backed up, removed, and restored",
   "right-click menu registry key is backed up, removed, and restored",
   "right-click shell extension handler key is backed up, removed, and restored",
   "isolated user PATH app segment is backed up, removed, and restored",

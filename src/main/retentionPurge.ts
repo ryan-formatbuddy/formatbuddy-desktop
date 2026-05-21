@@ -189,6 +189,7 @@ function normalizeRegistryBackupPurgedKind(
   if (value === "environment-variable-value") return "environment-variable-value";
   if (value === "app-path-key") return "app-path-key";
   if (value === "open-with-key") return "open-with-key";
+  if (value === "file-association-key") return "file-association-key";
   if (value === "context-menu-key") return "context-menu-key";
   if (value === "shell-extension-key") return "shell-extension-key";
   if (value === "protocol-handler-key") return "protocol-handler-key";

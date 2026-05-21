@@ -12,6 +12,7 @@ import {
   isSafeContextMenuRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
+  isSafeFileAssociationRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
@@ -163,6 +164,23 @@ describe("registry leftover cleanup", () => {
         "HKCR\\Applications\\AcmeNotes.exe"
       )
     ).toBe(false);
+  });
+
+  it("only allows narrow app-specific file type association registry keys", () => {
+    expect(
+      isSafeFileAssociationRegistryKeyPath("HKCU\\Software\\Classes\\AcmeNotes.Document")
+    ).toBe(true);
+    expect(
+      isSafeFileAssociationRegistryKeyPath("HKLM\\Software\\Classes\\AcmeNotes.File")
+    ).toBe(true);
+    expect(isSafeFileAssociationRegistryKeyPath("HKCU\\Software\\Classes\\.txt")).toBe(false);
+    expect(isSafeFileAssociationRegistryKeyPath("HKCU\\Software\\Classes\\txtfile")).toBe(false);
+    expect(
+      isSafeFileAssociationRegistryKeyPath("HKCU\\Software\\Classes\\AcmeNotes.Document\\shell")
+    ).toBe(false);
+    expect(isSafeFileAssociationRegistryKeyPath("HKCU\\Software\\Classes\\Acme & Notes")).toBe(
+      false
+    );
   });
 
   it("only allows narrow app protocol handler registry keys", () => {
@@ -390,6 +408,71 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "open-with-key"
+    });
+  });
+
+  it("exports a backup before deleting an app-specific file type association key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\AcmeNotes.Document";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "file-association-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "file-association-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "file-association-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "파일 형식 연결 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "file-association-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "file-association-key",
+      registryKeyPath: keyPath
     });
   });
 

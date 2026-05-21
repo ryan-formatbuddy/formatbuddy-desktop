@@ -67,6 +67,7 @@ import {
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
+  isSafeFileAssociationRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
@@ -627,6 +628,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "environment-variable-registry" ||
     value === "app-path-registry" ||
     value === "open-with-registry" ||
+    value === "file-association-registry" ||
     value === "context-menu-registry" ||
     value === "shell-extension-registry" ||
     value === "protocol-handler-registry" ||
@@ -1421,6 +1423,23 @@ function environmentVariableValueNames(app: InstalledApp): string[] {
     .slice(0, 20);
 }
 
+function fileAssociationProgIds(app: InstalledApp): string[] {
+  const candidates = new Set<string>();
+
+  for (const name of genericFolderNames(app)) {
+    const compact = cleanGenericName(name).replace(/[^A-Za-z0-9]+/g, "");
+    if (!/^[A-Za-z][A-Za-z0-9]{2,63}$/.test(compact)) continue;
+    candidates.add(compact);
+    candidates.add(`${compact}.File`);
+    candidates.add(`${compact}.Document`);
+    candidates.add(`${compact}.Document.1`);
+  }
+
+  return Array.from(candidates)
+    .filter((progId) => isSafeFileAssociationRegistryKeyPath(`HKCU\\Software\\Classes\\${progId}`))
+    .slice(0, 16);
+}
+
 async function registryKeyExists(
   keyPath: string,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
@@ -1484,6 +1503,37 @@ async function appPathRegistryLeftoverPaths(
       paths.push({
         id: makePathId(`app-path-registry:${keyPath}`),
         kind: "app-path-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
+const FILE_ASSOCIATION_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Classes",
+  "HKLM\\Software\\Classes"
+] as const;
+
+async function fileAssociationRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const progIds = fileAssociationProgIds(app);
+  if (progIds.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of FILE_ASSOCIATION_REGISTRY_ROOTS) {
+    for (const progId of progIds) {
+      const keyPath = `${root}\\${progId}`;
+      if (!isSafeFileAssociationRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`file-association-registry:${keyPath}`),
+        kind: "file-association-registry",
         path: keyPath,
         exists: true,
         sizeBytes: null,
@@ -1969,6 +2019,7 @@ export async function planAppLeftovers(
               ...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)),
@@ -2006,6 +2057,7 @@ export async function planAppLeftovers(
       paths.push(...(await environmentVariableRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await fileAssociationRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
@@ -2655,6 +2707,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (path.kind === "open-with-registry" && !isSafeOpenWithRegistryKeyPath(path.path)) {
       invalid.push("open with registry key");
     }
+    if (path.kind === "file-association-registry" && !isSafeFileAssociationRegistryKeyPath(path.path)) {
+      invalid.push("file association registry key");
+    }
     if (path.kind === "context-menu-registry" && !isSafeContextMenuRegistryKeyPath(path.path)) {
       invalid.push("context menu registry key");
     }
@@ -2807,6 +2862,7 @@ export async function cleanupAppLeftovers(
       path.kind === "registry" ||
       path.kind === "app-path-registry" ||
       path.kind === "open-with-registry" ||
+      path.kind === "file-association-registry" ||
       path.kind === "protocol-handler-registry" ||
       path.kind === "native-messaging-host-registry" ||
       path.kind === "context-menu-registry" ||
@@ -2821,15 +2877,17 @@ export async function cleanupAppLeftovers(
               ? "app-path-key"
               : path.kind === "open-with-registry"
                 ? "open-with-key"
-                : path.kind === "context-menu-registry"
-                  ? "context-menu-key"
-                  : path.kind === "shell-extension-registry"
-                    ? "shell-extension-key"
-                    : path.kind === "protocol-handler-registry"
-                      ? "protocol-handler-key"
-                      : path.kind === "native-messaging-host-registry"
-                        ? "native-messaging-host-key"
-                        : "key",
+                : path.kind === "file-association-registry"
+                  ? "file-association-key"
+                  : path.kind === "context-menu-registry"
+                    ? "context-menu-key"
+                    : path.kind === "shell-extension-registry"
+                      ? "shell-extension-key"
+                      : path.kind === "protocol-handler-registry"
+                        ? "protocol-handler-key"
+                        : path.kind === "native-messaging-host-registry"
+                          ? "native-messaging-host-key"
+                          : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined
