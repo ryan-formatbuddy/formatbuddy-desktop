@@ -8,6 +8,7 @@ import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   isRegistryBackupPreservedError,
+  isSafeAppCapabilitiesRegistryKeyPath,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
   isSafeEnvironmentVariableRegistryValuePath,
@@ -136,6 +137,28 @@ describe("registry leftover cleanup", () => {
       isSafeAppPathRegistryKeyPath(
         "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\AcmeNotes.exe "
       )
+    ).toBe(false);
+  });
+
+  it("only allows app capabilities keys pointed to by default-app registration values", () => {
+    expect(isSafeAppCapabilitiesRegistryKeyPath("HKCU\\Software\\Acme\\Notes\\Capabilities")).toBe(
+      true
+    );
+    expect(
+      isSafeAppCapabilitiesRegistryKeyPath("HKLM\\Software\\Acme\\Notes\\Capabilities")
+    ).toBe(true);
+    expect(
+      isSafeAppCapabilitiesRegistryKeyPath("HKLM\\Software\\WOW6432Node\\Acme\\Notes\\Capabilities")
+    ).toBe(true);
+    expect(isSafeAppCapabilitiesRegistryKeyPath("HKCU\\Software\\Capabilities")).toBe(false);
+    expect(
+      isSafeAppCapabilitiesRegistryKeyPath("HKCU\\Software\\Acme\\Notes\\Capabilities\\FileAssociations")
+    ).toBe(false);
+    expect(
+      isSafeAppCapabilitiesRegistryKeyPath("HKCU\\Software\\Microsoft\\Windows\\Capabilities")
+    ).toBe(false);
+    expect(
+      isSafeAppCapabilitiesRegistryKeyPath("HKCU\\Software\\Acme & Notes\\Capabilities")
     ).toBe(false);
   });
 
@@ -402,6 +425,45 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "app-path-key"
+    });
+  });
+
+  it("exports a backup before deleting an app capabilities registry key", async () => {
+    const keyPath = "HKCU\\Software\\Acme\\Notes\\Capabilities";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+      }),
+      keyExists: vi.fn(async () => false)
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "app-capabilities-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "app-capabilities-key",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "app-capabilities-key"
     });
   });
 

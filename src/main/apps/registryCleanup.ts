@@ -69,6 +69,7 @@ type RegistryBackupRestoredApp = {
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "app-capabilities-key"
     | "environment-path-value"
     | "environment-variable-value"
     | "firewall-rule-value"
@@ -86,6 +87,7 @@ type RegistryBackupRestoredApp = {
 
 type RegistryKeyBackupKind =
   | "key"
+  | "app-capabilities-key"
   | "app-path-key"
   | "open-with-key"
   | "file-association-key"
@@ -100,6 +102,7 @@ function restoreAppBackupKindFromEntry(
 ): RegistryBackupRestoredApp["backupKind"] {
   if (backupKind === "startup-value") return "startup-value";
   if (backupKind === "registered-app-value") return "registered-app-value";
+  if (backupKind === "app-capabilities-key") return "app-capabilities-key";
   if (backupKind === "environment-path-value") return "environment-path-value";
   if (backupKind === "environment-variable-value") return "environment-variable-value";
   if (backupKind === "firewall-rule-value") return "firewall-rule-value";
@@ -138,6 +141,8 @@ const SAFE_STARTUP_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?)$/i;
 const SAFE_REGISTERED_APPLICATIONS_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\RegisteredApplications|HKLM\\Software\\RegisteredApplications)$/i;
+const SAFE_APP_CAPABILITIES_KEY_PATTERN =
+  /^(?:HKCU\\Software\\(?:[^\\/:*?"'`|&<>\u0000-\u001f\u007f]+\\)+Capabilities|HKLM\\Software\\(?:WOW6432Node\\)?(?:[^\\/:*?"'`|&<>\u0000-\u001f\u007f]+\\)+Capabilities)$/i;
 const SAFE_ENVIRONMENT_PATH_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Environment|HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment)$/i;
 const SAFE_ENVIRONMENT_VARIABLE_VALUE_KEY_PATTERN =
@@ -212,6 +217,14 @@ const COMMON_FILE_ASSOCIATION_KEY_BLOCKLIST = new Set([
   "typelib",
   "unknown"
 ]);
+const COMMON_APP_CAPABILITIES_ROOT_BLOCKLIST = new Set([
+  "classes",
+  "clients",
+  "microsoft",
+  "policies",
+  "registeredapplications",
+  "windows"
+]);
 
 function normalizeRegistryKeyPath(keyPath: string): string {
   return keyPath.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
@@ -240,6 +253,25 @@ export function isSafeAppPathRegistryKeyPath(keyPath: string): boolean {
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
   if (/[*?]/.test(normalized)) return false;
   return SAFE_APP_PATHS_KEY_PATTERN.test(normalized);
+}
+
+export function isSafeAppCapabilitiesRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  if (!SAFE_APP_CAPABILITIES_KEY_PATTERN.test(normalized)) return false;
+
+  const softwarePrefix = normalized.match(/^HK(?:CU|LM)\\Software\\/i)?.[0];
+  if (!softwarePrefix) return false;
+  let tail = normalized.slice(softwarePrefix.length);
+  if (/^WOW6432Node\\/i.test(tail)) tail = tail.slice("WOW6432Node\\".length);
+  const parts = tail.split("\\").filter(Boolean);
+  if (parts.length < 2 || parts.at(-1)?.toLowerCase() !== "capabilities") return false;
+  const root = parts[0]?.toLowerCase();
+  if (!root || COMMON_APP_CAPABILITIES_ROOT_BLOCKLIST.has(root)) return false;
+  return parts.slice(0, -1).every((part) => /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,127}$/.test(part));
 }
 
 export function isSafeOpenWithRegistryKeyPath(keyPath: string): boolean {
@@ -503,6 +535,7 @@ export function isSafeRegistryBackupId(backupId: unknown): backupId is string {
 }
 
 function normalizeRegistryKeyBackupKind(value: unknown): RegistryKeyBackupKind {
+  if (value === "app-capabilities-key") return "app-capabilities-key";
   if (value === "app-path-key") return "app-path-key";
   if (value === "open-with-key") return "open-with-key";
   if (value === "file-association-key") return "file-association-key";
@@ -1180,6 +1213,7 @@ export async function backupAndDeleteRegistryKey(options: {
   keyPath: string;
   backupKind?:
     | "key"
+    | "app-capabilities-key"
     | "app-path-key"
     | "open-with-key"
     | "file-association-key"
@@ -1194,7 +1228,9 @@ export async function backupAndDeleteRegistryKey(options: {
 }): Promise<RegistryBackupEntry> {
   const backupKind = normalizeRegistryKeyBackupKind(options.backupKind);
   const safeKey =
-    backupKind === "app-path-key"
+    backupKind === "app-capabilities-key"
+      ? isSafeAppCapabilitiesRegistryKeyPath(options.keyPath)
+      : backupKind === "app-path-key"
       ? isSafeAppPathRegistryKeyPath(options.keyPath)
       : backupKind === "open-with-key"
         ? isSafeOpenWithRegistryKeyPath(options.keyPath)
@@ -1683,34 +1719,7 @@ async function readRegistryBackupEntryForRestore(
       }
     };
   }
-  const backupKind =
-    raw.backupKind === "startup-value"
-      ? "startup-value"
-      : raw.backupKind === "registered-app-value"
-        ? "registered-app-value"
-        : raw.backupKind === "environment-path-value"
-          ? "environment-path-value"
-          : raw.backupKind === "environment-variable-value"
-            ? "environment-variable-value"
-            : raw.backupKind === "firewall-rule-value"
-              ? "firewall-rule-value"
-              : raw.backupKind === "app-path-key"
-                ? "app-path-key"
-                : raw.backupKind === "open-with-key"
-                  ? "open-with-key"
-                  : raw.backupKind === "file-association-key"
-                    ? "file-association-key"
-                    : raw.backupKind === "context-menu-key"
-                      ? "context-menu-key"
-                      : raw.backupKind === "shell-extension-key"
-                        ? "shell-extension-key"
-                        : raw.backupKind === "protocol-handler-key"
-                          ? "protocol-handler-key"
-                          : raw.backupKind === "native-messaging-host-key"
-                            ? "native-messaging-host-key"
-                            : raw.backupKind === "service-key"
-                              ? "service-key"
-                              : "key";
+  const backupKind = restoreAppBackupKindFromEntry(raw.backupKind);
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
@@ -1725,6 +1734,8 @@ async function readRegistryBackupEntryForRestore(
             ? isSafeEnvironmentVariableRegistryValuePath(rawKeyPath, valueName)
             : backupKind === "firewall-rule-value" && valueName
               ? isSafeFirewallRuleRegistryValuePath(rawKeyPath, valueName)
+              : backupKind === "app-capabilities-key"
+                ? isSafeAppCapabilitiesRegistryKeyPath(rawKeyPath)
               : backupKind === "app-path-key"
                 ? isSafeAppPathRegistryKeyPath(rawKeyPath)
                 : backupKind === "open-with-key"
@@ -1790,6 +1801,8 @@ async function readRegistryBackupEntryForRestore(
   } else if (backupKind === "firewall-rule-value") {
     entry.backupKind = "firewall-rule-value";
     entry.valueName = valueName ?? null;
+  } else if (backupKind === "app-capabilities-key") {
+    entry.backupKind = "app-capabilities-key";
   } else if (backupKind === "app-path-key") {
     entry.backupKind = "app-path-key";
   } else if (backupKind === "open-with-key") {

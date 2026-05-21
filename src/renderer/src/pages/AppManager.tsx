@@ -108,6 +108,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "앱 삭제 흔적";
     case "registered-app-registry":
       return "기본 앱 목록";
+    case "app-capabilities-registry":
+      return "기본 앱 기능";
     case "environment-path-registry":
       return "PATH 경로";
     case "environment-variable-registry":
@@ -185,6 +187,7 @@ function isAppTraceLeftover(path: AppLeftoverPath): boolean {
   return (
     path.kind === "registry" ||
     path.kind === "registered-app-registry" ||
+    path.kind === "app-capabilities-registry" ||
     path.kind === "app-path-registry" ||
     path.kind === "open-with-registry" ||
     path.kind === "file-association-registry" ||

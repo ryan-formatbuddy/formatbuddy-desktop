@@ -65,6 +65,7 @@ import {
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
   isRegistryBackupPreservedError,
+  isSafeAppCapabilitiesRegistryKeyPath,
   isSafeAppPathRegistryKeyPath,
   isSafeContextMenuRegistryKeyPath,
   isSafeFileAssociationRegistryKeyPath,
@@ -629,6 +630,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "shortcut-folder" ||
     value === "registry" ||
     value === "registered-app-registry" ||
+    value === "app-capabilities-registry" ||
     value === "environment-path-registry" ||
     value === "environment-variable-registry" ||
     value === "firewall-rule-registry" ||
@@ -1583,7 +1585,7 @@ async function fileAssociationRegistryLeftoverPaths(
 
 async function registeredApplicationRegistryLeftoverPaths(
   app: InstalledApp,
-  runner?: Pick<RegistryCleanupRunner, "valueExists">
+  runner?: Pick<RegistryCleanupRunner, "valueExists" | "queryValue" | "keyExists">
 ): Promise<AppLeftoverPath[]> {
   const valueNames = registeredApplicationValueNames(app);
   if (valueNames.length === 0) return [];
@@ -1592,7 +1594,8 @@ async function registeredApplicationRegistryLeftoverPaths(
   for (const keyPath of REGISTERED_APPLICATIONS_REGISTRY_ROOTS) {
     for (const valueName of valueNames) {
       if (!isSafeRegisteredApplicationRegistryValuePath(keyPath, valueName)) continue;
-      if (!(await registryValueExists(keyPath, valueName, runner))) continue;
+      const record = await registryValueRecord(keyPath, valueName, runner);
+      if (!record && !(await registryValueExists(keyPath, valueName, runner))) continue;
       paths.push({
         id: makePathId(`registered-app-registry:${keyPath}:${valueName}`),
         kind: "registered-app-registry",
@@ -1602,9 +1605,38 @@ async function registeredApplicationRegistryLeftoverPaths(
         sizeBytes: null,
         lastModifiedAt: null
       });
+
+      const capabilitiesKeyPath = record
+        ? registeredApplicationCapabilitiesKeyPath(keyPath, record.data)
+        : undefined;
+      if (!capabilitiesKeyPath) continue;
+      if (!(await registryKeyExists(capabilitiesKeyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`app-capabilities-registry:${capabilitiesKeyPath}`),
+        kind: "app-capabilities-registry",
+        path: capabilitiesKeyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
     }
   }
   return paths;
+}
+
+function registeredApplicationCapabilitiesKeyPath(
+  registeredApplicationsKeyPath: string,
+  valueData: string
+): string | undefined {
+  const root = registeredApplicationsKeyPath.startsWith("HKLM\\") ? "HKLM" : "HKCU";
+  const relativePath = valueData.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
+  if (!relativePath || relativePath !== valueData.trim()) return undefined;
+  if (!/^Software\\/i.test(relativePath)) return undefined;
+  if (/^(?:HKCU|HKLM|HKEY_CURRENT_USER|HKEY_LOCAL_MACHINE)\\/i.test(relativePath)) {
+    return undefined;
+  }
+  const keyPath = `${root}\\${relativePath}`;
+  return isSafeAppCapabilitiesRegistryKeyPath(keyPath) ? keyPath : undefined;
 }
 
 async function protocolHandlerRegistryLeftoverPaths(
@@ -2847,6 +2879,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
       invalid.push("registered application registry value");
     }
     if (
+      path.kind === "app-capabilities-registry" &&
+      !isSafeAppCapabilitiesRegistryKeyPath(path.path)
+    ) {
+      invalid.push("default app capabilities registry key");
+    }
+    if (
       path.kind === "environment-path-registry" &&
       (typeof path.registryValueName !== "string" ||
         typeof path.environmentPathSegment !== "string" ||
@@ -3100,6 +3138,7 @@ export async function cleanupAppLeftovers(
 
     if (
       path.kind === "registry" ||
+      path.kind === "app-capabilities-registry" ||
       path.kind === "app-path-registry" ||
       path.kind === "open-with-registry" ||
       path.kind === "file-association-registry" ||
@@ -3113,7 +3152,9 @@ export async function cleanupAppLeftovers(
           userDataDir: options.userDataDir,
           keyPath: path.path,
           backupKind:
-            path.kind === "app-path-registry"
+            path.kind === "app-capabilities-registry"
+              ? "app-capabilities-key"
+              : path.kind === "app-path-registry"
               ? "app-path-key"
               : path.kind === "open-with-registry"
                 ? "open-with-key"

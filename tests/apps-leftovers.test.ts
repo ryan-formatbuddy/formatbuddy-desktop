@@ -1628,6 +1628,72 @@ describe("planAppLeftovers", () => {
     expect(registeredAppCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("also shows the default-app capabilities key pointed to by RegisteredApplications", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const capabilitiesKey = "HKCU\\Software\\Acme\\Notes\\Capabilities";
+    const registryRunner = {
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+          ? { type: "REG_SZ", data: "Software\\Acme\\Notes\\Capabilities" }
+          : undefined
+      ),
+      keyExists: vi.fn(async (keyPath: string) => keyPath === capabilitiesKey)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+
+    expect(registryRunner.queryValue).toHaveBeenCalledWith(
+      registeredApplicationsKey,
+      registeredApplicationsValue
+    );
+    expect(registryRunner.keyExists).toHaveBeenCalledWith(capabilitiesKey);
+    expect(snapshot.groups[0].paths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "registered-app-registry",
+          path: registeredApplicationsKey,
+          registryValueName: registeredApplicationsValue,
+          exists: true
+        }),
+        expect.objectContaining({
+          kind: "app-capabilities-registry",
+          path: capabilitiesKey,
+          exists: true
+        })
+      ])
+    );
+  });
+
+  it("does not follow unsafe RegisteredApplications capabilities targets", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const registryRunner = {
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+          ? { type: "REG_SZ", data: "Software\\Microsoft\\Windows\\Capabilities" }
+          : undefined
+      ),
+      keyExists: vi.fn(async () => true)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+
+    expect(snapshot.groups[0].paths.some((path) => path.kind === "app-capabilities-registry")).toBe(
+      false
+    );
+  });
+
   it("shows dead PATH app segments as selectable backup-first candidates after uninstall follow-up", async () => {
     const environmentKey = "HKCU\\Environment";
     const environmentValue = "Path";
@@ -2120,6 +2186,71 @@ describe("planAppLeftovers", () => {
       keyPath: registeredApplicationsKey,
       valueName: registeredApplicationsValue,
       backupKind: "registered-app-value"
+    });
+  });
+
+  it("backs up and deletes selected default-app capabilities registry leftovers after uninstall follow-up", async () => {
+    const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
+    const registeredApplicationsValue = "Acme Notes";
+    const capabilitiesKey = "HKCU\\Software\\Acme\\Notes\\Capabilities";
+    let keyExists = true;
+    const registryRunner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(capabilitiesKey), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === capabilitiesKey),
+      queryValue: vi.fn(async (keyPath: string, valueName: string) =>
+        keyPath === registeredApplicationsKey && valueName === registeredApplicationsValue
+          ? { type: "REG_SZ", data: "Software\\Acme\\Notes\\Capabilities" }
+          : undefined
+      ),
+      exportValue: vi.fn(async () => undefined),
+      deleteValue: vi.fn(async () => undefined)
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === capabilitiesKey)!;
+    expect(path).toMatchObject({ kind: "app-capabilities-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      capabilitiesKey,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(capabilitiesKey);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: capabilitiesKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: capabilitiesKey,
+      backupKind: "app-capabilities-key"
     });
   });
 

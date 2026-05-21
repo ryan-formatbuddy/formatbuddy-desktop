@@ -71,6 +71,7 @@ const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const UNINSTALL_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${FIELD_VALUE_NAME}`;
 const REGISTERED_APPLICATIONS_KEY = "HKCU\\Software\\RegisteredApplications";
+const APP_CAPABILITIES_KEY = `HKCU\\Software\\${FIELD_VALUE_NAME}\\Capabilities`;
 const APP_PATH_KEY =
   `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${FIELD_VALUE_NAME}.exe`;
 const OPEN_WITH_KEY = `HKCU\\Software\\Classes\\Applications\\${FIELD_VALUE_NAME}.exe`;
@@ -256,6 +257,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     __resetPlanCacheForTests();
     await runReg(["delete", RUN_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
     await runReg(["delete", REGISTERED_APPLICATIONS_KEY, "/v", FIELD_VALUE_NAME, "/f"]).catch(() => {});
+    await runReg(["delete", APP_CAPABILITIES_KEY, "/f"]).catch(() => {});
     await runReg(["delete", UNINSTALL_KEY, "/f"]).catch(() => {});
     await runReg(["delete", APP_PATH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", OPEN_WITH_KEY, "/f"]).catch(() => {});
@@ -570,6 +572,17 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     ]);
     await runReg([
       "add",
+      APP_CAPABILITIES_KEY,
+      "/v",
+      "ApplicationName",
+      "/t",
+      "REG_SZ",
+      "/d",
+      FIELD_VALUE_NAME,
+      "/f"
+    ]);
+    await runReg([
+      "add",
       APP_PATH_KEY,
       "/ve",
       "/t",
@@ -642,6 +655,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       "/f"
     ]);
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
+    expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
@@ -655,6 +669,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       keyPath: REGISTERED_APPLICATIONS_KEY,
       valueName: FIELD_VALUE_NAME,
       backupKind: "registered-app-value",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+    const appCapabilitiesBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: APP_CAPABILITIES_KEY,
+      backupKind: "app-capabilities-key",
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
@@ -709,6 +730,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     });
 
     expect(registeredAppBackup.backupKind).toBe("registered-app-value");
+    expect(appCapabilitiesBackup.backupKind).toBe("app-capabilities-key");
     expect(appPathBackup.backupKind).toBe("app-path-key");
     expect(openWithBackup.backupKind).toBe("open-with-key");
     expect(protocolHandlerBackup.backupKind).toBe("protocol-handler-key");
@@ -717,6 +739,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
     expect(shellExtensionBackup.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
+    expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(false);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(false);
     expect(await registryKeyExists(PROTOCOL_HANDLER_KEY)).toBe(false);
@@ -728,6 +751,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     const restoredRegisteredApp = await restoreRegistryBackup({
       userDataDir,
       backupId: registeredAppBackup.id,
+      now: () => restoredAt
+    });
+    const restoredAppCapabilities = await restoreRegistryBackup({
+      userDataDir,
+      backupId: appCapabilitiesBackup.id,
       now: () => restoredAt
     });
     const restoredAppPath = await restoreRegistryBackup({
@@ -767,6 +795,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     });
 
     expect(restoredRegisteredApp.status).toBe("restored");
+    expect(restoredAppCapabilities.status).toBe("restored");
     expect(restoredAppPath.status).toBe("restored");
     expect(restoredOpenWith.status).toBe("restored");
     expect(restoredProtocolHandler.status).toBe("restored");
@@ -775,6 +804,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredContextMenu.status).toBe("restored");
     expect(restoredShellExtension.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
+    expect(restoredAppCapabilities.entry?.backupKind).toBe("app-capabilities-key");
     expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
     expect(restoredOpenWith.entry?.backupKind).toBe("open-with-key");
     expect(restoredProtocolHandler.entry?.backupKind).toBe("protocol-handler-key");
@@ -783,6 +813,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
     expect(restoredShellExtension.entry?.backupKind).toBe("shell-extension-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
+    expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);

@@ -384,6 +384,7 @@ export function isStartupRegistryBackup(entry: RegistryBackupKindSource | null |
 
 export function registryBackupKindLabel(entry: RegistryBackupKindSource): string {
   if (entry.backupKind === "registered-app-value") return "기본 앱 목록 백업";
+  if (entry.backupKind === "app-capabilities-key") return "기본 앱 기능 백업";
   if (entry.backupKind === "environment-path-value") return "PATH 경로 백업";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 백업";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 백업";
@@ -400,6 +401,7 @@ export function registryBackupKindLabel(entry: RegistryBackupKindSource): string
 
 export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource): string {
   if (entry.backupKind === "registered-app-value") return "기본 앱 목록 되돌리기";
+  if (entry.backupKind === "app-capabilities-key") return "기본 앱 기능 되돌리기";
   if (entry.backupKind === "environment-path-value") return "PATH 경로 되돌리기";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 되돌리기";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 되돌리기";

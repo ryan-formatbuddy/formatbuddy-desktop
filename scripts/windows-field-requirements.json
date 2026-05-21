@@ -6,7 +6,7 @@
   "isolated Windows scheduled scan task is registered and removed",
   "isolated scheduled task cleanup trace is backed up, removed, and restored",
   "uninstall registry key is backed up, removed, and restored",
-  "RegisteredApplications default-app list value is backed up, removed, and restored",
+  "RegisteredApplications default-app list value and Capabilities key are backed up, removed, and restored",
   "App Paths registry alias is backed up, removed, and restored",
   "Open With app connection registry key is backed up, removed, and restored",
   "URL protocol handler registry key is backed up, removed, and restored",

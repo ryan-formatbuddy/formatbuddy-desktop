@@ -185,6 +185,7 @@ function normalizeRegistryBackupPurgedKind(
   if (value === "key") return "key";
   if (value === "startup-value") return "startup-value";
   if (value === "registered-app-value") return "registered-app-value";
+  if (value === "app-capabilities-key") return "app-capabilities-key";
   if (value === "environment-path-value") return "environment-path-value";
   if (value === "environment-variable-value") return "environment-variable-value";
   if (value === "firewall-rule-value") return "firewall-rule-value";

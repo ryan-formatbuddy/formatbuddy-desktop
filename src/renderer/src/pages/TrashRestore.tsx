@@ -193,6 +193,11 @@ function registryBackupTitle(entry: RegistryBackupEntry): string {
     if (valueName) return `${valueName} 방화벽 규칙`;
     return "방화벽 규칙을 확인하지 못했어요";
   }
+  if (entry.backupKind === "app-capabilities-key") {
+    const appName = entry.appName?.trim();
+    if (appName) return `${appName} 기본 앱 기능`;
+    return "기본 앱 기능을 확인하지 못했어요";
+  }
   if (entry.backupKind === "protocol-handler-key") {
     const appName = entry.appName?.trim();
     if (appName) return `${appName} 프로토콜 연결`;
@@ -242,6 +247,11 @@ function registryBackupSubtitle(entry: RegistryBackupEntry): string {
     const detail = "앱 삭제 후 남은 네트워크 허용 규칙";
     return appPublisher ? `${appPublisher} · ${detail}` : detail;
   }
+  if (entry.backupKind === "app-capabilities-key") {
+    const appPublisher = entry.appPublisher?.trim();
+    const detail = "파일 형식과 기본 앱 화면에 남는 기능 연결";
+    return appPublisher ? `${appPublisher} · ${detail}` : detail;
+  }
   if (entry.backupKind === "protocol-handler-key") {
     const appPublisher = entry.appPublisher?.trim();
     return appPublisher ? `${appPublisher} · 앱 실행 연결` : "앱 실행 연결";
@@ -270,6 +280,7 @@ function registryRestoreErrorLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "environment-path-value") return "PATH 경로";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙";
+  if (entry.backupKind === "app-capabilities-key") return "기본 앱 기능";
   if (entry.backupKind === "protocol-handler-key") return "프로토콜 연결";
   if (entry.backupKind === "native-messaging-host-key") return "브라우저 연결 도우미";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결";
@@ -286,6 +297,9 @@ function registryBackupChangedNotice(entry: RegistryBackupEntry): string {
   }
   if (entry.backupKind === "firewall-rule-value") {
     return "방화벽 규칙 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+  }
+  if (entry.backupKind === "app-capabilities-key") {
+    return "기본 앱 기능 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
   }
   if (entry.backupKind === "protocol-handler-key") {
     return "프로토콜 연결 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
@@ -308,6 +322,7 @@ function registryBackupChangedButtonLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "environment-path-value") return "PATH 경로 확인 필요";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 확인 필요";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 확인 필요";
+  if (entry.backupKind === "app-capabilities-key") return "기본 앱 기능 확인 필요";
   if (entry.backupKind === "protocol-handler-key") return "프로토콜 연결 확인 필요";
   if (entry.backupKind === "native-messaging-host-key") return "브라우저 연결 확인 필요";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 확인 필요";
@@ -324,6 +339,9 @@ function registryBackupLegacyNotice(entry: RegistryBackupEntry): string {
   }
   if (entry.backupKind === "firewall-rule-value") {
     return "방화벽 규칙 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
+  }
+  if (entry.backupKind === "app-capabilities-key") {
+    return "기본 앱 기능 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
   }
   if (entry.backupKind === "protocol-handler-key") {
     return "프로토콜 연결 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
@@ -346,6 +364,7 @@ function registryBackupLegacyButtonLabel(entry: RegistryBackupEntry): string {
   if (entry.backupKind === "environment-path-value") return "PATH 경로 기록 확인 필요";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 기록 확인 필요";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 기록 확인 필요";
+  if (entry.backupKind === "app-capabilities-key") return "기본 앱 기능 기록 확인 필요";
   if (entry.backupKind === "protocol-handler-key") return "프로토콜 연결 기록 확인 필요";
   if (entry.backupKind === "native-messaging-host-key") return "브라우저 연결 기록 확인 필요";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 기록 확인 필요";

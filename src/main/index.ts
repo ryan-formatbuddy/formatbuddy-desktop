@@ -488,6 +488,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "key"
     | "startup-value"
     | "registered-app-value"
+    | "app-capabilities-key"
     | "environment-path-value"
     | "environment-variable-value"
     | "firewall-rule-value"

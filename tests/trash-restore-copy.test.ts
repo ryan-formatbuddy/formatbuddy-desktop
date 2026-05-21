@@ -78,6 +78,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("entry.valueName");
     expect(source).toContain("entry.environmentPathSegment");
     expect(source).toContain('entry.backupKind === "startup-value"');
+    expect(source).toContain('entry.backupKind === "app-capabilities-key"');
     expect(source).toContain('entry.backupKind === "environment-path-value"');
     expect(source).toContain('entry.backupKind === "environment-variable-value"');
     expect(source).toContain('entry.backupKind === "firewall-rule-value"');
@@ -86,6 +87,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('entry.backupKind === "file-association-key"');
     expect(source).toContain('entry.backupKind === "shell-extension-key"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");
+    expect(source).toContain("기본 앱 기능을 확인하지 못했어요");
     expect(source).toContain("앱 삭제 흔적 위치");
     expect(source).toContain("앱 삭제 후 PATH에 남은 경로");
     expect(source).toContain("앱 삭제 후 남은 환경 설정");
