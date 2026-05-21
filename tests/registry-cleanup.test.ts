@@ -13,12 +13,14 @@ import {
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
+  isSafeNativeMessagingHostRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
   listRegistryBackups,
   normalizeSafeProtocolScheme,
+  normalizeSafeNativeMessagingHostName,
   normalizeSafeEnvironmentPathSegment,
   normalizeSafeServiceName,
   purgeExpiredRegistryBackups,
@@ -185,6 +187,45 @@ describe("registry leftover cleanup", () => {
     ).toBe(false);
     expect(
       isSafeProtocolHandlerRegistryKeyPath("HKCU\\Software\\Classes\\zoom mtg")
+    ).toBe(false);
+  });
+
+  it("only allows browser native messaging host registry keys", () => {
+    expect(normalizeSafeNativeMessagingHostName("com.acme.notes")).toBe("com.acme.notes");
+    expect(normalizeSafeNativeMessagingHostName("Com.Acme.Notes")).toBe("com.acme.notes");
+    expect(normalizeSafeNativeMessagingHostName(" com.acme.notes")).toBeUndefined();
+    expect(normalizeSafeNativeMessagingHostName("com.google.chrome")).toBeUndefined();
+    expect(normalizeSafeNativeMessagingHostName("chrome")).toBeUndefined();
+    expect(normalizeSafeNativeMessagingHostName("com.acme notes")).toBeUndefined();
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.acme.notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKLM\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\com.acme.notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKCU\\Software\\Mozilla\\NativeMessagingHosts\\com.acme.notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.google.chrome"
+      )
+    ).toBe(false);
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.acme.notes\\extra"
+      )
+    ).toBe(false);
+    expect(
+      isSafeNativeMessagingHostRegistryKeyPath(
+        "HKCU\\Software\\Classes\\com.acme.notes"
+      )
     ).toBe(false);
   });
 
@@ -411,6 +452,71 @@ describe("registry leftover cleanup", () => {
       name: "Zoom",
       publisher: "Zoom Video Communications",
       backupKind: "protocol-handler-key",
+      registryKeyPath: keyPath
+    });
+  });
+
+  it("exports a backup before deleting a browser native messaging host registry key", async () => {
+    const keyPath = "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.acme.notes";
+    let keyExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+        keyExists = false;
+      }),
+      keyExists: vi.fn(async () => keyExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        keyExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "native-messaging-host-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "native-messaging-host-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "native-messaging-host-key"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "브라우저 연결 도우미 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "native-messaging-host-key" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "native-messaging-host-key",
       registryKeyPath: keyPath
     });
   });

@@ -1592,6 +1592,36 @@ describe("planAppLeftovers", () => {
     expect(protocolCandidate?.protectedBy).toBeUndefined();
   });
 
+  it("shows browser native messaging host leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const nativeHostRegistryKey =
+      "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.acme.notes";
+    const registryRunner = {
+      keyExists: vi.fn(async (keyPath: string) => keyPath === nativeHostRegistryKey)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp."
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.keyExists).toHaveBeenCalledWith(nativeHostRegistryKey);
+    const nativeHostCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === nativeHostRegistryKey
+    );
+    expect(nativeHostCandidate).toMatchObject({
+      kind: "native-messaging-host-registry",
+      exists: true
+    });
+    expect(nativeHostCandidate?.protectedBy).toBeUndefined();
+  });
+
   it("shows right-click menu registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const contextMenuRegistryKey = "HKCU\\Software\\Classes\\*\\shell\\Acme Notes";
     const registryRunner = {
@@ -2011,6 +2041,64 @@ describe("planAppLeftovers", () => {
       appPublisher: "Zoom Video Communications",
       keyPath: protocolRegistryKey,
       backupKind: "protocol-handler-key"
+    });
+  });
+
+  it("backs up and deletes selected browser native messaging host leftovers after uninstall follow-up", async () => {
+    const nativeHostRegistryKey =
+      "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.acme.notes";
+    let keyExists = true;
+    const registryRunner = {
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === nativeHostRegistryKey),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === nativeHostRegistryKey)!;
+    expect(path).toMatchObject({ kind: "native-messaging-host-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(
+      nativeHostRegistryKey,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(nativeHostRegistryKey);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: nativeHostRegistryKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: nativeHostRegistryKey,
+      backupKind: "native-messaging-host-key"
     });
   });
 

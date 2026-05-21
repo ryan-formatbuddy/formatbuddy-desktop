@@ -51,6 +51,8 @@ const APP_PATH_KEY =
 const OPEN_WITH_KEY = `HKCU\\Software\\Classes\\Applications\\${FIELD_VALUE_NAME}.exe`;
 const FIELD_PROTOCOL_SCHEME = `formatbuddy-field-e2e-${process.pid}`;
 const PROTOCOL_HANDLER_KEY = `HKCU\\Software\\Classes\\${FIELD_PROTOCOL_SCHEME}`;
+const NATIVE_MESSAGING_HOST_KEY =
+  `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\com.formatbuddy.field_e2e_${process.pid}`;
 const CONTEXT_MENU_KEY = `HKCU\\Software\\Classes\\*\\shell\\${FIELD_VALUE_NAME}`;
 const ENVIRONMENT_KEY = "HKCU\\Environment";
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
@@ -219,6 +221,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", APP_PATH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", OPEN_WITH_KEY, "/f"]).catch(() => {});
     await runReg(["delete", PROTOCOL_HANDLER_KEY, "/f"]).catch(() => {});
+    await runReg(["delete", NATIVE_MESSAGING_HOST_KEY, "/f"]).catch(() => {});
     await runReg(["delete", CONTEXT_MENU_KEY, "/f"]).catch(() => {});
     if (originalUserPath) {
       if (originalUserPath.exists && originalUserPath.type && originalUserPath.data !== undefined) {
@@ -498,7 +501,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredKey.stdout).toContain(FIELD_VALUE_NAME);
   }, 45_000);
 
-  it("backs up, removes, and restores isolated default-app, app path, app connection, protocol handler, and context menu registry traces", async () => {
+  it("backs up, removes, and restores isolated default-app, app path, app connection, protocol handler, browser helper, and context menu registry traces", async () => {
     root = mkdtempSync(join(tmpdir(), "fb-windows-field-app-registry-"));
     userDataDir = join(root, "userdata");
     const firstAt = new Date("2026-05-20T11:20:00.000Z");
@@ -549,6 +552,16 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     ]);
     await runReg([
       "add",
+      NATIVE_MESSAGING_HOST_KEY,
+      "/ve",
+      "/t",
+      "REG_SZ",
+      "/d",
+      "C:\\Windows\\System32\\notepad.exe",
+      "/f"
+    ]);
+    await runReg([
+      "add",
       CONTEXT_MENU_KEY,
       "/v",
       "MUIVerb",
@@ -562,6 +575,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
+    expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
 
     const registeredAppBackup = await backupAndDeleteRegistryValue({
@@ -593,6 +607,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
+    const nativeMessagingHostBackup = await backupAndDeleteRegistryKey({
+      userDataDir,
+      keyPath: NATIVE_MESSAGING_HOST_KEY,
+      backupKind: "native-messaging-host-key",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
     const contextMenuBackup = await backupAndDeleteRegistryKey({
       userDataDir,
       keyPath: CONTEXT_MENU_KEY,
@@ -605,11 +626,13 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(appPathBackup.backupKind).toBe("app-path-key");
     expect(openWithBackup.backupKind).toBe("open-with-key");
     expect(protocolHandlerBackup.backupKind).toBe("protocol-handler-key");
+    expect(nativeMessagingHostBackup.backupKind).toBe("native-messaging-host-key");
     expect(contextMenuBackup.backupKind).toBe("context-menu-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(false);
     expect(await registryKeyExists(PROTOCOL_HANDLER_KEY)).toBe(false);
+    expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(false);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(false);
 
     const restoredRegisteredApp = await restoreRegistryBackup({
@@ -632,6 +655,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       backupId: protocolHandlerBackup.id,
       now: () => restoredAt
     });
+    const restoredNativeMessagingHost = await restoreRegistryBackup({
+      userDataDir,
+      backupId: nativeMessagingHostBackup.id,
+      now: () => restoredAt
+    });
     const restoredContextMenu = await restoreRegistryBackup({
       userDataDir,
       backupId: contextMenuBackup.id,
@@ -642,16 +670,19 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredAppPath.status).toBe("restored");
     expect(restoredOpenWith.status).toBe("restored");
     expect(restoredProtocolHandler.status).toBe("restored");
+    expect(restoredNativeMessagingHost.status).toBe("restored");
     expect(restoredContextMenu.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
     expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
     expect(restoredOpenWith.entry?.backupKind).toBe("open-with-key");
     expect(restoredProtocolHandler.entry?.backupKind).toBe("protocol-handler-key");
+    expect(restoredNativeMessagingHost.entry?.backupKind).toBe("native-messaging-host-key");
     expect(restoredContextMenu.entry?.backupKind).toBe("context-menu-key");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
     expect(await registryKeyExists(OPEN_WITH_KEY)).toBe(true);
     expect(await registryValueExists(PROTOCOL_HANDLER_KEY, "URL Protocol")).toBe(true);
+    expect(await registryKeyExists(NATIVE_MESSAGING_HOST_KEY)).toBe(true);
     expect(await registryKeyExists(CONTEXT_MENU_KEY)).toBe(true);
   }, 45_000);
 

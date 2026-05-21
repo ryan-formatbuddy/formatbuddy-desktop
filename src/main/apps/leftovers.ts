@@ -70,10 +70,12 @@ import {
   isSafeEnvironmentPathRegistryValuePath,
   isSafeOpenWithRegistryKeyPath,
   isSafeProtocolHandlerRegistryKeyPath,
+  isSafeNativeMessagingHostRegistryKeyPath,
   isSafeRegisteredApplicationRegistryValuePath,
   normalizeSafeServiceName,
   normalizeSafeEnvironmentPathSegment,
   normalizeSafeProtocolScheme,
+  normalizeSafeNativeMessagingHostName,
   serviceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
   isSafeUninstallRegistryKeyPath,
@@ -624,6 +626,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "open-with-registry" ||
     value === "context-menu-registry" ||
     value === "protocol-handler-registry" ||
+    value === "native-messaging-host-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
     value === "startup-entry"
@@ -1265,6 +1268,15 @@ const PROTOCOL_HANDLER_REGISTRY_ROOTS = [
   "HKLM\\Software\\Classes"
 ] as const;
 
+const NATIVE_MESSAGING_HOST_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts",
+  "HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts",
+  "HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts",
+  "HKLM\\Software\\Microsoft\\Edge\\NativeMessagingHosts",
+  "HKCU\\Software\\Mozilla\\NativeMessagingHosts",
+  "HKLM\\Software\\Mozilla\\NativeMessagingHosts"
+] as const;
+
 const KNOWN_PROTOCOL_HANDLER_SCHEMES: Array<{ match: RegExp; schemes: string[] }> = [
   { match: /zoom/i, schemes: ["zoommtg", "zoomphonecall", "zoomus"] },
   { match: /slack/i, schemes: ["slack"] },
@@ -1278,6 +1290,14 @@ const KNOWN_PROTOCOL_HANDLER_SCHEMES: Array<{ match: RegExp; schemes: string[] }
   { match: /notion/i, schemes: ["notion"] },
   { match: /figma/i, schemes: ["figma"] },
   { match: /obsidian/i, schemes: ["obsidian"] }
+];
+
+const KNOWN_NATIVE_MESSAGING_HOSTS: Array<{ match: RegExp; hosts: string[] }> = [
+  { match: /1password/i, hosts: ["com.1password.1password"] },
+  { match: /bitwarden/i, hosts: ["com.8bit.bitwarden"] },
+  { match: /grammarly/i, hosts: ["com.grammarly.browserextension"] },
+  { match: /keeper/i, hosts: ["com.keepersecurity.passwordmanager"] },
+  { match: /lastpass/i, hosts: ["com.lastpass.nplastpass"] }
 ];
 
 function appExecutableNames(app: InstalledApp): string[] {
@@ -1337,6 +1357,33 @@ function protocolHandlerSchemeNames(app: InstalledApp): string[] {
     const stem = executableName.replace(/\.exe$/i, "").replace(/\s+/g, "").toLowerCase();
     const scheme = normalizeSafeProtocolScheme(stem);
     if (scheme) candidates.add(scheme);
+  }
+
+  return Array.from(candidates).slice(0, 12);
+}
+
+function nativeMessagingHostNames(app: InstalledApp): string[] {
+  const text = `${app.name} ${app.publisher ?? ""}`;
+  const candidates = new Set<string>();
+
+  for (const mapping of KNOWN_NATIVE_MESSAGING_HOSTS) {
+    if (mapping.match.test(text)) {
+      for (const host of mapping.hosts) candidates.add(host);
+    }
+  }
+
+  for (const name of genericFolderNames(app)) {
+    const cleaned = cleanGenericName(name).toLowerCase();
+    const compact = cleaned.replace(/\s+/g, "");
+    const dotted = cleaned
+      .split(/\s+/)
+      .map((part) => part.replace(/[^a-z0-9_-]/g, ""))
+      .filter(Boolean)
+      .join(".");
+    for (const host of [compact, dotted ? `com.${dotted}` : ""]) {
+      const safeHost = normalizeSafeNativeMessagingHostName(host);
+      if (safeHost) candidates.add(safeHost);
+    }
   }
 
   return Array.from(candidates).slice(0, 12);
@@ -1457,6 +1504,32 @@ async function protocolHandlerRegistryLeftoverPaths(
       paths.push({
         id: makePathId(`protocol-handler-registry:${keyPath}`),
         kind: "protocol-handler-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
+async function nativeMessagingHostRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const hosts = nativeMessagingHostNames(app);
+  if (hosts.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of NATIVE_MESSAGING_HOST_REGISTRY_ROOTS) {
+    for (const host of hosts) {
+      const keyPath = `${root}\\${host}`;
+      if (!isSafeNativeMessagingHostRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`native-messaging-host-registry:${keyPath}`),
+        kind: "native-messaging-host-registry",
         path: keyPath,
         exists: true,
         sizeBytes: null,
@@ -1790,6 +1863,7 @@ export async function planAppLeftovers(
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)),
               ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner))
             ]
           : []),
@@ -1824,6 +1898,7 @@ export async function planAppLeftovers(
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await protocolHandlerRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await nativeMessagingHostRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
@@ -2472,6 +2547,12 @@ function assertSelectedLeftoverPlanMetadataUsable(
     ) {
       invalid.push("protocol handler registry key");
     }
+    if (
+      path.kind === "native-messaging-host-registry" &&
+      !isSafeNativeMessagingHostRegistryKeyPath(path.path)
+    ) {
+      invalid.push("native messaging host registry key");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
@@ -2607,6 +2688,7 @@ export async function cleanupAppLeftovers(
       path.kind === "app-path-registry" ||
       path.kind === "open-with-registry" ||
       path.kind === "protocol-handler-registry" ||
+      path.kind === "native-messaging-host-registry" ||
       path.kind === "context-menu-registry"
     ) {
       try {
@@ -2622,7 +2704,9 @@ export async function cleanupAppLeftovers(
                   ? "context-menu-key"
                   : path.kind === "protocol-handler-registry"
                     ? "protocol-handler-key"
-                    : "key",
+                    : path.kind === "native-messaging-host-registry"
+                      ? "native-messaging-host-key"
+                      : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined

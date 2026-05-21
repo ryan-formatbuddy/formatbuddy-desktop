@@ -493,6 +493,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "open-with-key"
     | "context-menu-key"
     | "protocol-handler-key"
+    | "native-messaging-host-key"
     | "service-key";
   registryKeyPath?: string;
 }): InstalledApp {
