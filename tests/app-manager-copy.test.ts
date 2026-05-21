@@ -44,7 +44,9 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("recoverableRegistryBackupIds");
     expect(source).toContain("restoreStartupAuto");
     expect(source).toContain("restorableStartupDisabledIds");
-    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
+    expect(source).toContain("restoreScheduledTaskBackup");
+    expect(source).toContain("restorableScheduledTaskBackupIds");
+    expect(source).toContain("scheduledTaskResults");
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).not.toContain("레지스트리는");
     expect(source).not.toContain("? \"레지스트리\"");
@@ -68,6 +70,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("restorableTrashEntryIds(result).length +");
     expect(source).toContain("recoverableRegistryBackupIds(result).length +");
     expect(source).toContain("restorableStartupDisabledIds(result).length");
+    expect(source).toContain("restorableScheduledTaskBackupIds(result).length");
     expect(source).toContain("{restorableCount > 0 && (");
   });
 
@@ -75,7 +78,7 @@ describe("AppManager uninstall copy", () => {
     const source = readFileSync(APP_MANAGER_PAGE, "utf8");
 
     expect(source).toContain("restoreFailureCount += 1");
-    expect(source).toContain("summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)");
+    expect(source).toContain("scheduledTaskResults");
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
@@ -87,6 +90,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).not.toContain("if (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) return;");
     expect(source).not.toContain("if (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) return;");
     expect(source).not.toContain("if (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) return;");
+    expect(source).not.toContain("if (scheduledTaskBackupIds.length > 0 && !window.fb?.restoreScheduledTaskBackup) return;");
   });
 
   it("shows friendly messages instead of silently returning when app manager bridges are missing", () => {

@@ -14,6 +14,7 @@ import {
   rememberUninstallFollowup
 } from "../src/main/apps/uninstallFollowups";
 import { listRegistryBackups } from "../src/main/apps/registryCleanup";
+import { listScheduledTaskBackups } from "../src/main/startup/scheduledTaskBackup";
 import { getTrashSnapshot, purgeExpiredTrash, restoreTrashEntry, __testing as trashTesting } from "../src/main/cleanup/trash";
 import { listDisabledStartupFolderEntries } from "../src/main/startup/folderToggle";
 import { preservedRegistryBackupIds } from "../src/shared/cleanup-result";
@@ -1794,7 +1795,7 @@ describe("planAppLeftovers", () => {
     expect(skipped?.detail).not.toMatch(/hash|integrity|changed/i);
   });
 
-  it("surfaces service and scheduled-task traces as protected app deletion leftovers", async () => {
+  it("keeps service protected and surfaces safe scheduled tasks as restorable app deletion leftovers", async () => {
     const startupEntries: StartupAutoEntry[] = [
       {
         id: "service|acme-notes",
@@ -1835,7 +1836,80 @@ describe("planAppLeftovers", () => {
     ]);
     expect(traces.map((path) => path.startupOrigin)).toEqual(["Windows 서비스", "작업 스케줄러"]);
     expect(traces.every((path) => path.exists)).toBe(true);
-    expect(traces.every((path) => path.protectedBy?.includes("시작 항목"))).toBe(true);
+    expect(traces[0].protectedBy).toContain("서비스");
+    expect(traces[1].protectedBy).toBeUndefined();
+    expect(traces[1].scheduledTaskPath).toBe("\\Acme\\");
+  });
+
+  it("backs up and deletes a selected scheduled-task trace after uninstall follow-up", async () => {
+    const startupEntries: StartupAutoEntry[] = [
+      {
+        id: "scheduled-task|acme-notes",
+        kind: "scheduled-task",
+        name: "Acme Notes Update",
+        path: "\\Acme\\",
+        publisher: "Acme Corp.",
+        origin: "작업 스케줄러",
+        enabled: true
+      }
+    ];
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [{ name: "Acme Notes", publisher: "Acme Corp." }],
+      startupEntries
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.kind === "startup-entry")!;
+    const calls: string[] = [];
+    const scheduledTaskRunner = {
+      exportTask: vi.fn(async (taskName: string, taskPath: string, backupPath: string) => {
+        calls.push(`export:${taskPath}${taskName}`);
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          '<?xml version="1.0" encoding="UTF-16"?><Task version="1.4"></Task>',
+          "utf8"
+        );
+      }),
+      deleteTask: vi.fn(async (taskName: string, taskPath: string) => {
+        calls.push(`delete:${taskPath}${taskName}`);
+      }),
+      restoreTask: vi.fn(),
+      taskExists: vi.fn(async () => false)
+    };
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        scheduledTaskRunner
+      }
+    );
+
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      scheduledTaskBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    expect(calls).toEqual([
+      "export:\\Acme\\Acme Notes Update",
+      "delete:\\Acme\\Acme Notes Update"
+    ]);
+    const backups = await listScheduledTaskBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(backups.entries).toHaveLength(1);
+    expect(backups.entries[0]).toMatchObject({
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      integrityStatus: "verified"
+    });
   });
 
   it("rejects tampered manual startup trace metadata before cleanup", async () => {

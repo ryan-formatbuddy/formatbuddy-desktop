@@ -124,7 +124,8 @@ function isActualRestoreAuditEntry(entry: AuditEntry): boolean {
   return (
     entry.action.startsWith("trash-restore-") ||
     entry.action.startsWith("registry-backup-restore-") ||
-    entry.action.startsWith("startup-restore-")
+    entry.action.startsWith("startup-restore-") ||
+    entry.action.startsWith("scheduled-task-backup-restore-")
   );
 }
 
@@ -151,7 +152,8 @@ function auditRestorableDetailCount(detail: AuditEntry["detail"]): number {
   return (
     arrayCountDetail(detail, "trashEntryIds") +
     auditRegistryBackupDetailCount(detail) +
-    arrayCountDetail(detail, "startupDisabledIds")
+    arrayCountDetail(detail, "startupDisabledIds") +
+    arrayCountDetail(detail, "scheduledTaskBackupIds")
   );
 }
 
@@ -176,6 +178,7 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const registryBackupCount = numberDetail(detail, "registryBackupCount");
   const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount");
   const startupDisabledCount = numberDetail(detail, "startupDisabledCount");
+  const scheduledTaskBackupCount = numberDetail(detail, "scheduledTaskBackupCount");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
   const purgedItemsLine = auditPurgedItemsLine(auditPurgedItemLabels(detail));
@@ -195,6 +198,9 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   }
   if (startupDisabledCount !== null && startupDisabledCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupDisabledCount}개`);
+  }
+  if (scheduledTaskBackupCount !== null && scheduledTaskBackupCount > 0) {
+    lines.push(`예약 작업 백업 ${scheduledTaskBackupCount}개`);
   }
   if (failedCount > 0) lines.push(`아직 남아 있는 항목 ${failedCount}개`);
   if (failedBucketCount !== null && failedBucketCount > 0) {

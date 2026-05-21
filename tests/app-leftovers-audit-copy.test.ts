@@ -20,6 +20,8 @@ describe("app leftovers audit copy", () => {
     expect(source).toContain("preservedRegistryBackupCount: preservedBackupIds.length");
     expect(source).toContain("recoverableRegistryBackupCount: recoverableBackupIds.length");
     expect(source).toContain("startupDisabledCount: startupDisabledIds.length");
+    expect(source).toContain("scheduledTaskBackupCount: scheduledTaskBackupIds.length");
+    expect(source).toContain("예약 작업 ${scheduledTaskBackupIds.length}개를 백업 후 정리했어요");
     expect(source).not.toContain("폴더와 백업은 30일 뒤 자동으로 비워요");
     expect(source).toContain("보관한 항목은 30일 뒤 자동으로 비워요");
   });

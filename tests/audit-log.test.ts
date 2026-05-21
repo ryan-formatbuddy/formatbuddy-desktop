@@ -267,6 +267,7 @@ describe("coerce + sanity guards", () => {
         preservedRegistryBackupIds: ["preserved-reg-ok", "preserved reg bad"],
         recoverableRegistryBackupIds: ["reg-ok", "preserved-reg-ok", "preserved reg bad"],
         startupDisabledIds: ["startup-ok", "startup\nbad"],
+        scheduledTaskBackupIds: ["task-ok", "task/bad"],
         note: "kept"
       }
     });
@@ -279,6 +280,7 @@ describe("coerce + sanity guards", () => {
       preservedRegistryBackupIds: ["preserved-reg-ok"],
       recoverableRegistryBackupIds: ["reg-ok", "preserved-reg-ok"],
       startupDisabledIds: ["startup-ok"],
+      scheduledTaskBackupIds: ["task-ok"],
       note: "kept"
     });
   });

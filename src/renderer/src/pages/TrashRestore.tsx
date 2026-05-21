@@ -10,6 +10,7 @@ import {
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
   summarizeRestoreAllResults,
+  summarizeScheduledTaskBackupRestoreResults,
   summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
   trashExpirySummary
@@ -24,6 +25,9 @@ import type {
   RegistryBackupEntry,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
+  ScheduledTaskBackupEntry,
+  ScheduledTaskBackupRestoreResult,
+  ScheduledTaskBackupSnapshot,
   StartupAutoDisabledEntry,
   StartupAutoDisabledSnapshot,
   StartupFolderToggleResult
@@ -83,6 +87,13 @@ type RestoreListItem =
       entry: StartupAutoDisabledEntry;
       expiresAt: string;
       createdAt: string;
+    }
+  | {
+      id: string;
+      kind: "scheduled-task";
+      entry: ScheduledTaskBackupEntry;
+      expiresAt: string;
+      createdAt: string;
     };
 
 function emptyTrashSnapshot(): CleanupTrashSnapshot {
@@ -105,6 +116,13 @@ function emptyStartupSnapshot(): StartupAutoDisabledSnapshot {
     capturedAt: new Date().toISOString(),
     entries: [],
     notes: []
+  };
+}
+
+function emptyScheduledTaskSnapshot(): ScheduledTaskBackupSnapshot {
+  return {
+    entries: [],
+    retentionDays: RESTORE_BIN_RETENTION_DAYS
   };
 }
 
@@ -205,9 +223,14 @@ function startupDisabledNeedsCheck(entry: StartupAutoDisabledEntry): boolean {
   return entry.integrityStatus !== "verified";
 }
 
+function scheduledTaskBackupNeedsCheck(entry: ScheduledTaskBackupEntry): boolean {
+  return entry.integrityStatus !== "verified";
+}
+
 function restoreListItemNeedsCheck(item: RestoreListItem): boolean {
   if (item.kind === "registry") return registryBackupNeedsCheck(item.entry);
   if (item.kind === "startup") return startupDisabledNeedsCheck(item.entry);
+  if (item.kind === "scheduled-task") return scheduledTaskBackupNeedsCheck(item.entry);
   return trashEntryNeedsCheck(item.entry);
 }
 
@@ -230,10 +253,30 @@ function startupDisabledLegacyNotice(): string {
   return "시작 항목 보관 기록을 확인할 수 없어요. 오래된 보관 항목이라 자동으로 되돌리지 않아요.";
 }
 
+function scheduledTaskTitle(entry: ScheduledTaskBackupEntry): string {
+  const appName = entry.appName?.trim();
+  return appName ? `${appName} 예약 작업` : entry.taskName;
+}
+
+function scheduledTaskSubtitle(entry: ScheduledTaskBackupEntry): string {
+  const appPublisher = entry.appPublisher?.trim();
+  const detail = `작업 스케줄러 ${entry.taskPath}`;
+  return appPublisher ? `${appPublisher} · ${detail}` : detail;
+}
+
+function scheduledTaskChangedNotice(): string {
+  return "예약 작업 백업 파일이 바뀐 것 같아요. 안전하게 되돌리기 전에 다시 점검해 주세요.";
+}
+
+function scheduledTaskLegacyNotice(): string {
+  return "예약 작업 백업 기록을 확인할 수 없어요. 오래된 백업이라 자동으로 되돌리지 않아요.";
+}
+
 export function TrashRestore({ onBack }: TrashRestoreProps) {
   const [snapshot, setSnapshot] = useState<CleanupTrashSnapshot | null>(null);
   const [registrySnapshot, setRegistrySnapshot] = useState<RegistryBackupSnapshot | null>(null);
   const [startupSnapshot, setStartupSnapshot] = useState<StartupAutoDisabledSnapshot | null>(null);
+  const [scheduledTaskSnapshot, setScheduledTaskSnapshot] = useState<ScheduledTaskBackupSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -248,11 +291,15 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     const startupTask = window.fb?.listDisabledStartupAuto
       ? window.fb.listDisabledStartupAuto()
       : Promise.reject(new Error("missing startup restore bridge"));
+    const scheduledTaskTask = window.fb?.getScheduledTaskBackups
+      ? window.fb.getScheduledTaskBackups()
+      : Promise.reject(new Error("missing scheduled task restore bridge"));
 
-    const [trash, registry, startup] = await Promise.allSettled([
+    const [trash, registry, startup, scheduledTask] = await Promise.allSettled([
       trashTask,
       registryTask,
-      startupTask
+      startupTask,
+      scheduledTaskTask
     ]);
     const failedLabels: string[] = [];
 
@@ -274,6 +321,12 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       setStartupSnapshot(emptyStartupSnapshot());
       failedLabels.push("잠시 꺼둔 시작 항목");
     }
+    if (scheduledTask.status === "fulfilled") {
+      setScheduledTaskSnapshot(scheduledTask.value);
+    } else {
+      setScheduledTaskSnapshot(emptyScheduledTaskSnapshot());
+      failedLabels.push("예약 작업 백업");
+    }
 
     setError(restoreBinPartialLoadMessage(failedLabels));
   }, []);
@@ -291,11 +344,20 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     () => startupSnapshot?.entries ?? [],
     [startupSnapshot]
   );
+  const scheduledTaskEntries = useMemo(
+    () => scheduledTaskSnapshot?.entries ?? [],
+    [scheduledTaskSnapshot]
+  );
   const registryBytes = useMemo(
     () => registryEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
     [registryEntries]
   );
-  const totalEntryCount = entries.length + registryEntries.length + startupEntries.length;
+  const scheduledTaskBytes = useMemo(
+    () => scheduledTaskEntries.reduce((sum, entry) => sum + Math.max(0, entry.sizeBytes), 0),
+    [scheduledTaskEntries]
+  );
+  const totalEntryCount =
+    entries.length + registryEntries.length + startupEntries.length + scheduledTaskEntries.length;
   const hasPartialLoadIssue = Boolean(error);
   const sortedRestoreItems = useMemo(() => {
     const items: RestoreListItem[] = [
@@ -319,16 +381,24 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         entry,
         expiresAt: entry.expiresAt,
         createdAt: entry.disabledAt
+      })),
+      ...scheduledTaskEntries.map((entry) => ({
+        id: `scheduled-task:${entry.id}`,
+        kind: "scheduled-task" as const,
+        entry,
+        expiresAt: entry.expiresAt,
+        createdAt: entry.createdAt
       }))
     ];
     return sortTrashEntriesByExpiry(dedupeRestoreListItems(items));
-  }, [entries, registryEntries, startupEntries]);
+  }, [entries, registryEntries, startupEntries, scheduledTaskEntries]);
   const restorableRestoreItems = useMemo(
     () =>
       sortedRestoreItems.filter((item) => {
         if (isTrashEntryExpired(item.expiresAt)) return false;
         if (item.kind === "registry") return !registryBackupNeedsCheck(item.entry);
         if (item.kind === "startup") return !startupDisabledNeedsCheck(item.entry);
+        if (item.kind === "scheduled-task") return !scheduledTaskBackupNeedsCheck(item.entry);
         return !trashEntryNeedsCheck(item.entry);
       }),
     [sortedRestoreItems]
@@ -417,10 +487,34 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     [load]
   );
 
+  const onRestoreScheduledTask = useCallback(
+    async (entry: ScheduledTaskBackupEntry) => {
+      if (!window.fb?.restoreScheduledTaskBackup) {
+        setToast("예약 작업 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+        return;
+      }
+      setBusy(`scheduled-task:${entry.id}`);
+      setToast(null);
+      try {
+        const result: ScheduledTaskBackupRestoreResult = await window.fb.restoreScheduledTaskBackup({
+          backupId: entry.id
+        });
+        setToast(summarizeScheduledTaskBackupRestoreResults([result]));
+        await load();
+      } catch (e) {
+        setToast(`예약 작업 되돌리기 중 문제가 생겼어요. ${friendlyErrorMessage(e as Error)}`);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [load]
+  );
+
   const onRestoreAll = useCallback(async () => {
     const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
     const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
     const restoreStartupAuto = window.fb?.restoreStartupAuto;
+    const restoreScheduledTaskBackup = window.fb?.restoreScheduledTaskBackup;
     if (totalEntryCount === 0) {
       setToast("되돌릴 항목이 없어요.");
       return;
@@ -431,11 +525,14 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     }
     const restorableFileCount = restorableRestoreItems.filter((item) => item.kind === "file").length;
     const restorableRegistryCount = restorableRestoreItems.filter((item) => item.kind === "registry").length;
-    const restorableStartupCount = restorableRestoreItems.length - restorableFileCount - restorableRegistryCount;
+    const restorableStartupCount = restorableRestoreItems.filter((item) => item.kind === "startup").length;
+    const restorableScheduledTaskCount =
+      restorableRestoreItems.length - restorableFileCount - restorableRegistryCount - restorableStartupCount;
     if (
       (!restoreCleanupTrash && restorableFileCount > 0) ||
       (!restoreRegistryBackup && restorableRegistryCount > 0) ||
-      (!restoreStartupAuto && restorableStartupCount > 0)
+      (!restoreStartupAuto && restorableStartupCount > 0) ||
+      (!restoreScheduledTaskBackup && restorableScheduledTaskCount > 0)
     ) {
       setToast("모두 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
       return;
@@ -446,6 +543,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       const results: CleanupTrashRestoreResult[] = [];
       const registryResults: RegistryBackupRestoreResult[] = [];
       const startupResults: StartupFolderToggleResult[] = [];
+      const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
       let restoreAllFailureCount = 0;
       for (const item of restorableRestoreItems) {
         if (item.kind === "file") {
@@ -468,6 +566,16 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           }
           continue;
         }
+        if (item.kind === "scheduled-task") {
+          if (restoreScheduledTaskBackup) {
+            try {
+              scheduledTaskResults.push(await restoreScheduledTaskBackup({ backupId: item.entry.id }));
+            } catch {
+              restoreAllFailureCount += 1;
+            }
+          }
+          continue;
+        }
         if (restoreRegistryBackup) {
           try {
             registryResults.push(await restoreRegistryBackup({ backupId: item.entry.id }));
@@ -476,7 +584,15 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
           }
         }
       }
-      setToast(summarizeRestoreAllResults(results, registryResults, restoreAllFailureCount, startupResults));
+      setToast(
+        summarizeRestoreAllResults(
+          results,
+          registryResults,
+          restoreAllFailureCount,
+          startupResults,
+          scheduledTaskResults
+        )
+      );
       await load();
     } catch (e) {
       setToast(friendlyErrorMessage(e as Error));
@@ -486,11 +602,11 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
   }, [load, restorableRestoreItems, totalEntryCount, totalRestorableCount]);
 
   const headerSummary = useMemo(() => {
-    if (!snapshot || !registrySnapshot || !startupSnapshot) return "복구함 불러오는 중...";
+    if (!snapshot || !registrySnapshot || !startupSnapshot || !scheduledTaskSnapshot) return "복구함 불러오는 중...";
     if (totalEntryCount === 0) {
       return hasPartialLoadIssue ? "불러온 복구 항목은 아직 없어요." : "복구함이 비어 있어요.";
     }
-    const totalBytes = snapshot.totalBytes + registryBytes;
+    const totalBytes = snapshot.totalBytes + registryBytes + scheduledTaskBytes;
     const appTraceCount = registryEntries.filter(
       (entry) => entry.backupKind !== "startup-value"
     ).length;
@@ -498,7 +614,8 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     const backupSummary = [
       appTraceCount > 0 ? `앱 삭제 흔적 백업 ${appTraceCount}개` : "",
       registryStartupCount > 0 ? `시작 항목 백업 ${registryStartupCount}개` : "",
-      startupEntries.length > 0 ? `잠시 꺼둔 시작 항목 ${startupEntries.length}개` : ""
+      startupEntries.length > 0 ? `잠시 꺼둔 시작 항목 ${startupEntries.length}개` : "",
+      scheduledTaskEntries.length > 0 ? `예약 작업 백업 ${scheduledTaskEntries.length}개` : ""
     ]
       .filter(Boolean)
       .join(" · ");
@@ -510,18 +627,28 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     entries.length,
     registryEntries,
     registryBytes,
+    scheduledTaskBytes,
     startupEntries.length,
+    scheduledTaskEntries.length,
     totalEntryCount,
-    hasPartialLoadIssue
+    hasPartialLoadIssue,
+    scheduledTaskSnapshot
   ]);
 
   const expirySummary = useMemo(
-    () => trashExpirySummary([...entries, ...registryEntries, ...startupEntries]),
-    [entries, registryEntries, startupEntries]
+    () => trashExpirySummary([...entries, ...registryEntries, ...startupEntries, ...scheduledTaskEntries]),
+    [entries, registryEntries, startupEntries, scheduledTaskEntries]
   );
 
   const expiryMessage = useMemo(() => {
-    if (!snapshot || !registrySnapshot || !startupSnapshot || totalEntryCount === 0 || expirySummary.nextExpiryDays === null) return null;
+    if (
+      !snapshot ||
+      !registrySnapshot ||
+      !startupSnapshot ||
+      !scheduledTaskSnapshot ||
+      totalEntryCount === 0 ||
+      expirySummary.nextExpiryDays === null
+    ) return null;
     if (expirySummary.todayCount > 0) {
       return `${expirySummary.todayCount}개는 보관 기간이 지나 되돌릴 수 없어요. 앱이 다음 자동 비움 때 다시 정리해볼게요.`;
     }
@@ -529,7 +656,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       return `${expirySummary.expiringSoonCount}개가 3일 안에 비워질 예정이에요. 오래된 항목부터 확인해볼게요.`;
     }
     return `가장 먼저 비워질 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
-  }, [totalEntryCount, expirySummary, snapshot, registrySnapshot, startupSnapshot]);
+  }, [totalEntryCount, expirySummary, snapshot, registrySnapshot, startupSnapshot, scheduledTaskSnapshot]);
 
   return (
     <main className="fb-report" aria-label="복구함 (30일)">
@@ -621,7 +748,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
         )}
       </section>
 
-      {snapshot && registrySnapshot && startupSnapshot && totalEntryCount === 0 && !hasPartialLoadIssue && (
+      {snapshot && registrySnapshot && startupSnapshot && scheduledTaskSnapshot && totalEntryCount === 0 && !hasPartialLoadIssue && (
         <section className="fb-card fb-anim-fade">
           <h3 style={{ marginTop: 0 }}>복구함이 비어 있어요</h3>
           <p>
@@ -840,6 +967,113 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
                       : busy === `startup:${entry.id}`
                         ? "되돌리는 중..."
                         : "시작 항목 되돌리기"}
+                </Button>
+              </div>
+            </article>
+          );
+        }
+        if (item.kind === "scheduled-task") {
+          const entry = item.entry;
+          const isChanged = entry.integrityStatus === "changed";
+          const isLegacy = entry.integrityStatus === "legacy";
+          const needsCheck = scheduledTaskBackupNeedsCheck(entry);
+          return (
+            <article
+              key={item.id}
+              className="fb-card fb-anim-slide fb-card-hover"
+              style={{
+                marginBottom: 12,
+                animationDelay: `${Math.min(idx, 8) * 30}ms`
+              }}
+            >
+              <header
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginBottom: 4
+                }}
+              >
+                <span
+                  style={{
+                    background: "#2563eb",
+                    color: "#fff",
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600
+                  }}
+                >
+                  예약 작업 백업
+                </span>
+                <strong style={{ fontSize: 14 }}>{scheduledTaskTitle(entry)}</strong>
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    fontSize: 12,
+                    color: isUrgent ? "#1d4ed8" : "rgba(0,0,0,0.55)",
+                    fontWeight: isUrgent ? 600 : 400
+                  }}
+                >
+                  {expiryLabel}
+                </span>
+              </header>
+              <div style={{ fontSize: 12, opacity: 0.65, marginTop: -2 }}>
+                {scheduledTaskSubtitle(entry)}
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.85, wordBreak: "break-all" }}>
+                {entry.taskName}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.6, marginTop: 4 }}>
+                {formatBytes(entry.sizeBytes)} · 보낸 시각 {formatLocal(entry.createdAt)}
+              </div>
+              {isChanged && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "9px 10px",
+                    borderRadius: 12,
+                    background: "rgba(37, 99, 235, 0.08)",
+                    color: "#1d4ed8",
+                    fontSize: 12,
+                    fontWeight: 650
+                  }}
+                >
+                  {scheduledTaskChangedNotice()}
+                </div>
+              )}
+              {isLegacy && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "9px 10px",
+                    borderRadius: 12,
+                    background: "rgba(37, 99, 235, 0.08)",
+                    color: "#1d4ed8",
+                    fontSize: 12,
+                    fontWeight: 650
+                  }}
+                >
+                  {scheduledTaskLegacyNotice()}
+                </div>
+              )}
+              <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => void onRestoreScheduledTask(entry)}
+                  disabled={Boolean(busy) || isExpired || needsCheck}
+                >
+                  {isExpired
+                    ? "보관 기간이 지나 되돌릴 수 없어요"
+                    : needsCheck
+                      ? isChanged
+                        ? "예약 작업 백업 확인 필요"
+                        : "예약 작업 기록 확인 필요"
+                      : busy === `scheduled-task:${entry.id}`
+                        ? "되돌리는 중..."
+                        : "예약 작업 되돌리기"}
                 </Button>
               </div>
             </article>

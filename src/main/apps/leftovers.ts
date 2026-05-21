@@ -52,6 +52,14 @@ import {
   isSafeStartupDisabledId
 } from "../startup/folderToggle";
 import {
+  backupAndDeleteScheduledTask,
+  defaultScheduledTaskBackupRunner,
+  isScheduledTaskBackupPreservedError,
+  normalizeSafeScheduledTaskName,
+  normalizeSafeScheduledTaskPath,
+  type ScheduledTaskBackupRunner
+} from "../startup/scheduledTaskBackup";
+import {
   backupAndDeleteRegistryValue,
   backupAndDeleteRegistryKey,
   defaultRegistryCleanupRunner,
@@ -85,6 +93,7 @@ interface CleanupAppLeftoversOptions {
   userDataDir: string;
   now?: () => Date;
   registryRunner?: RegistryCleanupRunner;
+  scheduledTaskRunner?: ScheduledTaskBackupRunner;
   disableStartupFolderEntry?: typeof disableStartupFolderEntry;
   recordCleanupExecution?: typeof recordCleanupExecution;
   currentInstalledApps?: InstalledApp[];
@@ -111,6 +120,10 @@ const PERSONAL_INSTALL_LOCATION_PROTECTION =
   "바탕화면·문서·다운로드·사진·영상·음악 같은 개인 폴더 안이라 자동 정리하지 않아요.";
 const STARTUP_TRACE_PROTECTION =
   "서비스·예약 작업·레지스트리 시작 항목은 아직 자동 삭제하지 않아요. 시작 항목 화면에서 확인해주세요.";
+const SERVICE_TRACE_PROTECTION =
+  "서비스는 보안·프린터·드라이버와 가까워서 앱에서 바로 지우지 않아요. 시작 항목 화면에서 이름을 다시 확인해주세요.";
+const SCHEDULED_TASK_TRACE_PROTECTION =
+  "예약 작업 위치를 안전하게 확인하지 못해서 자동 정리하지 않아요. 시작 항목 화면에서 다시 확인해주세요.";
 const GENERIC_NAME_BLOCKLIST =
   /\b(?:microsoft|windows|visual c\+\+|vc\+\+|\.net|directx|driver|runtime|sdk|update|hotfix|language pack|redistributable)\b/i;
 
@@ -1245,6 +1258,25 @@ async function startupLeftoverPaths(
     const entryName = cleanDisplayText(entry.name);
     if (!entryOrigin || !entryName) continue;
     const label = `${entryOrigin}: ${entryName}`;
+    if (entry.kind === "scheduled-task") {
+      const safeTaskName = normalizeSafeScheduledTaskName(entryName);
+      const safeTaskPath = normalizeSafeScheduledTaskPath(entry.path);
+      paths.push({
+        id: makePathId(`startup-entry:${entry.id}:${label}`),
+        kind: "startup-entry",
+        path: label,
+        startupEntryId: entry.id,
+        startupEntryName: entryName,
+        startupEntryKind: entry.kind,
+        startupOrigin: entryOrigin,
+        scheduledTaskPath: safeTaskPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null,
+        protectedBy: safeTaskName && safeTaskPath ? undefined : SCHEDULED_TASK_TRACE_PROTECTION
+      });
+      continue;
+    }
     paths.push({
       id: makePathId(`startup-entry:${entry.id}:${label}`),
       kind: "startup-entry",
@@ -1256,7 +1288,7 @@ async function startupLeftoverPaths(
       exists: true,
       sizeBytes: null,
       lastModifiedAt: null,
-      protectedBy: STARTUP_TRACE_PROTECTION
+      protectedBy: entry.kind === "service" ? SERVICE_TRACE_PROTECTION : STARTUP_TRACE_PROTECTION
     });
   }
 
@@ -1593,6 +1625,35 @@ function friendlyStartupHoldingFailureDetail(message: string): string {
   return "시작 항목 보관 중 문제가 생겨서 그대로 뒀어요.";
 }
 
+function preservedScheduledTaskBackupSkipFields(err: unknown): Pick<
+  CleanupSkippedItem,
+  "scheduledTaskBackupId" | "expiresAt" | "detail"
+> | null {
+  if (!isScheduledTaskBackupPreservedError(err)) return null;
+  const message = err.message.trim() || "정리 확인을 끝내지 못했어요.";
+  return {
+    scheduledTaskBackupId: err.backup.id,
+    expiresAt: err.backup.expiresAt,
+    detail: `${message} 예약 작업 백업은 30일 복구함에 남겨뒀어요.`
+  };
+}
+
+function friendlyScheduledTaskFailureDetail(message: string): string {
+  if (/예약 작업 정보|scheduled task.*safe|task.*safe/i.test(message)) {
+    return "예약 작업 정보가 안전하지 않아 자동 정리하지 않았어요.";
+  }
+  if (/export|backup|백업|powershell|access|denied|eacces|eperm|permission/i.test(message)) {
+    return "예약 작업 백업을 만들지 못해서 정리하지 않았어요.";
+  }
+  if (/missing|not found|보이지|찾지|disappear/i.test(message)) {
+    return "예약 작업 백업을 확인하지 못해서 정리하지 않았어요.";
+  }
+  if (/still exists|아직/i.test(message)) {
+    return "예약 작업이 아직 남아 있어서 완료로 보지 않았어요.";
+  }
+  return "예약 작업 정리 중 문제가 생겨서 그대로 뒀어요.";
+}
+
 function friendlyTrashFailureDetail(message: string): string {
   if (/restore entry size|size is not safe|용량 정보/i.test(message)) {
     return CLEANUP_RESTORE_SIZE_WARNING;
@@ -1885,6 +1946,19 @@ function assertSelectedLeftoverPlanMetadataUsable(
       if (!cleanDisplayText(path.startupOrigin)) invalid.push("startup origin");
       if (path.startupEntryKind !== "service" && path.startupEntryKind !== "scheduled-task") {
         invalid.push("startup entry kind");
+      }
+      if (
+        path.startupEntryKind === "scheduled-task" &&
+        !normalizeSafeScheduledTaskPath(path.scheduledTaskPath)
+      ) {
+        invalid.push("scheduled task path");
+      }
+      if (
+        path.startupEntryKind !== "scheduled-task" &&
+        path.scheduledTaskPath !== undefined &&
+        path.scheduledTaskPath !== null
+      ) {
+        invalid.push("scheduled task path");
       }
     }
     if (
@@ -2206,6 +2280,69 @@ export async function cleanupAppLeftovers(
           path: path.path,
           reason: skipReasonFromTrashError(message),
           detail: friendlyStartupHoldingFailureDetail(message)
+        });
+      }
+      continue;
+    }
+
+    if (path.kind === "startup-entry") {
+      if (path.startupEntryKind !== "scheduled-task") {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: SERVICE_TRACE_PROTECTION
+        });
+        continue;
+      }
+      const taskName = normalizeSafeScheduledTaskName(path.startupEntryName);
+      const taskPath = normalizeSafeScheduledTaskPath(path.scheduledTaskPath);
+      if (!taskName || !taskPath) {
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: "blocked-path",
+          detail: SCHEDULED_TASK_TRACE_PROTECTION
+        });
+        continue;
+      }
+
+      try {
+        const backup = await backupAndDeleteScheduledTask({
+          userDataDir: options.userDataDir,
+          taskName,
+          taskPath,
+          now: options.now,
+          runner: options.scheduledTaskRunner ?? defaultScheduledTaskBackupRunner(),
+          app: group ? groupInstallIdentity(group) : undefined
+        });
+        removedItems.push({
+          itemId: path.id,
+          path: path.path,
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          scheduledTaskBackupId: backup.id,
+          expiresAt: backup.expiresAt
+        });
+        resolvedPathIds.add(path.id);
+      } catch (err) {
+        const message = (err as Error).message;
+        const preservedBackup = preservedScheduledTaskBackupSkipFields(err);
+        skippedItems.push({
+          itemId: path.id,
+          path: path.path,
+          reason: /예약 작업 정보|scheduled task.*safe|task.*safe/i.test(message)
+            ? "blocked-path"
+            : "execute-failed",
+          detail: preservedBackup?.detail ?? friendlyScheduledTaskFailureDetail(message),
+          ...(preservedBackup
+            ? {
+                scheduledTaskBackupId: preservedBackup.scheduledTaskBackupId,
+                expiresAt: preservedBackup.expiresAt
+              }
+            : {})
         });
       }
       continue;

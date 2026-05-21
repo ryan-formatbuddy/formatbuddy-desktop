@@ -24,9 +24,12 @@ describe("cleanup type contract", () => {
     expect(source).toContain("purgedItems?: RegistryBackupPurgedItem[]");
     expect(source).toContain("export interface StartupDisabledPurgedItem");
     expect(source).toContain("purgedItems?: StartupDisabledPurgedItem[]");
+    expect(source).toContain("export interface ScheduledTaskBackupPurgedItem");
+    expect(source).toContain("purgedItems?: ScheduledTaskBackupPurgedItem[]");
     expect(source).toContain("trash?: CleanupTrashPurgeResult");
     expect(source).toContain("registryBackups?: RegistryBackupPurgeResult");
     expect(source).toContain("startupDisabled?: StartupDisabledPurgeResult");
-    expect(source).toContain('export type RestoreBinPurgeKind = "trash" | "registry-backups" | "startup-disabled"');
+    expect(source).toContain("scheduledTaskBackups?: ScheduledTaskBackupPurgeResult");
+    expect(source).toContain('| "scheduled-task-backups"');
   });
 });

@@ -73,7 +73,8 @@ const AUDIT_DETAIL_ID_ARRAY_KEYS = new Set([
   "registryBackupIds",
   "preservedRegistryBackupIds",
   "recoverableRegistryBackupIds",
-  "startupDisabledIds"
+  "startupDisabledIds",
+  "scheduledTaskBackupIds"
 ]);
 
 function isSafeAuditDetailId(value: unknown): value is string {

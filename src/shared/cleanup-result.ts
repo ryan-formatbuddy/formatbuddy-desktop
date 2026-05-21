@@ -4,6 +4,7 @@ import type {
   CleanupTrashRestoreResult,
   RegistryBackupEntry,
   RegistryBackupRestoreResult,
+  ScheduledTaskBackupRestoreResult,
   StartupFolderToggleResult
 } from "./types";
 import { RESTORE_BIN_RETENTION_DAYS } from "./retention";
@@ -190,6 +191,21 @@ export function restorableStartupDisabledIds(result: CleanupExecuteResult, now =
   );
 }
 
+export function restorableScheduledTaskBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
+  return uniqueIds(
+    result.removedItems
+      .filter(
+        (item) =>
+          item.succeeded &&
+          item.mode === "trash" &&
+          isSafeRestorableResultId(item.scheduledTaskBackupId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.scheduledTaskBackupId)
+      .filter((id): id is string => typeof id === "string")
+  );
+}
+
 type IntegrityStatusSource = { integrityStatus?: "verified" | "changed" | "legacy" } | null | undefined;
 
 function isChangedBlockedRestore(
@@ -357,16 +373,56 @@ export function summarizeStartupFolderRestoreResults(
   return parts.length > 0 ? parts.join(" ") : "";
 }
 
+export function summarizeScheduledTaskBackupRestoreResults(
+  results: ScheduledTaskBackupRestoreResult[]
+): string {
+  const restored = results.filter((item) => item.status === "restored").length;
+  const notFound = results.filter((item) => item.status === "not-found").length;
+  const expired = results.filter((item) => item.status === "expired").length;
+  const changed = results.filter(
+    (item) => item.status === "blocked-path" && isChangedBlockedRestore(item.message, item.entry)
+  ).length;
+  const legacy = results.filter(
+    (item) => item.status === "blocked-path" && isLegacyBlockedRestore(item.message, item.entry)
+  ).length;
+  const unsafe = results.filter(
+    (item) =>
+      item.status === "blocked-path" &&
+      !isChangedBlockedRestore(item.message, item.entry) &&
+      !isLegacyBlockedRestore(item.message, item.entry)
+  ).length;
+  const missingBackup = results.filter((item) => item.status === "missing-backup").length;
+  const restoreFailed = results.filter((item) => item.status === "restore-failed").length;
+  const parts: string[] = [];
+
+  if (restored > 0) parts.push(`예약 작업 ${restored}개를 되돌렸어요.`);
+  if (notFound > 0) parts.push(`${notFound}개는 예약 작업 백업 목록에서 찾지 못했어요.`);
+  if (expired > 0) parts.push(`${expired}개는 30일 보관 기간이 지나 되돌릴 수 없어요.`);
+  if (missingBackup > 0) parts.push(`${missingBackup}개는 예약 작업 백업 파일을 찾지 못했어요.`);
+  if (changed > 0) {
+    parts.push(`예약 작업 백업 ${changed}개는 파일이 바뀐 것 같아 되돌리지 않았어요.`);
+  }
+  if (legacy > 0) {
+    parts.push(`예약 작업 백업 ${legacy}개는 기록이 오래되어 자동으로 되돌리지 않았어요.`);
+  }
+  if (unsafe > 0) parts.push(`${unsafe}개는 안전 확인이 필요해 멈췄어요.`);
+  if (restoreFailed > 0) parts.push(`${restoreFailed}개는 되돌리는 중 문제가 생겼어요.`);
+
+  return parts.length > 0 ? parts.join(" ") : "";
+}
+
 export function summarizeRestoreAllResults(
   trashResults: CleanupTrashRestoreResult[],
   registryResults: RegistryBackupRestoreResult[],
   unexpectedFailureCount = 0,
-  startupResults: StartupFolderToggleResult[] = []
+  startupResults: StartupFolderToggleResult[] = [],
+  scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = []
 ): string {
   const parts = [
     trashResults.length > 0 ? summarizeTrashRestoreResults(trashResults) : "",
     summarizeRegistryBackupRestoreResults(registryResults),
     summarizeStartupFolderRestoreResults(startupResults),
+    summarizeScheduledTaskBackupRestoreResults(scheduledTaskResults),
     unexpectedFailureCount > 0
       ? `${unexpectedFailureCount}개는 연결 문제로 되돌리지 못했어요.`
       : ""

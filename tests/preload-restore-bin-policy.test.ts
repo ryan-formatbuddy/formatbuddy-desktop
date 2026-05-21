@@ -8,6 +8,7 @@ const RETENTION_PURGE = join(__dirname, "..", "src", "main", "retentionPurge.ts"
 const TRASH_AUDIT = join(__dirname, "..", "src", "main", "cleanup", "trashAudit.ts");
 const REGISTRY_AUDIT = join(__dirname, "..", "src", "main", "apps", "registryBackupAudit.ts");
 const STARTUP_AUDIT = join(__dirname, "..", "src", "main", "startup", "folderToggleAudit.ts");
+const SCHEDULED_TASK_AUDIT = join(__dirname, "..", "src", "main", "startup", "scheduledTaskBackupAudit.ts");
 
 describe("restore-bin preload policy", () => {
   it("exposes restore actions without exposing a manual empty-bin bridge", () => {
@@ -20,6 +21,8 @@ describe("restore-bin preload policy", () => {
     expect(preloadSource).toContain("restoreRegistryBackup");
     expect(preloadSource).toContain("listDisabledStartupAuto");
     expect(preloadSource).toContain("restoreStartupAuto");
+    expect(preloadSource).toContain("getScheduledTaskBackups");
+    expect(preloadSource).toContain("restoreScheduledTaskBackup");
     expect(preloadSource).not.toContain("purgeExpiredCleanupTrash");
     expect(preloadSource).not.toContain("cleanupTrashPurgeExpired");
     expect(ipcSource).not.toContain("cleanupTrashPurgeExpired");
@@ -27,7 +30,7 @@ describe("restore-bin preload policy", () => {
 
   it("keeps automatic restore-bin emptying triggers limited to startup and schedule", () => {
     const retentionSource = readFileSync(RETENTION_PURGE, "utf8");
-    const auditSources = [TRASH_AUDIT, REGISTRY_AUDIT, STARTUP_AUDIT].map((file) =>
+    const auditSources = [TRASH_AUDIT, REGISTRY_AUDIT, STARTUP_AUDIT, SCHEDULED_TASK_AUDIT].map((file) =>
       readFileSync(file, "utf8")
     );
 

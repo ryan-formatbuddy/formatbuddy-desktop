@@ -148,10 +148,11 @@ describe("cleanup policy wiring", () => {
     ).toBeGreaterThan(appLeftoversIndex);
     expect(
       source.indexOf(
-        "const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length",
+        "const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result)",
         appLeftoversIndex
       )
     ).toBeGreaterThan(appLeftoversIndex);
+    expect(source.indexOf("scheduledTaskBackupIds.length", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
     expect(
       source.indexOf(
         'const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length',

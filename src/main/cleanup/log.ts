@@ -128,7 +128,7 @@ function coerceLog(value: unknown): PersistedLog {
 }
 
 function countedFreedBytes(item: CleanupExecutedItem): number {
-  if (item.registryBackupId || item.startupDisabledId) return 0;
+  if (item.registryBackupId || item.startupDisabledId || item.scheduledTaskBackupId) return 0;
   return item.sizeBytes;
 }
 
@@ -159,7 +159,8 @@ function isRestorableExecutedItem(item: CleanupExecutedItem, executedAt: string)
   return (
     isSafeRestoreHandle(item.trashEntryId) ||
     isSafeRestoreHandle(item.registryBackupId) ||
-    isSafeRestoreHandle(item.startupDisabledId)
+    isSafeRestoreHandle(item.startupDisabledId) ||
+    isSafeRestoreHandle(item.scheduledTaskBackupId)
   );
 }
 

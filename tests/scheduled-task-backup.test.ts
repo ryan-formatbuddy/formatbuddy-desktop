@@ -1,0 +1,162 @@
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { promises as fs, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import {
+  backupAndDeleteScheduledTask,
+  listScheduledTaskBackups,
+  purgeExpiredScheduledTaskBackups,
+  restoreScheduledTaskBackup,
+  type ScheduledTaskBackupRunner
+} from "../src/main/startup/scheduledTaskBackup";
+
+interface Fixture {
+  root: string;
+  userDataDir: string;
+  cleanup: () => void;
+}
+
+function makeFixture(): Fixture {
+  const root = mkdtempSync(join(tmpdir(), "fb-task-backup-"));
+  return {
+    root,
+    userDataDir: join(root, "userdata"),
+    cleanup: () => rmSync(root, { recursive: true, force: true })
+  };
+}
+
+function makeRunner(state = { exists: true }): ScheduledTaskBackupRunner {
+  return {
+    exportTask: vi.fn(async (_taskName, _taskPath, backupPath) => {
+      await fs.mkdir(dirname(backupPath), { recursive: true });
+      await fs.writeFile(
+        backupPath,
+        '<?xml version="1.0" encoding="UTF-16"?><Task version="1.4"></Task>',
+        "utf8"
+      );
+    }),
+    deleteTask: vi.fn(async () => {
+      state.exists = false;
+    }),
+    restoreTask: vi.fn(async () => {
+      state.exists = true;
+    }),
+    taskExists: vi.fn(async () => state.exists)
+  };
+}
+
+describe("scheduled task backup", () => {
+  let fx: Fixture;
+
+  beforeEach(() => {
+    fx = makeFixture();
+  });
+
+  afterEach(() => {
+    fx.cleanup();
+  });
+
+  it("exports and deletes a scheduled task with a 30-day restorable backup", async () => {
+    const runner = makeRunner();
+
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(backup).toMatchObject({
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      expiresAt: "2026-06-18T00:00:00.000Z",
+      integrityStatus: "verified"
+    });
+    expect(runner.exportTask).toHaveBeenCalledWith(
+      "Acme Notes Update",
+      "\\Acme\\",
+      expect.stringContaining("task.xml")
+    );
+    expect(runner.deleteTask).toHaveBeenCalledWith("Acme Notes Update", "\\Acme\\");
+
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toHaveLength(1);
+    expect(snapshot.entries[0].id).toBe(backup.id);
+  });
+
+  it("restores a scheduled task from the backup and removes the backup item", async () => {
+    const state = { exists: true };
+    const runner = makeRunner(state);
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    const result = await restoreScheduledTaskBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner
+    });
+
+    expect(result).toMatchObject({
+      status: "restored",
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\"
+    });
+    expect(runner.restoreTask).toHaveBeenCalledWith(
+      "Acme Notes Update",
+      "\\Acme\\",
+      expect.stringContaining("task.xml")
+    );
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("auto-purges expired scheduled task backups after 30 days", async () => {
+    const runner = makeRunner();
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-01T00:00:00.000Z"),
+      runner
+    });
+
+    const purged = await purgeExpiredScheduledTaskBackups({
+      userDataDir: fx.userDataDir,
+      now: () => new Date("2026-06-01T00:00:00.000Z")
+    });
+
+    expect(purged).toMatchObject({
+      purgedCount: 1,
+      purgedIds: [backup.id],
+      retentionDays: 30
+    });
+    expect(purged.purgedBytes).toBeGreaterThan(0);
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
+  it("blocks unsafe scheduled task metadata before exporting", async () => {
+    const runner = makeRunner();
+
+    await expect(
+      backupAndDeleteScheduledTask({
+        userDataDir: fx.userDataDir,
+        taskName: "Bad | Task",
+        taskPath: "\\Acme\\",
+        runner
+      })
+    ).rejects.toThrow(/예약 작업 정보/);
+    expect(runner.exportTask).not.toHaveBeenCalled();
+    expect(runner.deleteTask).not.toHaveBeenCalled();
+  });
+});

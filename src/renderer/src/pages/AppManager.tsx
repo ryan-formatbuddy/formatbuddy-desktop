@@ -10,6 +10,7 @@ import {
 import {
   preservedRegistryBackupIds,
   recoverableRegistryBackupIds,
+  restorableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
   summarizeRestoreAllResults
@@ -30,6 +31,7 @@ import type {
   AppUninstallResult,
   CleanupTrashRestoreResult,
   RegistryBackupRestoreResult,
+  ScheduledTaskBackupRestoreResult,
   StartupFolderToggleResult
 } from "@shared/types";
 
@@ -62,6 +64,7 @@ type LeftoverCleanupConfirm = {
   shortcutCount: number;
   backupCount: number;
   startupHoldCount: number;
+  scheduledTaskCount: number;
 };
 
 type UninstallConfirm = AppManagerItem;
@@ -143,6 +146,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const fileOrFolderCount = restorableTrashEntryIds(result).length;
   const backupCount = recoverableRegistryBackupIds(result).length;
   const startupCount = restorableStartupDisabledIds(result).length;
+  const scheduledTaskCount = restorableScheduledTaskBackupIds(result).length;
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
     result.skippedItems.filter((item) => item.reason !== "not-selected").length;
@@ -157,6 +161,9 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   }
   if (startupCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
+  }
+  if (scheduledTaskCount > 0) {
+    lines.push(`예약 작업 ${scheduledTaskCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (untouchedCount > 0) {
     lines.push(`건드리지 않은 항목 ${untouchedCount}개는 그대로 뒀어요.`);
@@ -253,7 +260,8 @@ function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const restorableCount =
     restorableTrashEntryIds(result).length +
     recoverableRegistryBackupIds(result).length +
-    restorableStartupDisabledIds(result).length;
+    restorableStartupDisabledIds(result).length +
+    restorableScheduledTaskBackupIds(result).length;
 
   if (cleanedCount > 0 && restorableCount > 0) {
     return `${cleanedCount}개를 정리했고, ${restorableCount}개는 30일 안에 되돌릴 수 있어요.`;
@@ -287,7 +295,10 @@ function buildLeftoverCleanupConfirm(
     folderCount: paths.filter((path) => path.kind === "folder" || path.kind === "install-folder").length,
     shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "shortcut-folder").length,
     backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
-    startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length
+    startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length,
+    scheduledTaskCount: paths.filter(
+      (path) => path.kind === "startup-entry" && path.startupEntryKind === "scheduled-task"
+    ).length
   };
 }
 
@@ -483,6 +494,7 @@ function AppLeftoverConfirmDialog({
           <li>바탕화면·시작 메뉴 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
           <li>앱 삭제 흔적/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
+          <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
         </ul>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
@@ -1041,14 +1053,21 @@ export function AppManager({
       const entryIds = restorableTrashEntryIds(result);
       const registryBackupIds = recoverableRegistryBackupIds(result);
       const startupDisabledIds = restorableStartupDisabledIds(result);
-      if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
+      const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+      if (
+        entryIds.length === 0 &&
+        registryBackupIds.length === 0 &&
+        startupDisabledIds.length === 0 &&
+        scheduledTaskBackupIds.length === 0
+      ) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
       const missingRestoreBridge =
         (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
         (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
-        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto);
+        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) ||
+        (scheduledTaskBackupIds.length > 0 && !window.fb?.restoreScheduledTaskBackup);
       if (missingRestoreBridge) {
         setRecentRestoreMessage(
           "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
@@ -1062,6 +1081,7 @@ export function AppManager({
         const results: CleanupTrashRestoreResult[] = [];
         const registryResults: RegistryBackupRestoreResult[] = [];
         const startupResults: StartupFolderToggleResult[] = [];
+        const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
         let restoreFailureCount = 0;
         for (const entryId of entryIds) {
           try {
@@ -1086,8 +1106,23 @@ export function AppManager({
             restoreFailureCount += 1;
           }
         }
+        for (const backupId of scheduledTaskBackupIds) {
+          try {
+            if (window.fb?.restoreScheduledTaskBackup) {
+              scheduledTaskResults.push(await window.fb.restoreScheduledTaskBackup({ backupId }));
+            }
+          } catch {
+            restoreFailureCount += 1;
+          }
+        }
         setRecentRestoreMessage(
-          summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)
+          summarizeRestoreAllResults(
+            results,
+            registryResults,
+            restoreFailureCount,
+            startupResults,
+            scheduledTaskResults
+          )
         );
         await loadLeftovers();
       } finally {

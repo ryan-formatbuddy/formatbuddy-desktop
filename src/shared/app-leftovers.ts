@@ -54,10 +54,11 @@ export function summarizeLeftoverSnapshot(snapshot: AppLeftoversSnapshot): {
 }
 
 export function leftoverPathNeedsManualCheck(
-  path: Pick<AppLeftoverPath, "kind" | "protectedBy">
+  path: Pick<AppLeftoverPath, "kind" | "protectedBy" | "startupEntryKind">
 ): boolean {
   return (
-    path.kind === "startup-entry" ||
+    (path.kind === "startup-entry" &&
+      (path.startupEntryKind !== "scheduled-task" || Boolean(path.protectedBy))) ||
     (path.kind === "startup-registry" && Boolean(path.protectedBy))
   );
 }

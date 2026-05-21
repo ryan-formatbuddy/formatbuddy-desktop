@@ -32,6 +32,8 @@ export const IpcChannels = {
   cleanupTrashRestore: "cleanup-trash:restore",
   registryBackupsList: "registry-backups:list",
   registryBackupRestore: "registry-backups:restore",
+  scheduledTaskBackupsList: "scheduled-task-backups:list",
+  scheduledTaskBackupRestore: "scheduled-task-backups:restore",
   appsList: "apps:list",
   appsUninstall: "apps:uninstall",
   appsLeftovers: "apps:leftovers",

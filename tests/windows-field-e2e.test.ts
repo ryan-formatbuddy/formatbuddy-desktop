@@ -28,6 +28,11 @@ import {
   purgeExpiredRegistryBackups,
   restoreRegistryBackup
 } from "../src/main/apps/registryCleanup";
+import {
+  backupAndDeleteScheduledTask,
+  purgeExpiredScheduledTaskBackups,
+  restoreScheduledTaskBackup
+} from "../src/main/startup/scheduledTaskBackup";
 import { runRetentionPurgeTick } from "../src/main/retentionPurge";
 
 const execFileAsync = promisify(execFile);
@@ -118,6 +123,21 @@ async function scheduledTaskExists(taskName: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function createFieldScheduledTask(): Promise<void> {
+  await runSchtasks([
+    "/Create",
+    "/TN",
+    FIELD_TASK_NAME,
+    "/SC",
+    "ONCE",
+    "/ST",
+    "23:59",
+    "/TR",
+    "cmd.exe /c exit 0",
+    "/F"
+  ]);
 }
 
 fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
@@ -308,6 +328,38 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(false);
   }, 45_000);
 
+  it("backs up, removes, and restores an isolated scheduled task cleanup trace", async () => {
+    root = mkdtempSync(join(tmpdir(), "fb-windows-field-task-backup-"));
+    userDataDir = join(root, "userdata");
+    const firstAt = new Date("2026-05-20T10:30:00.000Z");
+    const restoredAt = new Date("2026-05-20T10:35:00.000Z");
+
+    await createFieldScheduledTask();
+    expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(true);
+
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir,
+      taskName: FIELD_TASK_NAME,
+      taskPath: "\\",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
+    expect(backup.expiresAt).toBe("2026-06-19T10:30:00.000Z");
+    expect(backup.contentHash?.algorithm).toBe("sha256");
+    expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(false);
+
+    const restored = await restoreScheduledTaskBackup({
+      userDataDir,
+      backupId: backup.id,
+      now: () => restoredAt
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(restored.entry?.taskName).toBe(FIELD_TASK_NAME);
+    expect(await scheduledTaskExists(FIELD_TASK_NAME)).toBe(true);
+  }, 45_000);
+
   it("backs up, removes, and restores an isolated uninstall registry key", async () => {
     root = mkdtempSync(join(tmpdir(), "fb-windows-field-registry-"));
     userDataDir = join(root, "userdata");
@@ -409,6 +461,15 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt
     });
 
+    await createFieldScheduledTask();
+    const taskBackup = await backupAndDeleteScheduledTask({
+      userDataDir,
+      taskName: FIELD_TASK_NAME,
+      taskPath: "\\",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
+
     const purge = await runRetentionPurgeTick({
       trigger: "scheduled",
       purgeTrash: () =>
@@ -426,6 +487,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
         purgeExpiredStartupFolderEntries({
           userDataDir,
           now: () => purgeAt
+        }),
+      purgeScheduledTaskBackups: () =>
+        purgeExpiredScheduledTaskBackups({
+          userDataDir,
+          now: () => purgeAt
         })
     });
 
@@ -433,8 +499,10 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(purge.trash?.purgedEntryIds).toEqual([trashed.id]);
     expect(purge.registryBackups?.purgedIds).toEqual([registryBackup.id]);
     expect(purge.startupDisabled?.purgedIds).toEqual([disabledStartup.entry!.id]);
+    expect(purge.scheduledTaskBackups?.purgedIds).toEqual([taskBackup.id]);
     expect(existsSync(trashed.storedPath)).toBe(false);
     expect(existsSync(registryBackup.backupPath)).toBe(false);
     expect(existsSync(disabledStartup.entry!.storedPath)).toBe(false);
+    expect(existsSync(taskBackup.backupPath)).toBe(false);
   }, 90_000);
 });

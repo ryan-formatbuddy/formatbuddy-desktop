@@ -25,6 +25,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("앱 삭제 흔적 백업");
     expect(source).toContain("시작 항목 백업");
     expect(source).toContain("잠시 꺼둔 시작 항목");
+    expect(source).toContain("예약 작업 백업");
     expect(source).toContain("registryBackupRestoreButtonLabel");
     expect(source).not.toContain("시작 레지스트리 백업");
   });
@@ -59,6 +60,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('kind: "file"');
     expect(source).toContain('kind: "registry"');
     expect(source).toContain('kind: "startup"');
+    expect(source).toContain('kind: "scheduled-task"');
     expect(source).not.toContain("entries.map((entry, idx)");
     expect(source).not.toContain("registryEntries.map((entry, idx)");
   });
@@ -71,13 +73,15 @@ describe("TrashRestore copy", () => {
     expect(source).toContain("restoreAllFailureCount += 1");
     expect(source).toContain("startupResults");
     expect(source).toContain("restoreStartupAuto({ disabledId: item.entry.id })");
+    expect(source).toContain("scheduledTaskResults");
+    expect(source).toContain("restoreScheduledTaskBackup({ backupId: item.entry.id })");
   });
 
   it("includes app deletion trace backup bytes in the restore bin total", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
 
     expect(source).toContain("registryBytes");
-    expect(source).toContain("snapshot.totalBytes + registryBytes");
+    expect(source).toContain("snapshot.totalBytes + registryBytes + scheduledTaskBytes");
     expect(source).toContain("{formatBytes(entry.sizeBytes)} · 보낸 시각");
   });
 
@@ -93,6 +97,7 @@ describe("TrashRestore copy", () => {
 
     expect(source).toContain("summarizeTrashRestoreResults([result])");
     expect(source).toContain("summarizeRegistryBackupRestoreResults([result])");
+    expect(source).toContain("summarizeScheduledTaskBackupRestoreResults([result])");
     expect(source).not.toContain("setToast(result.message)");
   });
 

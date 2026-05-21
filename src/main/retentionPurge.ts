@@ -5,6 +5,8 @@ import type {
   RegistryBackupPurgeResult,
   RestoreBinPurgeKind,
   RestoreBinPurgeResult,
+  ScheduledTaskBackupPurgedItem,
+  ScheduledTaskBackupPurgeResult,
   StartupDisabledPurgedItem,
   StartupDisabledPurgeResult
 } from "@shared/types";
@@ -19,6 +21,7 @@ export interface RetentionPurgeTickDeps {
   purgeTrash: (trigger: RetentionPurgeTrigger) => Promise<CleanupTrashPurgeResult>;
   purgeRegistryBackups: (trigger: RetentionPurgeTrigger) => Promise<RegistryBackupPurgeResult>;
   purgeStartupDisabled?: (trigger: RetentionPurgeTrigger) => Promise<StartupDisabledPurgeResult>;
+  purgeScheduledTaskBackups?: (trigger: RetentionPurgeTrigger) => Promise<ScheduledTaskBackupPurgeResult>;
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
 }
@@ -39,13 +42,15 @@ export interface RetentionPurgeAuditNotice {
 const PURGE_FAILURE_MESSAGES: Record<RestoreBinPurgeKind, string> = {
   trash: "파일 복구함을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
   "registry-backups": "앱 삭제 흔적 백업을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
-  "startup-disabled": "잠시 꺼둔 시작 항목을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
+  "startup-disabled": "잠시 꺼둔 시작 항목을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요.",
+  "scheduled-task-backups": "예약 작업 백업을 지금 확인하지 못했어요. 다음 자동 비움 때 다시 시도할게요."
 };
 
 const PURGE_KIND_LABELS: Record<RestoreBinPurgeKind, string> = {
   trash: "파일 복구함",
   "registry-backups": "앱 삭제 흔적 백업",
-  "startup-disabled": "잠시 꺼둔 시작 항목"
+  "startup-disabled": "잠시 꺼둔 시작 항목",
+  "scheduled-task-backups": "예약 작업 백업"
 };
 
 const CLEANUP_TRASH_PURGED_CATEGORY_IDS = [
@@ -196,6 +201,29 @@ function normalizeStartupDisabledPurgedItems(
   return items;
 }
 
+function normalizeScheduledTaskBackupPurgedItems(
+  value: unknown,
+  allowedIds: Set<string>
+): ScheduledTaskBackupPurgedItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seen = new Set<string>();
+  const items: ScheduledTaskBackupPurgedItem[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Partial<ScheduledTaskBackupPurgedItem>;
+    if (!item.id || !allowedIds.has(item.id) || seen.has(item.id)) continue;
+    const label = sanitizePurgeLabel(item.label);
+    if (!label) continue;
+    seen.add(item.id);
+    items.push({
+      id: item.id,
+      label,
+      sizeBytes: coerceNonNegativeInteger(item.sizeBytes)
+    });
+  }
+  return items;
+}
+
 function normalizeTrashPurgeResult(result: CleanupTrashPurgeResult): CleanupTrashPurgeResult {
   const purgedEntryIds = coerceSafeIdList(result.purgedEntryIds);
   const purgedIdSet = new Set(purgedEntryIds);
@@ -241,6 +269,22 @@ function normalizeStartupDisabledPurgeResult(
   };
 }
 
+function normalizeScheduledTaskBackupPurgeResult(
+  result: ScheduledTaskBackupPurgeResult
+): ScheduledTaskBackupPurgeResult {
+  const purgedIds = coerceSafeIdList(result.purgedIds);
+  const purgedIdSet = new Set(purgedIds);
+  return {
+    ...result,
+    purgedCount: purgedIds.length,
+    purgedBytes: coerceNonNegativeInteger(result.purgedBytes),
+    purgedIds,
+    purgedItems: normalizeScheduledTaskBackupPurgedItems(result.purgedItems, purgedIdSet),
+    failedIds: coerceOptionalSafeIdList(result.failedIds),
+    retentionDays: coerceRetentionDays(result.retentionDays)
+  };
+}
+
 function recordPartialTrashFailure(
   result: RetentionPurgeTickResult,
   deps: RetentionPurgeTickDeps
@@ -274,12 +318,24 @@ function recordPartialStartupDisabledFailure(
   deps.logWarn?.(`30일 자동 비움 잠시 꺼둔 시작 항목 일부 실패: ${failedCount}개`);
 }
 
+function recordPartialScheduledTaskBackupFailure(
+  result: RetentionPurgeTickResult,
+  deps: RetentionPurgeTickDeps
+): void {
+  const failedCount = result.scheduledTaskBackups?.failedIds?.length ?? 0;
+  if (failedCount === 0) return;
+  const message = `예약 작업 백업 ${failedCount}개를 아직 비우지 못했어요.`;
+  result.failed.push({ kind: "scheduled-task-backups", message });
+  deps.logWarn?.(`30일 자동 비움 예약 작업 백업 일부 실패: ${failedCount}개`);
+}
+
 function missingPurgeBuckets(result: RetentionPurgeTickResult): RestoreBinPurgeKind[] {
   const failedKinds = result.failed.map((failure) => failure.kind);
   const missingKinds = failedKinds.filter((kind) => {
     if (kind === "trash") return !result.trash;
     if (kind === "registry-backups") return !result.registryBackups;
-    return !result.startupDisabled;
+    if (kind === "startup-disabled") return !result.startupDisabled;
+    return !result.scheduledTaskBackups;
   });
   return Array.from(new Set(missingKinds));
 }
@@ -350,16 +406,31 @@ export async function runRetentionPurgeTick(
     }
   }
 
+  if (deps.purgeScheduledTaskBackups) {
+    try {
+      result.scheduledTaskBackups = normalizeScheduledTaskBackupPurgeResult(
+        await deps.purgeScheduledTaskBackups(deps.trigger)
+      );
+      recordPartialScheduledTaskBackupFailure(result, deps);
+    } catch (err) {
+      const message = errorMessage(err);
+      result.failed.push({
+        kind: "scheduled-task-backups",
+        message: PURGE_FAILURE_MESSAGES["scheduled-task-backups"]
+      });
+      deps.logWarn?.(`30일 자동 비움 예약 작업 백업 실패: ${message}`);
+    }
+  }
+
   const trashCount = result.trash?.purgedCount ?? 0;
   const registryCount = result.registryBackups?.purgedCount ?? 0;
   const startupCount = result.startupDisabled?.purgedCount ?? 0;
-  if (trashCount > 0 || registryCount > 0 || startupCount > 0) {
-    const summary = `파일 ${trashCount}개, 앱 삭제 흔적 백업 ${registryCount}개`;
-    deps.logInfo?.(
-      result.startupDisabled
-        ? `30일 자동 비움: ${summary}, 잠시 꺼둔 시작 항목 ${startupCount}개`
-        : `30일 자동 비움: ${summary}`
-    );
+  const scheduledTaskCount = result.scheduledTaskBackups?.purgedCount ?? 0;
+  if (trashCount > 0 || registryCount > 0 || startupCount > 0 || scheduledTaskCount > 0) {
+    const summaryParts = [`파일 ${trashCount}개`, `앱 삭제 흔적 백업 ${registryCount}개`];
+    if (result.startupDisabled) summaryParts.push(`잠시 꺼둔 시작 항목 ${startupCount}개`);
+    if (result.scheduledTaskBackups) summaryParts.push(`예약 작업 백업 ${scheduledTaskCount}개`);
+    deps.logInfo?.(`30일 자동 비움: ${summaryParts.join(", ")}`);
   }
 
   return result;

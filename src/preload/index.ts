@@ -38,6 +38,9 @@ import type {
   RegistryBackupRestoreRequest,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
+  ScheduledTaskBackupRestoreRequest,
+  ScheduledTaskBackupRestoreResult,
+  ScheduledTaskBackupSnapshot,
   ScanError,
   ScanProgress,
   ScanReport,
@@ -169,6 +172,14 @@ const fb = {
     request: RegistryBackupRestoreRequest
   ): Promise<RegistryBackupRestoreResult> =>
     ipcRenderer.invoke(IpcChannels.registryBackupRestore, request),
+
+  getScheduledTaskBackups: (): Promise<ScheduledTaskBackupSnapshot> =>
+    ipcRenderer.invoke(IpcChannels.scheduledTaskBackupsList),
+
+  restoreScheduledTaskBackup: (
+    request: ScheduledTaskBackupRestoreRequest
+  ): Promise<ScheduledTaskBackupRestoreResult> =>
+    ipcRenderer.invoke(IpcChannels.scheduledTaskBackupRestore, request),
 
   listApps: (): Promise<AppManagerSnapshot> => ipcRenderer.invoke(IpcChannels.appsList),
 

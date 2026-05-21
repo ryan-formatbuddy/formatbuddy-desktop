@@ -11,6 +11,7 @@ import {
   recoverableRegistryBackupIds,
   registryBackupKindLabel,
   restorableRegistryBackupIds,
+  restorableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds
 } from "@shared/cleanup-result";
@@ -44,6 +45,9 @@ import type {
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
   RestoreBinPurgeResult,
+  ScheduledTaskBackupRestoreRequest,
+  ScheduledTaskBackupRestoreResult,
+  ScheduledTaskBackupSnapshot,
   ScanError,
   ScanProgress,
   ScanStartRequest,
@@ -81,6 +85,11 @@ import {
 } from "./startup/folderToggle";
 import { normalizeStartupFolderRestoreRequest } from "./startup/folderToggleRequestPolicy";
 import { purgeExpiredStartupFolderEntriesWithAudit } from "./startup/folderToggleAudit";
+import {
+  listScheduledTaskBackups,
+  restoreScheduledTaskBackup
+} from "./startup/scheduledTaskBackup";
+import { purgeExpiredScheduledTaskBackupsWithAudit } from "./startup/scheduledTaskBackupAudit";
 import { buildAppManagerSnapshot } from "./apps/manager";
 import { cleanupAppLeftovers, planAppLeftovers } from "./apps/leftovers";
 import { probeInstalledAppsForLeftoverGuard } from "./apps/installedAppsProbe";
@@ -311,6 +320,11 @@ async function runAppRetentionPurgeTick(
       }),
     purgeStartupDisabled: (purgeTrigger) =>
       purgeExpiredStartupFolderEntriesWithAudit({
+        userDataDir,
+        trigger: purgeTrigger
+      }),
+    purgeScheduledTaskBackups: (purgeTrigger) =>
+      purgeExpiredScheduledTaskBackupsWithAudit({
         userDataDir,
         trigger: purgeTrigger
       }),
@@ -1098,6 +1112,48 @@ function registerIpc() {
     }
   );
 
+  ipcMain.handle(IpcChannels.scheduledTaskBackupsList, async (): Promise<ScheduledTaskBackupSnapshot> => {
+    await purgeExpiredScheduledTaskBackupsWithAudit({
+      userDataDir: app.getPath("userData"),
+      trigger: "scheduled-task-list"
+    }).catch((err) => {
+      log.warn("scheduled-task-backup:purge-before-list failed:", (err as Error).message);
+    });
+    return listScheduledTaskBackups({ userDataDir: app.getPath("userData") });
+  });
+
+  ipcMain.handle(
+    IpcChannels.scheduledTaskBackupRestore,
+    async (_e, request: ScheduledTaskBackupRestoreRequest): Promise<ScheduledTaskBackupRestoreResult> => {
+      const userDataDir = app.getPath("userData");
+      await purgeExpiredScheduledTaskBackupsWithAudit({
+        userDataDir,
+        trigger: "scheduled-task-restore"
+      }).catch((err) => {
+        log.warn("scheduled-task-backup:purge-before-restore failed:", (err as Error).message);
+      });
+      const result = await restoreScheduledTaskBackup({
+        userDataDir,
+        backupId: request?.backupId
+      });
+      await appendAuditEntry(userDataDir, {
+        category: "cleanup",
+        action: `scheduled-task-backup-restore-${result.status}`,
+        summary:
+          result.status === "restored"
+            ? "예약 작업을 복구함에서 되돌렸어요."
+            : `예약 작업 되돌리기 결과: ${result.message}`,
+        detail: {
+          backupId: result.backupId,
+          taskName: result.taskName,
+          taskPath: result.taskPath,
+          status: result.status
+        }
+      }).catch((e) => log.warn("audit append (scheduled-task-backup-restore) failed:", (e as Error).message));
+      return result;
+    }
+  );
+
   ipcMain.handle(IpcChannels.appsList, async (): Promise<AppManagerSnapshot> => {
     const cached = getLastScan();
     const userDataDir = app.getPath("userData");
@@ -1185,6 +1241,12 @@ function registerIpc() {
         }).catch((err) => {
           log.warn("startup-disabled:purge-before-app-leftovers failed:", (err as Error).message);
         });
+        await purgeExpiredScheduledTaskBackupsWithAudit({
+          userDataDir,
+          trigger: "app-leftovers"
+        }).catch((err) => {
+          log.warn("scheduled-task-backup:purge-before-app-leftovers failed:", (err as Error).message);
+        });
         const currentInstalledAppsProbe = await probeInstalledAppsForLeftoverGuard()
           .then((apps) => ({ known: true as const, apps }))
           .catch((err) => {
@@ -1208,7 +1270,12 @@ function registerIpc() {
         const preservedBackupIds = preservedRegistryBackupIds(result);
         const recoverableBackupIds = recoverableRegistryBackupIds(result);
         const startupDisabledIds = restorableStartupDisabledIds(result);
-        const removedCount = trashEntryIds.length + registryBackupIds.length + startupDisabledIds.length;
+        const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+        const removedCount =
+          trashEntryIds.length +
+          registryBackupIds.length +
+          startupDisabledIds.length +
+          scheduledTaskBackupIds.length;
         const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length;
         const notSelectedCount = result.skippedItems.filter((item) => item.reason === "not-selected").length;
         const summaryParts = [
@@ -1223,6 +1290,9 @@ function registerIpc() {
             : "",
           startupDisabledIds.length > 0
             ? `잠시 꺼둔 시작 항목 ${startupDisabledIds.length}개를 보관했어요`
+            : "",
+          scheduledTaskBackupIds.length > 0
+            ? `예약 작업 ${scheduledTaskBackupIds.length}개를 백업 후 정리했어요`
             : ""
         ].filter(Boolean);
         await appendAuditEntry(userDataDir, {
@@ -1243,11 +1313,13 @@ function registerIpc() {
             preservedRegistryBackupCount: preservedBackupIds.length,
             recoverableRegistryBackupCount: recoverableBackupIds.length,
             startupDisabledCount: startupDisabledIds.length,
+            scheduledTaskBackupCount: scheduledTaskBackupIds.length,
             trashEntryIds,
             registryBackupIds,
             preservedRegistryBackupIds: preservedBackupIds,
             recoverableRegistryBackupIds: recoverableBackupIds,
-            startupDisabledIds
+            startupDisabledIds,
+            scheduledTaskBackupIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
         return result;

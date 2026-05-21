@@ -15,8 +15,9 @@ const evidenceRequirements = [
   "startup-folder item is held for 30 days and restored",
   "HKCU Run value is backed up, disabled, and restored",
   "isolated Windows scheduled scan task is registered and removed",
+  "isolated scheduled task cleanup trace is backed up, removed, and restored",
   "uninstall registry key is backed up, removed, and restored",
-  "unified 30-day retention tick empties file, app-deletion, and startup holding bins"
+  "unified 30-day retention tick empties file, app-deletion, startup holding, and scheduled task backup bins"
 ];
 let stdoutTail = "";
 let stderrTail = "";

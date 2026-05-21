@@ -718,6 +718,8 @@ export interface CleanupExecutedItem {
   registryBackupId?: string;
   /** Present when a Startup folder item was held in FormatBuddy's 30-day bin. */
   startupDisabledId?: string;
+  /** Present when a scheduled task was exported before cleanup. */
+  scheduledTaskBackupId?: string;
   /** ISO-8601 UTC. FormatBuddy auto-deletes the trashed copy after this time. */
   expiresAt?: string;
   error?: string;
@@ -730,6 +732,8 @@ export interface CleanupSkippedItem {
   detail?: string;
   /** Present when cleanup could not confirm deletion but a restorable registry backup was preserved. */
   registryBackupId?: string;
+  /** Present when cleanup could not confirm deletion but a restorable scheduled task backup was preserved. */
+  scheduledTaskBackupId?: string;
   /** ISO-8601 UTC. Registry backups are auto-deleted after this time. */
   expiresAt?: string;
 }
@@ -918,12 +922,76 @@ export interface StartupDisabledPurgeResult {
   retentionDays: number;
 }
 
-export type RestoreBinPurgeKind = "trash" | "registry-backups" | "startup-disabled";
+export interface ScheduledTaskBackupEntry {
+  id: string;
+  taskName: string;
+  taskPath: string;
+  backupPath: string;
+  sizeBytes: number;
+  contentHash?: {
+    algorithm: "sha256";
+    value: string;
+  } | null;
+  integrityStatus?: "verified" | "changed" | "legacy";
+  appName?: string | null;
+  appPublisher?: string | null;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface ScheduledTaskBackupSnapshot {
+  entries: ScheduledTaskBackupEntry[];
+  retentionDays: number;
+  nextExpiryAt?: string;
+}
+
+export interface ScheduledTaskBackupRestoreRequest {
+  backupId: string;
+}
+
+export type ScheduledTaskBackupRestoreStatus =
+  | "restored"
+  | "not-found"
+  | "expired"
+  | "blocked-path"
+  | "missing-backup"
+  | "restore-failed";
+
+export interface ScheduledTaskBackupRestoreResult {
+  backupId: string;
+  status: ScheduledTaskBackupRestoreStatus;
+  message: string;
+  taskName?: string;
+  taskPath?: string;
+  entry?: ScheduledTaskBackupEntry;
+}
+
+export interface ScheduledTaskBackupPurgedItem {
+  id: string;
+  label: string;
+  sizeBytes: number;
+}
+
+export interface ScheduledTaskBackupPurgeResult {
+  purgedCount: number;
+  purgedBytes: number;
+  purgedIds: string[];
+  purgedItems?: ScheduledTaskBackupPurgedItem[];
+  failedIds?: string[];
+  retentionDays: number;
+}
+
+export type RestoreBinPurgeKind =
+  | "trash"
+  | "registry-backups"
+  | "startup-disabled"
+  | "scheduled-task-backups";
 
 export interface RestoreBinPurgeResult {
   trash?: CleanupTrashPurgeResult;
   registryBackups?: RegistryBackupPurgeResult;
   startupDisabled?: StartupDisabledPurgeResult;
+  scheduledTaskBackups?: ScheduledTaskBackupPurgeResult;
   failed: Array<{ kind: RestoreBinPurgeKind; message: string }>;
 }
 
@@ -1245,6 +1313,8 @@ export interface AppLeftoverPath {
   startupOrigin?: string | null;
   /** Service / scheduled-task provenance when kind === "startup-entry". */
   startupEntryKind?: StartupAutoKind | null;
+  /** Original Task Scheduler folder when startupEntryKind === "scheduled-task". */
+  scheduledTaskPath?: string | null;
   registryValueName?: string | null;
   exists: boolean;
   sizeBytes?: number | null;

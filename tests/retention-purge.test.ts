@@ -7,6 +7,7 @@ import {
 import type {
   CleanupTrashPurgeResult,
   RegistryBackupPurgeResult,
+  ScheduledTaskBackupPurgeResult,
   StartupDisabledPurgeResult
 } from "../src/shared/types";
 
@@ -241,6 +242,43 @@ describe("retention purge scheduler", () => {
     );
   });
 
+  it("purges scheduled task backups when the app retention tick provides that bin", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedEntryIds: [],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedIds: [],
+      retentionDays: 30
+    }));
+    const purgeScheduledTaskBackups = vi.fn(async () => ({
+      purgedCount: 1,
+      purgedBytes: 64,
+      purgedIds: ["task-a"],
+      retentionDays: 30
+    }));
+    const logInfo = vi.fn();
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups,
+      purgeScheduledTaskBackups,
+      logInfo
+    });
+
+    expect(purgeScheduledTaskBackups).toHaveBeenCalledWith("scheduled");
+    expect(result.failed).toEqual([]);
+    expect(result.scheduledTaskBackups?.purgedCount).toBe(1);
+    expect(logInfo).toHaveBeenCalledWith(
+      "30일 자동 비움: 파일 0개, 앱 삭제 흔적 백업 0개, 예약 작업 백업 1개"
+    );
+  });
+
   it("normalizes malformed purge results before logging counts", async () => {
     const purgeTrash = vi.fn(async () => ({
       purgedCount: 999,
@@ -270,6 +308,17 @@ describe("retention purge scheduler", () => {
       failedIds: ["startup-busy"],
       retentionDays: 0
     } as unknown as StartupDisabledPurgeResult));
+    const purgeScheduledTaskBackups = vi.fn(async () => ({
+      purgedCount: Number.NaN,
+      purgedBytes: Number.POSITIVE_INFINITY,
+      purgedIds: ["task-ok"],
+      purgedItems: [
+        { id: "task-ok", label: "Acme\nUpdate", sizeBytes: 9 },
+        { id: "task/unsafe", label: "Bad", sizeBytes: 1 }
+      ],
+      failedIds: ["task-busy"],
+      retentionDays: 0
+    } as unknown as ScheduledTaskBackupPurgeResult));
     const logInfo = vi.fn();
     const logWarn = vi.fn();
 
@@ -278,6 +327,7 @@ describe("retention purge scheduler", () => {
       purgeTrash,
       purgeRegistryBackups,
       purgeStartupDisabled,
+      purgeScheduledTaskBackups,
       logInfo,
       logWarn
     });
@@ -308,13 +358,24 @@ describe("retention purge scheduler", () => {
       failedIds: ["startup-busy"],
       retentionDays: 30
     });
+    expect(result.scheduledTaskBackups).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: 0,
+      purgedIds: ["task-ok"],
+      purgedItems: [
+        { id: "task-ok", label: "Acme Update", sizeBytes: 9 }
+      ],
+      failedIds: ["task-busy"],
+      retentionDays: 30
+    });
     expect(result.failed).toEqual([
       { kind: "trash", message: "파일 복구함 1개를 아직 비우지 못했어요." },
       { kind: "registry-backups", message: "앱 삭제 흔적 백업 1개를 아직 비우지 못했어요." },
-      { kind: "startup-disabled", message: "잠시 꺼둔 시작 항목 1개를 아직 비우지 못했어요." }
+      { kind: "startup-disabled", message: "잠시 꺼둔 시작 항목 1개를 아직 비우지 못했어요." },
+      { kind: "scheduled-task-backups", message: "예약 작업 백업 1개를 아직 비우지 못했어요." }
     ]);
     expect(logInfo).toHaveBeenCalledWith(
-      "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개"
+      "30일 자동 비움: 파일 1개, 앱 삭제 흔적 백업 1개, 잠시 꺼둔 시작 항목 1개, 예약 작업 백업 1개"
     );
   });
 
