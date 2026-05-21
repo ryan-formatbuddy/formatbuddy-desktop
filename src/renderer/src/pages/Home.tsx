@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent
+} from "react";
 import { Button, ArrowRight } from "../components/Button";
 import { Lockup } from "../components/Lockup";
 import { CloudBuddy } from "../components/CloudBuddy";
@@ -40,10 +46,10 @@ interface HomeProps {
 }
 
 const FORMAT_CHECK_ITEMS = [
-  { label: "공동인증서", detail: "NPKI 위치 확인" },
+  { label: "공동인증서", detail: "인증서 폴더 찾기" },
   { label: "카카오톡", detail: "백업 필요 여부" },
   { label: "개인 폴더", detail: "바탕화면·문서·다운로드" },
-  { label: "브라우저", detail: "즐겨찾기와 프로필" },
+  { label: "브라우저", detail: "즐겨찾기와 로그인 준비" },
   { label: "Wi-Fi", detail: "다시 연결할 네트워크" },
   { label: "드라이버", detail: "프린터·그래픽·오디오" },
   { label: "앱 목록", detail: "다시 깔 프로그램" }
@@ -66,6 +72,131 @@ const FORMAT_FLOW = [
     body: "포맷 전 체크 결과와 포맷 후 다시 챙길 순서를 한 장으로 정리해요."
   }
 ] as const;
+
+type HeroCheckState = "done" | "active" | "waiting";
+
+function heroCheckState(index: number, activeIndex: number): HeroCheckState {
+  if (index === activeIndex) return "active";
+  if (index < activeIndex) return "done";
+  return "waiting";
+}
+
+function heroStateLabel(state: HeroCheckState): string {
+  switch (state) {
+    case "done":
+      return "확인";
+    case "active":
+      return "보는 중";
+    case "waiting":
+      return "대기";
+  }
+}
+
+function FormatHeroStage() {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeItem = FORMAT_CHECK_ITEMS[activeIndex];
+  const previewItems = FORMAT_CHECK_ITEMS.slice(0, 4);
+  const checkedCount = Math.max(1, activeIndex + 1);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % FORMAT_CHECK_ITEMS.length);
+    }, 2400);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const rect = stage.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width - 0.5;
+    const y = (event.clientY - rect.top) / rect.height - 0.5;
+
+    stage.style.setProperty("--fb-home-tilt-x", `${(-y * 7).toFixed(2)}deg`);
+    stage.style.setProperty("--fb-home-tilt-y", `${(x * 9).toFixed(2)}deg`);
+    stage.style.setProperty("--fb-home-glow-x", `${((x + 0.5) * 100).toFixed(0)}%`);
+    stage.style.setProperty("--fb-home-glow-y", `${((y + 0.5) * 100).toFixed(0)}%`);
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    stage.style.setProperty("--fb-home-tilt-x", "0deg");
+    stage.style.setProperty("--fb-home-tilt-y", "0deg");
+    stage.style.setProperty("--fb-home-glow-x", "58%");
+    stage.style.setProperty("--fb-home-glow-y", "28%");
+  }, []);
+
+  return (
+    <div
+      ref={stageRef}
+      className="fb-home-interactive-stage"
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
+      aria-label="포맷 전 체크 미리보기"
+    >
+      <div className="fb-home-stage-aurora" aria-hidden="true" />
+      <div className="fb-home-live-bubble" aria-live="polite">
+        <span>{activeItem.label}</span>
+        <strong>{activeItem.detail}</strong>
+      </div>
+
+      <section className="fb-home-check-card" aria-label="버디 체크 상태">
+        <div className="fb-home-card-top">
+          <span>포맷 전 체크 중</span>
+          <strong>{checkedCount}/7</strong>
+        </div>
+        <div className="fb-home-buddy-wrap">
+          <div className="fb-home-buddy-halo" aria-hidden="true" />
+          <CloudBuddy size={126} variant="primary" expression="smile" ariaLabel="포맷버디" />
+        </div>
+        <div className="fb-home-score-panel">
+          <span>놓치기 쉬운 항목</span>
+          <strong>{activeItem.label}</strong>
+          <small>{activeItem.detail}</small>
+        </div>
+        <div className="fb-home-check-list">
+          {previewItems.map((item, index) => {
+            const state = heroCheckState(index, activeIndex);
+            return (
+              <div key={item.label} className={`fb-home-check-row fb-home-check-row-${state}`}>
+                <span className="fb-home-check-icon" aria-hidden="true">
+                  {state === "done" ? "✓" : index + 1}
+                </span>
+                <span>{item.label}</span>
+                <strong>{heroStateLabel(state)}</strong>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="fb-home-orbit" aria-label="체크 항목 바로 보기">
+        {FORMAT_CHECK_ITEMS.map((item, index) => (
+          <button
+            key={item.label}
+            type="button"
+            className={`fb-home-orbit-chip${index === activeIndex ? " is-active" : ""}`}
+            aria-pressed={index === activeIndex}
+            onClick={() => setActiveIndex(index)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="fb-home-stage-dock" aria-hidden="true">
+        <span />
+        <span className="is-on" />
+        <span />
+      </div>
+    </div>
+  );
+}
 
 function MonitorPrefsCard() {
   const [prefs, setPrefs] = useState<MonitorPreferences | null>(null);
@@ -687,11 +818,22 @@ export function Home({
           </h1>
           <p className="fb-lede">{isMacPreview ? copy.macHomeLede : copy.homeLede}</p>
           <div className="fb-home-cta">
-            <Button size="lg" variant="primary" onClick={onStartScan} iconRight={<ArrowRight />}>
+            <Button
+              className="fb-home-action-pop"
+              size="lg"
+              variant="primary"
+              onClick={onStartScan}
+              iconRight={<ArrowRight />}
+            >
               {isMacPreview ? copy.macHomeStartCta : copy.homeStartCta}
             </Button>
             {isMacPreview && onOpenWebReport && (
-              <Button size="lg" variant="secondary" onClick={onOpenWebReport}>
+              <Button
+                className="fb-home-action-pop fb-home-action-secondary"
+                size="lg"
+                variant="secondary"
+                onClick={onOpenWebReport}
+              >
                 {copy.homeOpenReportCta}
               </Button>
             )}
@@ -702,14 +844,8 @@ export function Home({
             </p>
           )}
         </div>
-        <div className="fb-home-hero-mark" aria-hidden="true">
-          <div className="fb-buddy-stage">
-            <span className="fb-buddy-orbit fb-buddy-orbit-1">인증서</span>
-            <span className="fb-buddy-orbit fb-buddy-orbit-2">카톡</span>
-            <span className="fb-buddy-orbit fb-buddy-orbit-3">Wi-Fi</span>
-            <CloudBuddy size={220} variant="primary" expression="smile" animated />
-            <span className="fb-buddy-stamp">포맷 전 체크</span>
-          </div>
+        <div className="fb-home-hero-mark">
+          <FormatHeroStage />
         </div>
       </section>
 
@@ -723,7 +859,7 @@ export function Home({
             {FORMAT_CHECK_ITEMS.map((item, idx) => (
               <article
                 key={item.label}
-                className="fb-format-item fb-anim-pop"
+                className="fb-format-item fb-home-lift-card fb-anim-pop"
                 style={{ animationDelay: `${Math.min(idx, 6) * 45}ms` }}
               >
                 <div className="fb-format-item-mark">{idx + 1}</div>
@@ -740,7 +876,7 @@ export function Home({
       {!isMacPreview && (
         <section className="fb-format-flow" aria-label="포맷 전 체크 진행 방식">
           {FORMAT_FLOW.map((item) => (
-            <article key={item.step}>
+            <article key={item.step} className="fb-home-lift-card">
               <span>{item.step}</span>
               <strong>{item.title}</strong>
               <p>{item.body}</p>

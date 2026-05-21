@@ -69,4 +69,19 @@ describe("Home monitor copy", () => {
     expect(source).toContain("자동 비움 기록 보기");
     expect(source).toContain("onOpenAuditLog");
   });
+
+  it("keeps the home hero interactive and focused on format checking", () => {
+    const source = readFileSync(HOME_PAGE, "utf8");
+
+    expect(source).toContain("FormatHeroStage");
+    expect(source).toContain("fb-home-interactive-stage");
+    expect(source).toContain("fb-home-orbit-chip");
+    expect(source).toContain("aria-pressed");
+    expect(source).toContain("포맷 전 체크 미리보기");
+    expect(source).toContain("체크 항목 바로 보기");
+    expect(source).toContain("인증서 폴더 찾기");
+    expect(source).toContain("즐겨찾기와 로그인 준비");
+    expect(source).not.toContain("NPKI 위치 확인");
+    expect(source).not.toContain("fb-buddy-stage");
+  });
 });
