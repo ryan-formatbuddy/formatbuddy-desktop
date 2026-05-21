@@ -7,20 +7,20 @@ export const copy = {
   appName: "포맷버디",
   appNameEn: "FORMAT BUDDY",
 
-  homeEyebrow: "PC 포맷 동행 데스크탑",
+  homeEyebrow: "포맷 전 안심 체크",
   homeTitle1: "포맷하기 전에,",
-  homeTitle2: "버디가 같이",
-  homeTitle3: "살펴볼게요.",
+  homeTitle2: "놓칠 것부터",
+  homeTitle3: "챙겨볼게요.",
   homeLede:
-    "공동인증서·카카오톡·드라이버·다운로드 파일까지. 포맷 전에 놓치기 쉬운 것들을 옆에서 챙기고, 복원 준비를 도와드려요.",
-  homeStartCta: "PC 점검 시작",
+    "공동인증서·카카오톡·개인 폴더·브라우저·Wi-Fi·드라이버까지. 포맷 전에 놓치면 귀찮은 것만 버디가 먼저 살펴봐요.",
+  homeStartCta: "포맷 전 체크 시작",
   homeOpenReportCta: "리포트 열기",
   macHomeEyebrow: "Mac 미리보기 모드",
   macHomeTitle1: "Mac에서는,",
   macHomeTitle2: "리포트를 먼저",
   macHomeTitle3: "보여드릴게요.",
   macHomeLede:
-    "실제 PC 점검은 Windows에서만 돌아요. Mac 앱에서는 시연용 리포트를 보거나, Windows에서 만든 리포트를 브라우저로 확인할 수 있어요.",
+    "실제 포맷 전 체크는 Windows에서만 돌아요. Mac 앱에서는 시연용 리포트를 보거나, Windows에서 만든 리포트를 브라우저로 확인할 수 있어요.",
   macHomeStartCta: "시연용 리포트 보기",
   macPreviewBullets: [
     "Mac에서는 내 파일을 검사하지 않아요",
@@ -106,7 +106,7 @@ export const copy = {
       tag: "01 / 03 · 미리보기",
       head: "Mac에서는 먼저",
       headEm: "리포트를 볼게요.",
-      body: "실제 PC 점검은 Windows에서만 돌아요. Mac 앱은 화면 확인과 시연용 리포트 확인에 집중해요."
+      body: "실제 포맷 전 체크는 Windows에서만 돌아요. Mac 앱은 화면 확인과 시연용 리포트 확인에 집중해요."
     },
     {
       tag: "02 / 03 · 확인",

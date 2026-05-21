@@ -86,6 +86,36 @@ const INITIAL_PROGRESS: ScanProgress = {
   ]
 };
 
+function scanErrorFromUnknown(error: unknown): ScanError {
+  const fallback = "포맷 전 체크를 시작하지 못했어요. 포맷버디를 다시 열고 한 번 더 눌러주세요.";
+  if (!error) return { message: fallback };
+  if (typeof error === "string") return { message: error || fallback };
+  if (typeof error !== "object") return { message: fallback };
+
+  const maybe = error as Partial<ScanError> & {
+    message?: unknown;
+    code?: unknown;
+    detail?: unknown;
+  };
+  return {
+    message: typeof maybe.message === "string" && maybe.message.trim() ? maybe.message : fallback,
+    code: typeof maybe.code === "string" ? maybe.code : undefined,
+    detail: typeof maybe.detail === "string" ? maybe.detail : undefined
+  };
+}
+
+function isScanCancelledError(error: unknown): boolean {
+  if (!error) return false;
+  const maybe = error as { name?: unknown; message?: unknown; detail?: unknown };
+  const text = [
+    typeof maybe.name === "string" ? maybe.name : "",
+    typeof maybe.message === "string" ? maybe.message : "",
+    typeof maybe.detail === "string" ? maybe.detail : "",
+    typeof error === "string" ? error : ""
+  ].join(" ");
+  return /abort|cancel|취소/i.test(text);
+}
+
 export function App() {
   const [phase, setPhase] = useState<Phase>(() =>
     readOnboardingSeen() ? { kind: "home" } : { kind: "onboarding" }
@@ -162,7 +192,7 @@ export function App() {
     };
   }, [completeScan]);
 
-  // Tray "PC 점검 시작" forwards through window.fb.onTrayTriggerScan.
+  // Tray "포맷 전 체크 시작" forwards through window.fb.onTrayTriggerScan.
   // We re-bind whenever startScan changes (which is never, since
   // startScan is memoized with no deps, but the lint rule wants it).
   useEffect(() => {
@@ -222,8 +252,13 @@ export function App() {
     try {
       const result = await window.fb.startScan(opts);
       completeScan(result);
-    } catch {
-      // 에러는 onScanError 이벤트로 처리
+    } catch (error) {
+      if (isScanCancelledError(error)) return;
+      if (!scanCompletionHandledRef.current) {
+        scanCompletionHandledRef.current = true;
+        afterScanTargetRef.current = null;
+        setPhase({ kind: "error", error: scanErrorFromUnknown(error) });
+      }
     }
   }, [completeScan]);
 

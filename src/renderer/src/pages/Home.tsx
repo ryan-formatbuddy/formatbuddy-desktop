@@ -39,6 +39,34 @@ interface HomeProps {
   onOpenSecurity?: () => void;
 }
 
+const FORMAT_CHECK_ITEMS = [
+  { label: "공동인증서", detail: "NPKI 위치 확인" },
+  { label: "카카오톡", detail: "백업 필요 여부" },
+  { label: "개인 폴더", detail: "바탕화면·문서·다운로드" },
+  { label: "브라우저", detail: "즐겨찾기와 프로필" },
+  { label: "Wi-Fi", detail: "다시 연결할 네트워크" },
+  { label: "드라이버", detail: "프린터·그래픽·오디오" },
+  { label: "앱 목록", detail: "다시 깔 프로그램" }
+] as const;
+
+const FORMAT_FLOW = [
+  {
+    step: "01",
+    title: "버디가 먼저 찾아요",
+    body: "앱이 확인할 수 있는 위치는 자동으로 살펴보고, 민감한 비밀번호는 보지 않아요."
+  },
+  {
+    step: "02",
+    title: "직접 볼 것만 남겨요",
+    body: "카톡 백업, 인증서, 개인 폴더처럼 사람이 확인해야 하는 항목은 따로 표시해요."
+  },
+  {
+    step: "03",
+    title: "4,900원 리포트로 저장",
+    body: "포맷 전 체크 결과와 포맷 후 다시 챙길 순서를 한 장으로 정리해요."
+  }
+] as const;
+
 function MonitorPrefsCard() {
   const [prefs, setPrefs] = useState<MonitorPreferences | null>(null);
   const [prefsMessage, setPrefsMessage] = useState<string | null>(null);
@@ -103,7 +131,7 @@ function MonitorPrefsCard() {
               disabled={busy}
               onChange={(e) => void update({ trayEnabled: e.target.checked })}
             />
-            <span>시스템 트레이 아이콘 표시 (PC 점검 시작 / 종료 메뉴)</span>
+            <span>시스템 트레이 아이콘 표시 (포맷 전 체크 시작 / 종료 메뉴)</span>
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14 }}>
             <input
@@ -650,6 +678,7 @@ export function Home({
 
       <section className="fb-home-hero">
         <div className="fb-home-hero-copy">
+          <span className="fb-home-format-price">내 PC용 체크 리포트 · 4,900원</span>
           <h1 className="fb-h1">
             {isMacPreview ? copy.macHomeTitle1 : copy.homeTitle1}
             <br />
@@ -667,76 +696,131 @@ export function Home({
               </Button>
             )}
           </div>
+          {!isMacPreview && (
+            <p className="fb-home-format-note">
+              지금은 포맷 전 체크에 집중해요. 정리·삭제·보안 기능은 필요할 때 아래 고급 도구에서 열 수 있어요.
+            </p>
+          )}
         </div>
-        <div className="fb-home-hero-mark">
-          <CloudBuddy size={220} variant="primary" expression="smile" animated />
-        </div>
-      </section>
-
-      <MonitorCard monitor={monitor} />
-
-      <HomeRestoreBinCard
-        onOpenTrashRestore={onOpenTrashRestore}
-        onOpenAuditLog={onOpenAuditLog}
-      />
-
-      <HomeSecuritySummaryCard isMacPreview={isMacPreview} onOpenSecurity={onOpenSecurity} />
-
-      <section className="fb-home-quick" aria-labelledby="home-quick-title">
-        <div className="fb-home-quick-head">
-          <h2 id="home-quick-title" className="fb-h2">
-            {copy.homeQuickTitle}
-          </h2>
-          <p>{copy.homeQuickLede}</p>
-        </div>
-        <div className="fb-home-quick-grid">
-          {onOpenCleanup && (
-            <button
-              type="button"
-              className="fb-home-quick-action"
-              onClick={onOpenCleanup}
-              disabled={isMacPreview}
-            >
-              <strong>{isMacPreview ? "안전 정리 (Windows 전용)" : copy.homeQuickCleanup}</strong>
-              <span>{copy.homeQuickCleanupHint}</span>
-            </button>
-          )}
-          {onOpenAppManager && (
-            <button
-              type="button"
-              className="fb-home-quick-action"
-              onClick={onOpenAppManager}
-              disabled={isMacPreview}
-            >
-              <strong>{isMacPreview ? "앱 정리 (Windows 전용)" : copy.homeQuickApps}</strong>
-              <span>{copy.homeQuickAppsHint}</span>
-            </button>
-          )}
-          {onOpenSecurity && (
-            <button
-              type="button"
-              className="fb-home-quick-action"
-              onClick={onOpenSecurity}
-              disabled={isMacPreview}
-            >
-              <strong>{isMacPreview ? "보안 점검 (Windows 전용)" : copy.homeQuickSecurity}</strong>
-              <span>{copy.homeQuickSecurityHint}</span>
-            </button>
-          )}
-          {onOpenTrashRestore && (
-            <button
-              type="button"
-              className="fb-home-quick-action"
-              onClick={onOpenTrashRestore}
-            >
-              <strong>{copy.homeQuickTrash}</strong>
-              <span>{copy.homeQuickTrashHint}</span>
-            </button>
-          )}
+        <div className="fb-home-hero-mark" aria-hidden="true">
+          <div className="fb-buddy-stage">
+            <span className="fb-buddy-orbit fb-buddy-orbit-1">인증서</span>
+            <span className="fb-buddy-orbit fb-buddy-orbit-2">카톡</span>
+            <span className="fb-buddy-orbit fb-buddy-orbit-3">Wi-Fi</span>
+            <CloudBuddy size={220} variant="primary" expression="smile" animated />
+            <span className="fb-buddy-stamp">포맷 전 체크</span>
+          </div>
         </div>
       </section>
 
-      <MonitorPrefsCard />
+      {!isMacPreview && (
+        <section className="fb-format-focus" aria-label="포맷 전 체크 항목">
+          <div className="fb-format-focus-head">
+            <span>버디가 챙길 것</span>
+            <strong>놓치면 귀찮은 7개만 먼저</strong>
+          </div>
+          <div className="fb-format-item-grid">
+            {FORMAT_CHECK_ITEMS.map((item, idx) => (
+              <article
+                key={item.label}
+                className="fb-format-item fb-anim-pop"
+                style={{ animationDelay: `${Math.min(idx, 6) * 45}ms` }}
+              >
+                <div className="fb-format-item-mark">{idx + 1}</div>
+                <div>
+                  <strong>{item.label}</strong>
+                  <span>{item.detail}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {!isMacPreview && (
+        <section className="fb-format-flow" aria-label="포맷 전 체크 진행 방식">
+          {FORMAT_FLOW.map((item) => (
+            <article key={item.step}>
+              <span>{item.step}</span>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </section>
+      )}
+
+      <details className="fb-home-advanced">
+        <summary>
+          <span>고급 도구</span>
+          <strong>정리·삭제·보안 기능은 필요할 때만 열어요</strong>
+        </summary>
+        <div className="fb-home-advanced-body">
+          <MonitorCard monitor={monitor} />
+
+          <HomeRestoreBinCard
+            onOpenTrashRestore={onOpenTrashRestore}
+            onOpenAuditLog={onOpenAuditLog}
+          />
+
+          <HomeSecuritySummaryCard isMacPreview={isMacPreview} onOpenSecurity={onOpenSecurity} />
+
+          <section className="fb-home-quick" aria-labelledby="home-quick-title">
+            <div className="fb-home-quick-head">
+              <h2 id="home-quick-title" className="fb-h2">
+                {copy.homeQuickTitle}
+              </h2>
+              <p>{copy.homeQuickLede}</p>
+            </div>
+            <div className="fb-home-quick-grid">
+              {onOpenCleanup && (
+                <button
+                  type="button"
+                  className="fb-home-quick-action"
+                  onClick={onOpenCleanup}
+                  disabled={isMacPreview}
+                >
+                  <strong>{isMacPreview ? "안전 정리 (Windows 전용)" : copy.homeQuickCleanup}</strong>
+                  <span>{copy.homeQuickCleanupHint}</span>
+                </button>
+              )}
+              {onOpenAppManager && (
+                <button
+                  type="button"
+                  className="fb-home-quick-action"
+                  onClick={onOpenAppManager}
+                  disabled={isMacPreview}
+                >
+                  <strong>{isMacPreview ? "앱 정리 (Windows 전용)" : copy.homeQuickApps}</strong>
+                  <span>{copy.homeQuickAppsHint}</span>
+                </button>
+              )}
+              {onOpenSecurity && (
+                <button
+                  type="button"
+                  className="fb-home-quick-action"
+                  onClick={onOpenSecurity}
+                  disabled={isMacPreview}
+                >
+                  <strong>{isMacPreview ? "보안 점검 (Windows 전용)" : copy.homeQuickSecurity}</strong>
+                  <span>{copy.homeQuickSecurityHint}</span>
+                </button>
+              )}
+              {onOpenTrashRestore && (
+                <button
+                  type="button"
+                  className="fb-home-quick-action"
+                  onClick={onOpenTrashRestore}
+                >
+                  <strong>{copy.homeQuickTrash}</strong>
+                  <span>{copy.homeQuickTrashHint}</span>
+                </button>
+              )}
+            </div>
+          </section>
+
+          <MonitorPrefsCard />
+        </div>
+      </details>
 
       <section className="fb-home-privacy">
         <h2 className="fb-h2">{copy.privacyHeadline}</h2>

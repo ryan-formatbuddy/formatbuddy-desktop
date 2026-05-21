@@ -6,7 +6,7 @@
  * quits, or when the app shuts down.
  *
  * Menu (kept intentionally short — tray menus are not a settings UI):
- *   - PC 점검 시작
+ *   - 포맷 전 체크 시작
  *   - FormatBuddy 열기
  *   - 종료
  *
@@ -65,7 +65,7 @@ export function createTray(handlers: TrayHandlers): Tray | null {
   tray.setToolTip("FormatBuddy");
   const menu = Menu.buildFromTemplate([
     {
-      label: "PC 점검 시작",
+      label: "포맷 전 체크 시작",
       click: () => {
         handlers.onShowWindow();
         handlers.onStartScan();
