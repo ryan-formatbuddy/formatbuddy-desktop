@@ -8,6 +8,7 @@ import {
   restorableRegistryBackupIds,
   registryBackupKindLabel,
   registryBackupRestoreButtonLabel,
+  restorableScheduledTaskBackupIds,
   restorableTrashEntryIds,
   restorableStartupDisabledIds,
   sortTrashEntriesByExpiry,
@@ -23,6 +24,7 @@ import type {
   CleanupTrashRestoreResult,
   RegistryBackupEntry,
   RegistryBackupRestoreResult,
+  ScheduledTaskBackupRestoreResult,
   StartupAutoDisabledEntry,
   StartupFolderToggleResult
 } from "../src/shared/types";
@@ -130,6 +132,47 @@ describe("Cleanup result undo helper", () => {
 
   it("returns only successful registry backup ids for immediate undo", () => {
     expect(restorableRegistryBackupIds(resultWithEntries())).toEqual(["registry-ok"]);
+  });
+
+  it("returns only successful scheduled task backup ids for immediate undo", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      ...resultWithEntries(),
+      removedItems: [
+        {
+          itemId: "scheduled-task-ok",
+          path: "Task Scheduler: Acme Update",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          scheduledTaskBackupId: "scheduled-task-ok",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "scheduled-task-failed",
+          path: "Task Scheduler: Broken Update",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: false,
+          scheduledTaskBackupId: "scheduled-task-failed",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "scheduled-task-unsafe",
+          path: "Task Scheduler: Unsafe Update",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          scheduledTaskBackupId: "scheduled/task-unsafe",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(restorableScheduledTaskBackupIds(result, now)).toEqual(["scheduled-task-ok"]);
   });
 
   it("returns safe preserved registry backup ids from skipped cleanup items", () => {
@@ -525,6 +568,16 @@ describe("Cleanup result undo helper", () => {
 
     expect(summarizeRestoreAllResults([], [], 0, startupResults)).toBe(
       "시작 항목 1개를 되돌렸어요."
+    );
+  });
+
+  it("includes scheduled task backup results in restore-all summaries", () => {
+    const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [
+      { backupId: "scheduled-task-a", status: "restored", message: "ok" }
+    ];
+
+    expect(summarizeRestoreAllResults([], [], 0, [], scheduledTaskResults)).toBe(
+      "예약 작업 1개를 되돌렸어요."
     );
   });
 

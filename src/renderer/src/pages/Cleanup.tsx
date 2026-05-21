@@ -6,6 +6,7 @@ import {
   daysUntilTrashExpiry,
   isTrashEntryExpired,
   recoverableRegistryBackupIds,
+  restorableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
   restoreEntryExpiryLabel,
@@ -28,6 +29,7 @@ import type {
   LargeFileCandidate,
   RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
+  ScheduledTaskBackupRestoreResult,
   ScheduledTaskBackupSnapshot,
   StartupAutoDisabledSnapshot,
   StartupFolderToggleResult,
@@ -411,7 +413,8 @@ function restorableCleanupResultCount(result: CleanupExecuteResult): number {
   return (
     restorableTrashEntryIds(result).length +
     recoverableRegistryBackupIds(result).length +
-    restorableStartupDisabledIds(result).length
+    restorableStartupDisabledIds(result).length +
+    restorableScheduledTaskBackupIds(result).length
   );
 }
 
@@ -960,14 +963,21 @@ export function Cleanup({
       const entryIds = restorableTrashEntryIds(result);
       const registryBackupIds = recoverableRegistryBackupIds(result);
       const startupDisabledIds = restorableStartupDisabledIds(result);
-      if (entryIds.length === 0 && registryBackupIds.length === 0 && startupDisabledIds.length === 0) {
+      const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+      if (
+        entryIds.length === 0 &&
+        registryBackupIds.length === 0 &&
+        startupDisabledIds.length === 0 &&
+        scheduledTaskBackupIds.length === 0
+      ) {
         setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
         return;
       }
       const missingRestoreBridge =
         (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
         (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
-        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto);
+        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) ||
+        (scheduledTaskBackupIds.length > 0 && !window.fb?.restoreScheduledTaskBackup);
       if (missingRestoreBridge) {
         setRecentRestoreMessage(
           "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
@@ -981,6 +991,7 @@ export function Cleanup({
         const results: CleanupTrashRestoreResult[] = [];
         const registryResults: RegistryBackupRestoreResult[] = [];
         const startupResults: StartupFolderToggleResult[] = [];
+        const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
         let restoreFailureCount = 0;
         for (const entryId of entryIds) {
           try {
@@ -1003,8 +1014,21 @@ export function Cleanup({
             restoreFailureCount += 1;
           }
         }
+        for (const backupId of scheduledTaskBackupIds) {
+          try {
+            scheduledTaskResults.push(await window.fb.restoreScheduledTaskBackup({ backupId }));
+          } catch {
+            restoreFailureCount += 1;
+          }
+        }
         setRecentRestoreMessage(
-          summarizeRestoreAllResults(results, registryResults, restoreFailureCount, startupResults)
+          summarizeRestoreAllResults(
+            results,
+            registryResults,
+            restoreFailureCount,
+            startupResults,
+            scheduledTaskResults
+          )
         );
         await Promise.all([loadTrash(), loadHistory()]);
       } finally {
