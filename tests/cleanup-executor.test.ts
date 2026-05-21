@@ -20,6 +20,11 @@ import {
   __resetPlanCacheForTests
 } from "../src/main/cleanup/planner";
 import { getCleanupHistory } from "../src/main/cleanup/log";
+import {
+  getTrashSnapshot,
+  purgeExpiredTrash,
+  restoreTrashEntry
+} from "../src/main/cleanup/trash";
 import type { CleanupExecuteRequest, CleanupPlan } from "../src/shared/types";
 
 const TEN_DAYS_MS = 10 * 86_400_000;
@@ -315,6 +320,116 @@ describe("executeCleanup", () => {
       succeeded: true
     });
     expect(result.removedItems[0].trashEntryId).toBe(`trash-${diagnosticItem.id}`);
+  });
+
+  it("proves the default executor can restore and auto-empty a real 30-day restore-bin item", async () => {
+    const targetFile = join(fx.tempDir, "real-restore-lifecycle.tmp");
+    const firstRunAt = new Date("2026-05-20T09:00:00.000Z");
+    const firstPlan = await planWithOneTempFile(fx, targetFile);
+    const firstItem = firstPlan.categories.find((c) => c.id === "temp-user")!.items[0];
+
+    const firstResult = await executeCleanup(
+      {
+        planId: firstPlan.planId,
+        confirmationToken: firstPlan.confirmationToken,
+        selectedItemIds: [firstItem.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps: defaultDeps(fx.userData),
+        home: fx.home,
+        now: () => firstRunAt
+      }
+    );
+
+    expect(firstResult.removedItems).toHaveLength(1);
+    const firstRemoved = firstResult.removedItems[0];
+    expect(firstRemoved).toMatchObject({
+      path: targetFile,
+      categoryId: "temp-user",
+      mode: "trash",
+      succeeded: true,
+      sizeBytes: 4096,
+      expiresAt: "2026-06-19T09:00:00.000Z"
+    });
+    expect(firstRemoved.trashEntryId).toBeTruthy();
+    await expect(fs.readFile(targetFile, "utf8")).rejects.toThrow();
+
+    const firstSnapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      home: fx.home,
+      now: () => new Date("2026-05-21T09:00:00.000Z")
+    });
+    expect(firstSnapshot).toMatchObject({
+      retentionDays: 30,
+      totalBytes: 4096,
+      nextExpiryAt: "2026-06-19T09:00:00.000Z"
+    });
+    expect(firstSnapshot.entries).toHaveLength(1);
+    expect(firstSnapshot.entries[0]).toMatchObject({
+      id: firstRemoved.trashEntryId,
+      originalPath: targetFile,
+      sizeBytes: 4096,
+      integrityStatus: "verified"
+    });
+
+    const restored = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      home: fx.home,
+      entryId: firstRemoved.trashEntryId!,
+      now: () => new Date("2026-05-21T09:00:00.000Z")
+    });
+    expect(restored).toMatchObject({
+      status: "restored",
+      originalPath: targetFile
+    });
+    await expect(fs.readFile(targetFile, "utf8")).resolves.toBe("x".repeat(4096));
+
+    const secondRunAt = new Date("2026-05-21T09:00:00.000Z");
+    const secondPlan = await planWithOneTempFile(fx, targetFile);
+    const secondItem = secondPlan.categories.find((c) => c.id === "temp-user")!.items[0];
+    const secondResult = await executeCleanup(
+      {
+        planId: secondPlan.planId,
+        confirmationToken: secondPlan.confirmationToken,
+        selectedItemIds: [secondItem.id],
+        mode: "trash"
+      },
+      {
+        userDataDir: fx.userData,
+        deps: defaultDeps(fx.userData),
+        home: fx.home,
+        now: () => secondRunAt
+      }
+    );
+
+    expect(secondResult.removedItems).toHaveLength(1);
+    const secondRemoved = secondResult.removedItems[0];
+    expect(secondRemoved.trashEntryId).toBeTruthy();
+    expect(secondRemoved.expiresAt).toBe("2026-06-20T09:00:00.000Z");
+
+    const purged = await purgeExpiredTrash({
+      userDataDir: fx.userData,
+      home: fx.home,
+      now: () => new Date("2026-06-20T09:00:01.000Z")
+    });
+    expect(purged).toMatchObject({
+      purgedCount: 1,
+      purgedBytes: 4096,
+      purgedEntryIds: [secondRemoved.trashEntryId],
+      failedEntryIds: [],
+      retentionDays: 30
+    });
+
+    const finalSnapshot = await getTrashSnapshot({
+      userDataDir: fx.userData,
+      home: fx.home,
+      now: () => new Date("2026-06-20T09:00:02.000Z")
+    });
+    expect(finalSnapshot.entries).toEqual([]);
+    expect(finalSnapshot.totalBytes).toBe(0);
+    await expect(fs.readFile(targetFile, "utf8")).rejects.toThrow();
   });
 
   it("shows a friendly failure when the restore-bin size cannot be trusted", async () => {
