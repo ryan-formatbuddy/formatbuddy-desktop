@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   backupAndDeleteScheduledTask,
+  isScheduledTaskBackupPreservedError,
   listScheduledTaskBackups,
   purgeExpiredScheduledTaskBackups,
   restoreScheduledTaskBackup,
@@ -187,6 +188,34 @@ describe("scheduled task backup", () => {
     });
 
     expect(beforeRestore).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the scheduled task backup when delete reports an error after the task disappeared", async () => {
+    const state = { exists: true };
+    const runner = makeRunner(state);
+    vi.mocked(runner.deleteTask).mockImplementationOnce(async () => {
+      state.exists = false;
+      throw new Error("schtasks reported a late failure");
+    });
+
+    let thrown: unknown;
+    try {
+      await backupAndDeleteScheduledTask({
+        userDataDir: fx.userDataDir,
+        taskName: "Acme Notes Update",
+        taskPath: "\\Acme\\",
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        runner
+      });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(isScheduledTaskBackupPreservedError(thrown)).toBe(true);
+    const backup = isScheduledTaskBackupPreservedError(thrown) ? thrown.backup : null;
+    expect(backup?.expiresAt).toBe("2026-06-18T00:00:00.000Z");
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup?.id]);
   });
 
   it("auto-purges expired scheduled task backups after 30 days", async () => {

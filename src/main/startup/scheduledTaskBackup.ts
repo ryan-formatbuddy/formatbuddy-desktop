@@ -341,8 +341,20 @@ export async function backupAndDeleteScheduledTask(options: {
       expiresAt
     };
     await writeTaskBackupMetaFile(entryDir, metaPath, payload);
-    await runner.deleteTask(taskName, taskPath);
-    deleteInvoked = true;
+    try {
+      await runner.deleteTask(taskName, taskPath);
+      deleteInvoked = true;
+    } catch (deleteErr) {
+      if (runner.taskExists) {
+        const stillExists = await runner.taskExists(taskName, taskPath);
+        if (!stillExists) {
+          deleteInvoked = true;
+        } else {
+          deleteConfirmedIncomplete = true;
+        }
+      }
+      throw deleteErr;
+    }
     if (runner.taskExists && (await runner.taskExists(taskName, taskPath))) {
       deleteConfirmedIncomplete = true;
       throw new Error("Scheduled task still exists after deletion");
