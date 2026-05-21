@@ -59,7 +59,7 @@ export function isRegistryBackupPreservedError(err: unknown): err is RegistryBac
 type RegistryBackupRestoredApp = {
   name: string;
   publisher?: string | null;
-  backupKind: "key" | "startup-value";
+  backupKind: "key" | "startup-value" | "app-path-key";
   registryKeyPath?: string;
   valueName?: string;
 };
@@ -68,6 +68,8 @@ const SAFE_UNINSTALL_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\[^\\]+)$/i;
 const SAFE_STARTUP_VALUE_KEY_PATTERN =
   /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run(?:Once)?)$/i;
+const SAFE_APP_PATHS_KEY_PATTERN =
+  /^(?:HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe|HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\[^\\]+\.exe)$/i;
 
 function normalizeRegistryKeyPath(keyPath: string): string {
   return keyPath.trim().replace(/\//g, "\\").replace(/\\+/g, "\\");
@@ -87,6 +89,15 @@ export function isSafeUninstallRegistryKeyPath(keyPath: string): boolean {
   if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
   if (/[*?]/.test(normalized)) return false;
   return SAFE_UNINSTALL_KEY_PATTERN.test(normalized);
+}
+
+export function isSafeAppPathRegistryKeyPath(keyPath: string): boolean {
+  if (keyPath.trim() !== keyPath) return false;
+  const normalized = normalizeRegistryKeyPath(keyPath);
+  if (!normalized) return false;
+  if (/[\0\r\n"'`|&<>]/.test(normalized)) return false;
+  if (/[*?]/.test(normalized)) return false;
+  return SAFE_APP_PATHS_KEY_PATTERN.test(normalized);
 }
 
 function isSafeRegistryValueName(valueName: string): boolean {
@@ -642,11 +653,17 @@ export function defaultRegistryCleanupRunner(): RegistryCleanupRunner {
 export async function backupAndDeleteRegistryKey(options: {
   userDataDir: string;
   keyPath: string;
+  backupKind?: "key" | "app-path-key";
   now?: () => Date;
   runner?: RegistryCleanupRunner;
   app?: Pick<InstalledApp, "name" | "publisher">;
 }): Promise<RegistryBackupEntry> {
-  if (!isSafeUninstallRegistryKeyPath(options.keyPath)) {
+  const backupKind = options.backupKind === "app-path-key" ? "app-path-key" : "key";
+  const safeKey =
+    backupKind === "app-path-key"
+      ? isSafeAppPathRegistryKeyPath(options.keyPath)
+      : isSafeUninstallRegistryKeyPath(options.keyPath);
+  if (!safeKey) {
     throw new Error("지원하는 앱 제거 레지스트리 위치가 아니라 자동 정리하지 않아요.");
   }
   const keyPath = normalizeRegistryKeyPath(options.keyPath);
@@ -676,6 +693,7 @@ export async function backupAndDeleteRegistryKey(options: {
     metaPayload = {
       id,
       keyPath,
+      ...(backupKind === "app-path-key" ? { backupKind } : {}),
       backupPath,
       sizeBytes,
       contentHash,
@@ -949,14 +967,21 @@ async function readRegistryBackupEntryForRestore(
       }
     };
   }
-  const backupKind = raw.backupKind === "startup-value" ? "startup-value" : "key";
+  const backupKind =
+    raw.backupKind === "startup-value"
+      ? "startup-value"
+      : raw.backupKind === "app-path-key"
+        ? "app-path-key"
+        : "key";
   const valueName = cleanOptionalString(raw.valueName);
   const rawKeyPath = typeof raw.keyPath === "string" ? raw.keyPath : "";
   const safeLocation =
     rawKeyPath.length > 0 &&
     (backupKind === "startup-value" && valueName
       ? isSafeStartupRegistryValuePath(rawKeyPath, valueName)
-      : isSafeUninstallRegistryKeyPath(rawKeyPath));
+      : backupKind === "app-path-key"
+        ? isSafeAppPathRegistryKeyPath(rawKeyPath)
+        : isSafeUninstallRegistryKeyPath(rawKeyPath));
   if (!safeLocation) {
     return {
       kind: "restore-result",
@@ -991,6 +1016,8 @@ async function readRegistryBackupEntryForRestore(
   if (backupKind === "startup-value") {
     entry.backupKind = "startup-value";
     entry.valueName = valueName ?? null;
+  } else if (backupKind === "app-path-key") {
+    entry.backupKind = "app-path-key";
   }
   const appName = cleanDisplayString(raw.appName);
   const appPublisher = cleanDisplayString(raw.appPublisher);
@@ -1311,7 +1338,12 @@ export async function purgeExpiredRegistryBackups(options: {
         purgedItems.push({
           id: readableEntry.id,
           label: registryBackupPurgeLabel(readableEntry),
-          backupKind: readableEntry.backupKind === "startup-value" ? "startup-value" : "key",
+          backupKind:
+            readableEntry.backupKind === "startup-value"
+              ? "startup-value"
+              : readableEntry.backupKind === "app-path-key"
+                ? "app-path-key"
+                : "key",
           sizeBytes: entryBytes
         });
       }
@@ -1409,7 +1441,12 @@ export async function restoreRegistryBackup(options: {
     const appName = cleanDisplayString(entry.appName);
     const appPublisher = cleanDisplayString(entry.appPublisher) ?? null;
     if (appName) {
-      const backupKind = entry.backupKind === "startup-value" ? "startup-value" : "key";
+      const backupKind =
+        entry.backupKind === "startup-value"
+          ? "startup-value"
+          : entry.backupKind === "app-path-key"
+            ? "app-path-key"
+            : "key";
       const restoredApp: RegistryBackupRestoredApp =
         backupKind === "startup-value"
           ? {

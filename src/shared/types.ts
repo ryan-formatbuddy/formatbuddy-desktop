@@ -849,8 +849,8 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values. */
-  backupKind?: "key" | "startup-value";
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "app-path-key" for App Paths aliases. */
+  backupKind?: "key" | "startup-value" | "app-path-key";
   /** Present when backupKind === "startup-value". */
   valueName?: string | null;
   backupPath: string;
@@ -895,7 +895,7 @@ export interface RegistryBackupRestoreResult {
 export interface RegistryBackupPurgedItem {
   id: string;
   label: string;
-  backupKind: "key" | "startup-value";
+  backupKind: "key" | "startup-value" | "app-path-key";
   sizeBytes: number;
 }
 
@@ -1304,6 +1304,7 @@ export interface AppLeftoverPath {
     | "pinned-shortcut"
     | "shortcut-folder"
     | "registry"
+    | "app-path-registry"
     | "startup-folder"
     | "startup-registry"
     | "startup-entry";

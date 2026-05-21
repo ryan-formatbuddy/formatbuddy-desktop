@@ -322,10 +322,12 @@ export function isStartupRegistryBackup(entry: RegistryBackupKindSource | null |
 }
 
 export function registryBackupKindLabel(entry: RegistryBackupKindSource): string {
+  if (entry.backupKind === "app-path-key") return "앱 실행 경로 백업";
   return isStartupRegistryBackup(entry) ? "시작 항목 백업" : "앱 삭제 흔적 백업";
 }
 
 export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource): string {
+  if (entry.backupKind === "app-path-key") return "실행 경로 되돌리기";
   return isStartupRegistryBackup(entry) ? "시작 항목 되돌리기" : "앱 흔적 되돌리기";
 }
 

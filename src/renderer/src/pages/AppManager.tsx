@@ -107,6 +107,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return path.exists ? formatBytes(path.sizeBytes) : "설치 폴더";
     case "registry":
       return "앱 삭제 흔적";
+    case "app-path-registry":
+      return "앱 실행 경로";
     case "startup-folder":
       return "시작 항목";
     case "startup-registry":
@@ -160,7 +162,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
     lines.push(`잔여 파일/폴더 ${fileOrFolderCount}개는 복구함에 30일 동안 보관해요.`);
   }
   if (backupCount > 0) {
-    lines.push(`앱 삭제 흔적/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
+    lines.push(`앱 삭제 흔적/실행 경로/시작 항목 백업 ${backupCount}개는 30일 안에 되돌릴 수 있어요.`);
   }
   if (startupCount > 0) {
     lines.push(`잠시 꺼둔 시작 항목 ${startupCount}개는 30일 안에 되돌릴 수 있어요.`);
@@ -299,7 +301,7 @@ function buildLeftoverCleanupConfirm(
     selectedBytes: paths.reduce((sum, path) => sum + Math.max(0, Math.round(path.sizeBytes ?? 0)), 0),
     folderCount: paths.filter((path) => path.kind === "folder" || path.kind === "install-folder").length,
     shortcutCount: paths.filter((path) => path.kind === "shortcut" || path.kind === "pinned-shortcut" || path.kind === "shortcut-folder").length,
-    backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "startup-registry").length,
+    backupCount: paths.filter((path) => path.kind === "registry" || path.kind === "app-path-registry" || path.kind === "startup-registry").length,
     startupHoldCount: paths.filter((path) => path.kind === "startup-folder").length,
     scheduledTaskCount: paths.filter(
       (path) => path.kind === "startup-entry" && path.startupEntryKind === "scheduled-task"
@@ -497,7 +499,7 @@ function AppLeftoverConfirmDialog({
         <ul style={{ fontSize: 12, opacity: 0.75, margin: "0 0 16px", paddingLeft: 18 }}>
           <li>잔여 폴더 {confirm.folderCount}개는 포맷버디 복구함에 보관해요.</li>
           <li>바탕화면·시작 메뉴·작업표시줄 바로가기 {confirm.shortcutCount}개도 30일 동안 되돌릴 수 있어요.</li>
-          <li>앱 삭제 흔적/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
+          <li>앱 삭제 흔적/실행 경로/시작 항목 백업 {confirm.backupCount}개는 30일 동안 되돌릴 수 있어요.</li>
           <li>시작 항목 {confirm.startupHoldCount}개는 잠시 꺼두고 원복할 수 있게 챙겨요.</li>
           <li>예약 작업 {confirm.scheduledTaskCount}개는 백업하고 지운 뒤 30일 동안 되돌릴 수 있어요.</li>
         </ul>
