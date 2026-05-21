@@ -10,7 +10,6 @@ import {
   restoreBinExpiryInsight,
   sortTrashEntriesByExpiry,
   summarizeRegistryBackupRestoreResults,
-  summarizeRestoreAllResults,
   summarizeScheduledTaskBackupRestoreResults,
   summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
@@ -18,6 +17,13 @@ import {
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
+import {
+  CLEANUP_RESTORE_ALL_MISSING_BRIDGE_MESSAGE,
+  cleanupRestoreMissingBridge,
+  cleanupRestorePlanFromItems,
+  cleanupRestoreSummary,
+  runCleanupRestorePlan
+} from "./cleanupRestoreAll";
 import type {
   CleanupCategoryId,
   CleanupTrashEntry,
@@ -671,6 +677,7 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
     const restoreStartupAuto = window.fb?.restoreStartupAuto;
     const restoreScheduledTaskBackup = window.fb?.restoreScheduledTaskBackup;
+    const restorePlan = cleanupRestorePlanFromItems(restorableRestoreItems);
     if (totalEntryCount === 0) {
       setToast("되돌릴 항목이 없어요.");
       return;
@@ -679,75 +686,28 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
       setToast("지금 바로 되돌릴 수 있는 항목이 없어요. 보관 기간이나 복구 기록을 확인해 주세요.");
       return;
     }
-    const restorableFileCount = restorableRestoreItems.filter((item) => item.kind === "file").length;
-    const restorableRegistryCount = restorableRestoreItems.filter((item) => item.kind === "registry").length;
-    const restorableStartupCount = restorableRestoreItems.filter((item) => item.kind === "startup").length;
-    const restorableScheduledTaskCount =
-      restorableRestoreItems.length - restorableFileCount - restorableRegistryCount - restorableStartupCount;
     if (
-      (!restoreCleanupTrash && restorableFileCount > 0) ||
-      (!restoreRegistryBackup && restorableRegistryCount > 0) ||
-      (!restoreStartupAuto && restorableStartupCount > 0) ||
-      (!restoreScheduledTaskBackup && restorableScheduledTaskCount > 0)
+      cleanupRestoreMissingBridge(restorePlan, {
+        restoreCleanupTrash: Boolean(restoreCleanupTrash),
+        restoreRegistryBackup: Boolean(restoreRegistryBackup),
+        restoreStartupAuto: Boolean(restoreStartupAuto),
+        restoreScheduledTaskBackup: Boolean(restoreScheduledTaskBackup)
+      })
     ) {
-      setToast("모두 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 한 번 더 시도해주세요.");
+      setToast(CLEANUP_RESTORE_ALL_MISSING_BRIDGE_MESSAGE);
       return;
     }
     setBusy("restore-all");
     setToast(null);
     try {
-      const results: CleanupTrashRestoreResult[] = [];
-      const registryResults: RegistryBackupRestoreResult[] = [];
-      const startupResults: StartupFolderToggleResult[] = [];
-      const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
-      let restoreAllFailureCount = 0;
-      for (const item of restorableRestoreItems) {
-        if (item.kind === "file") {
-          if (restoreCleanupTrash) {
-            try {
-              results.push(await restoreCleanupTrash({ entryId: item.entry.id }));
-            } catch {
-              restoreAllFailureCount += 1;
-            }
-          }
-          continue;
-        }
-        if (item.kind === "startup") {
-          if (restoreStartupAuto) {
-            try {
-              startupResults.push(await restoreStartupAuto({ disabledId: item.entry.id }));
-            } catch {
-              restoreAllFailureCount += 1;
-            }
-          }
-          continue;
-        }
-        if (item.kind === "scheduled-task") {
-          if (restoreScheduledTaskBackup) {
-            try {
-              scheduledTaskResults.push(await restoreScheduledTaskBackup({ backupId: item.entry.id }));
-            } catch {
-              restoreAllFailureCount += 1;
-            }
-          }
-          continue;
-        }
-        if (restoreRegistryBackup) {
-          try {
-            registryResults.push(await restoreRegistryBackup({ backupId: item.entry.id }));
-          } catch {
-            restoreAllFailureCount += 1;
-          }
-        }
-      }
+      const outcome = await runCleanupRestorePlan(restorePlan, {
+        restoreCleanupTrash,
+        restoreRegistryBackup,
+        restoreStartupAuto,
+        restoreScheduledTaskBackup
+      });
       setToast(
-        summarizeRestoreAllResults(
-          results,
-          registryResults,
-          restoreAllFailureCount,
-          startupResults,
-          scheduledTaskResults
-        )
+        cleanupRestoreSummary(outcome)
       );
       await load();
     } catch (e) {

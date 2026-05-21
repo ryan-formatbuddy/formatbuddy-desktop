@@ -8,13 +8,14 @@ import {
 } from "./appManagerConfirmCopy";
 import { appLeftoverPanelDecision } from "./appManagerLeftoverState";
 import {
-  APP_RECENT_RESTORE_EMPTY_MESSAGE,
-  APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
-  appRecentRestoreMissingBridge,
-  appRecentRestorePlan,
-  appRecentRestorePlanCount,
-  appRecentRestoreSummary
-} from "./appManagerRecentRestore";
+  CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE,
+  CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
+  cleanupRestoreMissingBridge,
+  cleanupRestorePlanCount,
+  cleanupRestorePlanFromResult,
+  cleanupRestoreSummary,
+  runCleanupRestorePlan
+} from "./cleanupRestoreAll";
 import {
   appLeftoverEffectLines,
   appLeftoverRestorableCount,
@@ -43,11 +44,7 @@ import type {
   AppManagerSnapshot,
   AppUninstallFollowUpItem,
   CleanupExecuteResult,
-  AppUninstallResult,
-  CleanupTrashRestoreResult,
-  RegistryBackupRestoreResult,
-  ScheduledTaskBackupRestoreResult,
-  StartupFolderToggleResult
+  AppUninstallResult
 } from "@shared/types";
 
 interface AppManagerProps {
@@ -1182,9 +1179,9 @@ export function AppManager({
 
   const restoreRecentLeftovers = useCallback(
     async (result: CleanupExecuteResult) => {
-      const plan = appRecentRestorePlan(result);
-      if (appRecentRestorePlanCount(plan) === 0) {
-        setRecentRestoreMessage(APP_RECENT_RESTORE_EMPTY_MESSAGE);
+      const plan = cleanupRestorePlanFromResult(result);
+      if (cleanupRestorePlanCount(plan) === 0) {
+        setRecentRestoreMessage(CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE);
         return;
       }
       const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
@@ -1192,61 +1189,28 @@ export function AppManager({
       const restoreStartupAuto = window.fb?.restoreStartupAuto;
       const restoreScheduledTaskBackup = window.fb?.restoreScheduledTaskBackup;
       if (
-        appRecentRestoreMissingBridge(plan, {
+        cleanupRestoreMissingBridge(plan, {
           restoreCleanupTrash: Boolean(restoreCleanupTrash),
           restoreRegistryBackup: Boolean(restoreRegistryBackup),
           restoreStartupAuto: Boolean(restoreStartupAuto),
           restoreScheduledTaskBackup: Boolean(restoreScheduledTaskBackup)
         })
       ) {
-        setRecentRestoreMessage(APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE);
+        setRecentRestoreMessage(CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE);
         return;
       }
 
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);
       try {
-        const results: CleanupTrashRestoreResult[] = [];
-        const registryResults: RegistryBackupRestoreResult[] = [];
-        const startupResults: StartupFolderToggleResult[] = [];
-        const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
-        let restoreFailureCount = 0;
-        for (const entryId of plan.entryIds) {
-          try {
-            results.push(await restoreCleanupTrash!({ entryId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const backupId of plan.registryBackupIds) {
-          try {
-            registryResults.push(await restoreRegistryBackup!({ backupId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const disabledId of plan.startupDisabledIds) {
-          try {
-            startupResults.push(await restoreStartupAuto!({ disabledId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const backupId of plan.scheduledTaskBackupIds) {
-          try {
-            scheduledTaskResults.push(await restoreScheduledTaskBackup!({ backupId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
+        const outcome = await runCleanupRestorePlan(plan, {
+          restoreCleanupTrash,
+          restoreRegistryBackup,
+          restoreStartupAuto,
+          restoreScheduledTaskBackup
+        });
         setRecentRestoreMessage(
-          appRecentRestoreSummary({
-            trashResults: results,
-            registryResults,
-            unexpectedFailureCount: restoreFailureCount,
-            startupResults,
-            scheduledTaskResults
-          })
+          cleanupRestoreSummary(outcome)
         );
         await loadLeftovers();
       } finally {

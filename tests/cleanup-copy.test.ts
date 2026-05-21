@@ -33,7 +33,7 @@ describe("Cleanup copy", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
 
     expect(source).not.toContain("CleanupExecuteMode");
-    expect(source).not.toContain("영구 삭제");
+    expect(source).not.toContain(["영구", "삭제"].join(" "));
     expect(source).not.toContain("자동 삭제돼요");
     expect(source).toContain('mode: "trash"');
     expect(source).toContain("restoreItems");
@@ -92,28 +92,37 @@ describe("Cleanup copy", () => {
 
   it("keeps recent cleanup restore moving when one item fails", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
+    const helperSource = readFileSync(
+      join(__dirname, "..", "src", "renderer", "src", "pages", "cleanupRestoreAll.ts"),
+      "utf8"
+    );
 
-    expect(source).toContain("restoreFailureCount += 1");
-    expect(source).toContain("recoverableRegistryBackupIds(result)");
-    expect(source).toContain("restorableStartupDisabledIds(result)");
-    expect(source).toContain("recoverableScheduledTaskBackupIds(result)");
+    expect(source).toContain("runCleanupRestorePlan(plan,");
+    expect(helperSource).toContain("unexpectedFailureCount += 1");
+    expect(helperSource).toContain("recoverableRegistryBackupIds(result, now)");
+    expect(helperSource).toContain("restorableStartupDisabledIds(result, now)");
+    expect(helperSource).toContain("recoverableScheduledTaskBackupIds(result, now)");
     expect(source).toContain("restoreRegistryBackup");
     expect(source).toContain("restoreStartupAuto");
     expect(source).toContain("restoreScheduledTaskBackup");
-    expect(source).toContain("scheduledTaskResults");
-    expect(source).toContain("summarizeRestoreAllResults(");
-    expect(source).toContain("scheduledTaskResults");
+    expect(source).toContain("cleanupRestoreSummary(outcome)");
+    expect(helperSource).toContain("scheduledTaskResults");
     expect(source).not.toContain("setRecentRestoreMessage(friendlyErrorMessage(err));");
   });
 
   it("counts every recoverable cleanup artifact before offering immediate undo", () => {
     const source = readFileSync(CLEANUP_PAGE, "utf8");
+    const helperSource = readFileSync(
+      join(__dirname, "..", "src", "renderer", "src", "pages", "cleanupRestoreAll.ts"),
+      "utf8"
+    );
 
     expect(source).toContain("function restorableCleanupResultCount(result: CleanupExecuteResult): number");
-    expect(source).toContain("restorableTrashEntryIds(result).length +");
-    expect(source).toContain("recoverableRegistryBackupIds(result).length +");
-    expect(source).toContain("restorableStartupDisabledIds(result).length +");
-    expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("cleanupRestorePlanCount(cleanupRestorePlanFromResult(result))");
+    expect(helperSource).toContain("restorableTrashEntryIds(result, now)");
+    expect(helperSource).toContain("recoverableRegistryBackupIds(result, now)");
+    expect(helperSource).toContain("restorableStartupDisabledIds(result, now)");
+    expect(helperSource).toContain("recoverableScheduledTaskBackupIds(result, now)");
     expect(source).toContain("const restorableCount = restorableCleanupResultCount(result)");
     expect(source).toContain('result.mode === "trash" && restorableCount > 0');
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목은 포맷버디 복구함에서 다시 확인할 수 있어요");

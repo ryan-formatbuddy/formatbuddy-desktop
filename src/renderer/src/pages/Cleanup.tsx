@@ -4,17 +4,21 @@ import { CloudBuddy } from "../components/CloudBuddy";
 import { Lockup } from "../components/Lockup";
 import {
   isTrashEntryExpired,
-  recoverableRegistryBackupIds,
-  recoverableScheduledTaskBackupIds,
-  restorableStartupDisabledIds,
-  restorableTrashEntryIds,
   restoreBinExpiryInsight,
   restoreEntryExpiryLabel,
-  summarizeRestoreAllResults,
   summarizeTrashRestoreResults
 } from "@shared/cleanup-result";
 import { CLEANUP_HISTORY_SAVE_WARNING } from "@shared/cleanup-warnings";
 import { friendlyErrorMessage } from "@shared/error-friendly";
+import {
+  CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE,
+  CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
+  cleanupRestoreMissingBridge,
+  cleanupRestorePlanCount,
+  cleanupRestorePlanFromResult,
+  cleanupRestoreSummary,
+  runCleanupRestorePlan
+} from "./cleanupRestoreAll";
 import type {
   CleanupCategoryPlan,
   CleanupExecuteResult,
@@ -24,15 +28,11 @@ import type {
   CleanupPlan,
   CleanupRiskLevel,
   CleanupTrashEntry,
-  CleanupTrashRestoreResult,
   CleanupTrashSnapshot,
   LargeFileCandidate,
-  RegistryBackupRestoreResult,
   RegistryBackupSnapshot,
-  ScheduledTaskBackupRestoreResult,
   ScheduledTaskBackupSnapshot,
   StartupAutoDisabledSnapshot,
-  StartupFolderToggleResult,
   ScanReport
 } from "@shared/types";
 
@@ -366,7 +366,7 @@ function friendlyCleanupDetail(detail?: string): string {
   if (/30-day|30일|expiry|만료/.test(lower)) {
     return "30일 보관 기간을 확인하지 못했어요";
   }
-  if (/manifest|복구함 정보/.test(lower)) {
+  if (/restore metadata|restore record|복구함 정보/.test(lower)) {
     return "복구함 정보를 확인하지 못했어요";
   }
   if (/stored trash path|restore entry|managed restore bin|restore bin/.test(lower)) {
@@ -405,12 +405,7 @@ function cleanupResultDetailLines(result: CleanupExecuteResult): string[] {
 }
 
 function restorableCleanupResultCount(result: CleanupExecuteResult): number {
-  return (
-    restorableTrashEntryIds(result).length +
-    recoverableRegistryBackupIds(result).length +
-    restorableStartupDisabledIds(result).length +
-    recoverableScheduledTaskBackupIds(result).length
-  );
+  return cleanupRestorePlanCount(cleanupRestorePlanFromResult(result));
 }
 
 function cleanupRemovedItemLines(result: CleanupExecuteResult): string[] {
@@ -962,75 +957,38 @@ export function Cleanup({
 
   const restoreRecentCleanup = useCallback(
     async (result: CleanupExecuteResult) => {
-      const entryIds = restorableTrashEntryIds(result);
-      const registryBackupIds = recoverableRegistryBackupIds(result);
-      const startupDisabledIds = restorableStartupDisabledIds(result);
-      const scheduledTaskBackupIds = recoverableScheduledTaskBackupIds(result);
-      if (
-        entryIds.length === 0 &&
-        registryBackupIds.length === 0 &&
-        startupDisabledIds.length === 0 &&
-        scheduledTaskBackupIds.length === 0
-      ) {
-        setRecentRestoreMessage("이 정리에서 바로 되돌릴 항목이 없어요.");
+      const plan = cleanupRestorePlanFromResult(result);
+      if (cleanupRestorePlanCount(plan) === 0) {
+        setRecentRestoreMessage(CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE);
         return;
       }
-      const missingRestoreBridge =
-        (entryIds.length > 0 && !window.fb?.restoreCleanupTrash) ||
-        (registryBackupIds.length > 0 && !window.fb?.restoreRegistryBackup) ||
-        (startupDisabledIds.length > 0 && !window.fb?.restoreStartupAuto) ||
-        (scheduledTaskBackupIds.length > 0 && !window.fb?.restoreScheduledTaskBackup);
-      if (missingRestoreBridge) {
-        setRecentRestoreMessage(
-          "방금 정리 되돌리기를 연결하지 못했어요. 포맷버디를 다시 열고 복구함이나 활동 기록에서 확인해주세요."
-        );
+      const restoreCleanupTrash = window.fb?.restoreCleanupTrash;
+      const restoreRegistryBackup = window.fb?.restoreRegistryBackup;
+      const restoreStartupAuto = window.fb?.restoreStartupAuto;
+      const restoreScheduledTaskBackup = window.fb?.restoreScheduledTaskBackup;
+      if (
+        cleanupRestoreMissingBridge(plan, {
+          restoreCleanupTrash: Boolean(restoreCleanupTrash),
+          restoreRegistryBackup: Boolean(restoreRegistryBackup),
+          restoreStartupAuto: Boolean(restoreStartupAuto),
+          restoreScheduledTaskBackup: Boolean(restoreScheduledTaskBackup)
+        })
+      ) {
+        setRecentRestoreMessage(CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE);
         return;
       }
 
       setRecentRestoreBusy(true);
       setRecentRestoreMessage(undefined);
       try {
-        const results: CleanupTrashRestoreResult[] = [];
-        const registryResults: RegistryBackupRestoreResult[] = [];
-        const startupResults: StartupFolderToggleResult[] = [];
-        const scheduledTaskResults: ScheduledTaskBackupRestoreResult[] = [];
-        let restoreFailureCount = 0;
-        for (const entryId of entryIds) {
-          try {
-            results.push(await window.fb.restoreCleanupTrash({ entryId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const backupId of registryBackupIds) {
-          try {
-            registryResults.push(await window.fb.restoreRegistryBackup({ backupId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const disabledId of startupDisabledIds) {
-          try {
-            startupResults.push(await window.fb.restoreStartupAuto({ disabledId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
-        for (const backupId of scheduledTaskBackupIds) {
-          try {
-            scheduledTaskResults.push(await window.fb.restoreScheduledTaskBackup({ backupId }));
-          } catch {
-            restoreFailureCount += 1;
-          }
-        }
+        const outcome = await runCleanupRestorePlan(plan, {
+          restoreCleanupTrash,
+          restoreRegistryBackup,
+          restoreStartupAuto,
+          restoreScheduledTaskBackup
+        });
         setRecentRestoreMessage(
-          summarizeRestoreAllResults(
-            results,
-            registryResults,
-            restoreFailureCount,
-            startupResults,
-            scheduledTaskResults
-          )
+          cleanupRestoreSummary(outcome)
         );
         await Promise.all([loadTrash(), loadHistory()]);
       } finally {

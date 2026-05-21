@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_RECENT_RESTORE_EMPTY_MESSAGE,
-  APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
-  appRecentRestoreMissingBridge,
-  appRecentRestorePlan,
-  appRecentRestorePlanCount,
-  appRecentRestoreSummary,
-  type AppRecentRestorePlan
-} from "../src/renderer/src/pages/appManagerRecentRestore";
+  CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE,
+  CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE,
+  CLEANUP_RESTORE_ALL_MISSING_BRIDGE_MESSAGE,
+  cleanupRestoreMissingBridge,
+  cleanupRestorePlanCount,
+  cleanupRestorePlanFromItems,
+  cleanupRestorePlanFromResult,
+  cleanupRestoreSummary,
+  runCleanupRestorePlan,
+  type CleanupRestorePlan
+} from "../src/renderer/src/pages/cleanupRestoreAll";
 import type { CleanupExecuteResult } from "../src/shared/types";
 
 const NOW = Date.parse("2026-05-22T00:00:00.000Z");
@@ -35,7 +38,7 @@ function cleanupResult(overrides: Partial<CleanupExecuteResult> = {}): CleanupEx
   };
 }
 
-function plan(overrides: Partial<AppRecentRestorePlan> = {}): AppRecentRestorePlan {
+function plan(overrides: Partial<CleanupRestorePlan> = {}): CleanupRestorePlan {
   return {
     entryIds: [],
     registryBackupIds: [],
@@ -45,9 +48,9 @@ function plan(overrides: Partial<AppRecentRestorePlan> = {}): AppRecentRestorePl
   };
 }
 
-describe("app manager recent restore", () => {
+describe("cleanup restore all helper", () => {
   it("collects every still-restorable channel from a cleanup result", () => {
-    const restorePlan = appRecentRestorePlan(
+    const restorePlan = cleanupRestorePlanFromResult(
       cleanupResult({
         removedItems: [
           {
@@ -101,17 +104,35 @@ describe("app manager recent restore", () => {
       startupDisabledIds: ["startup-1"],
       scheduledTaskBackupIds: ["task-1"]
     });
-    expect(appRecentRestorePlanCount(restorePlan)).toBe(4);
+    expect(cleanupRestorePlanCount(restorePlan)).toBe(4);
   });
 
-  it("uses a friendly empty message when there is nothing to restore", () => {
-    expect(appRecentRestorePlanCount(plan())).toBe(0);
-    expect(APP_RECENT_RESTORE_EMPTY_MESSAGE).toBe("이 정리에서 바로 되돌릴 항목이 없어요.");
+  it("collects restore-bin page items into the same channel plan", () => {
+    expect(
+      cleanupRestorePlanFromItems([
+        { kind: "file", entry: { id: "trash-1" } },
+        { kind: "registry", entry: { id: "reg-1" } },
+        { kind: "startup", entry: { id: "startup-1" } },
+        { kind: "scheduled-task", entry: { id: "task-1" } }
+      ])
+    ).toEqual({
+      entryIds: ["trash-1"],
+      registryBackupIds: ["reg-1"],
+      startupDisabledIds: ["startup-1"],
+      scheduledTaskBackupIds: ["task-1"]
+    });
+  });
+
+  it("uses friendly messages for empty and missing-bridge restore flows", () => {
+    expect(cleanupRestorePlanCount(plan())).toBe(0);
+    expect(CLEANUP_RECENT_RESTORE_EMPTY_MESSAGE).toBe("이 정리에서 바로 되돌릴 항목이 없어요.");
+    expect(CLEANUP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE).toContain("복구함이나 활동 기록");
+    expect(CLEANUP_RESTORE_ALL_MISSING_BRIDGE_MESSAGE).toContain("모두 되돌리기");
   });
 
   it("requires only the bridges needed by the selected restore channels", () => {
     expect(
-      appRecentRestoreMissingBridge(
+      cleanupRestoreMissingBridge(
         plan({ registryBackupIds: ["reg-1"] }),
         {
           restoreCleanupTrash: false,
@@ -123,7 +144,7 @@ describe("app manager recent restore", () => {
     ).toBe(false);
 
     expect(
-      appRecentRestoreMissingBridge(
+      cleanupRestoreMissingBridge(
         plan({ entryIds: ["trash-1"], scheduledTaskBackupIds: ["task-1"] }),
         {
           restoreCleanupTrash: true,
@@ -133,12 +154,45 @@ describe("app manager recent restore", () => {
         }
       )
     ).toBe(true);
-    expect(APP_RECENT_RESTORE_MISSING_BRIDGE_MESSAGE).toContain("복구함이나 활동 기록");
+  });
+
+  it("runs every restore channel and keeps going after individual failures", async () => {
+    const outcome = await runCleanupRestorePlan(
+      plan({
+        entryIds: ["trash-ok", "trash-fail"],
+        registryBackupIds: ["reg-ok"],
+        startupDisabledIds: ["startup-ok"],
+        scheduledTaskBackupIds: ["task-ok"]
+      }),
+      {
+        restoreCleanupTrash: async ({ entryId }) => {
+          if (entryId === "trash-fail") throw new Error("busy");
+          return { entryId, status: "restored", message: "ok" };
+        },
+        restoreRegistryBackup: async ({ backupId }) => ({
+          backupId,
+          status: "restored",
+          message: "ok"
+        }),
+        restoreStartupAuto: async () => ({ status: "restored", message: "ok" }),
+        restoreScheduledTaskBackup: async ({ backupId }) => ({
+          backupId,
+          status: "restored",
+          message: "ok"
+        })
+      }
+    );
+
+    expect(outcome.trashResults).toHaveLength(1);
+    expect(outcome.registryResults).toHaveLength(1);
+    expect(outcome.startupResults).toHaveLength(1);
+    expect(outcome.scheduledTaskResults).toHaveLength(1);
+    expect(outcome.unexpectedFailureCount).toBe(1);
   });
 
   it("summarizes partial restore success without hiding connection failures", () => {
     expect(
-      appRecentRestoreSummary({
+      cleanupRestoreSummary({
         trashResults: [
           { entryId: "trash-1", status: "restored", message: "ok" },
           { entryId: "trash-2", status: "target-exists", message: "already exists" }

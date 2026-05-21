@@ -115,14 +115,18 @@ describe("TrashRestore copy", () => {
 
   it("keeps restore-all moving when one restore item fails", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+    const helperSource = readFileSync(
+      join(__dirname, "..", "src", "renderer", "src", "pages", "cleanupRestoreAll.ts"),
+      "utf8"
+    );
 
-    expect(source).toContain("summarizeRestoreAllResults");
-    expect(source).toContain("restoreAllFailureCount");
-    expect(source).toContain("restoreAllFailureCount += 1");
-    expect(source).toContain("startupResults");
-    expect(source).toContain("restoreStartupAuto({ disabledId: item.entry.id })");
-    expect(source).toContain("scheduledTaskResults");
-    expect(source).toContain("restoreScheduledTaskBackup({ backupId: item.entry.id })");
+    expect(source).toContain("cleanupRestoreSummary(outcome)");
+    expect(source).toContain("runCleanupRestorePlan(restorePlan,");
+    expect(helperSource).toContain("unexpectedFailureCount += 1");
+    expect(helperSource).toContain("startupResults");
+    expect(helperSource).toContain("restoreStartupAuto({ disabledId })");
+    expect(helperSource).toContain("scheduledTaskResults");
+    expect(helperSource).toContain("restoreScheduledTaskBackup({ backupId })");
   });
 
   it("includes app deletion trace backup bytes in the restore bin total", () => {
@@ -226,10 +230,15 @@ describe("TrashRestore copy", () => {
 
   it("shows friendly toasts instead of silently returning when restore bridges are missing", () => {
     const source = readFileSync(TRASH_RESTORE_PAGE, "utf8");
+    const helperSource = readFileSync(
+      join(__dirname, "..", "src", "renderer", "src", "pages", "cleanupRestoreAll.ts"),
+      "utf8"
+    );
 
     expect(source).toContain("파일 되돌리기를 연결하지 못했어요");
     expect(source).toContain("앱 삭제 흔적 되돌리기를 연결하지 못했어요");
-    expect(source).toContain("모두 되돌리기를 연결하지 못했어요");
+    expect(source).toContain("CLEANUP_RESTORE_ALL_MISSING_BRIDGE_MESSAGE");
+    expect(helperSource).toContain("모두 되돌리기를 연결하지 못했어요");
     expect(source).not.toContain("if (!window.fb?.restoreCleanupTrash) return;");
     expect(source).not.toContain("if (!window.fb?.restoreRegistryBackup) return;");
     expect(source).not.toContain("totalEntryCount === 0\n    ) {\n      return;");
