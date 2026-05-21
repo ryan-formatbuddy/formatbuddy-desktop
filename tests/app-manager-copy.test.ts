@@ -29,9 +29,18 @@ const APP_MANAGER_RESULT_COPY = join(
   "pages",
   "appManagerResultCopy.ts"
 );
+const APP_MANAGER_CONFIRM_COPY = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "appManagerConfirmCopy.ts"
+);
 
 function readAppManagerSources(): string {
-  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS, APP_MANAGER_RESULT_COPY]
+  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS, APP_MANAGER_RESULT_COPY, APP_MANAGER_CONFIRM_COPY]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
 }
