@@ -1405,10 +1405,7 @@ export async function restoreRegistryBackup(options: {
     const removeEntryDir =
       options.removeEntryDir ??
       ((dir: string) => fs.rm(dir, { recursive: true, force: true }));
-    await removeEntryDir(restoredEntryDir, entry.id);
-    if (await pathExists(restoredEntryDir)) {
-      throw new Error("Registry backup restore entry still exists after restore");
-    }
+    await removeRegistryBackupDirAcceptingLateSuccess(removeEntryDir, restoredEntryDir, entry.id);
     const appName = cleanDisplayString(entry.appName);
     const appPublisher = cleanDisplayString(entry.appPublisher) ?? null;
     if (appName) {

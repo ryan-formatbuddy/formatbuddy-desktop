@@ -150,6 +150,39 @@ describe("scheduled task backup", () => {
     expect(snapshot.entries.map((entry) => entry.id)).toEqual([backup.id]);
   });
 
+  it("reports scheduled task restore success when backup item removal reports a late failure after deletion", async () => {
+    const state = { exists: true };
+    const runner = makeRunner(state);
+    const backup = await backupAndDeleteScheduledTask({
+      userDataDir: fx.userDataDir,
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+    const backupDir = join(fx.userDataDir, "formatbuddy-scheduled-task-backups", "items", backup.id);
+
+    const result = await restoreScheduledTaskBackup({
+      userDataDir: fx.userDataDir,
+      backupId: backup.id,
+      now: () => new Date("2026-05-20T00:00:00.000Z"),
+      runner,
+      removeEntryDir: async (dir) => {
+        await fs.rm(dir, { recursive: true, force: true });
+        throw new Error("scheduled task restore entry remove reported a late failure");
+      }
+    });
+
+    expect(result).toMatchObject({
+      status: "restored",
+      taskName: "Acme Notes Update",
+      taskPath: "\\Acme\\"
+    });
+    expect(existsSync(backupDir)).toBe(false);
+    const snapshot = await listScheduledTaskBackups({ userDataDir: fx.userDataDir });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
   it("runs the safety hook only after a scheduled task backup is proven restorable", async () => {
     const state = { exists: true };
     const runner = makeRunner(state);

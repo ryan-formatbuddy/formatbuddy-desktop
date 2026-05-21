@@ -1239,10 +1239,7 @@ export async function restoreTrashEntry(
     if (await exists(entry.storedPath)) {
       throw new Error("Stored trash path still exists after restore");
     }
-    await removeEntryDir(restoreEntryDir, entry);
-    if (await exists(restoreEntryDir)) {
-      throw new Error("Restore entry still exists after restore");
-    }
+    await removeEntryDirAcceptingLateSuccess(removeEntryDir, restoreEntryDir, entry);
     index.entries = index.entries.filter((e) => e.id !== entry.id);
     await saveIndexOrKeepManifestFallback(options.userDataDir, index);
     await notifyAppLeftoverRestored(options, entry);

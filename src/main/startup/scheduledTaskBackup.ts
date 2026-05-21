@@ -760,12 +760,16 @@ export async function restoreScheduledTaskBackup(options: {
       };
     }
     const dir = await assertSafeTaskBackupEntryDirForPurge(options.userDataDir, entry.id);
-    if (options.removeEntryDir) {
-      await options.removeEntryDir(dir, entry);
-    } else {
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-    if (await pathExists(dir)) {
+    const removeEntryDir =
+      options.removeEntryDir ??
+      ((targetDir: string) => fs.rm(targetDir, { recursive: true, force: true }));
+    try {
+      await removeScheduledTaskBackupDirAcceptingLateSuccess(
+        (targetDir, _entryId) => removeEntryDir(targetDir, entry),
+        dir,
+        entry.id
+      );
+    } catch {
       return {
         backupId: options.backupId,
         status: "restore-failed",

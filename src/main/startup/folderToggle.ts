@@ -789,10 +789,7 @@ export async function restoreStartupFolderEntry(
     const removeEntryDir =
       options.removeEntryDir ??
       ((targetDir: string) => rm(targetDir, { recursive: true, force: true }));
-    await removeEntryDir(dir, entry);
-    if (await pathExists(dir)) {
-      throw new Error("Startup holding entry still exists after restore");
-    }
+    await removeStartupHoldingDirAcceptingLateSuccess(removeEntryDir, dir, entry);
     return {
       status: "restored",
       message: "다시 PC 켤 때 같이 뜨도록 되돌렸어요.",

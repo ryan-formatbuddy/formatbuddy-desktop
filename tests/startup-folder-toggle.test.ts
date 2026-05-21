@@ -462,6 +462,34 @@ describe("startup folder toggle", () => {
     expect(existsSync(join(fx.userDataDir, "formatbuddy-startup-disabled", "items", disabled.entry!.id))).toBe(true);
   });
 
+  it("reports startup restore success when holding entry removal reports a late failure after deletion", async () => {
+    const fx = makeFixture();
+    roots.push(fx.root);
+    await mkdir(fx.startupDir, { recursive: true });
+    const source = join(fx.startupDir, "KakaoTalk.lnk");
+    writeFileSync(source, "shortcut");
+
+    const disabled = await disableStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      entry: startupEntry(source, fx.startupDir)
+    });
+    const entryDir = __testing.entryDir(fx.userDataDir, disabled.entry!.id);
+
+    const restored = await restoreStartupFolderEntry({
+      userDataDir: fx.userDataDir,
+      disabledId: disabled.entry!.id,
+      removeEntryDir: async (dir) => {
+        await rm(dir, { recursive: true, force: true });
+        throw new Error("startup restore entry remove reported a late failure");
+      }
+    });
+
+    expect(restored.status).toBe("restored");
+    expect(existsSync(source)).toBe(true);
+    expect(existsSync(disabled.entry!.storedPath)).toBe(false);
+    expect(existsSync(entryDir)).toBe(false);
+  });
+
   it("does not write startup holding metadata through a symbolic link", async () => {
     if (process.platform === "win32") return;
     const fx = makeFixture();

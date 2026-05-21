@@ -1100,6 +1100,33 @@ describe("FormatBuddy Trash", () => {
     expect(existsSync(__testing.entryDir(fx.userData, entry.id))).toBe(true);
   });
 
+  it("reports restore success when restore-bin entry removal reports a late failure after deletion", async () => {
+    const source = join(fx.home, "AppData", "Local", "Temp", "old.tmp");
+    await mkdir(join(source, ".."), { recursive: true });
+    await writeFile(source, "hello", "utf8");
+    const entry = await moveToFormatBuddyTrash({
+      userDataDir: fx.userData,
+      item: makeItem(source),
+      sizeBytes: 5
+    });
+    const entryDir = __testing.entryDir(fx.userData, entry.id);
+
+    const result = await restoreTrashEntry({
+      userDataDir: fx.userData,
+      entryId: entry.id,
+      removeEntryDir: async (dir) => {
+        await rm(dir, { recursive: true, force: true });
+        throw new Error("restore entry remove reported a late failure");
+      }
+    });
+
+    expect(result.status).toBe("restored");
+    expect(await readFile(source, "utf8")).toBe("hello");
+    expect(existsSync(entryDir)).toBe(false);
+    const snapshot = await getTrashSnapshot({ userDataDir: fx.userData });
+    expect(snapshot.entries).toHaveLength(0);
+  });
+
   it("reports restore success when the restore move reports a late failure after the file returned", async () => {
     const source = join(fx.home, "AppData", "Local", "Temp", "late-restore.tmp");
     await mkdir(dirname(source), { recursive: true });
