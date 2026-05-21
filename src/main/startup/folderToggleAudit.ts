@@ -8,6 +8,8 @@ import {
 export type StartupDisabledPurgeAuditTrigger =
   | "startup"
   | "scheduled"
+  | "cleanup-plan"
+  | "cleanup-execute"
   | "app-leftovers"
   | "startup-list"
   | "startup-restore";

@@ -348,6 +348,38 @@ async function runAppRetentionPurgeTick(
   return result;
 }
 
+type CleanupRestoreBinPreflightTrigger = "cleanup-plan" | "cleanup-execute";
+
+async function purgeExpiredRestoreBinsForCleanupPreflight(
+  userDataDir: string,
+  trigger: CleanupRestoreBinPreflightTrigger
+): Promise<void> {
+  await purgeExpiredTrashWithAudit({
+    userDataDir,
+    trigger
+  }).catch((err) => {
+    log.warn(`cleanup-trash:purge-before-${trigger} failed:`, (err as Error).message);
+  });
+  await purgeExpiredRegistryBackupsWithAudit({
+    userDataDir,
+    trigger
+  }).catch((err) => {
+    log.warn(`registry-backup:purge-before-${trigger} failed:`, (err as Error).message);
+  });
+  await purgeExpiredStartupFolderEntriesWithAudit({
+    userDataDir,
+    trigger
+  }).catch((err) => {
+    log.warn(`startup-disabled:purge-before-${trigger} failed:`, (err as Error).message);
+  });
+  await purgeExpiredScheduledTaskBackupsWithAudit({
+    userDataDir,
+    trigger
+  }).catch((err) => {
+    log.warn(`scheduled-task-backup:purge-before-${trigger} failed:`, (err as Error).message);
+  });
+}
+
 function reconcileRetentionPurgeTimer(): void {
   if (retentionPurgeTimer) return;
   retentionPurgeTimer = setInterval(() => {
@@ -953,12 +985,7 @@ function registerIpc() {
   ipcMain.handle(
     IpcChannels.cleanupPlan,
     async (_e, payload?: { largeFiles?: LargeFileCandidate[] }): Promise<CleanupPlan> => {
-      await purgeExpiredTrashWithAudit({
-        userDataDir: app.getPath("userData"),
-        trigger: "cleanup-plan"
-      }).catch((err) => {
-        log.warn("cleanup-trash:purge-before-plan failed:", (err as Error).message);
-      });
+      await purgeExpiredRestoreBinsForCleanupPreflight(app.getPath("userData"), "cleanup-plan");
       return planCleanup({ env: { largeFiles: payload?.largeFiles ?? [] } });
     }
   );
@@ -970,6 +997,7 @@ function registerIpc() {
       const deps = defaultDeps(userDataDir);
       try {
         const safeRequest = enforceProductCleanupPolicy(request);
+        await purgeExpiredRestoreBinsForCleanupPreflight(userDataDir, "cleanup-execute");
         // Safety net first. If the prefs disabled this, the helper
         // logs + returns silently. We never block cleanup on the
         // restore point succeeding.

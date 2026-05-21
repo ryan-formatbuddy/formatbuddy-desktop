@@ -5,6 +5,8 @@ import { purgeExpiredScheduledTaskBackups } from "./scheduledTaskBackup";
 export type ScheduledTaskBackupPurgeAuditTrigger =
   | "startup"
   | "scheduled"
+  | "cleanup-plan"
+  | "cleanup-execute"
   | "app-leftovers"
   | "scheduled-task-list"
   | "scheduled-task-restore";

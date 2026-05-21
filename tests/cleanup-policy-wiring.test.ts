@@ -141,6 +141,44 @@ describe("cleanup policy wiring", () => {
     expect(source).toContain("startup-disabled:purge-before-app-leftovers failed");
   });
 
+  it("purges all 30-day restore bins before product cleanup planning and execution", () => {
+    const source = readFileSync(MAIN_PROCESS, "utf8");
+
+    const helperIndex = source.indexOf("async function purgeExpiredRestoreBinsForCleanupPreflight");
+    expect(helperIndex).toBeGreaterThanOrEqual(0);
+    expect(source.indexOf("purgeExpiredTrashWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("purgeExpiredRegistryBackupsWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("purgeExpiredStartupFolderEntriesWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("purgeExpiredScheduledTaskBackupsWithAudit({", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source.indexOf("trigger", helperIndex)).toBeGreaterThan(helperIndex);
+    expect(source).toContain("cleanup-trash:purge-before-${trigger} failed");
+    expect(source).toContain("registry-backup:purge-before-${trigger} failed");
+    expect(source).toContain("startup-disabled:purge-before-${trigger} failed");
+    expect(source).toContain("scheduled-task-backup:purge-before-${trigger} failed");
+
+    const planHandlerIndex = source.indexOf("IpcChannels.cleanupPlan");
+    const planCallIndex = source.indexOf(
+      'purgeExpiredRestoreBinsForCleanupPreflight(app.getPath("userData"), "cleanup-plan")',
+      planHandlerIndex
+    );
+    const planReturnIndex = source.indexOf("return planCleanup", planHandlerIndex);
+    expect(planCallIndex).toBeGreaterThan(planHandlerIndex);
+    expect(planReturnIndex).toBeGreaterThan(planCallIndex);
+
+    const executeHandlerIndex = source.indexOf("IpcChannels.cleanupExecute");
+    const policyIndex = source.indexOf("const safeRequest = enforceProductCleanupPolicy(request)", executeHandlerIndex);
+    const executePurgeIndex = source.indexOf(
+      'purgeExpiredRestoreBinsForCleanupPreflight(userDataDir, "cleanup-execute")',
+      policyIndex
+    );
+    const restorePointIndex = source.indexOf("await maybeCreateRestorePoint", executeHandlerIndex);
+    const executeIndex = source.indexOf("const result = await executeCleanup(safeRequest", executeHandlerIndex);
+    expect(policyIndex).toBeGreaterThan(executeHandlerIndex);
+    expect(executePurgeIndex).toBeGreaterThan(policyIndex);
+    expect(restorePointIndex).toBeGreaterThan(executePurgeIndex);
+    expect(executeIndex).toBeGreaterThan(restorePointIndex);
+  });
+
   it("logs only restorable app leftover ids in audit details", () => {
     const source = readFileSync(MAIN_PROCESS, "utf8");
 
