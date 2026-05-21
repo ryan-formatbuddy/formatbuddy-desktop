@@ -13,7 +13,6 @@ import {
   summarizeScheduledTaskBackupRestoreResults,
   summarizeStartupFolderRestoreResults,
   summarizeTrashRestoreResults,
-  trashExpirySummary
 } from "@shared/cleanup-result";
 import { friendlyErrorMessage } from "@shared/error-friendly";
 import { RESTORE_BIN_RETENTION_DAYS } from "@shared/retention";
@@ -97,6 +96,14 @@ type RestoreListItem =
       createdAt: string;
     };
 
+type RestoreBinExpiryTone = "calm" | "watch" | "urgent";
+
+interface RestoreBinExpiryInsight {
+  tone: RestoreBinExpiryTone;
+  message: string;
+  detail: string;
+}
+
 function emptyTrashSnapshot(): CleanupTrashSnapshot {
   return {
     entries: [],
@@ -131,6 +138,70 @@ function restoreBinPartialLoadMessage(failedLabels: string[]): string | null {
   if (failedLabels.length === 0) return null;
   const label = failedLabels.join(", ");
   return `${label}은 지금 불러오지 못했어요. 불러온 복구 항목은 그대로 보여드릴게요.`;
+}
+
+function restoreBinExpiryInsight(
+  items: Array<Pick<RestoreListItem, "expiresAt">>,
+  now = Date.now()
+): RestoreBinExpiryInsight | null {
+  if (items.length === 0) return null;
+
+  let expiredCount = 0;
+  let soonCount = 0;
+  let nextExpiryDays: number | null = null;
+
+  for (const item of items) {
+    const isExpired = isTrashEntryExpired(item.expiresAt, now);
+    const days = daysUntilTrashExpiry(item.expiresAt, now);
+    if (isExpired) {
+      expiredCount += 1;
+      continue;
+    }
+    if (days <= 3) soonCount += 1;
+    nextExpiryDays = nextExpiryDays === null ? days : Math.min(nextExpiryDays, days);
+  }
+
+  if (expiredCount > 0 && soonCount > 0) {
+    return {
+      tone: "urgent",
+      message: `보관 기간이 지난 항목 ${expiredCount}개, 3일 안에 보관 기간이 끝나는 항목 ${soonCount}개가 있어요.`,
+      detail: "필요한 항목은 오래된 것부터 먼저 확인해 주세요."
+    };
+  }
+  if (expiredCount > 0) {
+    return {
+      tone: "watch",
+      message: `보관 기간이 지난 항목 ${expiredCount}개가 있어요.`,
+      detail: "되돌릴 수 있는 항목만 버튼이 켜져 있어요."
+    };
+  }
+  if (soonCount > 0) {
+    return {
+      tone: "urgent",
+      message: `${soonCount}개가 3일 안에 보관 기간이 끝나요.`,
+      detail: "필요하면 지금 원래 자리로 되돌려 주세요."
+    };
+  }
+  if (nextExpiryDays !== null) {
+    return {
+      tone: "calm",
+      message: `가장 가까운 항목은 ${nextExpiryDays}일 뒤에 보관 기간이 끝나요.`,
+      detail: "정리한 항목은 오래된 순서로 먼저 보여드려요."
+    };
+  }
+  return null;
+}
+
+function restoreBinExpiryInsightColor(tone: RestoreBinExpiryTone): string {
+  if (tone === "urgent") return "#1d4ed8";
+  if (tone === "watch") return "#475569";
+  return "#0f766e";
+}
+
+function restoreBinExpiryInsightBackground(tone: RestoreBinExpiryTone): string {
+  if (tone === "urgent") return "rgba(37, 99, 235, 0.08)";
+  if (tone === "watch") return "rgba(100, 116, 139, 0.10)";
+  return "rgba(15, 118, 110, 0.08)";
 }
 
 function formatBytes(value: number): string {
@@ -779,28 +850,16 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
     scheduledTaskSnapshot
   ]);
 
-  const expirySummary = useMemo(
-    () => trashExpirySummary([...entries, ...registryEntries, ...startupEntries, ...scheduledTaskEntries]),
-    [entries, registryEntries, startupEntries, scheduledTaskEntries]
-  );
-
-  const expiryMessage = useMemo(() => {
+  const expiryInsight = useMemo(() => {
     if (
       !snapshot ||
       !registrySnapshot ||
       !startupSnapshot ||
       !scheduledTaskSnapshot ||
-      totalEntryCount === 0 ||
-      expirySummary.nextExpiryDays === null
+      totalEntryCount === 0
     ) return null;
-    if (expirySummary.todayCount > 0) {
-      return `${expirySummary.todayCount}개는 보관 기간이 지나 되돌릴 수 없어요. 앱이 다음 자동 비움 때 다시 정리해볼게요.`;
-    }
-    if (expirySummary.expiringSoonCount > 0) {
-      return `${expirySummary.expiringSoonCount}개가 3일 안에 비워질 예정이에요. 오래된 항목부터 확인해볼게요.`;
-    }
-    return `가장 먼저 비워질 항목은 ${expirySummary.nextExpiryDays}일 뒤예요.`;
-  }, [totalEntryCount, expirySummary, snapshot, registrySnapshot, startupSnapshot, scheduledTaskSnapshot]);
+    return restoreBinExpiryInsight(sortedRestoreItems);
+  }, [totalEntryCount, sortedRestoreItems, snapshot, registrySnapshot, startupSnapshot, scheduledTaskSnapshot]);
 
   return (
     <main className="fb-report" aria-label="복구함 (30일)">
@@ -872,19 +931,22 @@ export function TrashRestore({ onBack }: TrashRestoreProps) {
             </span>
           </div>
         )}
-        {expiryMessage && (
+        {expiryInsight && (
           <div
             style={{
               marginTop: 12,
               padding: "10px 12px",
               borderRadius: 14,
-              background: "rgba(37, 99, 235, 0.08)",
-              color: "#1d4ed8",
+              background: restoreBinExpiryInsightBackground(expiryInsight.tone),
+              color: restoreBinExpiryInsightColor(expiryInsight.tone),
               fontSize: 13,
               fontWeight: 650
             }}
           >
-            {expiryMessage}
+            {expiryInsight.message}
+            <div style={{ marginTop: 4, fontSize: 12, fontWeight: 600, opacity: 0.82 }}>
+              {expiryInsight.detail}
+            </div>
           </div>
         )}
         {toast && (
