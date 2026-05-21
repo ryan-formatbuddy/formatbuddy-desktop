@@ -43,6 +43,44 @@ describe("retention purge scheduler", () => {
     expect(logInfo).toHaveBeenCalledWith("30일 자동 비움: 파일 2개, 앱 삭제 흔적 백업 1개");
   });
 
+  it("keeps app execution connection backup kinds in registry purge details", async () => {
+    const purgeTrash = vi.fn(async () => ({
+      purgedCount: 0,
+      purgedBytes: 0,
+      purgedEntryIds: [],
+      retentionDays: 30
+    }));
+    const purgeRegistryBackups = vi.fn(async () => ({
+      purgedCount: 1,
+      purgedBytes: 128,
+      purgedIds: ["reg-com"],
+      purgedItems: [
+        {
+          id: "reg-com",
+          label: "앱 실행 연결 백업",
+          backupKind: "com-local-server-key" as const,
+          sizeBytes: 128
+        }
+      ],
+      retentionDays: 30
+    }));
+
+    const result = await runRetentionPurgeTick({
+      trigger: "scheduled",
+      purgeTrash,
+      purgeRegistryBackups
+    });
+
+    expect(result.registryBackups?.purgedItems).toEqual([
+      {
+        id: "reg-com",
+        label: "앱 실행 연결 백업",
+        backupKind: "com-local-server-key",
+        sizeBytes: 128
+      }
+    ]);
+  });
+
   it("passes cleanup preflight triggers through the unified restore-bin purge tick", async () => {
     const purgeTrash = vi.fn(async () => ({
       purgedCount: 0,

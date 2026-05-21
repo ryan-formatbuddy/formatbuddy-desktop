@@ -695,6 +695,9 @@ describe("Cleanup result undo helper", () => {
     expect(registryBackupKindLabel({ backupKind: "native-messaging-host-key" })).toBe(
       "브라우저 연결 도우미 백업"
     );
+    expect(registryBackupKindLabel({ backupKind: "com-local-server-key" })).toBe(
+      "앱 실행 연결 백업"
+    );
     expect(registryBackupKindLabel({ backupKind: "service-key" })).toBe("서비스 백업");
     expect(registryBackupRestoreButtonLabel({ backupKind: "key" })).toBe("앱 흔적 되돌리기");
     expect(registryBackupRestoreButtonLabel({ backupKind: "startup-value" })).toBe(
@@ -726,6 +729,9 @@ describe("Cleanup result undo helper", () => {
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "native-messaging-host-key" })).toBe(
       "브라우저 연결 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "com-local-server-key" })).toBe(
+      "앱 실행 연결 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "service-key" })).toBe("서비스 되돌리기");
   });

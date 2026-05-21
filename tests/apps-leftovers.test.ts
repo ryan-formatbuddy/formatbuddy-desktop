@@ -1715,6 +1715,63 @@ describe("planAppLeftovers", () => {
     ).toBe(false);
   });
 
+  it("also shows file type ProgID keys whose open command points to the removed app", async () => {
+    const classRoot = "HKCU\\Software\\Classes";
+    const progIdKey = `${classRoot}\\AcmeNotesDoc.7`;
+    const unrelatedProgIdKey = `${classRoot}\\OtherApp.Document`;
+    const registryRunner = {
+      listSubKeys: vi.fn(async (keyPath: string) =>
+        keyPath === classRoot
+          ? ["AcmeNotesDoc.7", "OtherApp.Document", ".acme", "txtfile"]
+          : []
+      ),
+      queryDefaultValue: vi.fn(async (keyPath: string) => {
+        if (keyPath === `${progIdKey}\\shell\\open\\command`) {
+          return {
+            type: "REG_SZ",
+            data: '"C:\\Program Files\\Acme Notes\\AcmeNotes.exe" "%1"'
+          };
+        }
+        if (keyPath === `${unrelatedProgIdKey}\\shell\\open\\command`) {
+          return {
+            type: "REG_SZ",
+            data: '"C:\\Windows\\System32\\notepad.exe" "%1"'
+          };
+        }
+        return undefined;
+      }),
+      keyExists: vi.fn(async () => false)
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.listSubKeys).toHaveBeenCalledWith(classRoot);
+    expect(registryRunner.queryDefaultValue).toHaveBeenCalledWith(`${progIdKey}\\shell\\open\\command`);
+    expect(snapshot.groups[0].paths).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "file-association-registry",
+          path: progIdKey,
+          exists: true
+        })
+      ])
+    );
+    expect(snapshot.groups[0].paths.some((path) => path.path === unrelatedProgIdKey)).toBe(false);
+    expect(snapshot.groups[0].paths.some((path) => path.path === `${classRoot}\\.acme`)).toBe(false);
+    expect(snapshot.groups[0].paths.some((path) => path.path === `${classRoot}\\txtfile`)).toBe(false);
+  });
+
   it("also shows URL protocol ProgID keys listed under a default-app Capabilities key", async () => {
     const registeredApplicationsKey = "HKCU\\Software\\RegisteredApplications";
     const registeredApplicationsValue = "Acme Notes";
@@ -2695,6 +2752,74 @@ describe("planAppLeftovers", () => {
       appName: "Acme Notes",
       appPublisher: "Acme Corp.",
       keyPath: fileAssociationRegistryKey,
+      backupKind: "file-association-key"
+    });
+  });
+
+  it("backs up and deletes selected file open command ProgID leftovers after uninstall follow-up", async () => {
+    const classRoot = "HKCU\\Software\\Classes";
+    const progIdKey = `${classRoot}\\AcmeNotesDoc.7`;
+    let keyExists = true;
+    const registryRunner = {
+      listSubKeys: vi.fn(async (keyPath: string) =>
+        keyPath === classRoot ? ["AcmeNotesDoc.7"] : []
+      ),
+      queryDefaultValue: vi.fn(async (keyPath: string) =>
+        keyPath === `${progIdKey}\\shell\\open\\command`
+          ? { type: "REG_SZ", data: '"C:\\Program Files\\Acme Notes\\AcmeNotes.exe" "%1"' }
+          : undefined
+      ),
+      keyExists: vi.fn(async (keyPath: string) => keyExists && keyPath === progIdKey),
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        keyExists = false;
+      })
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find((p) => p.path === progIdKey)!;
+    expect(path).toMatchObject({ kind: "file-association-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportKey).toHaveBeenCalledWith(progIdKey, expect.stringMatching(/backup\.reg$/));
+    expect(registryRunner.deleteKey).toHaveBeenCalledWith(progIdKey);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: progIdKey,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: progIdKey,
       backupKind: "file-association-key"
     });
   });

@@ -84,6 +84,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('entry.backupKind === "firewall-rule-value"');
     expect(source).toContain('entry.backupKind === "protocol-handler-key"');
     expect(source).toContain('entry.backupKind === "native-messaging-host-key"');
+    expect(source).toContain('entry.backupKind === "com-local-server-key"');
     expect(source).toContain('entry.backupKind === "file-association-key"');
     expect(source).toContain('entry.backupKind === "shell-extension-key"');
     expect(source).toContain("앱 이름을 확인하지 못한 삭제 흔적");

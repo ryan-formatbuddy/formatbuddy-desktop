@@ -1457,6 +1457,22 @@ function fileAssociationProgIds(app: InstalledApp): string[] {
     .slice(0, 16);
 }
 
+function fileAssociationClassNameLooksAppSpecific(className: string, app: InstalledApp): boolean {
+  const compactClassName = cleanGenericName(className.replace(/[._-]+/g, " "))
+    .replace(/[^A-Za-z0-9가-힣]+/g, "")
+    .toLowerCase();
+  if (!compactClassName) return false;
+
+  return genericFolderNames(app)
+    .map((name) =>
+      cleanGenericName(name)
+        .replace(/[^A-Za-z0-9가-힣]+/g, "")
+        .toLowerCase()
+    )
+    .filter((name) => name.length >= 3)
+    .some((name) => compactClassName.includes(name));
+}
+
 async function registryKeyExists(
   keyPath: string,
   runner?: Pick<RegistryCleanupRunner, "keyExists">
@@ -1582,25 +1598,43 @@ const FILE_ASSOCIATION_REGISTRY_ROOTS = [
 
 async function fileAssociationRegistryLeftoverPaths(
   app: InstalledApp,
-  runner?: Pick<RegistryCleanupRunner, "keyExists">
+  runner?: Pick<RegistryCleanupRunner, "keyExists" | "listSubKeys" | "queryDefaultValue">
 ): Promise<AppLeftoverPath[]> {
   const progIds = fileAssociationProgIds(app);
-  if (progIds.length === 0) return [];
-
   const paths: AppLeftoverPath[] = [];
+  const seen = new Set<string>();
+
+  const pushPath = (keyPath: string): void => {
+    const key = keyPath.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    paths.push({
+      id: makePathId(`file-association-registry:${keyPath}`),
+      kind: "file-association-registry",
+      path: keyPath,
+      exists: true,
+      sizeBytes: null,
+      lastModifiedAt: null
+    });
+  };
+
   for (const root of FILE_ASSOCIATION_REGISTRY_ROOTS) {
     for (const progId of progIds) {
       const keyPath = `${root}\\${progId}`;
       if (!isSafeFileAssociationRegistryKeyPath(keyPath)) continue;
       if (!(await registryKeyExists(keyPath, runner))) continue;
-      paths.push({
-        id: makePathId(`file-association-registry:${keyPath}`),
-        kind: "file-association-registry",
-        path: keyPath,
-        exists: true,
-        sizeBytes: null,
-        lastModifiedAt: null
-      });
+      pushPath(keyPath);
+    }
+  }
+
+  for (const root of FILE_ASSOCIATION_REGISTRY_ROOTS) {
+    for (const className of await registrySubKeys(root, runner)) {
+      if (!fileAssociationClassNameLooksAppSpecific(className, app)) continue;
+      const keyPath = `${root}\\${className}`;
+      if (!isSafeFileAssociationRegistryKeyPath(keyPath)) continue;
+      const openCommand = await registryDefaultValueRecord(`${keyPath}\\shell\\open\\command`, runner);
+      if (!openCommand?.data || !executablePathMatchesApp(openCommand.data, app)) continue;
+      pushPath(keyPath);
     }
   }
   return paths;
