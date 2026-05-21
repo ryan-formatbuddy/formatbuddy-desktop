@@ -6,6 +6,7 @@ import {
   appLeftoverConfirmRestorePlan,
   type LeftoverCleanupConfirm
 } from "./appManagerConfirmCopy";
+import { appLeftoverPanelDecision } from "./appManagerLeftoverState";
 import {
   appLeftoverEffectLines,
   appLeftoverRestorableCount,
@@ -781,39 +782,39 @@ function LeftoverPanel({
   onOpenAuditLog: () => void;
   onOpenStartupAuto: () => void;
 }) {
-  if (state.loading && !state.snapshot && !result) {
+  const panelDecision = appLeftoverPanelDecision({
+    loading: state.loading,
+    hasSnapshot: Boolean(state.snapshot),
+    hasResult: Boolean(result),
+    error: state.error
+  });
+
+  if (panelDecision.mode === "loading-empty") {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>잔여 항목 후보를 살펴보는 중이에요…</p>
+        <p>{panelDecision.statusMessage}</p>
       </article>
     );
   }
-  if (state.error && !state.snapshot && !result) {
+  if (panelDecision.mode === "error-empty") {
     return (
       <article className="fb-card fb-card-hover" style={{ marginTop: 16 }}>
-        <p>잔여 항목 확인 중 문제가 생겼어요: {state.error}</p>
+        <p>{panelDecision.statusMessage}</p>
       </article>
     );
   }
-  if (!state.snapshot && result) {
+  if (panelDecision.mode === "result-only" && result) {
     const restorableCount = appLeftoverRestorableCount(result);
     return (
       <section style={{ marginTop: 16 }}>
-        <h2 className="fb-h2">방금 정리한 내용</h2>
+        <h2 className="fb-h2">{panelDecision.heading}</h2>
         <p style={{ fontSize: 13, opacity: 0.75 }}>
-          잔여 후보 목록이 비어도 정리 결과는 남겨둘게요.
+          {panelDecision.intro}
         </p>
-        {state.loading && (
+        {panelDecision.statusMessage && (
           <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
             <p style={{ margin: 0 }}>
-              잔여 항목을 다시 확인하는 중이에요. 방금 정리 결과는 그대로 남겨둘게요.
-            </p>
-          </article>
-        )}
-        {state.error && (
-          <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
-            <p style={{ margin: 0 }}>
-              잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요. {state.error}
+              {panelDecision.statusMessage}
             </p>
           </article>
         )}
@@ -835,7 +836,7 @@ function LeftoverPanel({
       </section>
     );
   }
-  if (!state.snapshot) return null;
+  if (panelDecision.mode === "hidden" || !state.snapshot) return null;
   const restorableCount = result ? appLeftoverRestorableCount(result) : 0;
   const leftoverSummary = summarizeLeftoverSnapshot(state.snapshot);
   const selectableIds = selectableLeftoverPathIds(state.snapshot);
@@ -853,29 +854,17 @@ function LeftoverPanel({
         서비스·예약 작업 같은 수동 확인 흔적 {leftoverSummary.manualCheck}개, 제거 확인 전 {leftoverSummary.notChecked}개,
         지금 없는 항목 {leftoverSummary.missing}개는 자동으로 빠져요.
       </p>
-      {state.loading && !result && (
+      {panelDecision.statusMessage && !result && (
         <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
           <p style={{ margin: 0 }}>
-            잔여 항목을 다시 확인하는 중이에요. 기존 후보는 그대로 남겨둘게요.
+            {panelDecision.statusMessage}
           </p>
         </article>
       )}
-      {state.error && !result && (
+      {panelDecision.statusMessage && result && (
         <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
           <p style={{ margin: 0 }}>
-            잔여 항목을 다시 불러오진 못했지만, 기존 후보는 남겨둘게요. {state.error}
-          </p>
-        </article>
-      )}
-      {state.loading && result && (
-        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
-          <p style={{ margin: 0 }}>잔여 항목을 다시 확인하는 중이에요. 방금 정리 결과는 그대로 남겨둘게요.</p>
-        </article>
-      )}
-      {state.error && result && (
-        <article className="fb-card fb-card-hover" style={{ marginBottom: 12 }}>
-          <p style={{ margin: 0 }}>
-            잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요. {state.error}
+            {panelDecision.statusMessage}
           </p>
         </article>
       )}

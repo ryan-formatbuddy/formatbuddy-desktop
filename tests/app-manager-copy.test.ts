@@ -38,9 +38,24 @@ const APP_MANAGER_CONFIRM_COPY = join(
   "pages",
   "appManagerConfirmCopy.ts"
 );
+const APP_MANAGER_LEFTOVER_STATE = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "appManagerLeftoverState.ts"
+);
 
 function readAppManagerSources(): string {
-  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS, APP_MANAGER_RESULT_COPY, APP_MANAGER_CONFIRM_COPY]
+  return [
+    APP_MANAGER_PAGE,
+    APP_MANAGER_ACTIONS,
+    APP_MANAGER_RESULT_COPY,
+    APP_MANAGER_CONFIRM_COPY,
+    APP_MANAGER_LEFTOVER_STATE
+  ]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
 }
@@ -310,7 +325,9 @@ describe("AppManager uninstall copy", () => {
   it("keeps cleanup result actions visible when leftover refresh fails after cleanup", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("if (state.error && !state.snapshot && !result)");
+    expect(source).toContain("appLeftoverPanelDecision");
+    expect(source).toContain('mode: "result-only"');
+    expect(source).toContain("showResult: true");
     expect(source).toContain("잔여 항목을 다시 불러오진 못했지만, 방금 정리 결과는 남겨둘게요");
     expect(source).not.toContain("if (state.error && !result)");
     expect(source).not.toContain("setLeftovers({ loading: false, error: friendlyErrorMessage(err) });");
@@ -319,7 +336,8 @@ describe("AppManager uninstall copy", () => {
   it("keeps cleanup result actions visible even if the leftover snapshot disappears", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("if (!state.snapshot && result)");
+    expect(source).toContain('panelDecision.mode === "result-only" && result');
+    expect(source).toContain('mode: "result-only"');
     expect(source).toContain("방금 정리한 내용");
     expect(source).toContain("잔여 후보 목록이 비어도 정리 결과는 남겨둘게요.");
     expect(source).toContain("const restorableCount = appLeftoverRestorableCount(result)");
@@ -327,7 +345,9 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("복구함 보기");
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).toContain("활동 기록 보기");
-    expect(source).toMatch(/if \(!state\.snapshot && result\)[\s\S]*if \(!state\.snapshot\) return null/);
+    expect(source).toMatch(
+      /panelDecision\.mode === "result-only" && result[\s\S]*panelDecision\.mode === "hidden"/
+    );
   });
 
   it("surfaces app-leftover history persistence warnings without hiding the result", () => {
@@ -347,7 +367,8 @@ describe("AppManager uninstall copy", () => {
   it("keeps existing leftover candidates visible when refresh fails before cleanup", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("if (state.error && !state.snapshot && !result)");
+    expect(source).toContain('mode: "candidate-list"');
+    expect(source).toContain("showCandidates: true");
     expect(source).toContain("잔여 항목을 다시 불러오진 못했지만, 기존 후보는 남겨둘게요");
     expect(source).not.toContain("if (state.error && !result)");
   });
@@ -355,7 +376,8 @@ describe("AppManager uninstall copy", () => {
   it("keeps existing leftover candidates visible while refresh is loading before cleanup", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("if (state.loading && !state.snapshot && !result)");
+    expect(source).toContain('mode: "candidate-list"');
+    expect(source).toContain("showCandidates: true");
     expect(source).toContain("잔여 항목을 다시 확인하는 중이에요. 기존 후보는 그대로 남겨둘게요.");
     expect(source).not.toContain("if (state.loading && !result)");
   });
