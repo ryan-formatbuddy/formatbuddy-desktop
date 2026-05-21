@@ -20,9 +20,18 @@ const APP_MANAGER_ACTIONS = join(
   "pages",
   "appManagerActions.ts"
 );
+const APP_MANAGER_RESULT_COPY = join(
+  __dirname,
+  "..",
+  "src",
+  "renderer",
+  "src",
+  "pages",
+  "appManagerResultCopy.ts"
+);
 
 function readAppManagerSources(): string {
-  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS]
+  return [APP_MANAGER_PAGE, APP_MANAGER_ACTIONS, APP_MANAGER_RESULT_COPY]
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
 }
@@ -94,11 +103,11 @@ describe("AppManager uninstall copy", () => {
   it("counts startup holding items when deciding whether recent cleanup can be undone", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("function appLeftoverRestorableCount(result: CleanupExecuteResult): number");
-    expect(source).toContain("restorableTrashEntryIds(result).length +");
-    expect(source).toContain("recoverableRegistryBackupIds(result).length +");
-    expect(source).toContain("restorableStartupDisabledIds(result).length +");
-    expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("export function appLeftoverRestorableCount(");
+    expect(source).toContain("restorableTrashEntryIds(result, now).length +");
+    expect(source).toContain("recoverableRegistryBackupIds(result, now).length +");
+    expect(source).toContain("restorableStartupDisabledIds(result, now).length +");
+    expect(source).toContain("recoverableScheduledTaskBackupIds(result, now).length");
     expect(source).toContain("appLeftoverRestorableCount(result)");
     expect(source).toContain("appLeftoverResultActions({ result, restorableCount, restoreRecentBusy })");
     expect(source).toContain('id: "restoreRecent"');
@@ -152,8 +161,8 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("appLeftoverResultHeadline");
     expect(source).toContain("const cleanedCount = result");
     expect(source).toContain("const preservedBackupCount =");
-    expect(source).toContain("preservedRegistryBackupIds(result).length +");
-    expect(source).toContain("preservedScheduledTaskBackupIds(result).length");
+    expect(source).toContain("preservedRegistryBackupIds(result, now).length +");
+    expect(source).toContain("preservedScheduledTaskBackupIds(result, now).length");
     expect(source).toContain("if (preservedBackupCount > 0)");
     expect(source).toContain(".filter((item) => item.succeeded).length");
     expect(source).toContain("정리 확인을 끝내지 못했지만 백업");
@@ -173,13 +182,13 @@ describe("AppManager uninstall copy", () => {
   it("explains app-leftover cleanup results by restorable folders and backups", () => {
     const source = readAppManagerSources();
 
-    expect(source).toContain("appLeftoverResultLines");
-    expect(source).toContain("appLeftoverRestoreBinBreakdown");
+    expect(source).toContain("export function appLeftoverResultLines");
+    expect(source).toContain("export function appLeftoverRestoreBinBreakdown");
     expect(source).toContain("restoreBreakdown.map");
-    expect(source).toContain("const fileOrFolderCount = restorableTrashEntryIds(result).length");
-    expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result).length");
-    expect(source).toContain("const startupCount = restorableStartupDisabledIds(result).length");
-    expect(source).toContain("const scheduledTaskCount = recoverableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("const fileOrFolderCount = restorableTrashEntryIds(result, now).length");
+    expect(source).toContain("const backupCount = recoverableRegistryBackupIds(result, now).length");
+    expect(source).toContain("const startupCount = restorableStartupDisabledIds(result, now).length");
+    expect(source).toContain("const scheduledTaskCount = recoverableScheduledTaskBackupIds(result, now).length");
     expect(source).toContain("30일 보관 요약");
     expect(source).toContain("파일·폴더");
     expect(source).toContain("잔여 파일/폴더");
@@ -272,7 +281,7 @@ describe("AppManager uninstall copy", () => {
     const source = readAppManagerSources();
 
     expect(source).toContain("type LeftoverEffectSummary");
-    expect(source).toContain("function appLeftoverEffectLines");
+    expect(source).toContain("export function appLeftoverEffectLines");
     expect(source).toContain("cleanupBeforeSummary");
     expect(source).toContain("setCleanupBeforeSummary(summarizeLeftoverSnapshot(snapshot))");
     expect(source).toContain("beforeSummary={cleanupBeforeSummary}");
