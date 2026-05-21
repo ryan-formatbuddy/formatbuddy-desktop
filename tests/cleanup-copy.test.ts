@@ -170,4 +170,13 @@ describe("Cleanup copy", () => {
     expect(source).toContain("30일 보관 기간을 확인하지 못했어요");
     expect(source).not.toContain('item.detail ? ` · ${item.detail}` : ""');
   });
+
+  it("sends successful cleanup users to the effect-check rescan path", () => {
+    const source = readFileSync(CLEANUP_PAGE, "utf8");
+
+    expect(source).toContain("onQuickRescan?: () => void");
+    expect(source).toContain("onClick={onQuickRescan ?? onRescan}");
+    expect(source).toContain("다시 점검해서 효과 보기");
+    expect(source).not.toContain("빠르게 다시 보기");
+  });
 });

@@ -399,6 +399,7 @@ export function App() {
             onBack={goHome}
             onComplete={goHome}
             onRescan={() => void startScan()}
+            onQuickRescan={() => void startScan({ fast: true })}
             onOpenTrashRestore={() => setPhase({ kind: "trash" })}
             onOpenAuditLog={() => setPhase({ kind: "audit" })}
           />

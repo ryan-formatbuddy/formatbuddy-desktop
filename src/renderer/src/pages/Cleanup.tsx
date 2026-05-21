@@ -521,14 +521,9 @@ function ResultPanel({
         )}
       </details>
       <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="primary" onClick={onRescan}>
+        <Button variant="primary" onClick={onQuickRescan ?? onRescan}>
           다시 점검해서 효과 보기
         </Button>
-        {onQuickRescan && (
-          <Button variant="secondary" onClick={onQuickRescan}>
-            빠르게 다시 보기
-          </Button>
-        )}
         {result.mode === "trash" && restorableCount > 0 && (
           <Button variant="secondary" onClick={onOpenTrashRestore}>
             복구함 보기
