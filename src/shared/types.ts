@@ -850,7 +850,7 @@ export interface CleanupTrashPurgeResult {
 export interface RegistryBackupEntry {
   id: string;
   keyPath: string;
-  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "app-capabilities-key" for Default Apps capability keys, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-execution-history-value" for per-user app execution traces, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "file-association-key" for app-specific file type links, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "explorer-extension-key" for Windows Explorer extension handler links, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "com-local-server-key" for app-specific COM local server registrations, "com-inproc-server-key" for app-specific COM in-process extension registrations, "com-app-id-key" for app-specific COM AppID registrations, "service-key" for Windows services, "firewall-rule-value" for app firewall rules. */
+  /** "key" for uninstall keys, "startup-value" for Run/RunOnce values, "registered-app-value" for Default Apps list values, "app-capabilities-key" for Default Apps capability keys, "environment-path-value" for PATH segments, "environment-variable-value" for app-specific environment variables, "app-execution-history-value" for per-user app execution traces, "app-display-cache-value" for per-user app display cache traces, "app-path-key" for App Paths aliases, "open-with-key" for app connection traces, "file-association-key" for app-specific file type links, "context-menu-key" for right-click menu traces, "shell-extension-key" for deeper right-click extensions, "explorer-extension-key" for Windows Explorer extension handler links, "protocol-handler-key" for URL protocol links, "native-messaging-host-key" for browser app helpers, "com-local-server-key" for app-specific COM local server registrations, "com-inproc-server-key" for app-specific COM in-process extension registrations, "com-app-id-key" for app-specific COM AppID registrations, "service-key" for Windows services, "firewall-rule-value" for app firewall rules. */
   backupKind?:
     | "key"
     | "startup-value"
@@ -860,6 +860,7 @@ export interface RegistryBackupEntry {
     | "environment-variable-value"
     | "firewall-rule-value"
     | "app-execution-history-value"
+    | "app-display-cache-value"
     | "app-path-key"
     | "open-with-key"
     | "file-association-key"
@@ -872,7 +873,7 @@ export interface RegistryBackupEntry {
     | "com-inproc-server-key"
     | "com-app-id-key"
     | "service-key";
-  /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", "environment-path-value", "environment-variable-value", "firewall-rule-value", or "app-execution-history-value". */
+  /** Present when backupKind is a value-level backup such as "startup-value", "registered-app-value", "environment-path-value", "environment-variable-value", "firewall-rule-value", "app-execution-history-value", or "app-display-cache-value". */
   valueName?: string | null;
   /** Present when backupKind === "environment-path-value". */
   environmentPathSegment?: string | null;
@@ -927,6 +928,7 @@ export interface RegistryBackupPurgedItem {
     | "environment-variable-value"
     | "firewall-rule-value"
     | "app-execution-history-value"
+    | "app-display-cache-value"
     | "app-path-key"
     | "open-with-key"
     | "file-association-key"
@@ -1356,6 +1358,7 @@ export interface AppLeftoverPath {
     | "environment-variable-registry"
     | "firewall-rule-registry"
     | "app-execution-history-registry"
+    | "app-display-cache-registry"
     | "app-path-registry"
     | "open-with-registry"
     | "file-association-registry"

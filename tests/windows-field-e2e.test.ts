@@ -68,8 +68,9 @@ const FIELD_REQUIREMENTS = {
   appEnvironmentSetting: fieldRequirements[20],
   appFirewallRule: fieldRequirements[21],
   appExecutionHistory: fieldRequirements[22],
-  serviceLeftover: fieldRequirements[23],
-  unifiedRetentionTick: fieldRequirements[24]
+  appDisplayCache: fieldRequirements[23],
+  serviceLeftover: fieldRequirements[24],
+  unifiedRetentionTick: fieldRequirements[25]
 } as const;
 const RUN_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const FIELD_VALUE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
@@ -108,6 +109,9 @@ const APP_EXECUTION_HISTORY_KEY =
   "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store";
 const FIELD_EXECUTION_HISTORY_VALUE =
   `C:\\Program Files\\${FIELD_VALUE_NAME}\\${FIELD_VALUE_NAME}.exe`;
+const APP_DISPLAY_CACHE_KEY =
+  "HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache";
+const FIELD_DISPLAY_CACHE_VALUE = `${FIELD_EXECUTION_HISTORY_VALUE}.FriendlyAppName`;
 const FIELD_SERVICE_NAME = `FormatBuddyFieldE2E_${process.pid}`;
 const FIELD_SERVICE_KEY = `HKLM\\SYSTEM\\CurrentControlSet\\Services\\${FIELD_SERVICE_NAME}`;
 const FIELD_TASK_NAME = `FormatBuddy Field E2E ${process.pid}`;
@@ -336,6 +340,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     await runReg(["delete", SHELL_EXTENSION_KEY, "/f"]).catch(() => {});
     await runReg(["delete", EXPLORER_EXTENSION_KEY, "/f"]).catch(() => {});
     await deleteRegistryValue(APP_EXECUTION_HISTORY_KEY, FIELD_EXECUTION_HISTORY_VALUE).catch(() => {});
+    await deleteRegistryValue(APP_DISPLAY_CACHE_KEY, FIELD_DISPLAY_CACHE_VALUE).catch(() => {});
     await deleteRegistryValue(FIREWALL_RULES_KEY, FIELD_FIREWALL_VALUE_NAME).catch(() => {});
     await deleteRegistryValue(ENVIRONMENT_KEY, FIELD_ENV_VALUE_NAME).catch(() => {});
     if (originalUserPath) {
@@ -791,6 +796,12 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       "REG_BINARY",
       "01000000"
     );
+    await setRegistryValue(
+      APP_DISPLAY_CACHE_KEY,
+      FIELD_DISPLAY_CACHE_VALUE,
+      "REG_SZ",
+      FIELD_VALUE_NAME
+    );
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
@@ -806,6 +817,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
     expect(await registryKeyExists(EXPLORER_EXTENSION_KEY)).toBe(true);
     expect(await registryValueExists(APP_EXECUTION_HISTORY_KEY, FIELD_EXECUTION_HISTORY_VALUE)).toBe(true);
+    expect(await registryValueExists(APP_DISPLAY_CACHE_KEY, FIELD_DISPLAY_CACHE_VALUE)).toBe(true);
     const openCommandLeftovers = await planAppLeftovers([], {
       extraApps: [
         {
@@ -882,6 +894,15 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       kind: "app-execution-history-registry",
       path: APP_EXECUTION_HISTORY_KEY,
       registryValueName: FIELD_EXECUTION_HISTORY_VALUE,
+      exists: true
+    });
+    const displayCacheLeftover = openCommandLeftovers.groups
+      .flatMap((group) => group.paths)
+      .find((path) => path.kind === "app-display-cache-registry" && path.path === APP_DISPLAY_CACHE_KEY);
+    expect(displayCacheLeftover).toMatchObject({
+      kind: "app-display-cache-registry",
+      path: APP_DISPLAY_CACHE_KEY,
+      registryValueName: FIELD_DISPLAY_CACHE_VALUE,
       exists: true
     });
 
@@ -985,6 +1006,14 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       now: () => firstAt,
       app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
     });
+    const displayCacheBackup = await backupAndDeleteRegistryValue({
+      userDataDir,
+      keyPath: APP_DISPLAY_CACHE_KEY,
+      valueName: FIELD_DISPLAY_CACHE_VALUE,
+      backupKind: "app-display-cache-value",
+      now: () => firstAt,
+      app: { name: FIELD_VALUE_NAME, publisher: "FormatBuddy Field E2E" }
+    });
 
     expect(registeredAppBackup.backupKind).toBe("registered-app-value");
     expect(appCapabilitiesBackup.backupKind).toBe("app-capabilities-key");
@@ -1000,6 +1029,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(shellExtensionBackup.backupKind).toBe("shell-extension-key");
     expect(explorerExtensionBackup.backupKind).toBe("explorer-extension-key");
     expect(executionHistoryBackup.backupKind).toBe("app-execution-history-value");
+    expect(displayCacheBackup.backupKind).toBe("app-display-cache-value");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(false);
     expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(false);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(false);
@@ -1014,6 +1044,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(false);
     expect(await registryKeyExists(EXPLORER_EXTENSION_KEY)).toBe(false);
     expect(await registryValueExists(APP_EXECUTION_HISTORY_KEY, FIELD_EXECUTION_HISTORY_VALUE)).toBe(false);
+    expect(await registryValueExists(APP_DISPLAY_CACHE_KEY, FIELD_DISPLAY_CACHE_VALUE)).toBe(false);
 
     const restoredRegisteredApp = await restoreRegistryBackup({
       userDataDir,
@@ -1085,6 +1116,11 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
       backupId: executionHistoryBackup.id,
       now: () => restoredAt
     });
+    const restoredDisplayCache = await restoreRegistryBackup({
+      userDataDir,
+      backupId: displayCacheBackup.id,
+      now: () => restoredAt
+    });
 
     expect(restoredRegisteredApp.status).toBe("restored");
     expect(restoredAppCapabilities.status).toBe("restored");
@@ -1100,6 +1136,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredShellExtension.status).toBe("restored");
     expect(restoredExplorerExtension.status).toBe("restored");
     expect(restoredExecutionHistory.status).toBe("restored");
+    expect(restoredDisplayCache.status).toBe("restored");
     expect(restoredRegisteredApp.entry?.backupKind).toBe("registered-app-value");
     expect(restoredAppCapabilities.entry?.backupKind).toBe("app-capabilities-key");
     expect(restoredAppPath.entry?.backupKind).toBe("app-path-key");
@@ -1114,6 +1151,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(restoredShellExtension.entry?.backupKind).toBe("shell-extension-key");
     expect(restoredExplorerExtension.entry?.backupKind).toBe("explorer-extension-key");
     expect(restoredExecutionHistory.entry?.backupKind).toBe("app-execution-history-value");
+    expect(restoredDisplayCache.entry?.backupKind).toBe("app-display-cache-value");
     expect(await registryValueExists(REGISTERED_APPLICATIONS_KEY, FIELD_VALUE_NAME)).toBe(true);
     expect(await registryKeyExists(APP_CAPABILITIES_KEY)).toBe(true);
     expect(await registryKeyExists(APP_PATH_KEY)).toBe(true);
@@ -1128,6 +1166,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     expect(await registryKeyExists(SHELL_EXTENSION_KEY)).toBe(true);
     expect(await registryKeyExists(EXPLORER_EXTENSION_KEY)).toBe(true);
     expect(await registryValueExists(APP_EXECUTION_HISTORY_KEY, FIELD_EXECUTION_HISTORY_VALUE)).toBe(true);
+    expect(await registryValueExists(APP_DISPLAY_CACHE_KEY, FIELD_DISPLAY_CACHE_VALUE)).toBe(true);
     proveFieldRequirement(FIELD_REQUIREMENTS.registeredApplicationsValue);
     proveFieldRequirement(FIELD_REQUIREMENTS.appPathsKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.openWithKey);
@@ -1141,6 +1180,7 @@ fieldDescribe("Windows field E2E: restore bin and startup controls", () => {
     proveFieldRequirement(FIELD_REQUIREMENTS.shellExtensionKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.explorerExtensionKey);
     proveFieldRequirement(FIELD_REQUIREMENTS.appExecutionHistory);
+    proveFieldRequirement(FIELD_REQUIREMENTS.appDisplayCache);
   }, 45_000);
 
   it("backs up, removes, and restores one isolated user PATH app segment", async () => {

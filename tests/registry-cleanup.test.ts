@@ -18,6 +18,7 @@ import {
   isSafeEnvironmentPathRegistryValuePath,
   isSafeFirewallRuleRegistryValuePath,
   isSafeAppExecutionHistoryRegistryValuePath,
+  isSafeAppDisplayCacheRegistryValuePath,
   isSafeFileAssociationRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
@@ -409,6 +410,21 @@ describe("registry leftover cleanup", () => {
     expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe --open")).toBe(false);
     expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe ")).toBe(false);
     expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\Acme|Notes.exe")).toBe(false);
+  });
+
+  it("only allows app display cache values in the per-user display cache location", () => {
+    const keyPath =
+      "HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache";
+    const valueName = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe.FriendlyAppName";
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, valueName)).toBe(true);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe")).toBe(true);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe.ApplicationCompany")).toBe(true);
+    expect(isSafeAppDisplayCacheRegistryValuePath(`HKLM\\${keyPath}`, valueName)).toBe(false);
+    expect(isSafeAppDisplayCacheRegistryValuePath(`${keyPath}\\SubKey`, valueName)).toBe(false);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.dll.FriendlyAppName")).toBe(false);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe --open")).toBe(false);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe.FriendlyAppName ")).toBe(false);
+    expect(isSafeAppDisplayCacheRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\Acme|Notes.exe.FriendlyAppName")).toBe(false);
   });
 
   it("only allows Run and RunOnce startup registry values", () => {
@@ -1320,6 +1336,82 @@ describe("registry leftover cleanup", () => {
       name: "Acme Notes",
       publisher: "Acme Corp.",
       backupKind: "app-execution-history-value",
+      valueName
+    });
+  });
+
+  it("exports a backup before deleting an app display cache registry value", async () => {
+    const keyPath =
+      "HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache";
+    const valueName = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe.FriendlyAppName";
+    let valueExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            REGISTRY_BACKUP_HEADER,
+            "",
+            "[HKEY_CURRENT_USER\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\MuiCache]",
+            '"C:\\\\Program Files\\\\Acme Notes\\\\AcmeNotes.exe.FriendlyAppName"="Acme Notes"',
+            ""
+          ].join("\r\n"),
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        calls.push("delete");
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        valueExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      backupKind: "app-display-cache-value",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "app-display-cache-value",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "앱 표시 기록 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "app-display-cache-value" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "app-display-cache-value",
       valueName
     });
   });

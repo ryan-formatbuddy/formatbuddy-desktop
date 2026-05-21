@@ -84,6 +84,7 @@ describe("TrashRestore copy", () => {
     expect(source).toContain('entry.backupKind === "environment-variable-value"');
     expect(source).toContain('entry.backupKind === "firewall-rule-value"');
     expect(source).toContain('entry.backupKind === "app-execution-history-value"');
+    expect(source).toContain('entry.backupKind === "app-display-cache-value"');
     expect(source).toContain('entry.backupKind === "protocol-handler-key"');
     expect(source).toContain('entry.backupKind === "native-messaging-host-key"');
     expect(source).toContain('entry.backupKind === "com-local-server-key"');

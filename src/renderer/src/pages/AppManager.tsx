@@ -118,6 +118,8 @@ function leftoverKindLabel(path: AppLeftoverPath): string {
       return "방화벽 규칙";
     case "app-execution-history-registry":
       return "실행 기록 흔적";
+    case "app-display-cache-registry":
+      return "앱 표시 기록";
     case "app-path-registry":
       return "앱 실행 경로";
     case "open-with-registry":
@@ -167,7 +169,8 @@ function leftoverDisplayPath(path: AppLeftoverPath): string {
     path.kind === "environment-path-registry" ||
     path.kind === "environment-variable-registry" ||
     path.kind === "firewall-rule-registry" ||
-    path.kind === "app-execution-history-registry"
+    path.kind === "app-execution-history-registry" ||
+    path.kind === "app-display-cache-registry"
   ) {
     const valueName = path.registryValueName?.trim();
     const suffix =
@@ -210,7 +213,8 @@ function isAppTraceLeftover(path: AppLeftoverPath): boolean {
     path.kind === "context-menu-registry" ||
     path.kind === "shell-extension-registry" ||
     path.kind === "explorer-extension-registry" ||
-    path.kind === "app-execution-history-registry"
+    path.kind === "app-execution-history-registry" ||
+    path.kind === "app-display-cache-registry"
   );
 }
 

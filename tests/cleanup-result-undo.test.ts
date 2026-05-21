@@ -687,6 +687,9 @@ describe("Cleanup result undo helper", () => {
     expect(registryBackupKindLabel({ backupKind: "app-execution-history-value" })).toBe(
       "앱 실행 기록 백업"
     );
+    expect(registryBackupKindLabel({ backupKind: "app-display-cache-value" })).toBe(
+      "앱 표시 기록 백업"
+    );
     expect(registryBackupKindLabel({ backupKind: "context-menu-key" })).toBe("우클릭 메뉴 백업");
     expect(registryBackupKindLabel({ backupKind: "file-association-key" })).toBe(
       "파일 형식 연결 백업"
@@ -729,6 +732,9 @@ describe("Cleanup result undo helper", () => {
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "app-execution-history-value" })).toBe(
       "앱 실행 기록 되돌리기"
+    );
+    expect(registryBackupRestoreButtonLabel({ backupKind: "app-display-cache-value" })).toBe(
+      "앱 표시 기록 되돌리기"
     );
     expect(registryBackupRestoreButtonLabel({ backupKind: "context-menu-key" })).toBe(
       "우클릭 메뉴 되돌리기"
