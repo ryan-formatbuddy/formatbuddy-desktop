@@ -17,6 +17,7 @@ import {
   isSafeEnvironmentVariableRegistryValuePath,
   isSafeEnvironmentPathRegistryValuePath,
   isSafeFirewallRuleRegistryValuePath,
+  isSafeAppExecutionHistoryRegistryValuePath,
   isSafeFileAssociationRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   isSafeShellExtensionRegistryKeyPath,
@@ -395,6 +396,19 @@ describe("registry leftover cleanup", () => {
     expect(isSafeFirewallRuleRegistryValuePath(`${keyPath}\\SubKey`, "AcmeNotes.Rule_1")).toBe(false);
     expect(isSafeFirewallRuleRegistryValuePath(keyPath, "Acme Notes Rule")).toBe(false);
     expect(isSafeFirewallRuleRegistryValuePath(keyPath, "AcmeNotes|Rule")).toBe(false);
+  });
+
+  it("only allows app execution history values in the per-user app history location", () => {
+    const keyPath =
+      "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store";
+    const valueName = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe";
+    expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, valueName)).toBe(true);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(`HKLM\\${keyPath}`, valueName)).toBe(false);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(`${keyPath}\\SubKey`, valueName)).toBe(false);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.dll")).toBe(false);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe --open")).toBe(false);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\AcmeNotes.exe ")).toBe(false);
+    expect(isSafeAppExecutionHistoryRegistryValuePath(keyPath, "C:\\Program Files\\Acme Notes\\Acme|Notes.exe")).toBe(false);
   });
 
   it("only allows Run and RunOnce startup registry values", () => {
@@ -1231,6 +1245,82 @@ describe("registry leftover cleanup", () => {
       publisher: "Acme Corp.",
       backupKind: "explorer-extension-key",
       registryKeyPath: keyPath
+    });
+  });
+
+  it("exports a backup before deleting an app execution history registry value", async () => {
+    const keyPath =
+      "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store";
+    const valueName = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe";
+    let valueExists = true;
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(
+          backupPath,
+          [
+            REGISTRY_BACKUP_HEADER,
+            "",
+            "[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store]",
+            '"C:\\\\Program Files\\\\Acme Notes\\\\AcmeNotes.exe"=hex:01,00,00,00',
+            ""
+          ].join("\r\n"),
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        calls.push("delete");
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists),
+      importFile: vi.fn(async () => {
+        calls.push("import");
+        valueExists = true;
+      })
+    };
+
+    const result = await backupAndDeleteRegistryValue({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      valueName,
+      backupKind: "app-execution-history-value",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner,
+      app: { name: "Acme Notes", publisher: "Acme Corp." }
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      valueName,
+      backupKind: "app-execution-history-value",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const onAppRegistryBackupRestored = vi.fn();
+    const restored = await restoreRegistryBackup({
+      userDataDir: fx.userDataDir,
+      backupId: result.id,
+      runner,
+      onAppRegistryBackupRestored
+    });
+
+    expect(calls).toEqual(["export", "delete", "import"]);
+    expect(restored).toMatchObject({
+      status: "restored",
+      keyPath,
+      message: "앱 실행 기록 백업을 되돌렸어요."
+    });
+    expect(restored.entry).toMatchObject({ backupKind: "app-execution-history-value" });
+    expect(onAppRegistryBackupRestored).toHaveBeenCalledWith({
+      name: "Acme Notes",
+      publisher: "Acme Corp.",
+      backupKind: "app-execution-history-value",
+      valueName
     });
   });
 

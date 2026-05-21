@@ -388,6 +388,7 @@ export function registryBackupKindLabel(entry: RegistryBackupKindSource): string
   if (entry.backupKind === "environment-path-value") return "PATH 경로 백업";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 백업";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 백업";
+  if (entry.backupKind === "app-execution-history-value") return "앱 실행 기록 백업";
   if (entry.backupKind === "app-path-key") return "앱 실행 경로 백업";
   if (entry.backupKind === "open-with-key") return "앱 연결 흔적 백업";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 백업";
@@ -409,6 +410,7 @@ export function registryBackupRestoreButtonLabel(entry: RegistryBackupKindSource
   if (entry.backupKind === "environment-path-value") return "PATH 경로 되돌리기";
   if (entry.backupKind === "environment-variable-value") return "환경 설정 흔적 되돌리기";
   if (entry.backupKind === "firewall-rule-value") return "방화벽 규칙 되돌리기";
+  if (entry.backupKind === "app-execution-history-value") return "앱 실행 기록 되돌리기";
   if (entry.backupKind === "app-path-key") return "실행 경로 되돌리기";
   if (entry.backupKind === "open-with-key") return "앱 연결 되돌리기";
   if (entry.backupKind === "file-association-key") return "파일 형식 연결 되돌리기";

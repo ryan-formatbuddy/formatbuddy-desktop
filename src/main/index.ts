@@ -492,6 +492,7 @@ function restoredRegistryBackupFollowupApp(restoredApp: {
     | "environment-path-value"
     | "environment-variable-value"
     | "firewall-rule-value"
+    | "app-execution-history-value"
     | "app-path-key"
     | "open-with-key"
     | "file-association-key"

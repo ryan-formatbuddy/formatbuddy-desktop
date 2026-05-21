@@ -1968,6 +1968,59 @@ describe("planAppLeftovers", () => {
     ).toBe(false);
   });
 
+  it("shows app execution history leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
+    const historyKey =
+      "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store";
+    const historyValue = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe";
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === historyKey
+          ? [
+              {
+                valueName: historyValue,
+                type: "REG_BINARY",
+                data: "01 00 00 00"
+              },
+              {
+                valueName: "C:\\Windows\\System32\\notepad.exe",
+                type: "REG_BINARY",
+                data: "01 00 00 00"
+              }
+            ]
+          : []
+      )
+    };
+
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+
+    expect(registryRunner.listValues).toHaveBeenCalledWith(historyKey);
+    const historyCandidate = snapshot.groups[0].paths.find(
+      (p) => p.path === historyKey && p.registryValueName === historyValue
+    );
+    expect(historyCandidate).toMatchObject({
+      kind: "app-execution-history-registry",
+      registryValueName: historyValue,
+      exists: true
+    });
+    expect(historyCandidate?.protectedBy).toBeUndefined();
+    expect(
+      snapshot.groups[0].paths.some((p) => p.registryValueName === "C:\\Windows\\System32\\notepad.exe")
+    ).toBe(false);
+  });
+
   it("shows app connection registry leftovers as selectable backup-first candidates after uninstall follow-up", async () => {
     const openWithRegistryKey = "HKCU\\Software\\Classes\\Applications\\AcmeNotes.exe";
     const registryRunner = {
@@ -2639,6 +2692,92 @@ describe("planAppLeftovers", () => {
       keyPath: firewallKey,
       valueName: firewallValue,
       backupKind: "firewall-rule-value"
+    });
+  });
+
+  it("backs up and deletes selected app execution history leftovers after uninstall follow-up", async () => {
+    const historyKey =
+      "HKCU\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store";
+    const historyValue = "C:\\Program Files\\Acme Notes\\AcmeNotes.exe";
+    let valueExists = true;
+    const registryRunner = {
+      exportKey: vi.fn(async () => undefined),
+      deleteKey: vi.fn(async () => undefined),
+      listValues: vi.fn(async (keyPath: string) =>
+        keyPath === historyKey
+          ? [
+              {
+                valueName: historyValue,
+                type: "REG_BINARY",
+                data: "01 00 00 00"
+              }
+            ]
+          : []
+      ),
+      exportValue: vi.fn(async (_keyPath: string, _valueName: string, backupPath: string) => {
+        await fs.mkdir(dirname(backupPath), { recursive: true });
+        await fs.writeFile(
+          backupPath,
+          `${REGISTRY_BACKUP_HEADER}\n\n[HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Compatibility Assistant\\Store]\n"C:\\\\Program Files\\\\Acme Notes\\\\AcmeNotes.exe"=hex:01,00,00,00\n`,
+          "utf8"
+        );
+      }),
+      deleteValue: vi.fn(async () => {
+        valueExists = false;
+      }),
+      valueExists: vi.fn(async () => valueExists)
+    };
+    const snapshot = await planAppLeftovers([], {
+      home: fx.home,
+      env: { roaming: fx.roaming, localAppData: fx.localAppData, programData: fx.programData },
+      extraApps: [
+        {
+          name: "Acme Notes",
+          publisher: "Acme Corp.",
+          installLocation: "C:\\Program Files\\Acme Notes"
+        }
+      ],
+      registryRunner
+    });
+    const path = snapshot.groups[0].paths.find(
+      (p) => p.path === historyKey && p.registryValueName === historyValue
+    )!;
+    expect(path).toMatchObject({ kind: "app-execution-history-registry", exists: true });
+
+    const result = await cleanupAppLeftovers(
+      {
+        planId: snapshot.planId,
+        confirmationToken: snapshot.confirmationToken,
+        selectedPathIds: [path.id]
+      },
+      {
+        userDataDir: join(fx.root, "userdata"),
+        now: () => new Date("2026-05-19T00:00:00.000Z"),
+        registryRunner
+      }
+    );
+
+    expect(registryRunner.exportValue).toHaveBeenCalledWith(
+      historyKey,
+      historyValue,
+      expect.stringMatching(/backup\.reg$/)
+    );
+    expect(registryRunner.deleteValue).toHaveBeenCalledWith(historyKey, historyValue);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      itemId: path.id,
+      path: `${historyKey}\\${historyValue}`,
+      registryBackupId: expect.any(String),
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+
+    const registryBackups = await listRegistryBackups({ userDataDir: join(fx.root, "userdata") });
+    expect(registryBackups.entries[0]).toMatchObject({
+      appName: "Acme Notes",
+      appPublisher: "Acme Corp.",
+      keyPath: historyKey,
+      valueName: historyValue,
+      backupKind: "app-execution-history-value"
     });
   });
 
