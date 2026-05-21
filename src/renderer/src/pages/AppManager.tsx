@@ -9,8 +9,9 @@ import {
 } from "@shared/app-leftovers";
 import {
   preservedRegistryBackupIds,
+  preservedScheduledTaskBackupIds,
   recoverableRegistryBackupIds,
-  restorableScheduledTaskBackupIds,
+  recoverableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
   summarizeRestoreAllResults
@@ -146,7 +147,7 @@ function appLeftoverResultLines(result: CleanupExecuteResult): string[] {
   const fileOrFolderCount = restorableTrashEntryIds(result).length;
   const backupCount = recoverableRegistryBackupIds(result).length;
   const startupCount = restorableStartupDisabledIds(result).length;
-  const scheduledTaskCount = restorableScheduledTaskBackupIds(result).length;
+  const scheduledTaskCount = recoverableScheduledTaskBackupIds(result).length;
   const untouchedCount =
     result.removedItems.filter((item) => !item.succeeded).length +
     result.skippedItems.filter((item) => item.reason !== "not-selected").length;
@@ -256,12 +257,14 @@ function appLeftoverSkippedPreviewLines(
 
 function appLeftoverResultHeadline(result: CleanupExecuteResult): string {
   const cleanedCount = result.removedItems.filter((item) => item.succeeded).length;
-  const preservedBackupCount = preservedRegistryBackupIds(result).length;
+  const preservedBackupCount =
+    preservedRegistryBackupIds(result).length +
+    preservedScheduledTaskBackupIds(result).length;
   const restorableCount =
     restorableTrashEntryIds(result).length +
     recoverableRegistryBackupIds(result).length +
     restorableStartupDisabledIds(result).length +
-    restorableScheduledTaskBackupIds(result).length;
+    recoverableScheduledTaskBackupIds(result).length;
 
   if (cleanedCount > 0 && restorableCount > 0) {
     return `${cleanedCount}개를 정리했고, ${restorableCount}개는 30일 안에 되돌릴 수 있어요.`;
@@ -1053,7 +1056,7 @@ export function AppManager({
       const entryIds = restorableTrashEntryIds(result);
       const registryBackupIds = recoverableRegistryBackupIds(result);
       const startupDisabledIds = restorableStartupDisabledIds(result);
-      const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+      const scheduledTaskBackupIds = recoverableScheduledTaskBackupIds(result);
       if (
         entryIds.length === 0 &&
         registryBackupIds.length === 0 &&

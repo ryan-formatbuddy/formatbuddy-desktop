@@ -8,7 +8,9 @@ import { promises as fs } from "node:fs";
 import { IpcChannels } from "@shared/ipc";
 import {
   preservedRegistryBackupIds,
+  preservedScheduledTaskBackupIds,
   recoverableRegistryBackupIds,
+  recoverableScheduledTaskBackupIds,
   registryBackupKindLabel,
   restorableRegistryBackupIds,
   restorableScheduledTaskBackupIds,
@@ -1274,6 +1276,8 @@ function registerIpc() {
         const recoverableBackupIds = recoverableRegistryBackupIds(result);
         const startupDisabledIds = restorableStartupDisabledIds(result);
         const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+        const preservedScheduledTaskIds = preservedScheduledTaskBackupIds(result);
+        const recoverableScheduledTaskIds = recoverableScheduledTaskBackupIds(result);
         const removedCount =
           trashEntryIds.length +
           registryBackupIds.length +
@@ -1296,6 +1300,9 @@ function registerIpc() {
             : "",
           scheduledTaskBackupIds.length > 0
             ? `예약 작업 ${scheduledTaskBackupIds.length}개를 백업 후 정리했어요`
+            : "",
+          preservedScheduledTaskIds.length > 0
+            ? `확인을 끝내지 못한 예약 작업 백업 ${preservedScheduledTaskIds.length}개는 복구함에 남겨뒀어요`
             : ""
         ].filter(Boolean);
         await appendAuditEntry(userDataDir, {
@@ -1317,12 +1324,15 @@ function registerIpc() {
             recoverableRegistryBackupCount: recoverableBackupIds.length,
             startupDisabledCount: startupDisabledIds.length,
             scheduledTaskBackupCount: scheduledTaskBackupIds.length,
+            preservedScheduledTaskBackupCount: preservedScheduledTaskIds.length,
+            recoverableScheduledTaskBackupCount: recoverableScheduledTaskIds.length,
             trashEntryIds,
             registryBackupIds,
             preservedRegistryBackupIds: preservedBackupIds,
             recoverableRegistryBackupIds: recoverableBackupIds,
             startupDisabledIds,
-            scheduledTaskBackupIds
+            scheduledTaskBackupIds: recoverableScheduledTaskIds,
+            preservedScheduledTaskBackupIds: preservedScheduledTaskIds
           }
         }).catch((e) => log.warn("audit append (apps-leftovers-cleanup) failed:", (e as Error).message));
         return result;

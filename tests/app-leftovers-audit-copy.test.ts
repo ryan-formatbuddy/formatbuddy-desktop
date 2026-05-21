@@ -14,6 +14,11 @@ describe("app leftovers audit copy", () => {
     expect(source).toContain("recoverableRegistryBackupIds");
     expect(source).toContain("const recoverableBackupIds = recoverableRegistryBackupIds(result)");
     expect(source).toContain("확인을 끝내지 못한 앱 삭제 흔적 백업");
+    expect(source).toContain("preservedScheduledTaskBackupIds");
+    expect(source).toContain("recoverableScheduledTaskBackupIds");
+    expect(source).toContain("const preservedScheduledTaskIds = preservedScheduledTaskBackupIds(result)");
+    expect(source).toContain("const recoverableScheduledTaskIds = recoverableScheduledTaskBackupIds(result)");
+    expect(source).toContain("확인을 끝내지 못한 예약 작업 백업");
     expect(source).toContain("복구함에 남겨뒀어요");
     expect(source).toContain("fileTrashCount: trashEntryIds.length");
     expect(source).toContain("registryBackupCount: registryBackupIds.length");
@@ -21,6 +26,8 @@ describe("app leftovers audit copy", () => {
     expect(source).toContain("recoverableRegistryBackupCount: recoverableBackupIds.length");
     expect(source).toContain("startupDisabledCount: startupDisabledIds.length");
     expect(source).toContain("scheduledTaskBackupCount: scheduledTaskBackupIds.length");
+    expect(source).toContain("preservedScheduledTaskBackupCount: preservedScheduledTaskIds.length");
+    expect(source).toContain("recoverableScheduledTaskBackupCount: recoverableScheduledTaskIds.length");
     expect(source).toContain("예약 작업 ${scheduledTaskBackupIds.length}개를 백업 후 정리했어요");
     expect(source).not.toContain("폴더와 백업은 30일 뒤 자동으로 비워요");
     expect(source).toContain("보관한 항목은 30일 뒤 자동으로 비워요");

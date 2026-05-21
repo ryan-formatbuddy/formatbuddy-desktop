@@ -89,7 +89,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("restoreFailureCount += 1");
     expect(source).toContain("recoverableRegistryBackupIds(result)");
     expect(source).toContain("restorableStartupDisabledIds(result)");
-    expect(source).toContain("restorableScheduledTaskBackupIds(result)");
+    expect(source).toContain("recoverableScheduledTaskBackupIds(result)");
     expect(source).toContain("restoreRegistryBackup");
     expect(source).toContain("restoreStartupAuto");
     expect(source).toContain("restoreScheduledTaskBackup");
@@ -106,7 +106,7 @@ describe("Cleanup copy", () => {
     expect(source).toContain("restorableTrashEntryIds(result).length +");
     expect(source).toContain("recoverableRegistryBackupIds(result).length +");
     expect(source).toContain("restorableStartupDisabledIds(result).length +");
-    expect(source).toContain("restorableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
     expect(source).toContain("const restorableCount = restorableCleanupResultCount(result)");
     expect(source).toContain('result.mode === "trash" && restorableCount > 0');
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목은 포맷버디 복구함에서 다시 확인할 수 있어요");

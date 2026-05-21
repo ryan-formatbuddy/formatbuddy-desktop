@@ -206,6 +206,34 @@ export function restorableScheduledTaskBackupIds(result: CleanupExecuteResult, n
   );
 }
 
+export function preservedScheduledTaskBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
+  return uniqueIds(
+    result.skippedItems
+      .filter(
+        (item) =>
+          item.reason === "execute-failed" &&
+          isSafeRestorableResultId(item.scheduledTaskBackupId) &&
+          executedItemStillWithinRestoreWindow(item.expiresAt, result.executedAt, now)
+      )
+      .map((item) => item.scheduledTaskBackupId)
+      .filter((id): id is string => typeof id === "string")
+  );
+}
+
+export function recoverableScheduledTaskBackupIds(result: CleanupExecuteResult, now = Date.now()): string[] {
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const id of [
+    ...restorableScheduledTaskBackupIds(result, now),
+    ...preservedScheduledTaskBackupIds(result, now)
+  ]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  return ids;
+}
+
 type IntegrityStatusSource = { integrityStatus?: "verified" | "changed" | "legacy" } | null | undefined;
 
 function isChangedBlockedRestore(

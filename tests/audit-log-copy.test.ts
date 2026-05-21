@@ -153,6 +153,9 @@ describe("AuditLog copy", () => {
     );
     expect(source).toContain('const startupDisabledCount = numberDetail(detail, "startupDisabledCount")');
     expect(source).toContain('const scheduledTaskBackupCount = numberDetail(detail, "scheduledTaskBackupCount")');
+    expect(source).toContain(
+      'const preservedScheduledTaskBackupCount = numberDetail(detail, "preservedScheduledTaskBackupCount")'
+    );
     expect(source).toContain("restorableCount > 0");
     expect(source).toContain("30일 안에 되돌릴 수 있는 항목 ${restorableCount}개");
   });
@@ -163,6 +166,7 @@ describe("AuditLog copy", () => {
     expect(source).toContain('const scheduledTaskName = stringDetail(detail, "taskName")');
     expect(source).toContain("예약 작업 ${scheduledTaskName}");
     expect(source).toContain("예약 작업 백업 ${scheduledTaskBackupCount}개");
+    expect(source).toContain("확인 못 끝낸 예약 작업 백업 ${preservedScheduledTaskBackupCount}개");
   });
 
   it("reads count details from numeric audit fields before legacy arrays", () => {

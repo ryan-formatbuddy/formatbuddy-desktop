@@ -180,6 +180,7 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   const preservedRegistryBackupCount = numberDetail(detail, "preservedRegistryBackupCount");
   const startupDisabledCount = numberDetail(detail, "startupDisabledCount");
   const scheduledTaskBackupCount = numberDetail(detail, "scheduledTaskBackupCount");
+  const preservedScheduledTaskBackupCount = numberDetail(detail, "preservedScheduledTaskBackupCount");
   const scheduledTaskName = stringDetail(detail, "taskName");
   const purgedBytes = numberDetail(detail, "purgedBytes");
   const totalFreedBytes = numberDetail(detail, "totalFreedBytes");
@@ -203,6 +204,9 @@ function auditDetailLines(detail: AuditEntry["detail"]): string[] {
   }
   if (scheduledTaskBackupCount !== null && scheduledTaskBackupCount > 0) {
     lines.push(`예약 작업 백업 ${scheduledTaskBackupCount}개`);
+  }
+  if (preservedScheduledTaskBackupCount !== null && preservedScheduledTaskBackupCount > 0) {
+    lines.push(`확인 못 끝낸 예약 작업 백업 ${preservedScheduledTaskBackupCount}개`);
   }
   if (scheduledTaskName) {
     lines.push(`예약 작업 ${scheduledTaskName}`);

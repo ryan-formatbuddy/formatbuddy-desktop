@@ -3,7 +3,9 @@ import {
   daysUntilTrashExpiry,
   isTrashEntryExpired,
   preservedRegistryBackupIds,
+  preservedScheduledTaskBackupIds,
   recoverableRegistryBackupIds,
+  recoverableScheduledTaskBackupIds,
   restoreEntryExpiryLabel,
   restorableRegistryBackupIds,
   registryBackupKindLabel,
@@ -173,6 +175,57 @@ describe("Cleanup result undo helper", () => {
     };
 
     expect(restorableScheduledTaskBackupIds(result, now)).toEqual(["scheduled-task-ok"]);
+  });
+
+  it("returns preserved scheduled task backup ids when cleanup could not confirm deletion", () => {
+    const now = Date.parse("2026-05-20T00:00:00.000Z");
+    const result: CleanupExecuteResult = {
+      ...resultWithEntries(),
+      removedItems: [
+        {
+          itemId: "scheduled-task-success",
+          path: "Task Scheduler: Acme Update",
+          sizeBytes: 0,
+          categoryId: "app-leftovers",
+          mode: "trash",
+          succeeded: true,
+          scheduledTaskBackupId: "scheduled-task-ok",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ],
+      skippedItems: [
+        {
+          itemId: "same-preserved-scheduled-task",
+          path: "Task Scheduler: Acme Update",
+          reason: "execute-failed",
+          scheduledTaskBackupId: "scheduled-task-ok",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "preserved-scheduled-task",
+          path: "Task Scheduler: Acme Helper",
+          reason: "execute-failed",
+          scheduledTaskBackupId: "preserved-scheduled-task-ok",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        },
+        {
+          itemId: "unsafe-preserved-scheduled-task",
+          path: "Task Scheduler: Unsafe Helper",
+          reason: "execute-failed",
+          scheduledTaskBackupId: "preserved/scheduled-task-bad",
+          expiresAt: "2026-06-18T00:00:00.000Z"
+        }
+      ]
+    };
+
+    expect(preservedScheduledTaskBackupIds(result, now)).toEqual([
+      "scheduled-task-ok",
+      "preserved-scheduled-task-ok"
+    ]);
+    expect(recoverableScheduledTaskBackupIds(result, now)).toEqual([
+      "scheduled-task-ok",
+      "preserved-scheduled-task-ok"
+    ]);
   });
 
   it("returns safe preserved registry backup ids from skipped cleanup items", () => {

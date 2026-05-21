@@ -163,11 +163,11 @@ describe("cleanup policy wiring", () => {
     ).toBeGreaterThan(appLeftoversIndex);
     expect(
       source.indexOf(
-        "const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result)",
+        "const recoverableScheduledTaskIds = recoverableScheduledTaskBackupIds(result)",
         appLeftoversIndex
       )
     ).toBeGreaterThan(appLeftoversIndex);
-    expect(source.indexOf("scheduledTaskBackupIds.length", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
+    expect(source.indexOf("recoverableScheduledTaskIds.length", appLeftoversIndex)).toBeGreaterThan(appLeftoversIndex);
     expect(
       source.indexOf(
         'const skippedCount = result.skippedItems.filter((item) => item.reason !== "not-selected").length',

@@ -45,7 +45,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("restoreStartupAuto");
     expect(source).toContain("restorableStartupDisabledIds");
     expect(source).toContain("restoreScheduledTaskBackup");
-    expect(source).toContain("restorableScheduledTaskBackupIds");
+    expect(source).toContain("recoverableScheduledTaskBackupIds");
     expect(source).toContain("scheduledTaskResults");
     expect(source).toContain("방금 정리 되돌리기");
     expect(source).not.toContain("레지스트리는");
@@ -70,7 +70,7 @@ describe("AppManager uninstall copy", () => {
     expect(source).toContain("restorableTrashEntryIds(result).length +");
     expect(source).toContain("recoverableRegistryBackupIds(result).length +");
     expect(source).toContain("restorableStartupDisabledIds(result).length");
-    expect(source).toContain("restorableScheduledTaskBackupIds(result).length");
+    expect(source).toContain("recoverableScheduledTaskBackupIds(result).length");
     expect(source).toContain("{restorableCount > 0 && (");
   });
 
@@ -121,7 +121,9 @@ describe("AppManager uninstall copy", () => {
 
     expect(source).toContain("appLeftoverResultHeadline");
     expect(source).toContain("const cleanedCount = result");
-    expect(source).toContain("const preservedBackupCount = preservedRegistryBackupIds(result).length");
+    expect(source).toContain("const preservedBackupCount =");
+    expect(source).toContain("preservedRegistryBackupIds(result).length +");
+    expect(source).toContain("preservedScheduledTaskBackupIds(result).length");
     expect(source).toContain("if (preservedBackupCount > 0)");
     expect(source).toContain(".filter((item) => item.succeeded).length");
     expect(source).toContain("정리 확인을 끝내지 못했지만 백업");

@@ -6,7 +6,7 @@ import {
   daysUntilTrashExpiry,
   isTrashEntryExpired,
   recoverableRegistryBackupIds,
-  restorableScheduledTaskBackupIds,
+  recoverableScheduledTaskBackupIds,
   restorableStartupDisabledIds,
   restorableTrashEntryIds,
   restoreEntryExpiryLabel,
@@ -414,7 +414,7 @@ function restorableCleanupResultCount(result: CleanupExecuteResult): number {
     restorableTrashEntryIds(result).length +
     recoverableRegistryBackupIds(result).length +
     restorableStartupDisabledIds(result).length +
-    restorableScheduledTaskBackupIds(result).length
+    recoverableScheduledTaskBackupIds(result).length
   );
 }
 
@@ -963,7 +963,7 @@ export function Cleanup({
       const entryIds = restorableTrashEntryIds(result);
       const registryBackupIds = recoverableRegistryBackupIds(result);
       const startupDisabledIds = restorableStartupDisabledIds(result);
-      const scheduledTaskBackupIds = restorableScheduledTaskBackupIds(result);
+      const scheduledTaskBackupIds = recoverableScheduledTaskBackupIds(result);
       if (
         entryIds.length === 0 &&
         registryBackupIds.length === 0 &&
