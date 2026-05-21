@@ -22,6 +22,7 @@
     "test": "npm run embed-ps-hash && vitest run",
     "test:watch": "vitest",
     "field:e2e:win": "node scripts/run-windows-field-e2e.mjs",
+    "readiness:professional": "node scripts/check-professional-readiness.mjs",
     "predist:win": "npm run embed-ps-hash",
     "dist:win": "electron-vite build && electron-builder --win --publish never",
     "dist:mac": "npm run embed-ps-hash && electron-vite build && electron-builder --mac --publish never"

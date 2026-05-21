@@ -69,6 +69,20 @@ On Windows, the runner writes a machine-readable evidence report to
 `dist/field-e2e/`, including the covered checks and captured test output. Set
 `FORMATBUDDY_FIELD_E2E_REPORT_DIR` to save the report somewhere else.
 
+## Professional readiness gate
+
+Do not call the app professional-ready until the latest Windows field E2E
+evidence report has passed on a real Windows PC:
+
+```bash
+npm run readiness:professional
+```
+
+This command reads the latest `dist/field-e2e/windows-field-e2e-*.json` report
+and writes a machine-readable readiness report to `dist/professional-readiness/`.
+It exits with code `1` when the latest evidence is missing, was created on
+macOS, is `blocked-non-windows`, or contains any `not-proven` requirement.
+
 ## 검증 한계
 
 | 항목 | macOS에서 가능 | Windows 실기 필요 |
