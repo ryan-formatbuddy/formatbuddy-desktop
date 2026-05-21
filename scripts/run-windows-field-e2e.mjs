@@ -19,6 +19,7 @@ const evidenceRequirements = [
   "uninstall registry key is backed up, removed, and restored",
   "App Paths registry alias is backed up, removed, and restored",
   "Open With app connection registry key is backed up, removed, and restored",
+  "right-click menu registry key is backed up, removed, and restored",
   "Windows service trace is backed up, removed with sc.exe, and restored as a 30-day registry backup",
   "unified 30-day retention tick empties file, app-deletion, startup holding, and scheduled task backup bins"
 ];

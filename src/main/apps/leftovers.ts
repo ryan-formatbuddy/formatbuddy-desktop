@@ -65,6 +65,7 @@ import {
   defaultRegistryCleanupRunner,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
+  isSafeContextMenuRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   normalizeSafeServiceName,
   serviceRegistryKeyPath,
@@ -423,8 +424,9 @@ export interface PlanLeftoversOptions {
    */
   startupEntries?: StartupAutoEntry[];
   /**
-   * Optional registry probe used to verify App Paths aliases before
-   * surfacing them. Defaults to reg.exe on Windows and no-op elsewhere.
+   * Optional registry probe used to verify App Paths, app connection,
+   * and right-click menu traces before surfacing them. Defaults to
+   * reg.exe on Windows and no-op elsewhere.
    */
   registryRunner?: Pick<RegistryCleanupRunner, "keyExists">;
 }
@@ -612,6 +614,7 @@ function isSafeLeftoverPathKind(value: unknown): value is NonNullable<AppLeftove
     value === "registry" ||
     value === "app-path-registry" ||
     value === "open-with-registry" ||
+    value === "context-menu-registry" ||
     value === "startup-folder" ||
     value === "startup-registry" ||
     value === "startup-entry"
@@ -1331,6 +1334,59 @@ async function openWithRegistryLeftoverPaths(
   return paths;
 }
 
+const CONTEXT_MENU_REGISTRY_ROOTS = [
+  "HKCU\\Software\\Classes\\*\\shell",
+  "HKCU\\Software\\Classes\\Directory\\shell",
+  "HKCU\\Software\\Classes\\Directory\\Background\\shell",
+  "HKCU\\Software\\Classes\\Folder\\shell",
+  "HKLM\\Software\\Classes\\*\\shell",
+  "HKLM\\Software\\Classes\\Directory\\shell",
+  "HKLM\\Software\\Classes\\Directory\\Background\\shell",
+  "HKLM\\Software\\Classes\\Folder\\shell"
+] as const;
+
+function contextMenuNames(app: InstalledApp): string[] {
+  const candidates = new Set<string>();
+  for (const name of genericFolderNames(app)) {
+    const cleaned = cleanGenericName(name);
+    if (!cleaned) continue;
+    candidates.add(cleaned);
+    const compact = cleaned.replace(/\s+/g, "");
+    if (compact) candidates.add(compact);
+  }
+
+  return Array.from(candidates)
+    .map((name) => name.trim())
+    .filter((name) => /^[^\\/:*?"'`|&<>\u0000-\u001f\u007f]{1,128}$/.test(name))
+    .slice(0, 8);
+}
+
+async function contextMenuRegistryLeftoverPaths(
+  app: InstalledApp,
+  runner?: Pick<RegistryCleanupRunner, "keyExists">
+): Promise<AppLeftoverPath[]> {
+  const names = contextMenuNames(app);
+  if (names.length === 0) return [];
+
+  const paths: AppLeftoverPath[] = [];
+  for (const root of CONTEXT_MENU_REGISTRY_ROOTS) {
+    for (const name of names) {
+      const keyPath = `${root}\\${name}`;
+      if (!isSafeContextMenuRegistryKeyPath(keyPath)) continue;
+      if (!(await registryKeyExists(keyPath, runner))) continue;
+      paths.push({
+        id: makePathId(`context-menu-registry:${keyPath}`),
+        kind: "context-menu-registry",
+        path: keyPath,
+        exists: true,
+        sizeBytes: null,
+        lastModifiedAt: null
+      });
+    }
+  }
+  return paths;
+}
+
 function startupTextMatchesApp(entry: StartupAutoEntry, app: InstalledApp): boolean {
   const text = `${entry.name} ${entry.publisher ?? ""} ${entry.path ?? ""}`.toLowerCase();
   const appNames = genericFolderNames(app).map((name) => name.toLowerCase());
@@ -1513,7 +1569,8 @@ export async function planAppLeftovers(
         ...(source === "uninstall-launched"
           ? [
               ...(await appPathRegistryLeftoverPaths(app, options.registryRunner)),
-              ...(await openWithRegistryLeftoverPaths(app, options.registryRunner))
+              ...(await openWithRegistryLeftoverPaths(app, options.registryRunner)),
+              ...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner))
             ]
           : []),
         ...(await startupLeftoverPaths(app, env, options.startupEntries))
@@ -1544,6 +1601,7 @@ export async function planAppLeftovers(
     if (source === "uninstall-launched") {
       paths.push(...(await appPathRegistryLeftoverPaths(app, options.registryRunner)));
       paths.push(...(await openWithRegistryLeftoverPaths(app, options.registryRunner)));
+      paths.push(...(await contextMenuRegistryLeftoverPaths(app, options.registryRunner)));
     }
     paths.push(...(await startupLeftoverPaths(app, env, options.startupEntries)));
 
@@ -2160,6 +2218,9 @@ function assertSelectedLeftoverPlanMetadataUsable(
     if (path.kind === "open-with-registry" && !isSafeOpenWithRegistryKeyPath(path.path)) {
       invalid.push("open with registry key");
     }
+    if (path.kind === "context-menu-registry" && !isSafeContextMenuRegistryKeyPath(path.path)) {
+      invalid.push("context menu registry key");
+    }
 
     if (invalid.length > 0) {
       throw new Error(
@@ -2290,7 +2351,12 @@ export async function cleanupAppLeftovers(
       continue;
     }
 
-    if (path.kind === "registry" || path.kind === "app-path-registry" || path.kind === "open-with-registry") {
+    if (
+      path.kind === "registry" ||
+      path.kind === "app-path-registry" ||
+      path.kind === "open-with-registry" ||
+      path.kind === "context-menu-registry"
+    ) {
       try {
         const backup = await backupAndDeleteRegistryKey({
           userDataDir: options.userDataDir,
@@ -2300,7 +2366,9 @@ export async function cleanupAppLeftovers(
               ? "app-path-key"
               : path.kind === "open-with-registry"
                 ? "open-with-key"
-                : "key",
+                : path.kind === "context-menu-registry"
+                  ? "context-menu-key"
+                  : "key",
           now: options.now,
           runner: options.registryRunner ?? defaultRegistryCleanupRunner(),
           app: group ? groupInstallIdentity(group) : undefined

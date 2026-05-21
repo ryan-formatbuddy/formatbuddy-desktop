@@ -484,7 +484,13 @@ async function maybeCreateRestorePoint(
 function restoredRegistryBackupFollowupApp(restoredApp: {
   name: string;
   publisher?: string | null;
-  backupKind?: "key" | "startup-value" | "app-path-key" | "open-with-key" | "service-key";
+  backupKind?:
+    | "key"
+    | "startup-value"
+    | "app-path-key"
+    | "open-with-key"
+    | "context-menu-key"
+    | "service-key";
   registryKeyPath?: string;
 }): InstalledApp {
   return {

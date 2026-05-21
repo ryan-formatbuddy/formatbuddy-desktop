@@ -8,6 +8,7 @@ import {
   backupAndDeleteRegistryKey,
   isRegistryBackupPreservedError,
   isSafeAppPathRegistryKeyPath,
+  isSafeContextMenuRegistryKeyPath,
   isSafeOpenWithRegistryKeyPath,
   isSafeServiceRegistryKeyPath,
   isSafeStartupRegistryValuePath,
@@ -313,6 +314,61 @@ describe("registry leftover cleanup", () => {
     expect(listed.entries[0]).toMatchObject({
       keyPath,
       backupKind: "open-with-key"
+    });
+  });
+
+  it("accepts only narrow right-click menu registry keys", () => {
+    expect(
+      isSafeContextMenuRegistryKeyPath("HKCU\\Software\\Classes\\*\\shell\\Acme Notes")
+    ).toBe(true);
+    expect(
+      isSafeContextMenuRegistryKeyPath(
+        "HKLM\\Software\\Classes\\Directory\\Background\\shell\\Acme Notes"
+      )
+    ).toBe(true);
+    expect(
+      isSafeContextMenuRegistryKeyPath("HKCU\\Software\\Classes\\.txt\\shell\\Acme Notes")
+    ).toBe(false);
+    expect(
+      isSafeContextMenuRegistryKeyPath("HKCU\\Software\\Classes\\*\\shell\\Acme Notes\\command")
+    ).toBe(false);
+    expect(
+      isSafeContextMenuRegistryKeyPath("HKCU\\Software\\Classes\\*\\shell\\Acme & Notes")
+    ).toBe(false);
+  });
+
+  it("exports a backup before deleting a right-click menu registry key", async () => {
+    const keyPath = "HKCU\\Software\\Classes\\*\\shell\\Acme Notes";
+    const calls: string[] = [];
+    const runner = {
+      exportKey: vi.fn(async (_keyPath: string, backupPath: string) => {
+        calls.push("export");
+        await mkdir(dirname(backupPath), { recursive: true });
+        await writeFile(backupPath, registryBackupContentFor(_keyPath), "utf8");
+      }),
+      deleteKey: vi.fn(async () => {
+        calls.push("delete");
+      })
+    };
+
+    const result = await backupAndDeleteRegistryKey({
+      userDataDir: fx.userDataDir,
+      keyPath,
+      backupKind: "context-menu-key",
+      now: () => new Date("2026-05-19T00:00:00.000Z"),
+      runner
+    });
+
+    expect(calls).toEqual(["export", "delete"]);
+    expect(result).toMatchObject({
+      keyPath,
+      backupKind: "context-menu-key",
+      expiresAt: "2026-06-18T00:00:00.000Z"
+    });
+    const listed = await listRegistryBackups({ userDataDir: fx.userDataDir });
+    expect(listed.entries[0]).toMatchObject({
+      keyPath,
+      backupKind: "context-menu-key"
     });
   });
 
