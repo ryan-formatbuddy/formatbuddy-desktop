@@ -58,6 +58,7 @@ const CLEANUP_TRASH_PURGED_CATEGORY_IDS = [
   "temp-user",
   "temp-windows",
   "browser-cache",
+  "diagnostic-reports",
   "windows-old",
   "downloads-installers",
   "large-files",

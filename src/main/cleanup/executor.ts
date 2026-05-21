@@ -57,6 +57,7 @@ const PATH_KIND_REQUIRED_CATEGORIES = new Set<CleanupCategoryId>([
   "temp-user",
   "temp-windows",
   "browser-cache",
+  "diagnostic-reports",
   "windows-old",
   "downloads-installers",
   "large-files",

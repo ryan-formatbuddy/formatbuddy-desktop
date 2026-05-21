@@ -70,6 +70,7 @@ describe("planCleanup", () => {
       "temp-user",
       "temp-windows",
       "browser-cache",
+      "diagnostic-reports",
       "windows-old",
       "downloads-installers",
       "large-files"
@@ -219,6 +220,52 @@ describe("planCleanup", () => {
     expect(cachePaths.some((p) => p.endsWith("opera-cache.bin"))).toBe(true);
     expect(cachePaths.some((p) => p.endsWith("Login Data"))).toBe(false);
     expect(cachePaths.some((p) => p.endsWith("logins.json"))).toBe(false);
+  });
+
+  it("surfaces old Windows error reports and crash dumps as review cleanup candidates", async () => {
+    const reportFile = join(
+      fx.localAppData,
+      "Microsoft",
+      "Windows",
+      "WER",
+      "ReportArchive",
+      "AppCrash_Acme",
+      "Report.wer"
+    );
+    const freshReport = join(
+      fx.localAppData,
+      "Microsoft",
+      "Windows",
+      "WER",
+      "ReportQueue",
+      "AppCrash_Fresh",
+      "Report.wer"
+    );
+    const crashDump = join(fx.localAppData, "CrashDumps", "AcmeNotes.exe.1234.dmp");
+    await writeAgedFile(reportFile, "wer", 20 * ONE_DAY_MS);
+    await writeAgedFile(freshReport, "fresh", ONE_DAY_MS);
+    await writeAgedFile(crashDump, "dump", 21 * ONE_DAY_MS);
+
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+
+    const diagnostics = plan.categories.find((c) => c.id === "diagnostic-reports");
+    expect(diagnostics).toBeDefined();
+    expect(diagnostics?.riskLevel).toBe("review");
+    expect(diagnostics?.safetyNote).toContain("30일 복구함");
+    const paths = diagnostics!.items.map((item) => item.path).sort();
+    expect(paths).toEqual([crashDump, reportFile].sort());
+    expect(paths).not.toContain(freshReport);
+    expect(diagnostics!.items.every((item) => item.fingerprint?.match(/^[a-f0-9]{64}$/))).toBe(
+      true
+    );
   });
 
   it("flags Windows.old as a single review item with the folder total size", async () => {

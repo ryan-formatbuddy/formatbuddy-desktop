@@ -38,6 +38,7 @@ const PLAN_TTL_MS = 5 * 60 * 1000;
 const MAX_ITEMS_PER_CATEGORY = 500;
 const MAX_DEPTH = 8;
 const MIN_TEMP_AGE_DAYS = 7;
+const MIN_DIAGNOSTIC_REPORT_AGE_DAYS = 14;
 const MIN_INSTALLER_AGE_DAYS = 90;
 const INSTALLER_EXTENSIONS = new Set([".exe", ".msi", ".msix", ".iso", ".dmg"]);
 
@@ -359,6 +360,52 @@ async function planBrowserCacheCategory(args: {
   return acc;
 }
 
+async function planDiagnosticReportsCategory(args: {
+  home: string;
+  signal?: AbortSignal;
+  env?: PlanCleanupEnvironment;
+}): Promise<CandidateAccumulator> {
+  const acc = emptyAccumulator();
+  const localAppData = args.env?.localAppData ?? join(args.home, "AppData", "Local");
+  const roots = [
+    join(localAppData, "Microsoft", "Windows", "WER", "ReportArchive"),
+    join(localAppData, "Microsoft", "Windows", "WER", "ReportQueue"),
+    join(localAppData, "Microsoft", "Windows", "WER", "Temp"),
+    join(localAppData, "CrashDumps")
+  ];
+
+  for (const root of roots) {
+    try {
+      await fs.access(root);
+    } catch {
+      continue;
+    }
+    for await (const file of walkFiles(root, args.signal)) {
+      if (file.size <= 0) continue;
+      const age = ageDays(file.modified, args.env);
+      if (age < MIN_DIAGNOSTIC_REPORT_AGE_DAYS) continue;
+      pushCandidate(
+        acc,
+        {
+          path: file.path,
+          pathKind: "file",
+          label: basename(file.path),
+          sizeBytes: file.size,
+          modifiedAt: file.modified.toISOString(),
+          fingerprint: file.fingerprint,
+          categoryId: "diagnostic-reports",
+          riskLevel: "review",
+          reason: `${Math.round(age)}일 지난 오류 리포트/크래시 덤프`
+        },
+        [root],
+        args.home
+      );
+    }
+  }
+
+  return acc;
+}
+
 async function planWindowsOldCategory(args: {
   systemDrive: string | undefined;
   home: string;
@@ -539,6 +586,13 @@ const CATEGORY_SPECS: Record<CleanupCategoryId, CategorySpec> = {
     safetyNote: "다음 방문 시 자동으로 다시 만들어져요.",
     riskLevel: "safe"
   },
+  "diagnostic-reports": {
+    id: "diagnostic-reports",
+    label: "오류 리포트와 크래시 덤프",
+    description: "앱이 꺼지거나 Windows가 문제를 기록하며 남긴 오래된 리포트예요.",
+    safetyNote: "문제 해결 중인 앱이 있다면 남겨두세요. 고른 항목만 30일 복구함으로 보내요.",
+    riskLevel: "review"
+  },
   "windows-old": {
     id: "windows-old",
     label: "이전 Windows 파일",
@@ -621,6 +675,7 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
   });
 
   const browserCache = await planBrowserCacheCategory({ home, signal, env });
+  const diagnosticReports = await planDiagnosticReportsCategory({ home, signal, env });
   const windowsOld = await planWindowsOldCategory({ systemDrive, home, signal });
   const downloadsInstallers = await planDownloadsInstallersCategory({ home, signal, env });
   const largeFiles = await planLargeFilesCategory({
@@ -634,6 +689,7 @@ export async function planCleanup(options: PlanCleanupOptions = {}): Promise<Cle
     toCategoryPlan(CATEGORY_SPECS["temp-user"], tempUser),
     toCategoryPlan(CATEGORY_SPECS["temp-windows"], tempWindows),
     toCategoryPlan(CATEGORY_SPECS["browser-cache"], browserCache),
+    toCategoryPlan(CATEGORY_SPECS["diagnostic-reports"], diagnosticReports),
     toCategoryPlan(CATEGORY_SPECS["windows-old"], windowsOld),
     toCategoryPlan(CATEGORY_SPECS["downloads-installers"], downloadsInstallers),
     toCategoryPlan(CATEGORY_SPECS["large-files"], largeFiles)

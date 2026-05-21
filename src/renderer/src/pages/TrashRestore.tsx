@@ -60,6 +60,7 @@ const CATEGORY_LABEL: Record<CleanupCategoryId, string> = {
   "temp-user": "사용자 임시",
   "temp-windows": "Windows 임시",
   "browser-cache": "브라우저 캐시",
+  "diagnostic-reports": "오류 리포트",
   "windows-old": "이전 Windows",
   "downloads-installers": "오래된 설치 파일",
   "large-files": "큰 파일",

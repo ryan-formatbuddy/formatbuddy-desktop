@@ -38,6 +38,7 @@ const CLEANUP_CATEGORY_IDS = [
   "temp-user",
   "temp-windows",
   "browser-cache",
+  "diagnostic-reports",
   "windows-old",
   "downloads-installers",
   "large-files",

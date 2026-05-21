@@ -56,6 +56,7 @@ function isCleanupCategoryId(value: unknown): value is CleanupCategoryId {
     value === "temp-user" ||
     value === "temp-windows" ||
     value === "browser-cache" ||
+    value === "diagnostic-reports" ||
     value === "windows-old" ||
     value === "downloads-installers" ||
     value === "large-files" ||

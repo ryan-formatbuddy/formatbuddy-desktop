@@ -270,6 +270,53 @@ describe("executeCleanup", () => {
     await expect(fs.readFile(storedPath, "utf8")).resolves.toBe(finalText);
   });
 
+  it("moves selected diagnostic reports into the 30-day restore bin", async () => {
+    const reportFile = join(
+      fx.localAppData,
+      "Microsoft",
+      "Windows",
+      "WER",
+      "ReportArchive",
+      "AppCrash_Acme",
+      "Report.wer"
+    );
+    await writeAged(reportFile, 2048, 20 * 86_400_000);
+
+    const plan = await planCleanup({
+      env: {
+        home: fx.home,
+        tempDir: fx.tempDir,
+        systemRoot: fx.systemRoot,
+        systemDrive: fx.systemDrive,
+        localAppData: fx.localAppData
+      }
+    });
+    const diagnosticItem = plan.categories
+      .find((c) => c.id === "diagnostic-reports")!
+      .items.find((item) => item.path === reportFile)!;
+
+    const { deps, trashed } = makeSpyDeps();
+    const result = await executeCleanup(
+      {
+        planId: plan.planId,
+        confirmationToken: plan.confirmationToken,
+        selectedItemIds: [diagnosticItem.id],
+        mode: "trash"
+      },
+      { userDataDir: fx.userData, deps, home: fx.home }
+    );
+
+    expect(trashed).toEqual([reportFile]);
+    expect(result.removedItems).toHaveLength(1);
+    expect(result.removedItems[0]).toMatchObject({
+      path: reportFile,
+      categoryId: "diagnostic-reports",
+      mode: "trash",
+      succeeded: true
+    });
+    expect(result.removedItems[0].trashEntryId).toBe(`trash-${diagnosticItem.id}`);
+  });
+
   it("shows a friendly failure when the restore-bin size cannot be trusted", async () => {
     const targetFile = join(fx.tempDir, "bad-size.tmp");
     const plan = await planWithOneTempFile(fx, targetFile);
