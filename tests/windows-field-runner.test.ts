@@ -20,6 +20,8 @@ describe("Windows field E2E runner", () => {
     expect(source).toContain("maxCapturedLogChars");
     expect(source).toContain("evidence report failed");
     expect(source).toContain('status: code === 0 ? "passed" : "failed"');
+    expect(source).toContain('status: "blocked-non-windows"');
+    expect(source).toContain('blockedReason: "Windows-only field test. Run this on a real Windows PC."');
     expect(source).toContain('status: "spawn-error"');
     expect(source).toContain('status: "stopped"');
   });

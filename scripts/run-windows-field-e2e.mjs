@@ -82,6 +82,12 @@ function writeEvidenceReport(payload) {
 
 if (process.platform !== "win32") {
   console.error("[field:e2e:win] Windows-only field test. Run this on a real Windows PC.");
+  writeEvidenceReport({
+    status: "blocked-non-windows",
+    exitCode: 1,
+    blockedReason: "Windows-only field test. Run this on a real Windows PC.",
+    command: vitestCommand
+  });
   process.exit(1);
 }
 
