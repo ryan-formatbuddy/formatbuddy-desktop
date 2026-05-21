@@ -11,6 +11,8 @@ import {
   type SecurityCareSummary
 } from "@shared/security-care";
 import type {
+  AuditEntry,
+  AuditSnapshot,
   CleanupHistorySnapshot,
   CleanupLogEntry,
   CleanupTrashSnapshot,
@@ -258,6 +260,8 @@ interface HomeRestoreBinState {
   partial: boolean;
   latestCleanup?: CleanupLogEntry;
   historyMessage?: string;
+  latestAutoEmpty?: AuditEntry;
+  auditMessage?: string;
 }
 
 function settledValue<T>(result: PromiseSettledResult<T>): T | undefined {
@@ -321,10 +325,18 @@ function homeLatestCleanupSummary(entry: CleanupLogEntry): string {
   return parts.length > 0 ? parts.join(" · ") : "처리한 항목은 없어요.";
 }
 
+function latestRestoreBinAutoEmpty(entries: AuditEntry[]): AuditEntry | undefined {
+  return entries.find(
+    (entry) => entry.category === "cleanup" && entry.action.includes("expired-purge")
+  );
+}
+
 function HomeRestoreBinCard({
-  onOpenTrashRestore
+  onOpenTrashRestore,
+  onOpenAuditLog
 }: {
   onOpenTrashRestore?: () => void;
+  onOpenAuditLog?: () => void;
 }) {
   const [state, setState] = useState<HomeRestoreBinState>({
     loading: true,
@@ -332,7 +344,8 @@ function HomeRestoreBinCard({
     detail: "정리한 항목이 있으면 30일 보관 기간도 같이 살펴볼게요.",
     count: 0,
     partial: false,
-    historyMessage: "최근 정리 기록도 같이 확인하는 중이에요."
+    historyMessage: "최근 정리 기록도 같이 확인하는 중이에요.",
+    auditMessage: "자동 비움 기록도 같이 확인하는 중이에요."
   });
 
   useEffect(() => {
@@ -357,14 +370,25 @@ function HomeRestoreBinCard({
     const historyTask = window.fb.getCleanupHistory
       ? window.fb.getCleanupHistory()
       : Promise.resolve<CleanupHistorySnapshot | undefined>(undefined);
+    const auditTask = window.fb.getAuditSnapshot
+      ? window.fb.getAuditSnapshot()
+      : Promise.resolve<AuditSnapshot | undefined>(undefined);
 
     void Promise.allSettled([
       window.fb.getCleanupTrash(),
       window.fb.getRegistryBackups(),
       window.fb.listDisabledStartupAuto(),
       window.fb.getScheduledTaskBackups(),
-      historyTask
-    ]).then(([fileResult, registryResult, startupResult, scheduledTaskResult, historyResult]) => {
+      historyTask,
+      auditTask
+    ]).then(([
+      fileResult,
+      registryResult,
+      startupResult,
+      scheduledTaskResult,
+      historyResult,
+      auditResult
+    ]) => {
       if (!active) return;
 
       const partial = [fileResult, registryResult, startupResult, scheduledTaskResult].some(
@@ -372,12 +396,20 @@ function HomeRestoreBinCard({
       );
       const history = settledValue(historyResult);
       const latestCleanup = history?.entries[0];
+      const audit = settledValue(auditResult);
+      const latestAutoEmpty = latestRestoreBinAutoEmpty(audit?.entries ?? []);
       const historyMessage =
         historyResult.status === "rejected"
           ? "최근 정리 기록은 지금 불러오지 못했어요."
           : latestCleanup
             ? undefined
             : "아직 정리 기록은 없어요. 정리한 뒤에는 여기에서 바로 확인할게요.";
+      const auditMessage =
+        auditResult.status === "rejected"
+          ? "자동 비움 기록은 지금 불러오지 못했어요."
+          : latestAutoEmpty
+            ? undefined
+            : "아직 자동 비움 기록은 없어요.";
       const restoreItems = restoreItemsFromSnapshots({
         fileSnapshot: settledValue(fileResult),
         registrySnapshot: settledValue(registryResult),
@@ -396,19 +428,29 @@ function HomeRestoreBinCard({
           count: 0,
           partial,
           latestCleanup,
-          historyMessage
+          historyMessage,
+          latestAutoEmpty,
+          auditMessage
         });
         return;
       }
 
       setState({
         loading: false,
-        message: partial ? "보이는 항목만 먼저 확인했어요." : insight?.message ?? "복구함에 보관 중인 항목이 있어요.",
-        detail: partial ? insight?.message ?? "복구함에서 남은 항목을 확인해 주세요." : insight?.detail ?? "필요한 항목은 복구함에서 다시 원래 자리로 되돌릴 수 있어요.",
+        message:
+          partial
+            ? "보이는 항목만 먼저 확인했어요."
+            : insight?.message ?? "복구함에 보관 중인 항목이 있어요.",
+        detail:
+          partial
+            ? insight?.message ?? "복구함에서 남은 항목을 확인해 주세요."
+            : insight?.detail ?? "필요한 항목은 복구함에서 다시 원래 자리로 되돌릴 수 있어요.",
         count: restoreItems.length,
         partial,
         latestCleanup,
-        historyMessage
+        historyMessage,
+        latestAutoEmpty,
+        auditMessage
       });
     });
 
@@ -442,15 +484,36 @@ function HomeRestoreBinCard({
             </span>
           </p>
         )}
+        {!state.loading && (
+          <p className="fb-home-restore-latest">
+            <strong>최근 자동 비움</strong>
+            <span>
+              {state.latestAutoEmpty
+                ? `${homeCleanupDateLabel(state.latestAutoEmpty.at)} · ${state.latestAutoEmpty.summary}`
+                : state.auditMessage}
+            </span>
+          </p>
+        )}
       </div>
-      <button
-        type="button"
-        className="fb-home-security-action"
-        onClick={onOpenTrashRestore}
-        disabled={!onOpenTrashRestore}
-      >
-        복구함 열기
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="fb-home-security-action"
+          onClick={onOpenTrashRestore}
+          disabled={!onOpenTrashRestore}
+        >
+          복구함 열기
+        </button>
+        {onOpenAuditLog && (
+          <button
+            type="button"
+            className="fb-home-security-action"
+            onClick={onOpenAuditLog}
+          >
+            자동 비움 기록 보기
+          </button>
+        )}
+      </div>
     </section>
   );
 }
@@ -612,7 +675,10 @@ export function Home({
 
       <MonitorCard monitor={monitor} />
 
-      <HomeRestoreBinCard onOpenTrashRestore={onOpenTrashRestore} />
+      <HomeRestoreBinCard
+        onOpenTrashRestore={onOpenTrashRestore}
+        onOpenAuditLog={onOpenAuditLog}
+      />
 
       <HomeSecuritySummaryCard isMacPreview={isMacPreview} onOpenSecurity={onOpenSecurity} />
 

@@ -55,4 +55,18 @@ describe("Home monitor copy", () => {
     expect(source).not.toContain("1-click");
     expect(source).not.toContain("60일");
   });
+
+  it("surfaces the latest automatic restore-bin emptying record on the first screen", () => {
+    const source = readFileSync(HOME_PAGE, "utf8");
+
+    expect(source).toContain("getAuditSnapshot");
+    expect(source).toContain("latestAutoEmpty");
+    expect(source).toContain("latestRestoreBinAutoEmpty");
+    expect(source).toContain("entry.action.includes(\"expired-purge\")");
+    expect(source).toContain("최근 자동 비움");
+    expect(source).toContain("아직 자동 비움 기록은 없어요");
+    expect(source).toContain("자동 비움 기록은 지금 불러오지 못했어요");
+    expect(source).toContain("자동 비움 기록 보기");
+    expect(source).toContain("onOpenAuditLog");
+  });
 });
